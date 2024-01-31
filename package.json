@@ -1,0 +1,34 @@
+{
+  "name": "ode",
+  "version": "0.1.0",
+  "description": "omniscient deterministic engine",
+  "type": "module",
+  "source": "src/index.js",
+  "main": "dist/index.js",
+  "module": "dist/module.js",
+  "scripts": {
+    "watch": "parcel watch",
+    "build": "parcel build",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --testPathPattern=./tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0-5788719150923125/ode.git"
+  },
+  "author": "United Nations of Earth",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/0-5788719150923125/ode/issues"
+  },
+  "homepage": "https://github.com/0-5788719150923125/ode#readme",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "parcel": "^2.11.0",
+    "prettier": "^3.2.4"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.17.0",
+    "@tensorflow/tfjs-node": "^4.17.0",
+    "@tensorflow/tfjs-node-gpu": "^4.17.0"
+  }
+}
