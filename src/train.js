@@ -43,8 +43,12 @@ function* batchGenerator(dataGenerator, vocab) {
         // console.log(text)
 
         // Extract necessary parameters directly
+        const filteredText = text
+            .split('')
+            .filter((e) => vocab.indexOf(e) !== -1)
+            .join('')
         const textIndices = new Uint16Array(
-            text.split('').map((e) => vocab.indexOf(e))
+            filteredText.split('').map((e) => vocab.indexOf(e))
         )
         const sampleLength = textIndices.length - 1
 

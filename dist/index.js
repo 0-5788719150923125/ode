@@ -41,7 +41,8 @@ function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
         const text = dataGenerator.next().value;
         // console.log(text)
         // Extract necessary parameters directly
-        const textIndices = new Uint16Array(text.split("").map((e)=>vocab.indexOf(e)));
+        const filteredText = text.split("").filter((e)=>vocab.indexOf(e) !== -1).join("");
+        const textIndices = new Uint16Array(filteredText.split("").map((e)=>vocab.indexOf(e)));
         const sampleLength = textIndices.length - 1;
         // Create tensors directly for the single batch
         const xsBuffer = $5OpyM$buffer([

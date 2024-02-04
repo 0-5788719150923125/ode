@@ -3,7 +3,7 @@ import fs from 'fs'
 import * as tf from '@tensorflow/tfjs-node-gpu'
 import Model from '../dist'
 
-// tf.setBackend('cuda:1')
+tf.setBackend('cuda:1')
 // tf.env().set('IS_NODE', true)
 
 let model
@@ -11,7 +11,7 @@ const lstmLayerSize = [128, 128]
 const sampleLen = 60
 const learningRate = 1e-2
 
-const textContent = fs.readFileSync('./tests/t8.shakespeare.txt', 'utf8')
+const textContent = fs.readFileSync('./tests/shaks12.txt', 'utf8')
 
 function* dataSampler(str) {
     // Get the total length of the string
