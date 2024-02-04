@@ -20,7 +20,11 @@ function* infiniteNumbers() {
     }
 }
 
-export async function trainModel(model, dataGenerator = infiniteNumbers) {
+export async function trainModel(
+    // model,
+    dataGenerator = infiniteNumbers
+    // generateFunction
+) {
     // XXX: .
     const sampleLen = 60 // length of a sequence of characters we'll pass into the RNN
     const sampleStep = 3 // number of characters to jump between segments of input text
@@ -52,10 +56,10 @@ export async function trainModel(model, dataGenerator = infiniteNumbers) {
 
     // XXX: Pick a random position to start in the dataset. (Note that we choose an index
     //      which cannot exceed the minimum size of our sampleLength - 1).
-    // const startIndex = Math.round(Math.random() * (text.length - sampleLen - 1))
+    const startIndex = Math.round(Math.random() * (text.length - sampleLen - 1))
 
     // XXX: Create the seed data which we'll use to initialize the network.
-    // const seed = text.slice(startIndex, startIndex + sampleLen)
+    const seed = text.slice(startIndex, startIndex + sampleLen)
 
     const textIndices = new Uint16Array(
         Array.from(text).map((e) => charSet.indexOf(e))
@@ -73,13 +77,26 @@ export async function trainModel(model, dataGenerator = infiniteNumbers) {
 
         // XXX: Fit the model and hold up iteration of the for loop
         //      until it is finished.
-        await model.fit(xs, ys, {
+        await this.model.fit(xs, ys, {
             epochs: 1,
             batchSize,
             validationSplit,
             callbacks: {
                 onTrainBegin: () => {
                     console.log(`Epoch ${i + 1} of ${epochs}:`)
+                },
+                onEpochEnd: (epoch, logs) => {
+                    console.log(
+                        `Epoch ${epoch + 1} completed. Loss: ${logs.loss.dataSync()[0]}`
+                    )
+                },
+                onBatchEnd: async (batch, logs) => {
+                    // Access batch number and training logs
+                    console.log(logs)
+                    console.log(await this.generate(seed, 0.7))
+                    // console.log(
+                    //     `Batch ${batch} completed. Loss: ${logs.loss.dataSync()[0]}`
+                    // )
                 }
                 // onTrainEnd: () =>
                 //   temperatures.map((temp) =>
