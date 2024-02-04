@@ -1,1 +1,2 @@
-import { createModel } from './models'
+import { createModel } from './model'
+import { trainModel } from './train'

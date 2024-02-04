@@ -1,24 +1,44 @@
 import * as tf from '@tensorflow/tfjs'
-import { createModel } from '../src/models'
+import { createModel } from '../src/model'
+import { trainModel } from '../src/train'
 
 // tf.setBackend('cpu')
 // tf.env().set('IS_NODE', true)
 
-test('createModel returns a tfjs model', async () => {
-  const lstmLayerSize = [128, 128]
-  const sampleLen = 60
-  const learningRate = 1e-2
-  const charSet = Array.from(new Set(Array.from('this is training data')))
-  const { length: charSetSize } = charSet
-  const model = await createModel(
-    lstmLayerSize,
-    sampleLen,
-    charSetSize,
-    learningRate
-  ) // Call your function to create the model
+let model
+const lstmLayerSize = [128, 128]
+const sampleLen = 60
+const learningRate = 1e-2
+// const charSet = Array.from(new Set(Array.from('this is training data')))
+// const { length: charSetSize } = charSet
 
-  expect(model).toBeInstanceOf(tf.LayersModel) // Assert that the returned object is a tfjs model
+const charSetSize = 62
+
+beforeAll(async () => {
+    model = await createModel(
+        lstmLayerSize,
+        sampleLen,
+        charSetSize,
+        learningRate
+    )
+    model.summary()
 })
+
+// beforeAll((done) => {
+//     done()
+// })
+
+test('createModel returns a tfjs model', async () => {
+    expect(model).toBeInstanceOf(tf.LayersModel) // Assert that the returned object is a tfjs model
+})
+
+test('trainModel updates weights', async () => {
+    const initialWeights = model.getWeights() // Get initial weights
+    await trainModel(model) // Train for 2 epochs
+    const newWeights = model.getWeights() // Get updated weights
+    expect(weightsAreDifferent(initialWeights, newWeights)).toBe(true)
+    done()
+}, 60000)
 
 // import {
 //     cryptoRandomString,
