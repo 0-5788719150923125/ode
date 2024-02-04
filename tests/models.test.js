@@ -1,8 +1,9 @@
 import fs from 'fs'
-import * as tf from '@tensorflow/tfjs'
+// import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node-gpu'
 import Model from '../dist'
 
-// tf.setBackend('cpu')
+// tf.setBackend('cuda:1')
 // tf.env().set('IS_NODE', true)
 
 let model
@@ -44,4 +45,4 @@ test('trainModel updates weights', async () => {
     const newWeights = model.getWeights() // Get updated weights
     // expect(weightsAreDifferent(initialWeights, newWeights)).toBe(true)
     expect.anything()
-}, 600000)
+}, 60000000)

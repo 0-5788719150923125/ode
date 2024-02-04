@@ -1,8 +1,6 @@
-import "@tensorflow/tfjs-node";
-import {layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, buffer as $5OpyM$buffer} from "@tensorflow/tfjs";
+import {backend as $5OpyM$backend, layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, buffer as $5OpyM$buffer} from "@tensorflow/tfjs-node-gpu";
 
-
-
+// import '@tensorflow/tfjs-node'
 
 
 function $b01b19e983ceb86f$export$4dc0b9eca0839ce2(min, max) {
@@ -11,17 +9,11 @@ function $b01b19e983ceb86f$export$4dc0b9eca0839ce2(min, max) {
 
 
 async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator) {
-    // XXX: .
-    // const sampleLen = 60 // length of a sequence of characters we'll pass into the RNN
-    // const sampleStep = 3 // number of characters to jump between segments of input text
-    // const epochs = 150 // the total number of times to update the training weights
-    // const examplesPerEpoch = 10000 // the number of text segments to train against for each epoch
     const batchSize = 128 // hyperparameter controlling the frequency weights are updated
     ;
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     ;
     const seed = "";
-    // for (let i = 0; i < epochs; ++i) {
     const ds = $5OpyM$data.generator($1a004f8cf919e722$var$createBatchGenerator(dataGenerator, this.vocab));
     await this.model.fitDataset(ds, {
         epochs: 1000,
@@ -29,11 +21,15 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator) {
         // validationSplit,
         callbacks: {
             onTrainBegin: ()=>{},
-            onBatchEnd: async (batch, logs)=>console.log(logs),
+            onBatchEnd: async (batch, logs)=>{
+                if (batch % 128 === 0) {
+                    console.log(logs);
+                    console.log(await this.generate(seed, 0.7));
+                }
+            },
             onEpochEnd: async (epoch, logs)=>console.log(await this.generate(seed, 0.7))
         }
     });
-// }
 }
 function $1a004f8cf919e722$var$createBatchGenerator(dataGenerator, vocab) {
     return function*() {
@@ -43,16 +39,14 @@ function $1a004f8cf919e722$var$createBatchGenerator(dataGenerator, vocab) {
 function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
     while(true){
         const text = dataGenerator.next().value;
-        console.log(text);
+        // console.log(text)
         // Extract necessary parameters directly
         const textIndices = new Uint16Array(text.split("").map((e)=>vocab.indexOf(e)));
-        const sampleLen = 60 // Assuming a fixed sample length
-        ;
-        // const sampleLen = randomBetween(60, 300)
+        const sampleLength = textIndices.length - 1;
         // Create tensors directly for the single batch
         const xsBuffer = $5OpyM$buffer([
             1,
-            sampleLen,
+            sampleLength,
             vocab.length
         ]);
         const ysBuffer = $5OpyM$buffer([
@@ -60,8 +54,8 @@ function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
             vocab.length
         ]);
         // Fill the tensors directly without intermediate arrays
-        for(let i = 0; i < sampleLen; ++i)xsBuffer.set(1, 0, i, textIndices[i]);
-        ysBuffer.set(1, 0, textIndices[sampleLen]);
+        for(let i = 0; i < sampleLength; ++i)xsBuffer.set(1, 0, i, textIndices[i]);
+        ysBuffer.set(1, 0, textIndices[sampleLength]);
         yield {
             xs: xsBuffer.toTensor(),
             ys: ysBuffer.toTensor()
@@ -70,6 +64,7 @@ function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
 }
 
 
+console.log("Backend:", $5OpyM$backend());
 class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
     constructor(lstmLayerSize, sampleLen, learningRate, displayLength){
         this.lstmLayerSize = lstmLayerSize;

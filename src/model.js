@@ -1,6 +1,22 @@
-import '@tensorflow/tfjs-node'
-import * as tf from '@tensorflow/tfjs'
+// import '@tensorflow/tfjs-node'
+import * as tf from '@tensorflow/tfjs-node-gpu'
+// const devices = await tf.deviceList()
+// devices.forEach((device) => console.log('Device:', device))
+
+// Conditionally import GPU-specific packages:
+// if (typeof window !== 'undefined') {
+//     // Browser environment:
+//     import '@tensorflow/tfjs-backend-webgl';
+//   } else {
+//     // Node.js environment:
+//     import '@tensorflow/tfjs-node';
+//     // If GPU support is available and desired:
+//     import '@tensorflow/tfjs-node-gpu';
+//   }
+// import * as tf from '@tensorflow/tfjs'
 import { trainModel } from './train'
+
+console.log('Backend:', tf.backend())
 
 export default class ModelPrototype {
     constructor(lstmLayerSize, sampleLen, learningRate, displayLength) {
