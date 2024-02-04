@@ -1,23 +1,11 @@
 import "@tensorflow/tfjs-node";
-import {layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, util as $5OpyM$util} from "@tensorflow/tfjs";
+import {layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, util as $5OpyM$util} from "@tensorflow/tfjs";
 
 
 
 
 
-function $1a004f8cf919e722$var$randomString(len, chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") {
-    let text = "";
-    for(let i = 0; i < len; i++)text += chars.charAt(Math.floor(Math.random() * chars.length));
-    return text;
-}
-function* $1a004f8cf919e722$var$infiniteNumbers() {
-    let i = 0;
-    while(i < 500){
-        i++;
-        yield $1a004f8cf919e722$var$randomString(10000);
-    }
-}
-async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
+async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator) {
     // XXX: .
     const sampleLen = 60 // length of a sequence of characters we'll pass into the RNN
     ;
@@ -31,79 +19,63 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator = $1a004f
     ;
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     ;
-    const data = dataGenerator();
-    // console.log(data.next().value)
-    // XXX: Fetch the text data to sample from.
-    //   const { data: text } = await axios({
-    //     method: 'get',
-    //     url
-    //   })
-    let text = data.next().value;
-    // XXX: Fetch all unique characters in the dataset. (quickly!)
-    // const charSet = Array.from(new Set(Array.from(text)))
-    // const { length: charSetSize } = charSet
-    // XXX: Convert the total input character text into the corresponding indices in the
-    //      charSet. This is how we map consistently between character data and numeric
-    //      neural network dataj
-    // XXX: Pick a random position to start in the dataset. (Note that we choose an index
-    //      which cannot exceed the minimum size of our sampleLength - 1).
-    const startIndex = Math.round(Math.random() * (text.length - sampleLen - 1));
-    // XXX: Create the seed data which we'll use to initialize the network.
-    const seed = text.slice(startIndex, startIndex + sampleLen);
-    const textIndices = new Uint16Array(Array.from(text).map((e)=>this.characters.indexOf(e)));
+    const seed = "";
     for(let i = 0; i < epochs; ++i){
-        const [xs, ys] = $1a004f8cf919e722$var$dataToTensor(text.length, sampleLen, sampleStep, this.characters.length, textIndices, examplesPerEpoch);
-        // XXX: Fit the model and hold up iteration of the for loop
-        //      until it is finished.
-        await this.model.fit(xs, ys, {
+        const ds = $5OpyM$data.generator($1a004f8cf919e722$var$createBatchGenerator(dataGenerator, self.characters));
+        await this.model.fitDataset(ds, {
             epochs: 1,
             batchSize: batchSize,
-            validationSplit: validationSplit,
+            // validationSplit,
             callbacks: {
-                onTrainBegin: ()=>{
-                    console.log(`Epoch ${i + 1} of ${epochs}:`);
-                },
-                onEpochEnd: (epoch, logs)=>{
-                    console.log(`Epoch ${epoch + 1} completed. Loss: ${logs.loss.dataSync()[0]}`);
-                },
-                onBatchEnd: async (batch, logs)=>{
-                    // Access batch number and training logs
-                    console.log(logs);
-                    console.log(await this.generate(seed, 0.7));
-                // console.log(
-                //     `Batch ${batch} completed. Loss: ${logs.loss.dataSync()[0]}`
-                // )
-                },
-                onTrainEnd: ()=>{}
+                onTrainBegin: ()=>console.log(`Epoch ${i + 1} of ${epochs}:`),
+                onBatchEnd: async (batch, logs)=>console.log(logs),
+                onEpochEnd: async (epoch, logs)=>console.log(await this.generate(seed, 0.7))
             }
         });
-        xs.dispose();
-        ys.dispose();
     }
 }
-const $1a004f8cf919e722$var$dataToTensor = (textLength, sampleLen, sampleStep, charSetSize, textIndices, numExamples)=>{
-    const trainingIndices = [];
-    for(let i = 0; i < textLength - sampleLen - 1; i += sampleStep)trainingIndices.push(i);
-    $5OpyM$util.shuffle(trainingIndices);
-    const xsBuffer = new $5OpyM$TensorBuffer([
-        numExamples,
-        sampleLen,
-        charSetSize
-    ]);
-    const ysBuffer = new $5OpyM$TensorBuffer([
-        numExamples,
-        charSetSize
-    ]);
-    for(let i = 0; i < numExamples; ++i){
-        const beginIndex = trainingIndices[i % trainingIndices.length];
-        for(let j = 0; j < sampleLen; ++j)xsBuffer.set(1, i, j, textIndices[beginIndex + j]);
-        ysBuffer.set(1, i, textIndices[beginIndex + sampleLen]);
+function $1a004f8cf919e722$var$createBatchGenerator(dataGenerator) {
+    return function*() {
+        yield* $1a004f8cf919e722$var$batchGenerator(dataGenerator, characters);
+    };
+}
+function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, characters1) {
+    console.log("trying to load batches");
+    while(true){
+        const text = dataGenerator.next().value;
+        console.log(text);
+        // Extract necessary parameters from text or context
+        const textLength = text.length;
+        const sampleLen = 60 // Adjust as needed
+        ;
+        const sampleStep = 3 // Adjust as needed
+        ;
+        // const charSet = Array.from(new Set(Array.from(text)))
+        // const charSetSize = charSet.length
+        // Create tensors for the current batch
+        const textIndices = new Uint16Array(Array.from(text).map((e)=>characters1.indexOf(e)));
+        const trainingIndices = [];
+        for(let i = 0; i < textLength - sampleLen - 1; i += sampleStep)trainingIndices.push(i);
+        $5OpyM$util.shuffle(trainingIndices);
+        const xsBuffer = new $5OpyM$TensorBuffer([
+            1,
+            sampleLen,
+            characters1.length
+        ]) // One example per batch
+        ;
+        const ysBuffer = new $5OpyM$TensorBuffer([
+            1,
+            characters1.length
+        ]);
+        const batchIndex = trainingIndices[0 % trainingIndices.length];
+        for(let j = 0; j < sampleLen; ++j)xsBuffer.set(1, 0, j, textIndices[batchIndex + j]);
+        ysBuffer.set(1, 0, textIndices[batchIndex + sampleLen]);
+        yield {
+            xs: xsBuffer.toTensor(),
+            ys: ysBuffer.toTensor()
+        };
     }
-    return [
-        xsBuffer.toTensor(),
-        ysBuffer.toTensor()
-    ];
-};
+}
 
 
 class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
