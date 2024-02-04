@@ -6,7 +6,7 @@ export default class ModelPrototype {
     constructor(lstmLayerSize, sampleLen, learningRate, displayLength) {
         this.lstmLayerSize = lstmLayerSize
         this.sampleLen = sampleLen
-        this.characters = Array.from(
+        this.vocab = Array.from(
             new Set(
                 Array.from(
                     `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]| `
@@ -34,14 +34,14 @@ export default class ModelPrototype {
                         returnSequences: i < orig.length - 1,
                         // XXX: Since each LSTM layer generates a sequence of data, only the first layer
                         //      needs to receive a specific input shape. Here, we initialize the inputShape
-                        //      [sampleLen, this.characters.length]. This defines that the first layer will receive an
+                        //      [sampleLen, this.vocab.length]. This defines that the first layer will receive an
                         //      input matrix which allows us to convert from our selected sample range into
                         //      the size of our charset. The charset uses one-hot encoding, which allows us
                         //      to represent each possible character in our dataset using a dedicated input
                         //      neuron.
                         inputShape:
                             i === 0
-                                ? [this.sampleLen, this.characters.length]
+                                ? [this.sampleLen, this.vocab.length]
                                 : undefined
                     })
                 )
@@ -59,7 +59,7 @@ export default class ModelPrototype {
         //      distributed dependent variable).
         this.model.add(
             tf.layers.dense({
-                units: this.characters.length,
+                units: this.vocab.length,
                 activation: 'softmax'
             })
         )
@@ -97,9 +97,7 @@ export default class ModelPrototype {
 async function generate(seed, temperature) {
     // XXX: Fetch the sequence of numeric values which correspond to the
     //      sentence.
-    let sentenceIndices = Array.from(seed).map((e) =>
-        this.characters.indexOf(e)
-    )
+    let sentenceIndices = Array.from(seed).map((e) => this.vocab.indexOf(e))
 
     let generated = ''
 
@@ -112,7 +110,7 @@ async function generate(seed, temperature) {
         const inputBuffer = new tf.TensorBuffer([
             1,
             this.sampleLen,
-            this.characters.length
+            this.vocab.length
         ])
 
         ;[...Array(this.sampleLen)].map((_, i) =>
@@ -153,7 +151,7 @@ async function generate(seed, temperature) {
         //      add this char to the sliding window along the sentenceIndices. This
         //      is how we continually wrap around the same buffer and generate arbitrary
         //      sequences of data even though our network only accepts fixed inputs.
-        generated += this.characters[winnerIndex]
+        generated += this.vocab[winnerIndex]
         sentenceIndices = sentenceIndices.slice(1)
         sentenceIndices.push(winnerIndex)
     }

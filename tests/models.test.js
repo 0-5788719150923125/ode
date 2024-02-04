@@ -1,6 +1,6 @@
 import fs from 'fs'
 import * as tf from '@tensorflow/tfjs'
-import Model from '../src'
+import Model from '../dist'
 
 // tf.setBackend('cpu')
 // tf.env().set('IS_NODE', true)
