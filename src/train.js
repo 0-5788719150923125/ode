@@ -20,11 +20,7 @@ function* infiniteNumbers() {
     }
 }
 
-export async function trainModel(
-    // model,
-    dataGenerator = infiniteNumbers
-    // generateFunction
-) {
+export async function trainModel(dataGenerator = infiniteNumbers) {
     // XXX: .
     const sampleLen = 60 // length of a sequence of characters we'll pass into the RNN
     const sampleStep = 3 // number of characters to jump between segments of input text
@@ -32,8 +28,6 @@ export async function trainModel(
     const examplesPerEpoch = 10000 // the number of text segments to train against for each epoch
     const batchSize = 128 // hyperparameter controlling the frequency weights are updated
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
-    const displayLength = 120 // how many characters you want to generate after training
-    const temperatures = [0, 0.25, 0.5, 0.75, 1]
 
     const data = dataGenerator()
     // console.log(data.next().value)
@@ -47,8 +41,8 @@ export async function trainModel(
     let text = data.next().value
 
     // XXX: Fetch all unique characters in the dataset. (quickly!)
-    const charSet = Array.from(new Set(Array.from(text)))
-    const { length: charSetSize } = charSet
+    // const charSet = Array.from(new Set(Array.from(text)))
+    // const { length: charSetSize } = charSet
 
     // XXX: Convert the total input character text into the corresponding indices in the
     //      charSet. This is how we map consistently between character data and numeric
@@ -62,7 +56,7 @@ export async function trainModel(
     const seed = text.slice(startIndex, startIndex + sampleLen)
 
     const textIndices = new Uint16Array(
-        Array.from(text).map((e) => charSet.indexOf(e))
+        Array.from(text).map((e) => this.characters.indexOf(e))
     )
 
     for (let i = 0; i < epochs; ++i) {
@@ -70,7 +64,7 @@ export async function trainModel(
             text.length,
             sampleLen,
             sampleStep,
-            charSetSize,
+            this.characters.length,
             textIndices,
             examplesPerEpoch
         )
@@ -97,19 +91,8 @@ export async function trainModel(
                     // console.log(
                     //     `Batch ${batch} completed. Loss: ${logs.loss.dataSync()[0]}`
                     // )
-                }
-                // onTrainEnd: () =>
-                //   temperatures.map((temp) =>
-                //     generate(
-                //       model,
-                //       seed,
-                //       sampleLen,
-                //       charSetSize,
-                //       charSet,
-                //       displayLength,
-                //       temp
-                //     )
-                //   )
+                },
+                onTrainEnd: () => {}
             }
         })
 

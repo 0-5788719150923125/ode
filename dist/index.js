@@ -17,8 +17,7 @@ function* $1a004f8cf919e722$var$infiniteNumbers() {
         yield $1a004f8cf919e722$var$randomString(10000);
     }
 }
-async function $1a004f8cf919e722$export$9bc55a205916dc35(// model,
-dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
+async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
     // XXX: .
     const sampleLen = 60 // length of a sequence of characters we'll pass into the RNN
     ;
@@ -32,15 +31,6 @@ dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
     ;
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     ;
-    const displayLength = 120 // how many characters you want to generate after training
-    ;
-    const temperatures = [
-        0,
-        0.25,
-        0.5,
-        0.75,
-        1
-    ];
     const data = dataGenerator();
     // console.log(data.next().value)
     // XXX: Fetch the text data to sample from.
@@ -50,8 +40,8 @@ dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
     //   })
     let text = data.next().value;
     // XXX: Fetch all unique characters in the dataset. (quickly!)
-    const charSet = Array.from(new Set(Array.from(text)));
-    const { length: charSetSize } = charSet;
+    // const charSet = Array.from(new Set(Array.from(text)))
+    // const { length: charSetSize } = charSet
     // XXX: Convert the total input character text into the corresponding indices in the
     //      charSet. This is how we map consistently between character data and numeric
     //      neural network dataj
@@ -60,9 +50,9 @@ dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
     const startIndex = Math.round(Math.random() * (text.length - sampleLen - 1));
     // XXX: Create the seed data which we'll use to initialize the network.
     const seed = text.slice(startIndex, startIndex + sampleLen);
-    const textIndices = new Uint16Array(Array.from(text).map((e)=>charSet.indexOf(e)));
+    const textIndices = new Uint16Array(Array.from(text).map((e)=>this.characters.indexOf(e)));
     for(let i = 0; i < epochs; ++i){
-        const [xs, ys] = $1a004f8cf919e722$var$dataToTensor(text.length, sampleLen, sampleStep, charSetSize, textIndices, examplesPerEpoch);
+        const [xs, ys] = $1a004f8cf919e722$var$dataToTensor(text.length, sampleLen, sampleStep, this.characters.length, textIndices, examplesPerEpoch);
         // XXX: Fit the model and hold up iteration of the for loop
         //      until it is finished.
         await this.model.fit(xs, ys, {
@@ -83,7 +73,8 @@ dataGenerator = $1a004f8cf919e722$var$infiniteNumbers) {
                 // console.log(
                 //     `Batch ${batch} completed. Loss: ${logs.loss.dataSync()[0]}`
                 // )
-                }
+                },
+                onTrainEnd: ()=>{}
             }
         });
         xs.dispose();
@@ -116,17 +107,10 @@ const $1a004f8cf919e722$var$dataToTensor = (textLength, sampleLen, sampleStep, c
 
 
 class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
-    constructor(lstmLayerSize, sampleLen, // charSet,
-    // charSetSize,
-    learningRate, displayLength){
+    constructor(lstmLayerSize, sampleLen, learningRate, displayLength){
         this.lstmLayerSize = lstmLayerSize;
         this.sampleLen = sampleLen;
-        this.charSet = Array.from(new Set(Array.from("this is training data")));
-        this.charSetSize = 62;
-        // const charSet =
-        // const charSetSize = charSet.length
-        // this.charSet = charSet
-        // this.charSetSize = charSetSize
+        this.characters = Array.from(new Set(Array.from(`\xb60123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]| `)));
         this.learningRate = learningRate;
         this.displayLength = displayLength;
         this.model = null;
@@ -145,14 +129,14 @@ class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
                 returnSequences: i < orig.length - 1,
                 // XXX: Since each LSTM layer generates a sequence of data, only the first layer
                 //      needs to receive a specific input shape. Here, we initialize the inputShape
-                //      [sampleLen, charSetSize]. This defines that the first layer will receive an
+                //      [sampleLen, this.characters.length]. This defines that the first layer will receive an
                 //      input matrix which allows us to convert from our selected sample range into
                 //      the size of our charset. The charset uses one-hot encoding, which allows us
                 //      to represent each possible character in our dataset using a dedicated input
                 //      neuron.
                 inputShape: i === 0 ? [
                     this.sampleLen,
-                    this.charSetSize
+                    this.characters.length
                 ] : undefined
             }));
             // XXX: Here we use a sequential processing model for our network. This model gets passed
@@ -165,7 +149,7 @@ class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
         //      supports regression for networks with more than 2 possible outcomes of a categorically
         //      distributed dependent variable).
         this.model.add($5OpyM$layers.dense({
-            units: this.charSetSize,
+            units: this.characters.length,
             activation: "softmax"
         }));
         // XXX: Finally, compile the model. The optimizer is used to define the backpropagation
@@ -189,30 +173,31 @@ class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
         return this.model.getWeights();
     }
     async generate(seed, temperature = 0.7) {
-        return await $b8c69f6a386226b6$var$generate(this.model, seed, this.sampleLen, this.charSetSize, this.charSet, this.displayLength, temperature);
+        const bound = $b8c69f6a386226b6$var$generate.bind(this);
+        return await bound(seed, temperature);
     }
 }
-async function $b8c69f6a386226b6$var$generate(model, seed, sampleLen, charSetSize, charSet, displayLength, temperature) {
+async function $b8c69f6a386226b6$var$generate(seed, temperature) {
     // XXX: Fetch the sequence of numeric values which correspond to the
     //      sentence.
-    let sentenceIndices = Array.from(seed).map((e)=>charSet.indexOf(e));
+    let sentenceIndices = Array.from(seed).map((e)=>this.characters.indexOf(e));
     let generated = "";
     // XXX: Note that since the displayLength is arbitrary, we can make it
     //      much larger than our sampleLen. This loop will continue to iterate
     //      about the sentenceIndices and buffering the output of the network,
     //      which permits it to continue generating far past our initial seed
     //      has been provided.
-    while(generated.length < displayLength){
+    while(generated.length < this.displayLength){
         const inputBuffer = new $5OpyM$TensorBuffer([
             1,
-            sampleLen,
-            charSetSize
+            this.sampleLen,
+            this.characters.length
         ]);
         [
-            ...Array(sampleLen)
+            ...Array(this.sampleLen)
         ].map((_, i)=>inputBuffer.set(1, 0, i, sentenceIndices[i]));
         const input = inputBuffer.toTensor();
-        const output = model.predict(input);
+        const output = this.model.predict(input);
         // XXX: Pick the character the RNN has decided is the most likely.
         //      tf.tidy cleans all of the allocated tensors within the function
         //      scope after it has been executed.
@@ -230,7 +215,7 @@ async function $b8c69f6a386226b6$var$generate(model, seed, sampleLen, charSetSiz
         //      add this char to the sliding window along the sentenceIndices. This
         //      is how we continually wrap around the same buffer and generate arbitrary
         //      sequences of data even though our network only accepts fixed inputs.
-        generated += charSet[winnerIndex];
+        generated += this.characters[winnerIndex];
         sentenceIndices = sentenceIndices.slice(1);
         sentenceIndices.push(winnerIndex);
     }

@@ -3,22 +3,16 @@ import * as tf from '@tensorflow/tfjs'
 import { trainModel } from './train'
 
 export default class ModelPrototype {
-    constructor(
-        lstmLayerSize,
-        sampleLen,
-        // charSet,
-        // charSetSize,
-        learningRate,
-        displayLength
-    ) {
+    constructor(lstmLayerSize, sampleLen, learningRate, displayLength) {
         this.lstmLayerSize = lstmLayerSize
         this.sampleLen = sampleLen
-        this.charSet = Array.from(new Set(Array.from('this is training data')))
-        this.charSetSize = 62
-        // const charSet =
-        // const charSetSize = charSet.length
-        // this.charSet = charSet
-        // this.charSetSize = charSetSize
+        this.characters = Array.from(
+            new Set(
+                Array.from(
+                    `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]| `
+                )
+            )
+        )
         this.learningRate = learningRate
         this.displayLength = displayLength
         this.model = null
@@ -40,14 +34,14 @@ export default class ModelPrototype {
                         returnSequences: i < orig.length - 1,
                         // XXX: Since each LSTM layer generates a sequence of data, only the first layer
                         //      needs to receive a specific input shape. Here, we initialize the inputShape
-                        //      [sampleLen, charSetSize]. This defines that the first layer will receive an
+                        //      [sampleLen, this.characters.length]. This defines that the first layer will receive an
                         //      input matrix which allows us to convert from our selected sample range into
                         //      the size of our charset. The charset uses one-hot encoding, which allows us
                         //      to represent each possible character in our dataset using a dedicated input
                         //      neuron.
                         inputShape:
                             i === 0
-                                ? [this.sampleLen, this.charSetSize]
+                                ? [this.sampleLen, this.characters.length]
                                 : undefined
                     })
                 )
@@ -65,7 +59,7 @@ export default class ModelPrototype {
         //      distributed dependent variable).
         this.model.add(
             tf.layers.dense({
-                units: this.charSetSize,
+                units: this.characters.length,
                 activation: 'softmax'
             })
         )
@@ -95,30 +89,17 @@ export default class ModelPrototype {
     }
 
     async generate(seed, temperature = 0.7) {
-        return await generate(
-            this.model,
-            seed,
-            this.sampleLen,
-            this.charSetSize,
-            this.charSet,
-            this.displayLength,
-            temperature
-        )
+        const bound = generate.bind(this)
+        return await bound(seed, temperature)
     }
 }
 
-async function generate(
-    model,
-    seed,
-    sampleLen,
-    charSetSize,
-    charSet,
-    displayLength,
-    temperature
-) {
+async function generate(seed, temperature) {
     // XXX: Fetch the sequence of numeric values which correspond to the
     //      sentence.
-    let sentenceIndices = Array.from(seed).map((e) => charSet.indexOf(e))
+    let sentenceIndices = Array.from(seed).map((e) =>
+        this.characters.indexOf(e)
+    )
 
     let generated = ''
 
@@ -127,15 +108,19 @@ async function generate(
     //      about the sentenceIndices and buffering the output of the network,
     //      which permits it to continue generating far past our initial seed
     //      has been provided.
-    while (generated.length < displayLength) {
-        const inputBuffer = new tf.TensorBuffer([1, sampleLen, charSetSize])
+    while (generated.length < this.displayLength) {
+        const inputBuffer = new tf.TensorBuffer([
+            1,
+            this.sampleLen,
+            this.characters.length
+        ])
 
-        ;[...Array(sampleLen)].map((_, i) =>
+        ;[...Array(this.sampleLen)].map((_, i) =>
             inputBuffer.set(1, 0, i, sentenceIndices[i])
         )
 
         const input = inputBuffer.toTensor()
-        const output = model.predict(input)
+        const output = this.model.predict(input)
 
         // XXX: Pick the character the RNN has decided is the most likely.
         //      tf.tidy cleans all of the allocated tensors within the function
@@ -168,7 +153,7 @@ async function generate(
         //      add this char to the sliding window along the sentenceIndices. This
         //      is how we continually wrap around the same buffer and generate arbitrary
         //      sequences of data even though our network only accepts fixed inputs.
-        generated += charSet[winnerIndex]
+        generated += this.characters[winnerIndex]
         sentenceIndices = sentenceIndices.slice(1)
         sentenceIndices.push(winnerIndex)
     }

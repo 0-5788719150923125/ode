@@ -8,17 +8,9 @@ let model
 const lstmLayerSize = [128, 128]
 const sampleLen = 60
 const learningRate = 1e-2
-// const charSet = Array.from(new Set(Array.from('this is training data')))
-// const charSetSize = charSet.length
 
 beforeAll(async () => {
-    model = new Model(
-        lstmLayerSize,
-        sampleLen,
-        // charSet,
-        // charSetSize,
-        learningRate
-    )
+    model = new Model(lstmLayerSize, sampleLen, learningRate)
     // model.summary()
 })
 
