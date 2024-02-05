@@ -8,9 +8,7 @@ function $b01b19e983ceb86f$export$4dc0b9eca0839ce2(min, max) {
 }
 
 
-async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator) {
-    const batchSize = 128 // hyperparameter controlling the frequency weights are updated
-    ;
+async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSize = 64) {
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     ;
     const seed = "";
@@ -24,10 +22,19 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator) {
             onBatchEnd: async (batch, logs)=>{
                 if (batch % 128 === 0) {
                     console.log(logs);
-                    console.log(await this.generate(seed, 0.7));
+                    for(let temp in [
+                        0,
+                        0.3,
+                        0.7,
+                        0.9,
+                        1.1
+                    ]){
+                        const output = await this.generate(seed, temp);
+                        console.log(output);
+                    }
                 }
             },
-            onEpochEnd: async (epoch, logs)=>console.log(await this.generate(seed, 0.7))
+            onEpochEnd: async (epoch, logs)=>console.log("epoch ended")
         }
     });
 }

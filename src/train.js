@@ -3,8 +3,7 @@ import * as tf from '@tensorflow/tfjs-node-gpu'
 // import * as tf from '@tensorflow/tfjs'
 import { randomBetween } from './common'
 
-export async function trainModel(dataGenerator) {
-    const batchSize = 128 // hyperparameter controlling the frequency weights are updated
+export async function trainModel(dataGenerator, batchSize = 64) {
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
 
     const seed = ''
@@ -21,11 +20,14 @@ export async function trainModel(dataGenerator) {
             onBatchEnd: async (batch, logs) => {
                 if (batch % 128 === 0) {
                     console.log(logs)
-                    console.log(await this.generate(seed, 0.7))
+                    for (let temp in [0, 0.3, 0.7, 0.9, 1.1]) {
+                        const output = await this.generate(seed, temp)
+                        console.log(output)
+                    }
                 }
             },
-            onEpochEnd: async (epoch, logs) =>
-                console.log(await this.generate(seed, 0.7))
+            onEpochEnd: async (epoch, logs) => console.log('epoch ended')
+            // console.log(await this.generate(seed, 0.7))
         }
     })
 }
