@@ -25,7 +25,7 @@ export default class ModelPrototype {
         this.vocab = Array.from(
             new Set(
                 Array.from(
-                    `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]| `
+                    `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]|/\\\n `
                 )
             )
         )

@@ -46,7 +46,7 @@ function $1a004f8cf919e722$var$createBatchGenerator(dataGenerator, vocab) {
 function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
     while(true){
         const text = dataGenerator.next().value;
-        // console.log(text)
+        console.log(text);
         // Extract necessary parameters directly
         const filteredText = text.split("").filter((e)=>vocab.indexOf(e) !== -1).join("");
         const textIndices = new Uint16Array(filteredText.split("").map((e)=>vocab.indexOf(e)));
@@ -77,7 +77,8 @@ class $b8c69f6a386226b6$export$2e2bcd8739ae039 {
     constructor(lstmLayerSize, sampleLen, learningRate, displayLength){
         this.lstmLayerSize = lstmLayerSize;
         this.sampleLen = sampleLen;
-        this.vocab = Array.from(new Set(Array.from(`\xb60123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]| `)));
+        this.vocab = Array.from(new Set(Array.from(`\xb60123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]|/\\
+ `)));
         this.learningRate = learningRate;
         this.displayLength = displayLength;
         this.model = null;

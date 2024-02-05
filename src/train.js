@@ -42,7 +42,7 @@ function* batchGenerator(dataGenerator, vocab) {
     while (true) {
         const text = dataGenerator.next().value
 
-        // console.log(text)
+        console.log(text)
 
         // Extract necessary parameters directly
         const filteredText = text
@@ -52,6 +52,7 @@ function* batchGenerator(dataGenerator, vocab) {
         const textIndices = new Uint16Array(
             filteredText.split('').map((e) => vocab.indexOf(e))
         )
+
         const sampleLength = textIndices.length - 1
 
         // Create tensors directly for the single batch

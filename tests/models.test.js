@@ -7,26 +7,18 @@ tf.setBackend('cuda:1')
 // tf.env().set('IS_NODE', true)
 
 let model
-const lstmLayerSize = [128, 128, 128]
+const lstmLayerSize = [128, 128]
 const sampleLen = 180
 const learningRate = 1e-2
 
 const textContent = fs.readFileSync('./tests/shaks12.txt', 'utf8')
 
 function* dataSampler(str, sampleLen) {
-    // Get the total length of the string
-    const strLength = str.length
-
-    // Loop indefinitely to yield random samples
     while (true) {
         // Generate a random start index within the string's bounds
-        const startIndex = Math.floor(Math.random() * (strLength - sampleLen))
-
-        // Extract a 100-character substring from the random starting point
-        const sample = str.substring(startIndex, startIndex + sampleLen)
-
-        // Yield the sample
-        yield sample
+        const startIndex = Math.floor(Math.random() * (str.length - sampleLen))
+        // Yield a ${sampleLen} substring from the random starting point
+        yield str.substring(startIndex, startIndex + sampleLen)
     }
 }
 
