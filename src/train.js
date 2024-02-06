@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
 
 export async function trainModel(dataGenerator, batchSize = 256) {
-    const emaCalc = emaGenerator(alpha)
+    const emaCalc = emaGenerator()
     emaCalc.next() // Initialize the generator
 
     const ds = tf.data.generator(

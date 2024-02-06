@@ -117,7 +117,7 @@ async function generate(seed, temperature, maxLength = 20) {
             generated += nextChar
             sentenceIndices.push(winnerIndex) // Append the winner index to the sentenceIndices
 
-            // Keep only the most recent (inputLength - 1) indices for the next prediction
+            // Keep only the most recent ${inputLength} indices for the next prediction
             if (sentenceIndices.length > this.config.inputLength) {
                 sentenceIndices.shift() // Remove the oldest index
             }
