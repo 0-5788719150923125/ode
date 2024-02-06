@@ -4,9 +4,8 @@ import { trainModel } from './train.js'
 console.log('Backend:', tf.backend())
 
 export default class ModelPrototype {
-    constructor(lstmLayerSize, sampleLen, learningRate, displayLength) {
-        this.lstmLayerSize = lstmLayerSize
-        this.sampleLen = sampleLen
+    constructor(config) {
+        this.config = config
         this.vocab = Array.from(
             new Set(
                 Array.from(
@@ -14,33 +13,26 @@ export default class ModelPrototype {
                 )
             )
         )
-        console.log(this.vocab)
-        this.learningRate = learningRate
-        this.displayLength = displayLength
-        this.model = null
+        this.model = tf.sequential()
         this.init()
     }
 
     init() {
-        // Initialize the model as a sequential model
-        this.model = tf.sequential()
-
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
                 inputDim: this.vocab.length, // Size of the vocabulary
-                outputDim: 64, // Dimension of the embedding vectors
-                inputLength: this.sampleLen - 1 // Length of input sequences
+                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
+                inputLength: this.config.inputLength // Length of input sequences
             })
         )
 
         // Add LSTM layers
-        // Adjust the last LSTM layer in the init method
-        this.lstmLayerSize.forEach((lstmLayerSize, i) => {
+        this.config.layout.forEach((layer, i) => {
             this.model.add(
                 tf.layers.lstm({
-                    units: lstmLayerSize,
-                    returnSequences: i < this.lstmLayerSize.length - 1 // Set to false for the last LSTM layer
+                    units: layer,
+                    returnSequences: i < this.config.layout.length - 1 // Set to false for the last LSTM layer
                 })
             )
         })
@@ -55,7 +47,7 @@ export default class ModelPrototype {
 
         // Compile the model
         this.model.compile({
-            optimizer: tf.train.rmsprop(this.learningRate),
+            optimizer: tf.train.rmsprop(this.config.learningRate),
             loss: 'categoricalCrossentropy'
         })
     }
@@ -100,15 +92,15 @@ async function generate(seed, temperature, maxLength = 20) {
     while (generated.length < maxLength) {
         // Pad the sentenceIndices to ensure it has the required length
         const paddedSentenceIndices = new Array(
-            this.sampleLen - 1 - sentenceIndices.length
+            this.config.inputLength - sentenceIndices.length
         )
             .fill(0)
             .concat(sentenceIndices)
 
-        // Prepare the input tensor with the shape [1, this.sampleLen - 1]
+        // Prepare the input tensor with the shape [1, inputLength - 1]
         const input = tf.tensor2d(
             [paddedSentenceIndices],
-            [1, this.sampleLen - 1],
+            [1, this.config.inputLength],
             'int32'
         )
 
@@ -125,8 +117,8 @@ async function generate(seed, temperature, maxLength = 20) {
             generated += nextChar
             sentenceIndices.push(winnerIndex) // Append the winner index to the sentenceIndices
 
-            // Keep only the most recent (this.sampleLen - 1) indices for the next prediction
-            if (sentenceIndices.length > this.sampleLen - 1) {
+            // Keep only the most recent (inputLength - 1) indices for the next prediction
+            if (sentenceIndices.length > this.config.inputLength) {
                 sentenceIndices.shift() // Remove the oldest index
             }
         } else {
