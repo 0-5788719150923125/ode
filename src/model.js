@@ -64,7 +64,7 @@ export default class ModelPrototype {
         return this.model
     }
 
-    async trainModel(dataGenerator) {
+    async train(dataGenerator) {
         const bound = trainModel.bind(this)
         await bound(dataGenerator)
     }

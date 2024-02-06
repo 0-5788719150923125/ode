@@ -1,5 +1,5 @@
 import fs from 'fs'
-import Model from './src/index.js'
+import ODE from './src/index.js'
 
 const lstmLayerSize = [128, 128, 128]
 const sampleLen = 180
@@ -17,6 +17,7 @@ function* dataSampler(str, sampleLen) {
     }
 }
 
-const model = new Model(lstmLayerSize, sampleLen, learningRate, displayLength)
+const net = new ODE(lstmLayerSize, sampleLen, learningRate, displayLength)
+console.log(net.model.summary())
 
-await model.trainModel(dataSampler(textContent, sampleLen))
+await net.train(dataSampler(textContent, sampleLen))
