@@ -9,6 +9,7 @@ let model
 const lstmLayerSize = [128, 128, 128]
 const sampleLen = 180
 const learningRate = 1e-3
+const displayLength = 180
 
 const textContent = fs.readFileSync('./tests/shaks12.txt', 'utf8')
 
@@ -22,7 +23,7 @@ function* dataSampler(str, sampleLen) {
 }
 
 beforeAll(async () => {
-    model = new Model(lstmLayerSize, sampleLen, learningRate)
+    model = new Model(lstmLayerSize, sampleLen, learningRate, displayLength)
     // model.summary()
 })
 

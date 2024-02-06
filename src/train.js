@@ -16,8 +16,8 @@ export async function trainModel(dataGenerator, batchSize = 256) {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
                 console.log(logs)
-                for (let temp in [0, 0.3, 0.7, 0.9, 1.1]) {
-                    const output = await this.generate('', temp)
+                for (let temp of [0.7]) {
+                    const output = await this.generate('nay', temp)
                     console.log(output)
                 }
             },

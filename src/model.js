@@ -78,67 +78,48 @@ export default class ModelPrototype {
     }
 }
 
-async function generate(seed, temperature) {
-    // XXX: Fetch the sequence of numeric values which correspond to the
-    //      sentence.
-    let sentenceIndices = Array.from(seed).map((e) => this.vocab.indexOf(e))
+async function generate(seed, temperature, maxLength = 20) {
+    let sentenceIndices = Array.from(seed)
+        .map((e) => this.vocab.indexOf(e))
+        .filter((index) => index !== -1)
 
-    let generated = ''
+    // Adjust the length of sentenceIndices to match the model's expected input length
+    if (sentenceIndices.length > this.sampleLen - 1) {
+        sentenceIndices = sentenceIndices.slice(0, this.sampleLen - 1)
+    } else {
+        while (sentenceIndices.length < this.sampleLen - 1) {
+            sentenceIndices.unshift(0) // Prepend with zeros
+        }
+    }
 
-    // XXX: Note that since the displayLength is arbitrary, we can make it
-    //      much larger than our sampleLen. This loop will continue to iterate
-    //      about the sentenceIndices and buffering the output of the network,
-    //      which permits it to continue generating far past our initial seed
-    //      has been provided.
-    while (generated.length < this.displayLength) {
-        const inputBuffer = new tf.TensorBuffer([
-            1,
-            this.sampleLen,
-            this.vocab.length
-        ])
+    let generated = seed // Start with the seed
 
-        ;[...Array(this.sampleLen)].map((_, i) =>
-            inputBuffer.set(1, 0, i, sentenceIndices[i])
+    while (generated.length < maxLength) {
+        const input = tf.tensor2d(
+            [sentenceIndices],
+            [1, this.sampleLen - 1],
+            'int32'
         )
-
-        const input = inputBuffer.toTensor()
         const output = this.model.predict(input)
 
-        // XXX: Pick the character the RNN has decided is the most likely.
-        //      tf.tidy cleans all of the allocated tensors within the function
-        //      scope after it has been executed.
-        const [winnerIndex] = tf.tidy(() =>
-            // XXX: Draws samples from a multinomial distribution (these are distributions
-            //      involving multiple variables).
-            //      tf.squeeze remove dimensions of size (1) from the supplied tensor. These
-            //      are then divided by the specified temperature.
-            tf
-                .multinomial(
-                    // XXX: Use the temperature to control the network's spontaneity.
-                    tf.div(
-                        tf.log(tf.squeeze(output)),
-                        Math.max(temperature, 1e-6)
-                    ),
-                    1,
-                    null,
-                    false
-                )
-                .dataSync()
-        )
+        const winnerIndex = tf.tidy(() => {
+            // Ensure temperature is a numeric value
+            const temp = parseFloat(temperature)
+            const logits = output.squeeze().div(tf.scalar(temp))
+            return tf.multinomial(logits, 1).dataSync()[0]
+        })
 
-        // XXX: Always clean up tensors once you're finished with them to improve
-        //      memory utilization and prevent leaks.
+        if (winnerIndex >= 0 && winnerIndex < this.vocab.length) {
+            const nextChar = this.vocab[winnerIndex]
+            generated += nextChar
+            sentenceIndices = [...sentenceIndices.slice(1), winnerIndex]
+        } else {
+            break // Break the loop if winnerIndex is invalid
+        }
+
         input.dispose()
         output.dispose()
-
-        // XXX: Here we append the generated character to the resulting string, and
-        //      add this char to the sliding window along the sentenceIndices. This
-        //      is how we continually wrap around the same buffer and generate arbitrary
-        //      sequences of data even though our network only accepts fixed inputs.
-        generated += this.vocab[winnerIndex]
-        sentenceIndices = sentenceIndices.slice(1)
-        sentenceIndices.push(winnerIndex)
     }
-    // console.log(`Generated text (temperature=${temperature}):\n ${generated}\n`)
+
     return generated
 }
