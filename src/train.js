@@ -1,9 +1,8 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
 // import '@tensorflow/tfjs-node'
 // import * as tf from '@tensorflow/tfjs'
-import { randomBetween } from './common'
 
-export async function trainModel(dataGenerator, batchSize = 64) {
+export async function trainModel(dataGenerator, batchSize = 256) {
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
 
     const seed = ''
@@ -18,10 +17,10 @@ export async function trainModel(dataGenerator, batchSize = 64) {
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                if (batch % 128 === 0) {
+                if (batch % batchSize === 0) {
                     console.log(logs)
                     for (let temp in [0, 0.3, 0.7, 0.9, 1.1]) {
-                        const output = await this.generate(seed, temp)
+                        const output = await this.generate(' ', temp)
                         console.log(output)
                     }
                 }
@@ -40,31 +39,39 @@ function createBatchGenerator(dataGenerator, vocab) {
 
 function* batchGenerator(dataGenerator, vocab) {
     while (true) {
-        const text = dataGenerator.next().value
+        const batch = []
+        const batchSize = 64
+        const maxSampleLength = 180
+        for (let i = 0; i < batchSize; ++i) {
+            const text = dataGenerator.next().value
 
-        console.log(text)
+            // Filter characters and convert to indices
+            const filteredText = text
+                .split('')
+                .map((char) => vocab.indexOf(char))
 
-        // Extract necessary parameters directly
-        const filteredText = text
-            .split('')
-            .filter((e) => vocab.indexOf(e) !== -1)
-            .join('')
-        const textIndices = new Uint16Array(
-            filteredText.split('').map((e) => vocab.indexOf(e))
-        )
+            // Pad numeric indices to maximum length
+            const paddedIndices = tf.pad(filteredText, [
+                [0, maxSampleLength - filteredText.length]
+            ])
 
-        const sampleLength = textIndices.length - 1
+            const xsBuffer = tf.buffer([maxSampleLength, vocab.length])
+            const ysBuffer = tf.buffer([vocab.length])
 
-        // Create tensors directly for the single batch
-        const xsBuffer = tf.buffer([1, sampleLength, vocab.length])
-        const ysBuffer = tf.buffer([1, vocab.length])
+            for (let j = 0; j < maxSampleLength; ++j) {
+                xsBuffer.set(1, j, paddedIndices[j])
+            }
 
-        // Fill the tensors directly without intermediate arrays
-        for (let i = 0; i < sampleLength; ++i) {
-            xsBuffer.set(1, 0, i, textIndices[i])
+            ysBuffer.set(1, paddedIndices[maxSampleLength])
+
+            batch.push({
+                xs: xsBuffer.toTensor(),
+                ys: ysBuffer.toTensor()
+            })
         }
-        ysBuffer.set(1, 0, textIndices[sampleLength])
-
-        yield { xs: xsBuffer.toTensor(), ys: ysBuffer.toTensor() }
+        yield {
+            xs: tf.stack(batch.map((sample) => sample.xs)),
+            ys: tf.stack(batch.map((sample) => sample.ys))
+        }
     }
 }

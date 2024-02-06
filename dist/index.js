@@ -1,14 +1,9 @@
-import {backend as $5OpyM$backend, layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, buffer as $5OpyM$buffer} from "@tensorflow/tfjs-node-gpu";
+import {backend as $5OpyM$backend, layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, pad as $5OpyM$pad, buffer as $5OpyM$buffer, stack as $5OpyM$stack} from "@tensorflow/tfjs-node-gpu";
 
 // import '@tensorflow/tfjs-node'
 
 
-function $b01b19e983ceb86f$export$4dc0b9eca0839ce2(min, max) {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-}
-
-
-async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSize = 64) {
+async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSize = 256) {
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     ;
     const seed = "";
@@ -20,7 +15,7 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSiz
         callbacks: {
             onTrainBegin: ()=>{},
             onBatchEnd: async (batch, logs)=>{
-                if (batch % 128 === 0) {
+                if (batch % batchSize === 0) {
                     console.log(logs);
                     for(let temp in [
                         0,
@@ -29,7 +24,7 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSiz
                         0.9,
                         1.1
                     ]){
-                        const output = await this.generate(seed, temp);
+                        const output = await this.generate(" ", temp);
                         console.log(output);
                     }
                 }
@@ -45,28 +40,37 @@ function $1a004f8cf919e722$var$createBatchGenerator(dataGenerator, vocab) {
 }
 function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
     while(true){
-        const text = dataGenerator.next().value;
-        console.log(text);
-        // Extract necessary parameters directly
-        const filteredText = text.split("").filter((e)=>vocab.indexOf(e) !== -1).join("");
-        const textIndices = new Uint16Array(filteredText.split("").map((e)=>vocab.indexOf(e)));
-        const sampleLength = textIndices.length - 1;
-        // Create tensors directly for the single batch
-        const xsBuffer = $5OpyM$buffer([
-            1,
-            sampleLength,
-            vocab.length
-        ]);
-        const ysBuffer = $5OpyM$buffer([
-            1,
-            vocab.length
-        ]);
-        // Fill the tensors directly without intermediate arrays
-        for(let i = 0; i < sampleLength; ++i)xsBuffer.set(1, 0, i, textIndices[i]);
-        ysBuffer.set(1, 0, textIndices[sampleLength]);
+        const batch = [];
+        const batchSize = 64;
+        const maxSampleLength = 180;
+        for(let i = 0; i < batchSize; ++i){
+            const text = dataGenerator.next().value;
+            // Filter characters and convert to indices
+            const filteredText = text.split("").map((char)=>vocab.indexOf(char));
+            // Pad numeric indices to maximum length
+            const paddedIndices = $5OpyM$pad(filteredText, [
+                [
+                    0,
+                    maxSampleLength - filteredText.length
+                ]
+            ]);
+            const xsBuffer = $5OpyM$buffer([
+                maxSampleLength,
+                vocab.length
+            ]);
+            const ysBuffer = $5OpyM$buffer([
+                vocab.length
+            ]);
+            for(let j = 0; j < maxSampleLength; ++j)xsBuffer.set(1, j, paddedIndices[j]);
+            ysBuffer.set(1, paddedIndices[maxSampleLength]);
+            batch.push({
+                xs: xsBuffer.toTensor(),
+                ys: ysBuffer.toTensor()
+            });
+        }
         yield {
-            xs: xsBuffer.toTensor(),
-            ys: ysBuffer.toTensor()
+            xs: $5OpyM$stack(batch.map((sample)=>sample.xs)),
+            ys: $5OpyM$stack(batch.map((sample)=>sample.ys))
         };
     }
 }

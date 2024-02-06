@@ -3,13 +3,13 @@ import fs from 'fs'
 import * as tf from '@tensorflow/tfjs-node-gpu'
 import Model from '../dist'
 
-tf.setBackend('cuda:1')
+// tf.setBackend('cuda:1')
 // tf.env().set('IS_NODE', true)
 
 let model
-const lstmLayerSize = [128, 128]
+const lstmLayerSize = [128, 128, 128]
 const sampleLen = 180
-const learningRate = 1e-2
+const learningRate = 1e-3
 
 const textContent = fs.readFileSync('./tests/shaks12.txt', 'utf8')
 
