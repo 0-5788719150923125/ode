@@ -15,18 +15,16 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSiz
         callbacks: {
             onTrainBegin: ()=>{},
             onBatchEnd: async (batch, logs)=>{
-                if (batch % batchSize === 0) {
-                    console.log(logs);
-                    for(let temp in [
-                        0,
-                        0.3,
-                        0.7,
-                        0.9,
-                        1.1
-                    ]){
-                        const output = await this.generate(" ", temp);
-                        console.log(output);
-                    }
+                console.log(logs);
+                for(let temp in [
+                    0,
+                    0.3,
+                    0.7,
+                    0.9,
+                    1.1
+                ]){
+                    const output = await this.generate("", temp);
+                    console.log(output);
                 }
             },
             onEpochEnd: async (epoch, logs)=>console.log("epoch ended")

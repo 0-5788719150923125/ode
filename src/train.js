@@ -17,16 +17,13 @@ export async function trainModel(dataGenerator, batchSize = 256) {
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                if (batch % batchSize === 0) {
-                    console.log(logs)
-                    for (let temp in [0, 0.3, 0.7, 0.9, 1.1]) {
-                        const output = await this.generate(' ', temp)
-                        console.log(output)
-                    }
+                console.log(logs)
+                for (let temp in [0, 0.3, 0.7, 0.9, 1.1]) {
+                    const output = await this.generate('', temp)
+                    console.log(output)
                 }
             },
             onEpochEnd: async (epoch, logs) => console.log('epoch ended')
-            // console.log(await this.generate(seed, 0.7))
         }
     })
 }
