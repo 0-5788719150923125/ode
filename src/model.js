@@ -1,5 +1,5 @@
-import * as tf from '@tensorflow/tfjs-node'
-import { trainModel } from './train'
+import * as tf from '@tensorflow/tfjs-node-gpu'
+import { trainModel } from './train.js'
 
 console.log('Backend:', tf.backend())
 
@@ -94,49 +94,47 @@ async function generate(seed, temperature, maxLength = 20) {
         .map((e) => this.vocab.indexOf(e))
         .filter((index) => index !== -1)
 
-    if (sentenceIndices.length > this.sampleLen - 1) {
-        sentenceIndices = sentenceIndices.slice(0, this.sampleLen - 1)
-    } else {
-        while (sentenceIndices.length < this.sampleLen - 1) {
-            sentenceIndices.unshift(0) // Prepend with zeros
-        }
-    }
-
-    let generated = seed // Start with the seed
-    const tempScalar = tf.scalar(parseFloat(temperature)) // Create the temperature scalar outside the loop
-
-    // Warm-up prediction to initialize the model
-    const warmUpInput = tf.tensor2d(
-        [sentenceIndices],
-        [1, this.sampleLen - 1],
-        'int32'
-    )
-    this.model.predict(warmUpInput).dispose()
-    warmUpInput.dispose()
+    // Initialize generated text with the seed
+    let generated = seed
 
     while (generated.length < maxLength) {
+        // Pad the sentenceIndices to ensure it has the required length
+        const paddedSentenceIndices = new Array(
+            this.sampleLen - 1 - sentenceIndices.length
+        )
+            .fill(0)
+            .concat(sentenceIndices)
+
+        // Prepare the input tensor with the shape [1, this.sampleLen - 1]
         const input = tf.tensor2d(
-            [sentenceIndices],
+            [paddedSentenceIndices],
             [1, this.sampleLen - 1],
             'int32'
         )
 
-        // Predict next character
-        const logits = this.model.predict(input).squeeze().div(tempScalar)
+        // Predict the next character
+        const logits = this.model
+            .predict(input)
+            .squeeze()
+            .div(tf.scalar(temperature))
         const winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
         logits.dispose() // Dispose the logits tensor immediately after use
 
         if (winnerIndex >= 0 && winnerIndex < this.vocab.length) {
             const nextChar = this.vocab[winnerIndex]
             generated += nextChar
-            sentenceIndices = [...sentenceIndices.slice(1), winnerIndex]
+            sentenceIndices.push(winnerIndex) // Append the winner index to the sentenceIndices
+
+            // Keep only the most recent (this.sampleLen - 1) indices for the next prediction
+            if (sentenceIndices.length > this.sampleLen - 1) {
+                sentenceIndices.shift() // Remove the oldest index
+            }
         } else {
             break // Break the loop if winnerIndex is invalid
         }
 
-        input.dispose() // Dispose tensors at the end of each loop iteration
+        input.dispose() // Dispose the input tensor after each prediction
     }
 
-    tempScalar.dispose() // Dispose the temperature scalar after the loop
     return generated
 }

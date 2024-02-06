@@ -1,27 +1,20 @@
-import * as tf from '@tensorflow/tfjs-node'
+import * as tf from '@tensorflow/tfjs-node-gpu'
 
 export async function trainModel(dataGenerator, batchSize = 256) {
-    const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
-
-    const seed = ''
-
     const ds = tf.data.generator(
         createBatchGenerator(dataGenerator, this.vocab)
     )
     await this.model.fitDataset(ds, {
         epochs: 1,
-        // batchSize,
-        // validationSplit,
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                console.log(logs)
-                // does not work in Jest
-                // if (batch === 3) {
-                //     await this.saveModel()
-                // }
-                if (batch % 25 === 0) {
+                if (batch === 3) {
+                    await this.saveModel()
+                }
+                if (batch % 100 === 0) {
                     const output = await this.generate('', 0.7, 50)
+                    console.log(logs)
                     console.log(output)
                 }
             },
@@ -37,7 +30,7 @@ function createBatchGenerator(dataGenerator, vocab) {
 }
 
 function* batchGenerator(dataGenerator, vocab) {
-    const batchSize = 64
+    const batchSize = 128
     const sampleLen = 180 - 1 // Adjusted for input sequences
     const charSetSize = vocab.length
 
@@ -64,9 +57,10 @@ function* batchGenerator(dataGenerator, vocab) {
             }
 
             // Select a random start index for the sequence to add variability
-            const startIdx = Math.floor(
-                Math.random() * (textIndices.length - sampleLen)
-            )
+            // const startIdx = Math.floor(
+            //     Math.random() * (textIndices.length - sampleLen)
+            // )
+            const startIdx = 0
 
             // Create input sequence (xs) and target (ys)
             const xs = textIndices.slice(startIdx, startIdx + sampleLen)
