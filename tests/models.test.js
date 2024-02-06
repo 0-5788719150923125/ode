@@ -1,7 +1,6 @@
 import fs from 'fs'
-// import * as tf from '@tensorflow/tfjs'
-import * as tf from '@tensorflow/tfjs-node-gpu'
-import Model from '../dist'
+import * as tf from '@tensorflow/tfjs'
+import Model from '../src'
 
 // tf.setBackend('cuda:1')
 // tf.env().set('IS_NODE', true)

@@ -1,6 +1,5 @@
-import {backend as $5OpyM$backend, layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, pad as $5OpyM$pad, buffer as $5OpyM$buffer, stack as $5OpyM$stack} from "@tensorflow/tfjs-node-gpu";
+import {backend as $5OpyM$backend, layers as $5OpyM$layers, sequential as $5OpyM$sequential, train as $5OpyM$train, TensorBuffer as $5OpyM$TensorBuffer, tidy as $5OpyM$tidy, multinomial as $5OpyM$multinomial, div as $5OpyM$div, log as $5OpyM$log, squeeze as $5OpyM$squeeze, data as $5OpyM$data, tensor1d as $5OpyM$tensor1d, pad1d as $5OpyM$pad1d, buffer as $5OpyM$buffer, stack as $5OpyM$stack} from "@tensorflow/tfjs-node";
 
-// import '@tensorflow/tfjs-node'
 
 
 async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSize = 256) {
@@ -9,8 +8,8 @@ async function $1a004f8cf919e722$export$9bc55a205916dc35(dataGenerator, batchSiz
     const seed = "";
     const ds = $5OpyM$data.generator($1a004f8cf919e722$var$createBatchGenerator(dataGenerator, this.vocab));
     await this.model.fitDataset(ds, {
-        epochs: 1000,
-        batchSize: batchSize,
+        epochs: 1,
+        // batchSize,
         // validationSplit,
         callbacks: {
             onTrainBegin: ()=>{},
@@ -44,14 +43,16 @@ function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
         for(let i = 0; i < batchSize; ++i){
             const text = dataGenerator.next().value;
             // Filter characters and convert to indices
-            const filteredText = text.split("").map((char)=>vocab.indexOf(char));
-            // Pad numeric indices to maximum length
-            const paddedIndices = $5OpyM$pad(filteredText, [
-                [
-                    0,
-                    maxSampleLength - filteredText.length
-                ]
+            const filteredTextIndices = text.split("").map((char)=>vocab.indexOf(char)).filter((index)=>index !== -1); // Ensure only valid indices are included
+            // Create a Tensor and then pad it
+            const indicesTensor = $5OpyM$tensor1d(filteredTextIndices, "int32");
+            const paddedIndicesTensor = $5OpyM$pad1d(indicesTensor, [
+                0,
+                maxSampleLength - filteredTextIndices.length
             ]);
+            // Convert the padded tensor back to an array for setting values in xsBuffer
+            const paddedIndices = await paddedIndicesTensor.array(); // Note: this requires the function to be async or handling the promise
+            paddedIndicesTensor.dispose(); // Dispose tensor to free memory
             const xsBuffer = $5OpyM$buffer([
                 maxSampleLength,
                 vocab.length
@@ -59,8 +60,11 @@ function* $1a004f8cf919e722$var$batchGenerator(dataGenerator, vocab) {
             const ysBuffer = $5OpyM$buffer([
                 vocab.length
             ]);
-            for(let j = 0; j < maxSampleLength; ++j)xsBuffer.set(1, j, paddedIndices[j]);
-            ysBuffer.set(1, paddedIndices[maxSampleLength]);
+            for(let j = 0; j < paddedIndices.length; ++j)xsBuffer.set(1, j, paddedIndices[j]);
+            // Assuming the label is the next character in the sequence
+            // This part needs to be adjusted based on your actual label setting logic
+            const labelIndex = vocab.indexOf(text[maxSampleLength]); // Get index of the label character
+            if (labelIndex !== -1) ysBuffer.set(1, labelIndex);
             batch.push({
                 xs: xsBuffer.toTensor(),
                 ys: ysBuffer.toTensor()

@@ -1,19 +1,4 @@
-// import '@tensorflow/tfjs-node'
-import * as tf from '@tensorflow/tfjs-node-gpu'
-// const devices = await tf.deviceList()
-// devices.forEach((device) => console.log('Device:', device))
-
-// Conditionally import GPU-specific packages:
-// if (typeof window !== 'undefined') {
-//     // Browser environment:
-//     import '@tensorflow/tfjs-backend-webgl';
-//   } else {
-//     // Node.js environment:
-//     import '@tensorflow/tfjs-node';
-//     // If GPU support is available and desired:
-//     import '@tensorflow/tfjs-node-gpu';
-//   }
-// import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node'
 import { trainModel } from './train'
 
 console.log('Backend:', tf.backend())
@@ -36,43 +21,30 @@ export default class ModelPrototype {
     }
 
     init() {
-        // XXX: Create our processing model. We iterate through the array of lstmLayerSize and
-        //      iteratively add an LSTM processing layer whose number of internal units match the
-        //      specified value.
-        this.model = this.lstmLayerSize.reduce(
-            (mdl, lstmLayerSize, i, orig) => {
-                mdl.add(
-                    tf.layers.lstm({
-                        units: lstmLayerSize,
-                        // XXX: For all layers except the last one, we specify that we'll be returning
-                        //      sequences of data. This allows us to iteratively chain individual LSTMs
-                        //      to one-another.
-                        returnSequences: i < orig.length - 1,
-                        // XXX: Since each LSTM layer generates a sequence of data, only the first layer
-                        //      needs to receive a specific input shape. Here, we initialize the inputShape
-                        //      [sampleLen, this.vocab.length]. This defines that the first layer will receive an
-                        //      input matrix which allows us to convert from our selected sample range into
-                        //      the size of our charset. The charset uses one-hot encoding, which allows us
-                        //      to represent each possible character in our dataset using a dedicated input
-                        //      neuron.
-                        inputShape:
-                            i === 0
-                                ? [this.sampleLen, this.vocab.length]
-                                : undefined
-                    })
-                )
-                // XXX: Here we use a sequential processing model for our network. This model gets passed
-                //      between each iteration, and is what we add our LSTM layers to.
-                return mdl
-            },
-            tf.sequential()
+        // Initialize the model as a sequential model
+        this.model = tf.sequential()
+
+        // Add the embedding layer as the first layer
+        this.model.add(
+            tf.layers.embedding({
+                inputDim: this.vocab.length, // Size of the vocabulary
+                outputDim: 64, // Dimension of the embedding vectors
+                inputLength: this.sampleLen - 1 // Length of input sequences
+            })
         )
 
-        // XXX: At the output, we use a softmax function (a normalized exponential) as the final
-        //      classification layer. This is common in many neural networks. It's particularly
-        //      important for this example, because we use the logit probability model (which
-        //      supports regression for networks with more than 2 possible outcomes of a categorically
-        //      distributed dependent variable).
+        // Add LSTM layers
+        // Adjust the last LSTM layer in the init method
+        this.lstmLayerSize.forEach((lstmLayerSize, i) => {
+            this.model.add(
+                tf.layers.lstm({
+                    units: lstmLayerSize,
+                    returnSequences: i < this.lstmLayerSize.length - 1 // Set to false for the last LSTM layer
+                })
+            )
+        })
+
+        // Add the final Dense layer with softmax activation
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,
@@ -80,11 +52,7 @@ export default class ModelPrototype {
             })
         )
 
-        // XXX: Finally, compile the model. The optimizer is used to define the backpropagation
-        //      technique that should be used for training. We use the rmsProp to help tune the
-        //      learning rate that we apply individually to each neuron to help learning.
-        //      We use a categoricalCrossentropy loss model which is compatible with our softmax
-        //      activation output.
+        // Compile the model
         this.model.compile({
             optimizer: tf.train.rmsprop(this.learningRate),
             loss: 'categoricalCrossentropy'

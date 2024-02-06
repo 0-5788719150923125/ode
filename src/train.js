@@ -1,6 +1,4 @@
-import * as tf from '@tensorflow/tfjs-node-gpu'
-// import '@tensorflow/tfjs-node'
-// import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node'
 
 export async function trainModel(dataGenerator, batchSize = 256) {
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
@@ -11,8 +9,8 @@ export async function trainModel(dataGenerator, batchSize = 256) {
         createBatchGenerator(dataGenerator, this.vocab)
     )
     await this.model.fitDataset(ds, {
-        epochs: 1000,
-        batchSize,
+        epochs: 1,
+        // batchSize,
         // validationSplit,
         callbacks: {
             onTrainBegin: () => {},
@@ -35,40 +33,48 @@ function createBatchGenerator(dataGenerator, vocab) {
 }
 
 function* batchGenerator(dataGenerator, vocab) {
+    const batchSize = 64
+    const sampleLen = 180 - 1 // Adjusted for input sequences
+    const charSetSize = vocab.length
+
     while (true) {
-        const batch = []
-        const batchSize = 64
-        const maxSampleLength = 180
+        let xsArray = []
+        let ysArray = []
+
         for (let i = 0; i < batchSize; ++i) {
             const text = dataGenerator.next().value
 
-            // Filter characters and convert to indices
-            const filteredText = text
+            // Convert characters to indices, filtering out characters not in vocab
+            let textIndices = text
                 .split('')
                 .map((char) => vocab.indexOf(char))
+                .filter((index) => index !== -1)
 
-            // Pad numeric indices to maximum length
-            const paddedIndices = tf.pad(filteredText, [
-                [0, maxSampleLength - filteredText.length]
-            ])
-
-            const xsBuffer = tf.buffer([maxSampleLength, vocab.length])
-            const ysBuffer = tf.buffer([vocab.length])
-
-            for (let j = 0; j < maxSampleLength; ++j) {
-                xsBuffer.set(1, j, paddedIndices[j])
+            // Ensure the sequence is not shorter than expected due to filtering
+            if (textIndices.length < sampleLen) {
+                // If the sequence is too short, pad it to the required length
+                textIndices = [
+                    ...textIndices,
+                    ...Array(sampleLen - textIndices.length).fill(0)
+                ] // Pad with zeros or another designated padding value
             }
 
-            ysBuffer.set(1, paddedIndices[maxSampleLength])
+            // Select a random start index for the sequence to add variability
+            const startIdx = Math.floor(
+                Math.random() * (textIndices.length - sampleLen)
+            )
 
-            batch.push({
-                xs: xsBuffer.toTensor(),
-                ys: ysBuffer.toTensor()
-            })
+            // Create input sequence (xs) and target (ys)
+            const xs = textIndices.slice(startIdx, startIdx + sampleLen)
+            const ys = textIndices[startIdx + sampleLen] ?? 0 // Use nullish coalescing operator to handle undefined values
+
+            xsArray.push(xs)
+            ysArray.push(ys)
         }
-        yield {
-            xs: tf.stack(batch.map((sample) => sample.xs)),
-            ys: tf.stack(batch.map((sample) => sample.ys))
-        }
+
+        const xsTensor = tf.tensor2d(xsArray, [batchSize, sampleLen], 'int32')
+        const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), charSetSize)
+
+        yield { xs: xsTensor, ys: ysTensor }
     }
 }
