@@ -16,6 +16,10 @@ export async function trainModel(dataGenerator, batchSize = 256) {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
                 console.log(logs)
+                // does not work in Jest
+                // if (batch === 3) {
+                //     await this.saveModel()
+                // }
                 if (batch % 25 === 0) {
                     const output = await this.generate('', 0.7, 50)
                     console.log(output)

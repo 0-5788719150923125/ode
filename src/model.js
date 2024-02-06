@@ -14,6 +14,7 @@ export default class ModelPrototype {
                 )
             )
         )
+        console.log(this.vocab)
         this.learningRate = learningRate
         this.displayLength = displayLength
         this.model = null
@@ -75,6 +76,16 @@ export default class ModelPrototype {
     async generate(seed, temperature = 0.7, length = 20) {
         const bound = generate.bind(this)
         return await bound(seed, temperature, length)
+    }
+
+    async saveModel() {
+        // Define a path to save the model
+        const savePath = `file://data/model`
+
+        // Save the model
+        await this.model.save(savePath)
+
+        console.log(`Model saved to ${savePath}`)
     }
 }
 
