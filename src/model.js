@@ -72,9 +72,9 @@ export default class ModelPrototype {
         return this.model.getWeights()
     }
 
-    async generate(seed, temperature = 0.7) {
+    async generate(seed, temperature = 0.7, length = 20) {
         const bound = generate.bind(this)
-        return await bound(seed, temperature)
+        return await bound(seed, temperature, length)
     }
 }
 
@@ -83,7 +83,6 @@ async function generate(seed, temperature, maxLength = 20) {
         .map((e) => this.vocab.indexOf(e))
         .filter((index) => index !== -1)
 
-    // Adjust the length of sentenceIndices to match the model's expected input length
     if (sentenceIndices.length > this.sampleLen - 1) {
         sentenceIndices = sentenceIndices.slice(0, this.sampleLen - 1)
     } else {
@@ -93,6 +92,16 @@ async function generate(seed, temperature, maxLength = 20) {
     }
 
     let generated = seed // Start with the seed
+    const tempScalar = tf.scalar(parseFloat(temperature)) // Create the temperature scalar outside the loop
+
+    // Warm-up prediction to initialize the model
+    const warmUpInput = tf.tensor2d(
+        [sentenceIndices],
+        [1, this.sampleLen - 1],
+        'int32'
+    )
+    this.model.predict(warmUpInput).dispose()
+    warmUpInput.dispose()
 
     while (generated.length < maxLength) {
         const input = tf.tensor2d(
@@ -100,14 +109,11 @@ async function generate(seed, temperature, maxLength = 20) {
             [1, this.sampleLen - 1],
             'int32'
         )
-        const output = this.model.predict(input)
 
-        const winnerIndex = tf.tidy(() => {
-            // Ensure temperature is a numeric value
-            const temp = parseFloat(temperature)
-            const logits = output.squeeze().div(tf.scalar(temp))
-            return tf.multinomial(logits, 1).dataSync()[0]
-        })
+        // Predict next character
+        const logits = this.model.predict(input).squeeze().div(tempScalar)
+        const winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
+        logits.dispose() // Dispose the logits tensor immediately after use
 
         if (winnerIndex >= 0 && winnerIndex < this.vocab.length) {
             const nextChar = this.vocab[winnerIndex]
@@ -117,9 +123,9 @@ async function generate(seed, temperature, maxLength = 20) {
             break // Break the loop if winnerIndex is invalid
         }
 
-        input.dispose()
-        output.dispose()
+        input.dispose() // Dispose tensors at the end of each loop iteration
     }
 
+    tempScalar.dispose() // Dispose the temperature scalar after the loop
     return generated
 }
