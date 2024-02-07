@@ -3,12 +3,9 @@
     "version": "0.1.0",
     "description": "omniscient deterministic engine",
     "type": "module",
-    "source": "src/index.js",
-    "main": "dist/index.js",
-    "module": "dist/module.js",
     "scripts": {
-        "watch": "parcel watch",
-        "build": "parcel build",
+        "watch": "parcel dev.html --https",
+        "build": "parcel build dev.html",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests"
     },
     "repository": {
@@ -22,9 +19,18 @@
     },
     "homepage": "https://github.com/0-5788719150923125/ode#readme",
     "devDependencies": {
+        "assert": "^2.1.0",
+        "buffer": "^6.0.3",
+        "events": "^3.3.0",
         "jest": "^29.7.0",
+        "os-browserify": "^0.3.0",
         "parcel": "^2.11.0",
-        "prettier": "^3.2.4"
+        "path-browserify": "^1.0.1",
+        "prettier": "^3.2.4",
+        "process": "^0.11.10",
+        "stream-browserify": "^3.0.0",
+        "url": "^0.11.3",
+        "util": "^0.12.5"
     },
     "dependencies": {
         "@tensorflow/tfjs": "^4.17.0",

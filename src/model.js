@@ -1,4 +1,4 @@
-import * as tf from '@tensorflow/tfjs-node-gpu'
+import * as tf from '@tensorflow/tfjs'
 import { trainModel } from './train.js'
 
 console.log('Backend:', tf.backend())
@@ -56,9 +56,9 @@ export default class ModelPrototype {
         return this.model
     }
 
-    async train(dataGenerator) {
+    async train(dataGenerator, batchSize) {
         const bound = trainModel.bind(this)
-        await bound(dataGenerator)
+        await bound(dataGenerator, batchSize)
     }
 
     getWeights() {

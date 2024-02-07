@@ -1,4 +1,4 @@
-import * as tf from '@tensorflow/tfjs-node-gpu'
+import * as tf from '@tensorflow/tfjs'
 
 export async function trainModel(dataGenerator, batchSize = 256) {
     const emaCalc = emaGenerator()
@@ -14,6 +14,7 @@ export async function trainModel(dataGenerator, batchSize = 256) {
     )
     await this.model.fitDataset(ds, {
         epochs: 1,
+        yieldEvery: 'auto',
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
