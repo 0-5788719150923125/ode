@@ -1,4 +1,7 @@
+// Import @tensorflow/tfjs or @tensorflow/tfjs-core
 import * as tf from '@tensorflow/tfjs'
+// Add the WebGPU backend to the global backend registry.
+// import '@tensorflow/tfjs-backend-webgpu'
 
 export async function trainModel(dataGenerator, batchSize = 256) {
     const emaCalc = emaGenerator()

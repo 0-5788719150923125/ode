@@ -1,7 +1,13 @@
+// Import @tensorflow/tfjs or @tensorflow/tfjs-core
 import * as tf from '@tensorflow/tfjs'
+// Add the WebGPU backend to the global backend registry.
+// import '@tensorflow/tfjs-backend-webgpu'
+// Set the backend to WebGPU and wait for the module to be ready.
+// tf.setBackend('webgpu').then(() => main())
 import { trainModel } from './train.js'
 
 console.log('Backend:', tf.backend())
+tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
 export default class ModelPrototype {
     constructor(config) {
