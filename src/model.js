@@ -33,12 +33,12 @@ export default class ModelPrototype {
             })
         )
 
-        // Add LSTM layers
+        // Add GRU layers
         this.config.layout.forEach((layer, i) => {
             this.model.add(
-                tf.layers.lstm({
+                tf.layers.gru({
                     units: layer,
-                    returnSequences: i < this.config.layout.length - 1 // Set to false for the last LSTM layer
+                    returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                 })
             )
         })

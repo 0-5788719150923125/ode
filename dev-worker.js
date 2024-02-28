@@ -15,18 +15,18 @@ onmessage = async function (event) {
     console.log(event.data)
 
     const net = new ODE({
-        layout: [128, 128, 128],
-        learningRate: 1e-3,
+        layout: [96, 96, 96, 96, 96],
+        learningRate: 1e-2,
         predictLength: 100,
         inputLength: 300,
-        embeddingDimensions: 256
+        embeddingDimensions: 512
     })
 
     console.log(net.model.summary())
 
-    const sampleLen = 30
+    const sampleLen = 128
     const dataset = stringSampler(sampleLen)
-    const batchSize = 2
+    const batchSize = 64
 
     await net.train(dataset, batchSize)
 }
