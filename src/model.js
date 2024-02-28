@@ -7,14 +7,11 @@ import { trainModel } from './train.js'
 export default class ModelPrototype {
     constructor(config) {
         this.config = config
-        this.vocab = [
-            '<pad>',
-            ...new Set(
-                Array.from(
-                    `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]|/\\\n `
-                )
+        this.vocab = Array.from(
+            new Set(
+                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]|/\\\n `
             )
-        ]
+        )
 
         console.log(this.vocab)
         this.model = tf.sequential()
@@ -28,18 +25,21 @@ export default class ModelPrototype {
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
-                inputDim: this.vocab.length, // Size of the vocabulary
-                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
-                inputLength: this.config.inputLength // Length of input sequences
+                inputDim: this.vocab.length + 1, // Size of the vocabulary
+                outputDim: this.config.embeddingDimensions // Dimension of the embedding vectors
+                // inputLength: this.config.inputLength // Length of input sequences
             })
         )
 
         // Add GRU layers
         this.config.layout.forEach((layer, i) => {
             this.model.add(
-                tf.layers.gru({
-                    units: layer,
-                    returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
+                tf.layers.bidirectional({
+                    layer: tf.layers.gru({
+                        units: layer,
+                        returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
+                    }), // Each direction of the Bidirectional layer has 'layer' GRU units
+                    mergeMode: 'concat' // Decide how to merge forward and backward states
                 })
             )
         })
@@ -88,28 +88,19 @@ export default class ModelPrototype {
     }
 }
 
-async function generate(seed, temperature, maxLength = 20) {
-    let sentenceIndices =
-        seed.length > 0
-            ? Array.from(seed)
-                  .map((e) => this.vocab.indexOf(e))
-                  .filter((index) => index !== -1)
-            : [this.vocab.indexOf('<pad>')] // Start with a single pad token if no seed
+async function generate(seed, temperature = 0.7, maxLength = 20) {
+    let sentenceIndices = Array.from(seed).map((e) => this.vocab.indexOf(e)) // Guarantee in-vocab seed characters
 
     let generated = seed
 
-    for (let i = 0; generated.length < maxLength; i++) {
-        // Dynamically create input sequence with minimal padding
-        let inputIndices = sentenceIndices.slice(-this.config.inputLength)
-        if (inputIndices.length < this.config.inputLength) {
-            inputIndices = Array(this.config.inputLength - inputIndices.length)
-                .fill(0)
-                .concat(inputIndices) // Minimal padding to meet inputLength
-        }
+    for (let i = 0; i < maxLength; i++) {
+        // Slice out only the necessary input sequence:
+        // const inputIndices = sentenceIndices.slice(-this.config.inputLength)
+        let inputIndices = sentenceIndices // Use all sentenceIndices
 
         const input = tf.tensor2d(
             [inputIndices],
-            [1, this.config.inputLength],
+            [1, inputIndices.length], // Dynamically set the second dimension of the shape
             'int32'
         )
 
@@ -117,22 +108,19 @@ async function generate(seed, temperature, maxLength = 20) {
             .predict(input)
             .squeeze()
             .div(tf.scalar(temperature))
+
         const winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
         logits.dispose()
         input.dispose()
 
-        if (winnerIndex >= 0 && winnerIndex < this.vocab.length) {
-            const nextChar = this.vocab[winnerIndex]
-            generated += nextChar
-            sentenceIndices.push(winnerIndex)
-
-            // Now focus on the generated output, progressively reducing padding influence
-            if (sentenceIndices.length > this.config.inputLength) {
-                sentenceIndices.shift()
-            }
-        } else {
+        if (winnerIndex < 0 || winnerIndex > this.vocab.length) {
+            console.warn('Invalid index generated, breaking')
             break // Stop if an invalid index is generated
         }
+
+        const nextChar = this.vocab[winnerIndex]
+        generated += nextChar
+        sentenceIndices.push(winnerIndex)
     }
 
     return generated

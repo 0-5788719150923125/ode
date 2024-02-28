@@ -27,7 +27,7 @@ export async function trainModel(dataGenerator, batchSize = 256) {
                 // }
                 console.log(`EMA=${updatedEma.toFixed(4)}`)
                 if (batch % 5 === 0) {
-                    const output = await this.generate('', 0.3, 50)
+                    const output = await this.generate('who', 0.3, 50)
                     console.log(logs)
                     console.log(output)
                 }
