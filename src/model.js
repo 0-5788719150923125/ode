@@ -1,29 +1,30 @@
-// Import @tensorflow/tfjs or @tensorflow/tfjs-core
 import * as tf from '@tensorflow/tfjs'
-// Add the WebGPU backend to the global backend registry.
-// import '@tensorflow/tfjs-backend-webgpu'
-// Set the backend to WebGPU and wait for the module to be ready.
-// tf.setBackend('webgpu').then(() => main())
+import '@tensorflow/tfjs-backend-wasm'
+import '@tensorflow/tfjs-backend-webgpu'
+import '@tensorflow/tfjs-backend-webgl'
 import { trainModel } from './train.js'
-
-console.log('Backend:', tf.backend())
-tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
 export default class ModelPrototype {
     constructor(config) {
         this.config = config
-        this.vocab = Array.from(
-            new Set(
+        this.vocab = [
+            '<pad>',
+            ...new Set(
                 Array.from(
                     `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]|/\\\n `
                 )
             )
-        )
+        ]
+
+        console.log(this.vocab)
         this.model = tf.sequential()
-        this.init()
     }
 
-    init() {
+    async init() {
+        await tf.setBackend(this.config.backend || 'cpu')
+        console.log('Backend:', tf.backend())
+        tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
+
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
@@ -88,50 +89,50 @@ export default class ModelPrototype {
 }
 
 async function generate(seed, temperature, maxLength = 20) {
-    let sentenceIndices = Array.from(seed)
-        .map((e) => this.vocab.indexOf(e))
-        .filter((index) => index !== -1)
+    let sentenceIndices =
+        seed.length > 0
+            ? Array.from(seed)
+                  .map((e) => this.vocab.indexOf(e))
+                  .filter((index) => index !== -1)
+            : [this.vocab.indexOf('<pad>')] // Start with a single pad token if no seed
 
-    // Initialize generated text with the seed
     let generated = seed
 
-    while (generated.length < maxLength) {
-        // Pad the sentenceIndices to ensure it has the required length
-        const paddedSentenceIndices = new Array(
-            this.config.inputLength - sentenceIndices.length
-        )
-            .fill(0)
-            .concat(sentenceIndices)
+    for (let i = 0; generated.length < maxLength; i++) {
+        // Dynamically create input sequence with minimal padding
+        let inputIndices = sentenceIndices.slice(-this.config.inputLength)
+        if (inputIndices.length < this.config.inputLength) {
+            inputIndices = Array(this.config.inputLength - inputIndices.length)
+                .fill(0)
+                .concat(inputIndices) // Minimal padding to meet inputLength
+        }
 
-        // Prepare the input tensor with the shape [1, inputLength - 1]
         const input = tf.tensor2d(
-            [paddedSentenceIndices],
+            [inputIndices],
             [1, this.config.inputLength],
             'int32'
         )
 
-        // Predict the next character
         const logits = this.model
             .predict(input)
             .squeeze()
             .div(tf.scalar(temperature))
         const winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
-        logits.dispose() // Dispose the logits tensor immediately after use
+        logits.dispose()
+        input.dispose()
 
         if (winnerIndex >= 0 && winnerIndex < this.vocab.length) {
             const nextChar = this.vocab[winnerIndex]
             generated += nextChar
-            sentenceIndices.push(winnerIndex) // Append the winner index to the sentenceIndices
+            sentenceIndices.push(winnerIndex)
 
-            // Keep only the most recent ${inputLength} indices for the next prediction
+            // Now focus on the generated output, progressively reducing padding influence
             if (sentenceIndices.length > this.config.inputLength) {
-                sentenceIndices.shift() // Remove the oldest index
+                sentenceIndices.shift()
             }
         } else {
-            break // Break the loop if winnerIndex is invalid
+            break // Stop if an invalid index is generated
         }
-
-        input.dispose() // Dispose the input tensor after each prediction
     }
 
     return generated

@@ -36,6 +36,8 @@
         "@tensorflow/tfjs": "^4.17.0",
         "@tensorflow/tfjs-node": "^4.17.0",
         "@tensorflow/tfjs-node-gpu": "^4.17.0",
+        "@tensorflow/tfjs-backend-wasm": "^4.17.0",
+        "@tensorflow/tfjs-backend-webgl": "^4.17.0",
         "@tensorflow/tfjs-backend-webgpu": "^4.17.0",
         "@tensorflow/tfjs-backend-cpu": "^4.17.0"
     },
