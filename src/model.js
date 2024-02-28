@@ -20,7 +20,7 @@ export default class ModelPrototype {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-        await tf.enableProdMode()
+        tf.enableProdMode()
         console.log('Backend:', tf.backend())
         // tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
@@ -29,11 +29,11 @@ export default class ModelPrototype {
             tf.layers.embedding({
                 inputDim: this.vocab.length, // Size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
-                embeddingsInitializer: 'glorotUniform',
-                embeddingsConstraint: tf.constraints.minMaxNorm({
-                    minValue: -0.02,
-                    maxValue: 0.02
-                })
+                embeddingsInitializer: 'glorotUniform'
+                // embeddingsConstraint: tf.constraints.minMaxNorm({
+                //     minValue: -0.02,
+                //     maxValue: 0.02
+                // })
             })
         )
 

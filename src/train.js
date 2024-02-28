@@ -21,7 +21,7 @@ export async function trainModel(
                 // if (batch === 3) {
                 //     await this.saveModel()
                 // }
-                console.log(`EMA=${updatedEma.toFixed(4)}`)
+                console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
                 if (batch % 25 === 0) {
                     const output = await this.generate('who', 0.23, 50)
                     console.log(logs)
