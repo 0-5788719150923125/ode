@@ -1,16 +1,15 @@
 import * as tf from '@tensorflow/tfjs'
 
-export async function trainModel(dataGenerator, batchSize = 256) {
+export async function trainModel(
+    dataGenerator,
+    batchSize = 256,
+    sampleLen = 256
+) {
     const emaCalc = emaGenerator()
     emaCalc.next() // Initialize the generator
 
     const ds = tf.data.generator(
-        createBatchGenerator(
-            dataGenerator,
-            this.vocab,
-            batchSize,
-            this.config.inputLength
-        )
+        createBatchGenerator(dataGenerator, this.vocab, batchSize, sampleLen)
     )
     await this.model.fitDataset(ds, {
         epochs: 1,
@@ -26,7 +25,7 @@ export async function trainModel(dataGenerator, batchSize = 256) {
                 //     console.log(`EMA=${updatedEma.toFixed(4)}`)
                 // }
                 console.log(`EMA=${updatedEma.toFixed(4)}`)
-                if (batch % 5 === 0) {
+                if (batch % 25 === 0) {
                     const output = await this.generate('who', 0.23, 50)
                     console.log(logs)
                     console.log(output)

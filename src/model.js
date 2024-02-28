@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import '@tensorflow/tfjs-backend-wasm'
-import '@tensorflow/tfjs-backend-webgpu'
+// import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import { trainModel } from './train.js'
 
@@ -18,6 +18,7 @@ export default class ModelPrototype {
     }
 
     async init() {
+        await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
         console.log('Backend:', tf.backend())
         tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
@@ -82,9 +83,9 @@ export default class ModelPrototype {
         return this.model
     }
 
-    async train(dataGenerator, batchSize) {
+    async train(dataGenerator, batchSize, sampleLen) {
         const bound = trainModel.bind(this)
-        await bound(dataGenerator, batchSize)
+        await bound(dataGenerator, batchSize, sampleLen)
     }
 
     getWeights() {
@@ -107,30 +108,25 @@ export default class ModelPrototype {
     }
 }
 
-async function generate(seed, temperature = 0.7, maxLength = 20) {
-    let sentenceIndices = Array.from(seed).map((e) => this.vocab.indexOf(e)) // Guarantee in-vocab seed characters
+async function generate(prompt, temperature = 0.7, maxLength = 20) {
+    let generated = prompt
 
-    let generated = seed
+    const tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
     for (let i = 0; i < maxLength; i++) {
-        // Slice out only the necessary input sequence:
-        // const inputIndices = sentenceIndices.slice(-this.config.inputLength)
-        let inputIndices = sentenceIndices // Use all sentenceIndices
-
         const input = tf.tensor2d(
-            [inputIndices],
-            [1, inputIndices.length], // Dynamically set the second dimension of the shape
+            [tokenIndices],
+            [1, tokenIndices.length],
             'int32'
         )
 
-        const logits = this.model
+        const logits = await this.model
             .predict(input)
             .squeeze()
             .div(tf.scalar(temperature))
 
-        let winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
-        logits.dispose()
-        input.dispose()
+        const probabilities = await tf.multinomial(logits, 1).data()
+        let winnerIndex = probabilities[0]
 
         if (winnerIndex < 0 || winnerIndex > this.vocab.length) {
             winnerIndex = 0
@@ -138,7 +134,10 @@ async function generate(seed, temperature = 0.7, maxLength = 20) {
 
         const nextChar = this.vocab[winnerIndex]
         generated += nextChar
-        sentenceIndices.push(winnerIndex)
+        tokenIndices.push(winnerIndex)
+
+        logits.dispose()
+        input.dispose()
     }
 
     return generated
