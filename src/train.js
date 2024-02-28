@@ -5,8 +5,8 @@ export async function trainModel(
     batchSize = 256,
     sampleLen = 256
 ) {
-    const emaCalc = emaGenerator()
-    emaCalc.next() // Initialize the generator
+    const emaCalc = emaGenerator() // Initialize the generator
+    emaCalc.next()
 
     const ds = tf.data.generator(
         createBatchGenerator(dataGenerator, this.vocab, batchSize, sampleLen)
@@ -21,9 +21,6 @@ export async function trainModel(
                 // if (batch === 3) {
                 //     await this.saveModel()
                 // }
-                // if (batch % 5 === 0) {
-                //     console.log(`EMA=${updatedEma.toFixed(4)}`)
-                // }
                 console.log(`EMA=${updatedEma.toFixed(4)}`)
                 if (batch % 25 === 0) {
                     const output = await this.generate('who', 0.23, 50)
@@ -37,11 +34,10 @@ export async function trainModel(
 }
 
 function* emaGenerator(alpha = 0.01) {
-    let ema = null // Initialize EMA to null
+    let ema = null
     while (true) {
-        const newLoss = yield ema // Pause here and return 'ema'. When resumed, 'newLoss' gets the passed value.
+        const newLoss = yield ema // Pause here and return exponential moving average. When resumed, 'newLoss' gets the new value.
         if (newLoss !== undefined) {
-            // Check if 'newLoss' is provided
             ema = ema === null ? newLoss : alpha * newLoss + (1 - alpha) * ema // Update EMA with the new loss value
         }
     }
@@ -76,12 +72,12 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
                 textIndices = [
                     ...textIndices,
                     ...Array(sampleLength - textIndices.length).fill(0)
-                ] // Pad with zeros or another designated padding value
+                ] // Pad with zeros or another designated padding value; 0 is bad here, since we've not implemented a pad token yet
             }
 
             // Create input sequence (xs) and target (ys)
             const xs = textIndices.slice(0, sampleLength)
-            const ys = textIndices[sampleLength] ?? 0 // Use nullish coalescing operator to handle undefined values
+            const ys = textIndices[sampleLength] ?? 0 // handle undefined values
 
             xsArray.push(xs)
             ysArray.push(ys)

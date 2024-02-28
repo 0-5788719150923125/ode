@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import '@tensorflow/tfjs-backend-wasm'
-// import '@tensorflow/tfjs-backend-webgpu'
+import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import { trainModel } from './train.js'
 
@@ -20,8 +20,9 @@ export default class ModelPrototype {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
+        await tf.enableProdMode()
         console.log('Backend:', tf.backend())
-        tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
+        // tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
         // Add the embedding layer as the first layer
         this.model.add(
@@ -33,7 +34,6 @@ export default class ModelPrototype {
                     minValue: -0.02,
                     maxValue: 0.02
                 })
-                // inputLength: this.config.inputLength // Length of input sequences
             })
         )
 
@@ -49,18 +49,14 @@ export default class ModelPrototype {
                         biasInitializer: 'zeros',
                         kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
                         recurrentConstraint: tf.constraints.maxNorm({ axis: 0 })
-                    }), // Each direction of the Bidirectional layer has 'layer' GRU units
-                    mergeMode: 'concat' // Decide how to merge forward and backward states
+                    }),
+                    mergeMode: 'concat'
                 })
             )
         })
 
         // Add the final Dense layer with softmax activation
         this.model.add(
-            // tf.layers.softmax({
-            //     // axis: 0,
-            //     units: this.vocab.length
-            // })
             tf.layers.dense({
                 units: this.vocab.length,
                 activation: 'softmax'
@@ -98,13 +94,8 @@ export default class ModelPrototype {
     }
 
     async saveModel() {
-        // Define a path to save the model
         const savePath = `file://data/model`
-
-        // Save the model
         await this.model.save(savePath)
-
-        console.log(`Model saved to ${savePath}`)
     }
 }
 
@@ -136,8 +127,7 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
         generated += nextChar
         tokenIndices.push(winnerIndex)
 
-        logits.dispose()
-        input.dispose()
+        tf.dispose([logits, input, probabilities])
     }
 
     return generated
