@@ -25,8 +25,13 @@ export default class ModelPrototype {
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
-                inputDim: this.vocab.length + 1, // Size of the vocabulary
-                outputDim: this.config.embeddingDimensions // Dimension of the embedding vectors
+                inputDim: this.vocab.length, // Size of the vocabulary
+                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
+                embeddingsInitializer: 'glorotUniform',
+                embeddingsConstraint: tf.constraints.minMaxNorm({
+                    minValue: -0.02,
+                    maxValue: 0.02
+                })
                 // inputLength: this.config.inputLength // Length of input sequences
             })
         )
@@ -37,7 +42,12 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
-                        returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
+                        returnSequences: i < this.config.layout.length - 1, // Set to false for the last GRU layer
+                        kernelInitializer: 'glorotUniform',
+                        recurrentInitializer: 'orthogonal',
+                        biasInitializer: 'zeros',
+                        kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
+                        recurrentConstraint: tf.constraints.maxNorm({ axis: 0 })
                     }), // Each direction of the Bidirectional layer has 'layer' GRU units
                     mergeMode: 'concat' // Decide how to merge forward and backward states
                 })
@@ -46,6 +56,10 @@ export default class ModelPrototype {
 
         // Add the final Dense layer with softmax activation
         this.model.add(
+            // tf.layers.softmax({
+            //     // axis: 0,
+            //     units: this.vocab.length
+            // })
             tf.layers.dense({
                 units: this.vocab.length,
                 activation: 'softmax'
@@ -54,7 +68,12 @@ export default class ModelPrototype {
 
         // Compile the model
         this.model.compile({
-            optimizer: tf.train.rmsprop(this.config.learningRate),
+            optimizer: tf.train.rmsprop(
+                this.config.learningRate || 1e-2,
+                this.config.decayRate || 0.9,
+                this.config.momentum || 0,
+                this.config.epsilon || 1e-8
+            ),
             loss: 'categoricalCrossentropy'
         })
     }
@@ -109,13 +128,12 @@ async function generate(seed, temperature = 0.7, maxLength = 20) {
             .squeeze()
             .div(tf.scalar(temperature))
 
-        const winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
+        let winnerIndex = tf.multinomial(logits, 1).dataSync()[0]
         logits.dispose()
         input.dispose()
 
         if (winnerIndex < 0 || winnerIndex > this.vocab.length) {
-            console.warn('Invalid index generated, breaking')
-            break // Stop if an invalid index is generated
+            winnerIndex = 0
         }
 
         const nextChar = this.vocab[winnerIndex]
