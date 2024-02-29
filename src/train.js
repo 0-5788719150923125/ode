@@ -8,6 +8,8 @@ export async function trainModel(
     batchSize = 256,
     sampleLen = 256
 ) {
+    console.log(this.model.optimizer)
+
     const emaCalc = emaGenerator()
     emaCalc.next()
 
@@ -22,36 +24,20 @@ export async function trainModel(
             onBatchEnd: async (batch, logs) => {
                 if (!currentXs) return
 
-                console.log(currentXs)
-
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
-
-                console.log(this.model.optimizer)
-                console.log(logs.loss)
 
                 // Gradient Clipping
                 const gradsAndVars = this.model.optimizer.computeGradients(
                     () => {
                         // Compute losses on the xs (input) data for this batch
-                        console.log('doing predictions')
                         const predictions = this.model
                             .predict(currentXs)
                             .asType('float32')
 
-                        console.log('getting loss')
-                        console.log(tf.losses)
                         const loss = this.lossFunction(currentYs, predictions)
-                        // const loss = this.model.compileArgs.loss(
-                        //     predictions,
-                        //     currentYs
-                        // )
-                        console.log('loss is')
-                        console.log(loss)
                         return loss
                     }
                 )
-                console.log('grads and vars')
-                console.log(gradsAndVars)
 
                 // Assuming computeGradients returns {grads: {...}, value: number}
                 const grads = gradsAndVars.grads // Get the gradients object
