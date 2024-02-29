@@ -579,10 +579,13 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"ccjfd":[function(require,module,exports) {
-const worker = new Worker(require("f8796e59e750ab07"));
-worker.postMessage({
-    command: "train"
-});
+if (typeof window === "undefined") console.log("Running in Node.js");
+else {
+    const worker = new Worker(require("f8796e59e750ab07"));
+    worker.postMessage({
+        command: "train"
+    });
+}
 
 },{"f8796e59e750ab07":"ddjNL"}],"ddjNL":[function(require,module,exports) {
 let workerURL = require("5334551b977abce1");
