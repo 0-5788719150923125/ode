@@ -18,7 +18,7 @@ export default class ModelPrototype {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-        tf.enableProdMode()
+        // tf.enableProdMode()
         console.log('Backend:', tf.backend())
 
         // Add the embedding layer as the first layer
@@ -62,6 +62,7 @@ export default class ModelPrototype {
         )
 
         // Compile the model
+        this.lossFunction = tf.losses.softmaxCrossEntropy
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
@@ -69,7 +70,7 @@ export default class ModelPrototype {
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
-            loss: 'categoricalCrossentropy'
+            loss: this.lossFunction
         })
     }
 

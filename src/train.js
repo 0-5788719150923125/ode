@@ -1,19 +1,14 @@
 import * as tf from '@tensorflow/tfjs'
-// import '@tensorflow/tfjs-backend-wasm'
-// import '@tensorflow/tfjs-backend-webgpu'
-// import '@tensorflow/tfjs-backend-webgl'
 
-let currentBatch = null
+let currentXs = null
+let currentYs = null
 
 export async function trainModel(
     dataGenerator,
     batchSize = 256,
     sampleLen = 256
 ) {
-    // await tf.ready()
-    // await tf.setBackend(this.config.backend || 'cpu')
-
-    const emaCalc = emaGenerator() // Initialize the generator
+    const emaCalc = emaGenerator()
     emaCalc.next()
 
     const ds = tf.data.generator(
@@ -25,49 +20,61 @@ export async function trainModel(
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                if (!currentBatch) return
+                if (!currentXs) return
 
-                console.log(currentBatch)
+                console.log(currentXs)
 
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
                 console.log(this.model.optimizer)
-                // console.log(this.model.train.optimizer)
+                console.log(logs.loss)
+
                 // Gradient Clipping
-                tf.tidy(() => {
-                    const gradsAndVars = this.model.optimizer.computeGradients(
-                        () => {
-                            // Compute losses on the xs (input) data for this batch
-                            console.log('doing predictions')
-                            const predictions = this.model.predict(
-                                currentBatch.xs
-                            )
-                            // .asType('float32')
-                            console.log('getting loss')
-                            const loss = this.model.compileArgs.loss(
-                                predictions,
-                                currentBatch.ys
-                            )
-                            return loss
-                        }
-                    )
+                const gradsAndVars = this.model.optimizer.computeGradients(
+                    () => {
+                        // Compute losses on the xs (input) data for this batch
+                        console.log('doing predictions')
+                        const predictions = this.model
+                            .predict(currentXs)
+                            .asType('float32')
 
-                    // Apply gradient clipping (element-wise example)
-                    console.log('clipping grads')
-                    const clippedGradsAndVars = gradsAndVars.map(
-                        ({ grad }) => ({
-                            grad: tf.clipByValue(grad, -0.5, 0.5)
-                        })
-                    )
+                        console.log('getting loss')
+                        console.log(tf.losses)
+                        const loss = this.lossFunction(currentYs, predictions)
+                        // const loss = this.model.compileArgs.loss(
+                        //     predictions,
+                        //     currentYs
+                        // )
+                        console.log('loss is')
+                        console.log(loss)
+                        return loss
+                    }
+                )
+                console.log('grads and vars')
+                console.log(gradsAndVars)
 
-                    // Manually apply gradients (crucial step)
-                    console.log('applying')
-                    this.model.optimizer.applyGradients(clippedGradsAndVars)
+                // Assuming computeGradients returns {grads: {...}, value: number}
+                const grads = gradsAndVars.grads // Get the gradients object
 
-                    // Release references to original gradients (optional, but good practice)
-                    console.log('foreach')
-                    gradsAndVars.forEach(({ grad }) => grad.dispose())
+                // Create an object to hold the clipped gradients
+                const clippedGrads = {}
+
+                // Iterate over each gradient in grads
+                Object.keys(grads).forEach((key) => {
+                    // Clip each gradient
+                    const clippedGrad = tf.clipByValue(grads[key], -0.5, 0.5)
+                    clippedGrads[key] = clippedGrad
                 })
+
+                // Now, you can apply these clipped gradients
+                this.model.optimizer.applyGradients(clippedGrads)
+
+                // Don't forget to dispose of the original and clipped gradients to free memory
+                Object.values(grads).forEach((grad) => grad.dispose())
+                Object.values(clippedGrads).forEach((clippedGrad) =>
+                    clippedGrad.dispose()
+                )
+
                 console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
                 if (batch % 100 === 0) {
                     console.log(logs)
@@ -140,8 +147,9 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
         )
         const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), charSetSize)
 
-        currentBatch = { xs: xsTensor, ys: ysTensor }
+        currentXs = tf.clone(xsTensor)
+        currentYs = tf.clone(ysTensor)
 
-        yield currentBatch
+        yield { xs: xsTensor, ys: ysTensor }
     }
 }
