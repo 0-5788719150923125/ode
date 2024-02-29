@@ -21,8 +21,6 @@
     },
     "homepage": "https://github.com/0-5788719150923125/ode#readme",
     "devDependencies": {
-        "@tensorflow/tfjs-node": "^4.17.0",
-        "@tensorflow/tfjs-node-gpu": "^4.17.0",
         "assert": "^2.1.0",
         "buffer": "^6.0.3",
         "events": "^3.3.0",
@@ -41,7 +39,9 @@
         "@tensorflow/tfjs-backend-wasm": "^4.17.0",
         "@tensorflow/tfjs-backend-webgl": "^4.17.0",
         "@tensorflow/tfjs-backend-webgpu": "^4.17.0",
-        "@tensorflow/tfjs-backend-cpu": "^4.17.0"
+        "@tensorflow/tfjs-backend-cpu": "^4.17.0",
+        "@tensorflow/tfjs-node": "^4.17.0",
+        "@tensorflow/tfjs-node-gpu": "^4.17.0"
     },
     "jest": {
         "testEnvironment": "node"

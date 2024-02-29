@@ -34,23 +34,15 @@ export async function trainModel(
                             .predict(currentXs)
                             .asType('float32')
 
-                        const loss = this.lossFunction(currentYs, predictions)
-
-                        // // Reduce the loss tensor to a scalar if necessary
-                        const lossScalar = loss.mean() // Use .mean(), .sum(), or another appropriate reduction
-
-                        // // Extract the scalar loss value for logging
-                        // const lossValue = lossScalar.dataSync()[0]
-                        // console.log(lossValue)
-
-                        return lossScalar
+                        const loss = this.lossFunction(
+                            currentYs,
+                            predictions
+                        ).mean()
+                        return loss
                     }
                 )
 
                 if (!gradsAndVars) return
-
-                // currentXs.dispose()
-                // currentYs.dispose()
 
                 // Accumulate gradients
                 Object.keys(gradsAndVars.grads).forEach((key) => {
@@ -103,6 +95,11 @@ export async function trainModel(
                 console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
                 if (batch % generateEvery === 0 && batch !== 0) {
                     console.log(logs)
+
+                    if (typeof window === 'undefined') {
+                        await this.save()
+                    }
+
                     for (const temp of [0.01, 0.1, 0.3, 0.7, 1.1]) {
                         const output = await this.generate('who', temp, 50)
                         console.log(`TEMPERATURE: ${temp}`)

@@ -107,17 +107,8 @@ export default class ModelPrototype {
         )
     }
 
-    getModel() {
-        return this.model
-    }
-
-    getWeights() {
-        return this.model.getWeights()
-    }
-
-    async saveModel() {
-        const savePath = `file://data/model`
-        await this.model.save(savePath)
+    async save(path = `file://data/model`) {
+        await this.model.save(path)
     }
 }
 
