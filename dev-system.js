@@ -16,10 +16,10 @@ export async function trainModel() {
 
     console.log(net.model.summary())
 
-    const batchSize = 1
-    const gradientAccumulationSteps = 128
-    const sampleLen = 64
-    const generateEvery = 1024
+    const batchSize = 32
+    const gradientAccumulationSteps = 4
+    const sampleLen = 128
+    const generateEvery = 128
 
     const dataset = stringSampler(sampleLen)
 

@@ -70,8 +70,6 @@ export async function trainModel(
                 accumulationCounter++
 
                 if (accumulationCounter === gradientAccumulationSteps) {
-                    console.log('stepping gradients')
-
                     // Clip gradients to prevent explosion
                     const clippedGrads = {}
                     Object.keys(accumulatedGrads).forEach((key) => {

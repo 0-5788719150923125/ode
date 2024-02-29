@@ -2,8 +2,6 @@ import ODE from './src/index.js'
 import { stringSampler } from './src/utils.js'
 
 onmessage = async function (event) {
-    console.log(event.data)
-
     const net = new ODE({
         backend: 'webgl',
         layout: [128, 128],

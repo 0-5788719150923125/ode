@@ -29,11 +29,9 @@ export default class ModelPrototype {
                 inputDim: this.vocab.length, // Size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
-                // embeddingsConstraint: tf.constraints.minMaxNorm({
-                //     minValue: -0.02,
-                //     maxValue: 0.02
-                // })
-                trainable: true
+                embeddingsConstraint: tf.constraints.maxNorm({
+                    maxValue: 0.05
+                })
             })
         )
 
@@ -43,12 +41,14 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
-                        returnSequences: i < this.config.layout.length - 1, // Set to false for the last GRU layer
                         kernelInitializer: 'glorotUniform',
                         recurrentInitializer: 'orthogonal',
                         biasInitializer: 'zeros',
                         kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
-                        recurrentConstraint: tf.constraints.maxNorm({ axis: 0 })
+                        recurrentConstraint: tf.constraints.maxNorm({
+                            axis: 0
+                        }),
+                        returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
                     mergeMode: 'concat'
                 })
@@ -77,8 +77,9 @@ export default class ModelPrototype {
         })
     }
 
-    getModel() {
-        return this.model
+    async generate(seed, temperature = 0.7, length = 20) {
+        const bound = generate.bind(this)
+        return await bound(seed, temperature, length)
     }
 
     async train(
@@ -98,13 +99,12 @@ export default class ModelPrototype {
         )
     }
 
-    getWeights() {
-        return this.model.getWeights()
+    getModel() {
+        return this.model
     }
 
-    async generate(seed, temperature = 0.7, length = 20) {
-        const bound = generate.bind(this)
-        return await bound(seed, temperature, length)
+    getWeights() {
+        return this.model.getWeights()
     }
 
     async saveModel() {
