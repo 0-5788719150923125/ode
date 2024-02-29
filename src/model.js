@@ -63,7 +63,6 @@ export default class ModelPrototype {
         )
 
         // Compile the model
-        // this.lossFunction = tf.losses.softmaxCrossEntropy
         this.lossFunction = tf.metrics.categoricalCrossentropy
 
         this.model.compile({

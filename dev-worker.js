@@ -20,7 +20,7 @@ onmessage = async function (event) {
 
     const batchSize = 1
     const gradientAccumulationSteps = 256
-    const sampleLen = 128
+    const sampleLen = 64
     const generateEvery = 1024
 
     const dataset = stringSampler(sampleLen)
