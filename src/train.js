@@ -7,7 +7,8 @@ export async function trainModel(
     dataGenerator,
     batchSize = 256,
     gradientAccumulationSteps = 1,
-    sampleLen = 256
+    sampleLen = 256,
+    generateEvery = 32
 ) {
     let accumulatedGrads = {}
     let accumulationCounter = 0
@@ -26,7 +27,6 @@ export async function trainModel(
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                // Gradient Clipping
                 const gradsAndVars = this.model.optimizer.computeGradients(
                     () => {
                         // Compute losses on the xs (input) data for this batch
@@ -35,7 +35,15 @@ export async function trainModel(
                             .asType('float32')
 
                         const loss = this.lossFunction(currentYs, predictions)
-                        return loss
+
+                        // // Reduce the loss tensor to a scalar if necessary
+                        const lossScalar = loss.mean() // Use .mean(), .sum(), or another appropriate reduction
+
+                        // // Extract the scalar loss value for logging
+                        // const lossValue = lossScalar.dataSync()[0]
+                        // console.log(lossValue)
+
+                        return lossScalar
                     }
                 )
 
@@ -44,7 +52,7 @@ export async function trainModel(
                 // currentXs.dispose()
                 // currentYs.dispose()
 
-                // Accumulate gradients outside of tf.tidy
+                // Accumulate gradients
                 Object.keys(gradsAndVars.grads).forEach((key) => {
                     if (!accumulatedGrads[key]) {
                         accumulatedGrads[key] = tf.keep(
@@ -55,8 +63,8 @@ export async function trainModel(
                         accumulatedGrads[key],
                         gradsAndVars.grads[key]
                     )
-                    accumulatedGrads[key].dispose() // Dispose of the old accumulated gradient
-                    accumulatedGrads[key] = tf.keep(tempGrad) // Keep the new accumulated gradient
+                    accumulatedGrads[key].dispose()
+                    accumulatedGrads[key] = tf.keep(tempGrad)
                 })
 
                 accumulationCounter++
@@ -64,16 +72,15 @@ export async function trainModel(
                 if (accumulationCounter === gradientAccumulationSteps) {
                     console.log('stepping gradients')
 
-                    // Clip accumulated gradients here
+                    // Clip gradients to prevent explosion
                     const clippedGrads = {}
                     Object.keys(accumulatedGrads).forEach((key) => {
                         clippedGrads[key] = tf.keep(
                             tf.clipByValue(accumulatedGrads[key], -1.0, 1.0)
                         )
-                        accumulatedGrads[key].dispose() // Dispose the accumulated gradient after clipping
+                        accumulatedGrads[key].dispose()
                     })
 
-                    // Apply the clipped, accumulated gradients
                     this.model.optimizer.applyGradients(clippedGrads)
 
                     // Reset for the next accumulation cycle
@@ -86,7 +93,7 @@ export async function trainModel(
                     )
                 }
 
-                // Ensure to dispose of gradsAndVars grads after accumulation
+                // Ensure to dispose of grads after accumulation
                 if (gradsAndVars && gradsAndVars.grads) {
                     Object.values(gradsAndVars.grads).forEach(
                         (grad) => grad && grad.dispose()
@@ -96,7 +103,7 @@ export async function trainModel(
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
                 console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
-                if (batch % 100 === 0) {
+                if (batch % generateEvery === 0) {
                     console.log(logs)
                     for (const temp of [0.01, 0.1, 0.3, 0.7, 1.1]) {
                         const output = await this.generate('who', temp, 50)

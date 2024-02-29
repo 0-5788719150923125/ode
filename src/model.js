@@ -18,7 +18,8 @@ export default class ModelPrototype {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-        // tf.enableProdMode()
+        tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
+        tf.enableProdMode()
         console.log('Backend:', tf.backend())
 
         // Add the embedding layer as the first layer
@@ -62,7 +63,9 @@ export default class ModelPrototype {
         )
 
         // Compile the model
-        this.lossFunction = tf.losses.softmaxCrossEntropy
+        // this.lossFunction = tf.losses.softmaxCrossEntropy
+        this.lossFunction = tf.metrics.categoricalCrossentropy
+
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
@@ -82,14 +85,16 @@ export default class ModelPrototype {
         dataGenerator,
         batchSize,
         gradientAccumulationSteps,
-        sampleLen
+        sampleLen,
+        generateEvery
     ) {
         const bound = trainModel.bind(this)
         await bound(
             dataGenerator,
             batchSize,
             gradientAccumulationSteps,
-            sampleLen
+            sampleLen,
+            generateEvery
         )
     }
 
