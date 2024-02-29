@@ -142,15 +142,16 @@
       this[globalName] = mainExports;
     }
   }
-})({"7F7Fh":[function(require,module,exports) {
+})({"itDFw":[function(require,module,exports) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
 var HMR_SECURE = true;
 var HMR_ENV_HASH = "d6ea1d42532a7575";
+var HMR_USE_SSE = false;
 module.bundle.HMR_BUNDLE_ID = "b7124c75120a849a";
 "use strict";
-/* global HMR_HOST, HMR_PORT, HMR_ENV_HASH, HMR_SECURE, chrome, browser, __parcel__import__, __parcel__importScripts__, ServiceWorkerGlobalScope */ /*::
+/* global HMR_HOST, HMR_PORT, HMR_ENV_HASH, HMR_SECURE, HMR_USE_SSE, chrome, browser, __parcel__import__, __parcel__importScripts__, ServiceWorkerGlobalScope */ /*::
 import type {
   HMRAsset,
   HMRMessage,
@@ -189,6 +190,7 @@ declare var HMR_HOST: string;
 declare var HMR_PORT: string;
 declare var HMR_ENV_HASH: string;
 declare var HMR_SECURE: boolean;
+declare var HMR_USE_SSE: boolean;
 declare var chrome: ExtensionContext;
 declare var browser: ExtensionContext;
 declare var __parcel__import__: (string) => Promise<void>;
@@ -232,7 +234,8 @@ if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== "undefined") {
         "0.0.0.0"
     ].includes(hostname) ? "wss" : "ws";
     var ws;
-    try {
+    if (HMR_USE_SSE) ws = new EventSource("/__parcel_hmr");
+    else try {
         ws = new WebSocket(protocol + "://" + hostname + (port ? ":" + port : "") + "/");
     } catch (err) {
         if (err.message) console.error(err.message);
@@ -302,12 +305,14 @@ if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== "undefined") {
             }
         }
     };
-    ws.onerror = function(e) {
-        if (e.message) console.error(e.message);
-    };
-    ws.onclose = function() {
-        console.warn("[parcel] \uD83D\uDEA8 Connection to the HMR server was lost");
-    };
+    if (ws instanceof WebSocket) {
+        ws.onerror = function(e) {
+            if (e.message) console.error(e.message);
+        };
+        ws.onclose = function() {
+            console.warn("[parcel] \uD83D\uDEA8 Connection to the HMR server was lost");
+        };
+    }
 }
 function removeErrorOverlay() {
     var overlay = document.getElementById(OVERLAY_ID);
@@ -579,35 +584,86 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"ccjfd":[function(require,module,exports) {
-if (typeof window === "undefined") console.log("Running in Node.js");
-else {
-    const worker = new Worker(require("f8796e59e750ab07"));
-    worker.postMessage({
-        command: "train"
-    });
-}
-
-},{"f8796e59e750ab07":"ddjNL"}],"ddjNL":[function(require,module,exports) {
-let workerURL = require("5334551b977abce1");
-let bundleURL = require("ed190e4093c3df97");
-let url = bundleURL.getBundleURL("fIu53") + "dev-worker.9ffc260e.js" + "?" + Date.now();
-module.exports = workerURL(url, bundleURL.getOrigin(url), false);
-
-},{"5334551b977abce1":"cn2gM","ed190e4093c3df97":"lgJ39"}],"cn2gM":[function(require,module,exports) {
-"use strict";
-module.exports = function(workerUrl, origin, isESM) {
-    if (origin === self.location.origin) // If the worker bundle's url is on the same origin as the document,
-    // use the worker bundle's own url.
-    return workerUrl;
-    else {
-        // Otherwise, create a blob URL which loads the worker bundle with `importScripts`.
-        var source = isESM ? "import " + JSON.stringify(workerUrl) + ";" : "importScripts(" + JSON.stringify(workerUrl) + ");";
-        return URL.createObjectURL(new Blob([
-            source
-        ], {
-            type: "application/javascript"
-        }));
+(async function() {
+    if (typeof window === "undefined") {
+        // if node.js
+        const module = await require("720a298720cf10fc");
+        await module.trainModel();
+    } else {
+        // if browsers
+        const worker = new Worker(require("7ba444442b31aa59"));
+        worker.postMessage({
+            command: "train"
+        });
     }
+})();
+
+},{"720a298720cf10fc":"kvts2","7ba444442b31aa59":"5WGmk"}],"kvts2":[function(require,module,exports) {
+module.exports = require("fcf83cab60efeb4d")(require("a2e92ba55b9985bc").getBundleURL("fIu53") + "dev-system.45faf531.js" + "?" + Date.now()).catch((err)=>{
+    delete module.bundle.cache[module.id];
+    throw err;
+}).then(()=>module.bundle.root("bTbuF"));
+
+},{"fcf83cab60efeb4d":"61B45","a2e92ba55b9985bc":"lgJ39"}],"61B45":[function(require,module,exports) {
+"use strict";
+var cacheLoader = require("ca2a84f7fa4a3bb0");
+module.exports = cacheLoader(function(bundle) {
+    return new Promise(function(resolve, reject) {
+        // Don't insert the same script twice (e.g. if it was already in the HTML)
+        var existingScripts = document.getElementsByTagName("script");
+        if ([].concat(existingScripts).some(function isCurrentBundle(script) {
+            return script.src === bundle;
+        })) {
+            resolve();
+            return;
+        }
+        var preloadLink = document.createElement("link");
+        preloadLink.href = bundle;
+        preloadLink.rel = "preload";
+        preloadLink.as = "script";
+        document.head.appendChild(preloadLink);
+        var script = document.createElement("script");
+        script.async = true;
+        script.type = "text/javascript";
+        script.src = bundle;
+        script.onerror = function(e) {
+            var error = new TypeError("Failed to fetch dynamically imported module: ".concat(bundle, ". Error: ").concat(e.message));
+            script.onerror = script.onload = null;
+            script.remove();
+            reject(error);
+        };
+        script.onload = function() {
+            script.onerror = script.onload = null;
+            resolve();
+        };
+        document.getElementsByTagName("head")[0].appendChild(script);
+    });
+});
+
+},{"ca2a84f7fa4a3bb0":"j49pS"}],"j49pS":[function(require,module,exports) {
+"use strict";
+var cachedBundles = {};
+var cachedPreloads = {};
+var cachedPrefetches = {};
+function getCache(type) {
+    switch(type){
+        case "preload":
+            return cachedPreloads;
+        case "prefetch":
+            return cachedPrefetches;
+        default:
+            return cachedBundles;
+    }
+}
+module.exports = function(loader, type) {
+    return function(bundle) {
+        var cache = getCache(type);
+        if (cache[bundle]) return cache[bundle];
+        return cache[bundle] = loader.apply(null, arguments).catch(function(e) {
+            delete cache[bundle];
+            throw e;
+        });
+    };
 };
 
 },{}],"lgJ39":[function(require,module,exports) {
@@ -645,6 +701,29 @@ exports.getBundleURL = getBundleURLCached;
 exports.getBaseURL = getBaseURL;
 exports.getOrigin = getOrigin;
 
-},{}]},["7F7Fh","ccjfd"], "ccjfd", "parcelRequireeebd")
+},{}],"5WGmk":[function(require,module,exports) {
+let workerURL = require("7aa9491a5a3841a9");
+let bundleURL = require("f6cbe78572e8c7b8");
+let url = bundleURL.getBundleURL("fIu53") + "dev-browser.fac83023.js" + "?" + Date.now();
+module.exports = workerURL(url, bundleURL.getOrigin(url), false);
+
+},{"7aa9491a5a3841a9":"cn2gM","f6cbe78572e8c7b8":"lgJ39"}],"cn2gM":[function(require,module,exports) {
+"use strict";
+module.exports = function(workerUrl, origin, isESM) {
+    if (origin === self.location.origin) // If the worker bundle's url is on the same origin as the document,
+    // use the worker bundle's own url.
+    return workerUrl;
+    else {
+        // Otherwise, create a blob URL which loads the worker bundle with `importScripts`.
+        var source = isESM ? "import " + JSON.stringify(workerUrl) + ";" : "importScripts(" + JSON.stringify(workerUrl) + ");";
+        return URL.createObjectURL(new Blob([
+            source
+        ], {
+            type: "application/javascript"
+        }));
+    }
+};
+
+},{}]},["itDFw","ccjfd"], "ccjfd", "parcelRequireeebd")
 
 //# sourceMappingURL=dev.120a849a.js.map

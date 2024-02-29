@@ -1,4 +1,13 @@
-import * as tf from '@tensorflow/tfjs-node-gpu'
+import * as tfjs from '@tensorflow/tfjs'
+
+let tf = tfjs
+
+;(async function () {
+    if (typeof window === 'undefined') {
+        tf = await import('@tensorflow/tfjs-node-gpu')
+    }
+})()
+
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
@@ -65,7 +74,6 @@ export default class ModelPrototype {
 
         // Compile the model
         this.lossFunction = tf.metrics.categoricalCrossentropy
-
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
