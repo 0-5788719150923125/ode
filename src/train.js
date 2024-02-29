@@ -39,6 +39,9 @@ export async function trainModel(
                     }
                 )
 
+                currentXs.dispose()
+                currentYs.dispose()
+
                 // Assuming computeGradients returns {grads: {...}, value: number}
                 const grads = gradsAndVars.grads // Get the gradients object
 

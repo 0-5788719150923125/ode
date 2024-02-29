@@ -6,10 +6,10 @@ onmessage = async function (event) {
 
     const net = new ODE({
         backend: 'webgl',
-        layout: [128, 128, 128],
+        layout: [128],
         learningRate: 1e-3,
         decayRate: 0.9,
-        momentum: 0.01,
+        momentum: 0.1,
         epsilon: 1e-8,
         predictLength: 100,
         embeddingDimensions: 16
@@ -18,7 +18,7 @@ onmessage = async function (event) {
 
     console.log(net.model.summary())
 
-    const batchSize = 512
+    const batchSize = 32
     const sampleLen = 64
     const dataset = stringSampler(sampleLen)
 
