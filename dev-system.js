@@ -4,7 +4,7 @@ import { stringSampler } from './src/utils.js'
 export async function trainModel() {
     const net = new ODE({
         backend: 'tensorflow',
-        layout: [128, 128, 128, 128],
+        layout: [128],
         learningRate: 1e-5,
         decayRate: 0.9,
         momentum: 0.1,

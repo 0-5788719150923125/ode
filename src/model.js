@@ -40,7 +40,8 @@ export default class ModelPrototype {
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
                     maxValue: 0.05
-                })
+                }),
+                embeddingsRegularizer: 'l1l2'
             })
         )
 
@@ -57,6 +58,7 @@ export default class ModelPrototype {
                         recurrentConstraint: tf.constraints.maxNorm({
                             axis: 0
                         }),
+                        dropout: 0.2,
                         returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
                     mergeMode: 'concat'
@@ -122,18 +124,10 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
             [1, tokenIndices.length],
             'int32'
         )
-        const output = this.model.predict(input).squeeze()
 
-        // Apply temperature scaling by using the log of logits
-        const logits = tf
-            .log(output)
-            .div(tf.scalar(Math.max(temperature, 1e-6)))
+        const logits = this.model.predict(input)
 
-        const probabilities = await tf
-            .multinomial(logits, 1, null, false)
-            .data()
-
-        let winnerIndex = probabilities[0]
+        const winnerIndex = await sample(tf.squeeze(logits), temperature)
 
         if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
             winnerIndex = 0 // Fallback to the first index if out of bounds
@@ -143,8 +137,21 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
         generated += nextChar
         tokenIndices.push(winnerIndex)
 
-        tf.dispose([logits, input, probabilities])
+        tf.dispose([logits, input])
     }
 
     return generated
+}
+
+async function sample(probabilities, temperature) {
+    return tf.tidy(() => {
+        const logits = tf.div(
+            tf.log(probabilities),
+            Math.max(temperature, 1e-6)
+        )
+        const isNormalized = false
+        // `logits` is for a multinomial distribution, scaled by the temperature.
+        // We randomly draw a sample from the distribution.
+        return tf.multinomial(logits, 1, null, isNormalized).dataSync()[0]
+    })
 }
