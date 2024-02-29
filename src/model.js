@@ -12,8 +12,6 @@ export default class ModelPrototype {
                 `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!'"(){}[]|/\\\n `
             )
         )
-
-        console.log(this.vocab)
         this.model = tf.sequential()
     }
 
@@ -22,18 +20,18 @@ export default class ModelPrototype {
         await tf.setBackend(this.config.backend || 'cpu')
         tf.enableProdMode()
         console.log('Backend:', tf.backend())
-        // tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
                 inputDim: this.vocab.length, // Size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
-                embeddingsInitializer: 'glorotUniform'
+                embeddingsInitializer: 'glorotUniform',
                 // embeddingsConstraint: tf.constraints.minMaxNorm({
                 //     minValue: -0.02,
                 //     maxValue: 0.02
                 // })
+                trainable: true
             })
         )
 
@@ -67,7 +65,7 @@ export default class ModelPrototype {
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
-                this.config.decayRate || 0.9,
+                this.config.decayRate || 0,
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
@@ -101,26 +99,29 @@ export default class ModelPrototype {
 
 async function generate(prompt, temperature = 0.7, maxLength = 20) {
     let generated = prompt
-
     const tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
     for (let i = 0; i < maxLength; i++) {
         const input = tf.tensor2d(
-            [tokenIndices],
+            tokenIndices,
             [1, tokenIndices.length],
             'int32'
         )
+        const output = this.model.predict(input).squeeze()
 
-        const logits = await this.model
-            .predict(input)
-            .squeeze()
-            .div(tf.scalar(temperature))
+        // Apply temperature scaling by using the log of logits
+        const logits = tf
+            .log(output)
+            .div(tf.scalar(Math.max(temperature, 1e-6)))
 
-        const probabilities = await tf.multinomial(logits, 1).data()
+        const probabilities = await tf
+            .multinomial(logits, 1, null, false)
+            .data()
+
         let winnerIndex = probabilities[0]
 
-        if (winnerIndex < 0 || winnerIndex > this.vocab.length) {
-            winnerIndex = 0
+        if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
+            winnerIndex = 0 // Fallback to the first index if out of bounds
         }
 
         const nextChar = this.vocab[winnerIndex]

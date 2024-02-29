@@ -1,10 +1,18 @@
 import * as tf from '@tensorflow/tfjs'
+// import '@tensorflow/tfjs-backend-wasm'
+// import '@tensorflow/tfjs-backend-webgpu'
+// import '@tensorflow/tfjs-backend-webgl'
+
+let currentBatch = null
 
 export async function trainModel(
     dataGenerator,
     batchSize = 256,
     sampleLen = 256
 ) {
+    // await tf.ready()
+    // await tf.setBackend(this.config.backend || 'cpu')
+
     const emaCalc = emaGenerator() // Initialize the generator
     emaCalc.next()
 
@@ -17,15 +25,57 @@ export async function trainModel(
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
+                if (!currentBatch) return
+
+                console.log(currentBatch)
+
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
-                // if (batch === 3) {
-                //     await this.saveModel()
-                // }
+
+                console.log(this.model.optimizer)
+                // console.log(this.model.train.optimizer)
+                // Gradient Clipping
+                tf.tidy(() => {
+                    const gradsAndVars = this.model.optimizer.computeGradients(
+                        () => {
+                            // Compute losses on the xs (input) data for this batch
+                            console.log('doing predictions')
+                            const predictions = this.model.predict(
+                                currentBatch.xs
+                            )
+                            // .asType('float32')
+                            console.log('getting loss')
+                            const loss = this.model.compileArgs.loss(
+                                predictions,
+                                currentBatch.ys
+                            )
+                            return loss
+                        }
+                    )
+
+                    // Apply gradient clipping (element-wise example)
+                    console.log('clipping grads')
+                    const clippedGradsAndVars = gradsAndVars.map(
+                        ({ grad }) => ({
+                            grad: tf.clipByValue(grad, -0.5, 0.5)
+                        })
+                    )
+
+                    // Manually apply gradients (crucial step)
+                    console.log('applying')
+                    this.model.optimizer.applyGradients(clippedGradsAndVars)
+
+                    // Release references to original gradients (optional, but good practice)
+                    console.log('foreach')
+                    gradsAndVars.forEach(({ grad }) => grad.dispose())
+                })
                 console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
-                if (batch % 25 === 0) {
-                    const output = await this.generate('who', 0.23, 50)
+                if (batch % 100 === 0) {
                     console.log(logs)
-                    console.log(output)
+                    for (const temp of [0.01, 0.1, 0.3, 0.7, 1.1]) {
+                        const output = await this.generate('who', temp, 50)
+                        console.log(`TEMPERATURE: ${temp}`)
+                        console.log(output)
+                    }
                 }
             },
             onEpochEnd: async (epoch, logs) => console.log('epoch ended')
@@ -72,7 +122,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
                 textIndices = [
                     ...textIndices,
                     ...Array(sampleLength - textIndices.length).fill(0)
-                ] // Pad with zeros or another designated padding value; 0 is bad here, since we've not implemented a pad token yet
+                ] // 0 is bad here, since we've not implemented a pad token yet
             }
 
             // Create input sequence (xs) and target (ys)
@@ -90,6 +140,8 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
         )
         const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), charSetSize)
 
-        yield { xs: xsTensor, ys: ysTensor }
+        currentBatch = { xs: xsTensor, ys: ysTensor }
+
+        yield currentBatch
     }
 }
