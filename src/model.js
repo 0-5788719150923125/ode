@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
-// import '@tensorflow/tfjs-backend-wasm'
-// import '@tensorflow/tfjs-backend-webgpu'
-// import '@tensorflow/tfjs-backend-webgl'
+import '@tensorflow/tfjs-backend-wasm'
+import '@tensorflow/tfjs-backend-webgpu'
+import '@tensorflow/tfjs-backend-webgl'
 import { trainModel } from './train.js'
 
 export default class ModelPrototype {
@@ -17,10 +17,9 @@ export default class ModelPrototype {
 
     async init() {
         await tf.ready()
-        if (typeof window !== 'undefined') {
-            await tf.setBackend(this.config.backend || 'cpu')
-        }
+        await tf.setBackend(this.config.backend || 'cpu')
         tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
+
         tf.enableProdMode()
         console.log('Backend:', tf.backend())
 

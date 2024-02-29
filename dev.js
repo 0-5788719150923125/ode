@@ -7,7 +7,7 @@ if (typeof window === 'undefined') {
             console.error('Failed to load the module:', error)
         })
 } else {
-    const worker = new Worker(new URL('dev-worker.js', import.meta.url), {
+    const worker = new Worker(new URL('dev-browser.js', import.meta.url), {
         type: 'module'
     })
     worker.postMessage({ command: 'train' })

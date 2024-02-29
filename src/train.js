@@ -103,7 +103,7 @@ export async function trainModel(
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
                 console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
-                if (batch % generateEvery === 0) {
+                if (batch % generateEvery === 0 && batch !== 0) {
                     console.log(logs)
                     for (const temp of [0.01, 0.1, 0.3, 0.7, 1.1]) {
                         const output = await this.generate('who', temp, 50)

@@ -3,8 +3,8 @@ import { stringSampler } from './src/utils.js'
 
 export async function trainModel() {
     const net = new ODE({
-        backend: 'webgpu',
-        layout: [128, 128],
+        backend: 'tensorflow',
+        layout: [96, 96, 96],
         learningRate: 1e-5,
         decayRate: 0.9,
         momentum: 0.1,

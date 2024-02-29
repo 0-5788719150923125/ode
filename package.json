@@ -4,7 +4,9 @@
     "description": "omniscient deterministic engine",
     "type": "module",
     "scripts": {
-        "start": "parcel dev.html --https",
+        "start": "npm run start:browser",
+        "start:browser": "parcel dev.html --https",
+        "start:node": "node dev.js",
         "build": "parcel build dev.html",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests"
     },
