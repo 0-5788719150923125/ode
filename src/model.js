@@ -78,9 +78,19 @@ export default class ModelPrototype {
         return this.model
     }
 
-    async train(dataGenerator, batchSize, sampleLen) {
+    async train(
+        dataGenerator,
+        batchSize,
+        gradientAccumulationSteps,
+        sampleLen
+    ) {
         const bound = trainModel.bind(this)
-        await bound(dataGenerator, batchSize, sampleLen)
+        await bound(
+            dataGenerator,
+            batchSize,
+            gradientAccumulationSteps,
+            sampleLen
+        )
     }
 
     getWeights() {

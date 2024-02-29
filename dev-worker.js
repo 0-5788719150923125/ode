@@ -6,8 +6,8 @@ onmessage = async function (event) {
 
     const net = new ODE({
         backend: 'webgl',
-        layout: [128],
-        learningRate: 1e-3,
+        layout: [128, 128],
+        learningRate: 1e-2,
         decayRate: 0.9,
         momentum: 0.1,
         epsilon: 1e-8,
@@ -18,9 +18,10 @@ onmessage = async function (event) {
 
     console.log(net.model.summary())
 
-    const batchSize = 32
+    const batchSize = 1
+    const gradientAccumulationSteps = 64
     const sampleLen = 64
     const dataset = stringSampler(sampleLen)
 
-    await net.train(dataset, batchSize, sampleLen)
+    await net.train(dataset, batchSize, gradientAccumulationSteps, sampleLen)
 }

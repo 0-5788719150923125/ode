@@ -6,8 +6,12 @@ let currentYs = null
 export async function trainModel(
     dataGenerator,
     batchSize = 256,
+    gradientAccumulationSteps = 1,
     sampleLen = 256
 ) {
+    let accumulatedGrads = {}
+    let accumulationCounter = 0
+
     console.log(this.model.optimizer)
 
     const emaCalc = emaGenerator()
@@ -22,10 +26,6 @@ export async function trainModel(
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                if (!currentXs) return
-
-                const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
-
                 // Gradient Clipping
                 const gradsAndVars = this.model.optimizer.computeGradients(
                     () => {
@@ -39,30 +39,61 @@ export async function trainModel(
                     }
                 )
 
-                currentXs.dispose()
-                currentYs.dispose()
+                if (!gradsAndVars) return
 
-                // Assuming computeGradients returns {grads: {...}, value: number}
-                const grads = gradsAndVars.grads // Get the gradients object
+                // currentXs.dispose()
+                // currentYs.dispose()
 
-                // Create an object to hold the clipped gradients
-                const clippedGrads = {}
-
-                // Iterate over each gradient in grads
-                Object.keys(grads).forEach((key) => {
-                    // Clip each gradient
-                    const clippedGrad = tf.clipByValue(grads[key], -0.5, 0.5)
-                    clippedGrads[key] = clippedGrad
+                // Accumulate gradients outside of tf.tidy
+                Object.keys(gradsAndVars.grads).forEach((key) => {
+                    if (!accumulatedGrads[key]) {
+                        accumulatedGrads[key] = tf.keep(
+                            tf.zerosLike(gradsAndVars.grads[key])
+                        )
+                    }
+                    const tempGrad = tf.add(
+                        accumulatedGrads[key],
+                        gradsAndVars.grads[key]
+                    )
+                    accumulatedGrads[key].dispose() // Dispose of the old accumulated gradient
+                    accumulatedGrads[key] = tf.keep(tempGrad) // Keep the new accumulated gradient
                 })
 
-                // Now, you can apply these clipped gradients
-                this.model.optimizer.applyGradients(clippedGrads)
+                accumulationCounter++
 
-                // Don't forget to dispose of the original and clipped gradients to free memory
-                Object.values(grads).forEach((grad) => grad.dispose())
-                Object.values(clippedGrads).forEach((clippedGrad) =>
-                    clippedGrad.dispose()
-                )
+                if (accumulationCounter === gradientAccumulationSteps) {
+                    console.log('stepping gradients')
+
+                    // Clip accumulated gradients here
+                    const clippedGrads = {}
+                    Object.keys(accumulatedGrads).forEach((key) => {
+                        clippedGrads[key] = tf.keep(
+                            tf.clipByValue(accumulatedGrads[key], -1.0, 1.0)
+                        )
+                        accumulatedGrads[key].dispose() // Dispose the accumulated gradient after clipping
+                    })
+
+                    // Apply the clipped, accumulated gradients
+                    this.model.optimizer.applyGradients(clippedGrads)
+
+                    // Reset for the next accumulation cycle
+                    accumulatedGrads = {}
+                    accumulationCounter = 0
+
+                    // Dispose of the clipped gradients after application
+                    Object.values(clippedGrads).forEach((tensor) =>
+                        tensor.dispose()
+                    )
+                }
+
+                // Ensure to dispose of gradsAndVars grads after accumulation
+                if (gradsAndVars && gradsAndVars.grads) {
+                    Object.values(gradsAndVars.grads).forEach(
+                        (grad) => grad && grad.dispose()
+                    )
+                }
+
+                const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
                 console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
                 if (batch % 100 === 0) {
@@ -73,8 +104,7 @@ export async function trainModel(
                         console.log(output)
                     }
                 }
-            },
-            onEpochEnd: async (epoch, logs) => console.log('epoch ended')
+            }
         }
     })
 }
