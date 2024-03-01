@@ -12,6 +12,7 @@ onmessage = async function (event) {
         predictLength: 100,
         embeddingDimensions: 64
     })
+
     await net.init()
 
     const trainArgs = {

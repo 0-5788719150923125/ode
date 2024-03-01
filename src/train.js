@@ -1,5 +1,5 @@
 import * as tfjs from '@tensorflow/tfjs'
-import { randomBetween } from './utils'
+import { randomBetween } from './utils.js'
 
 let tf = tfjs
 
@@ -24,11 +24,11 @@ export async function trainModel(dataGenerator, args) {
     const emaCalc = emaGenerator()
     emaCalc.next()
 
-    const ds = tf.data.generator(
+    const dataset = tf.data.generator(
         createBatchGenerator(dataGenerator, this.vocab, batchSize, sampleLen)
     )
-    await this.model.fitDataset(ds, {
-        // epochs: 1,
+    await this.model.fitDataset(dataset, {
+        epochs: Number.MAX_SAFE_INTEGER,
         yieldEvery: 'auto',
         verbose: 0,
         callbacks: {
