@@ -100,7 +100,7 @@ export async function trainModel(
                         await this.save()
                     }
 
-                    for (const temp of [0.01, 0.1, 0.3, 0.7, 1.1]) {
+                    for (const temp of [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]) {
                         const output = await this.generate('who', temp, 50)
                         console.log(`TEMPERATURE: ${temp}`)
                         console.log(output)

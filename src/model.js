@@ -30,12 +30,13 @@ export default class ModelPrototype {
         tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
         tf.enableProdMode()
+
         console.log('Backend:', tf.backend())
 
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
-                inputDim: this.vocab.length, // Size of the vocabulary
+                inputDim: this.vocab.length, // Should match size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
@@ -58,7 +59,7 @@ export default class ModelPrototype {
                         recurrentConstraint: tf.constraints.maxNorm({
                             axis: 0
                         }),
-                        dropout: 0.2,
+                        dropout: 0.23,
                         returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
                     mergeMode: 'concat'
@@ -66,7 +67,7 @@ export default class ModelPrototype {
             )
         })
 
-        // Add the final Dense layer with softmax activation
+        // Add the final dense layer with softmax activation
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,
@@ -79,7 +80,7 @@ export default class ModelPrototype {
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
-                this.config.decayRate || 0,
+                this.config.decay || 0,
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
@@ -115,8 +116,9 @@ export default class ModelPrototype {
 }
 
 async function generate(prompt, temperature = 0.7, maxLength = 20) {
-    let generated = prompt
     const tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
+
+    let generated = prompt
 
     for (let i = 0; i < maxLength; i++) {
         const input = tf.tensor2d(
@@ -125,9 +127,9 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
             'int32'
         )
 
-        const logits = this.model.predict(input)
+        const output = this.model.predict(input).squeeze()
 
-        const winnerIndex = await sample(tf.squeeze(logits), temperature)
+        let winnerIndex = await sample(output, temperature)
 
         if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
             winnerIndex = 0 // Fallback to the first index if out of bounds
@@ -137,21 +139,42 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
         generated += nextChar
         tokenIndices.push(winnerIndex)
 
-        tf.dispose([logits, input])
+        tf.dispose([input, output])
     }
 
     return generated
 }
 
-async function sample(probabilities, temperature) {
+async function sample(probabilities, temperature = 1.0) {
     return tf.tidy(() => {
-        const logits = tf.div(
-            tf.log(probabilities),
-            Math.max(temperature, 1e-6)
-        )
-        const isNormalized = false
-        // `logits` is for a multinomial distribution, scaled by the temperature.
-        // We randomly draw a sample from the distribution.
-        return tf.multinomial(logits, 1, null, isNormalized).dataSync()[0]
+        let logits = tf.log(probabilities).div(tf.scalar(temperature))
+
+        let expPreds = logits.exp()
+        let probs = expPreds.div(expPreds.sum())
+
+        let sampledIndex = tf.multinomial(probs, 1, null, false).dataSync()[0]
+        return sampledIndex
     })
 }
+
+// async function sample(probabilities, temperature) {
+//     return tf.tidy(() => {
+//         const adjustedProbabilities = tf.div(
+//             probabilities.pow(tf.scalar(1 / temperature)),
+//             probabilities.pow(tf.scalar(1 / temperature)).sum()
+//         )
+
+//         const sampledIndex = tf
+//             .multinomial(adjustedProbabilities, 1, null, false)
+//             .dataSync()[0]
+
+//         return sampledIndex
+
+//         // const logits = tf.div(
+//         //     tf.log(probabilities),
+//         //     Math.max(temperature, 1e-6)
+//         // )
+//         // const normalized = false
+//         // return tf.multinomial(logits, 1, null, normalized).dataSync()[0]
+//     })
+// }

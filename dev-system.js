@@ -4,22 +4,22 @@ import { stringSampler } from './src/utils.js'
 export async function trainModel() {
     const net = new ODE({
         backend: 'tensorflow',
-        layout: [128],
+        layout: [48, 48, 48],
         learningRate: 1e-5,
-        decayRate: 0.9,
+        decay: 0.9,
         momentum: 0.1,
         epsilon: 1e-8,
         predictLength: 100,
-        embeddingDimensions: 64
+        embeddingDimensions: 32
     })
     await net.init()
 
     console.log(net.model.summary())
 
-    const batchSize = 32
-    const gradientAccumulationSteps = 4
+    const batchSize = 64
+    const gradientAccumulationSteps = 2
     const sampleLen = 128
-    const generateEvery = 128
+    const generateEvery = 32
 
     const dataset = stringSampler(sampleLen)
 

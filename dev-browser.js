@@ -5,8 +5,8 @@ onmessage = async function (event) {
     const net = new ODE({
         backend: 'webgl',
         layout: [128, 128],
-        learningRate: 1e-5,
-        decayRate: 0.9,
+        learningRate: 1e-3,
+        decay: 0.9,
         momentum: 0.1,
         epsilon: 1e-8,
         predictLength: 100,
