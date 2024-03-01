@@ -1,7 +1,7 @@
 import ODE from './src/index.js'
 import { stringSampler } from './src/utils.js'
 
-export async function trainModel() {
+export async function trainModel(backend = 'cpu') {
     const trainArgs = {
         batchSize: 64,
         gradientAccumulationSteps: 2,
@@ -10,7 +10,7 @@ export async function trainModel() {
     }
 
     const net = new ODE({
-        backend: 'tensorflow',
+        backend: backend,
         layout: [128, 128],
         learningRate: 1e-2,
         decay: 0.9,

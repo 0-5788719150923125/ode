@@ -1,10 +1,10 @@
 import { trainModel } from './dev-engine.js'
 ;(async function () {
+    // if node.js
     if (typeof window === 'undefined') {
-        // if node.js
-        await trainModel()
+        await trainModel('tensorflow')
+        // if browser
     } else {
-        // if browsers
         const worker = new Worker(new URL('dev-worker.js', import.meta.url), {
             type: 'module'
         })

@@ -1,4 +1,4 @@
-importScripts("./dev-browser.190f45ae.js");
+importScripts("./dev-worker.8f7b07ae.js");
 // modules are defined as an array
 // [ module function, map of requires ]
 //
