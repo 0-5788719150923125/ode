@@ -94,21 +94,9 @@ export default class ModelPrototype {
         return await bound(seed, temperature, length)
     }
 
-    async train(
-        dataGenerator,
-        batchSize,
-        gradientAccumulationSteps,
-        sampleLen,
-        generateEvery
-    ) {
+    async train(dataGenerator, args) {
         const bound = trainModel.bind(this)
-        await bound(
-            dataGenerator,
-            batchSize,
-            gradientAccumulationSteps,
-            sampleLen,
-            generateEvery
-        )
+        await bound(dataGenerator, args)
     }
 
     async save(path = `file://data/model`) {
@@ -119,13 +107,12 @@ export default class ModelPrototype {
 async function generate(prompt, temperature = 0.7, maxLength = 20) {
     let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
-    // Ensure tokenIndices has a fixed length of 60
-    if (tokenIndices.length > 60) {
-        // If longer than 60, keep the last 60 elements (truncate the beginning)
-        tokenIndices = tokenIndices.slice(tokenIndices.length - 60)
-    } else if (tokenIndices.length < 60) {
-        // If shorter than 60, pad at the beginning with the padding index (assumed to be 0 here)
-        tokenIndices = new Array(60 - tokenIndices.length)
+    const fixedLength = 128
+
+    if (tokenIndices.length > fixedLength) {
+        tokenIndices = tokenIndices.slice(tokenIndices.length - fixedLength)
+    } else if (tokenIndices.length < fixedLength) {
+        tokenIndices = new Array(fixedLength - tokenIndices.length)
             .fill(0)
             .concat(tokenIndices)
     }
@@ -133,11 +120,7 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
     let generated = prompt
 
     for (let i = 0; i < maxLength; i++) {
-        const input = tf.tensor2d(
-            [tokenIndices],
-            [1, 60], // Updated to reflect fixed length
-            'int32'
-        )
+        const input = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
 
         const output = this.model.predict(input).squeeze()
 
@@ -150,10 +133,9 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
         const nextChar = this.vocab[winnerIndex]
         generated += nextChar
 
-        // Update tokenIndices to include the new character index and maintain fixed length
         tokenIndices.push(winnerIndex)
-        if (tokenIndices.length > 60) {
-            tokenIndices.shift() // Ensure tokenIndices remains at the fixed length of 60
+        if (tokenIndices.length > fixedLength) {
+            tokenIndices.shift()
         }
 
         tf.dispose([input, output])
@@ -161,36 +143,6 @@ async function generate(prompt, temperature = 0.7, maxLength = 20) {
 
     return generated
 }
-
-// async function generate(prompt, temperature = 0.7, maxLength = 20) {
-//     const tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
-
-//     let generated = prompt
-
-//     for (let i = 0; i < maxLength; i++) {
-//         const input = tf.tensor2d(
-//             [tokenIndices],
-//             [1, tokenIndices.length],
-//             'int32'
-//         )
-
-//         const output = this.model.predict(input).squeeze()
-
-//         let winnerIndex = await sample(output, temperature)
-
-//         if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
-//             winnerIndex = 0 // Fallback to the first index if out of bounds
-//         }
-
-//         const nextChar = this.vocab[winnerIndex]
-//         generated += nextChar
-//         tokenIndices.push(winnerIndex)
-
-//         tf.dispose([input, output])
-//     }
-
-//     return generated
-// }
 
 async function sample(probabilities, temperature) {
     return tf.tidy(() => {
@@ -202,30 +154,3 @@ async function sample(probabilities, temperature) {
         return tf.multinomial(logits, 1, null, normalized).dataSync()[0]
     })
 }
-
-// async function sample(probabilities, temperature = 1.0) {
-//     return tf.tidy(() => {
-//         let logits = tf.log(probabilities).div(tf.scalar(temperature))
-
-//         let expPreds = logits.exp()
-//         let probs = expPreds.div(expPreds.sum())
-
-//         let sampledIndex = tf.multinomial(probs, 1, null, false).dataSync()[0]
-//         return sampledIndex
-//     })
-// }
-
-// async function sample(probabilities, temperature) {
-//     return tf.tidy(() => {
-//         const adjustedProbabilities = tf.div(
-//             probabilities.pow(tf.scalar(1 / temperature)),
-//             probabilities.pow(tf.scalar(1 / temperature)).sum()
-//         )
-
-//         const sampledIndex = tf
-//             .multinomial(adjustedProbabilities, 1, null, false)
-//             .dataSync()[0]
-
-//         return sampledIndex
-//     })
-// }

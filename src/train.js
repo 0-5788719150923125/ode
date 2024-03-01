@@ -3,13 +3,10 @@ import * as tf from '@tensorflow/tfjs'
 let currentXs = null
 let currentYs = null
 
-export async function trainModel(
-    dataGenerator,
-    batchSize = 256,
-    gradientAccumulationSteps = 1,
-    sampleLen = 256,
-    generateEvery = 32
-) {
+export async function trainModel(dataGenerator, args) {
+    const { batchSize, gradientAccumulationSteps, sampleLen, generateEvery } =
+        args
+
     let accumulatedGrads = {}
     let accumulationCounter = 0
 
