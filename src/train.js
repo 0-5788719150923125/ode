@@ -100,7 +100,7 @@ export async function trainModel(
                         await this.save()
                     }
 
-                    for (const temp of [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]) {
+                    for (const temp of [0, 0.1, 0.7]) {
                         const output = await this.generate('who', temp, 50)
                         console.log(`TEMPERATURE: ${temp}`)
                         console.log(output)
@@ -137,6 +137,8 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
 
         for (let i = 0; i < batchSize; ++i) {
             const text = dataGenerator.next().value
+            // Ensure you get a length between 1 and sampleLength (inclusive)
+            const randomLen = Math.floor(Math.random() * sampleLength) + 1
 
             // Convert characters to indices, filtering out characters not in vocab
             let textIndices = text
@@ -144,18 +146,22 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
                 .map((char) => vocab.indexOf(char))
                 .filter((index) => index !== -1)
 
-            // Ensure the sequence is not shorter than expected due to filtering
-            if (textIndices.length < sampleLength) {
-                // If the sequence is too short, pad it to the required length
-                textIndices = [
-                    ...textIndices,
-                    ...Array(sampleLength - textIndices.length).fill(0)
-                ] // 0 is bad here, since we've not implemented a pad token yet
+            // If the sequence is too long, truncate it to randomLen
+            if (textIndices.length > randomLen) {
+                textIndices = textIndices.slice(0, randomLen)
             }
 
-            // Create input sequence (xs) and target (ys)
-            const xs = textIndices.slice(0, sampleLength)
-            const ys = textIndices[sampleLength] ?? 0 // handle undefined values
+            // Pad sequences on the left if they are shorter than sampleLength
+            if (textIndices.length < sampleLength) {
+                textIndices = Array(sampleLength - textIndices.length)
+                    .fill(vocab.indexOf('¶'))
+                    .concat(textIndices)
+            }
+
+            // Create input sequence (xs)
+            const xs = textIndices.slice(0, -1) // Exclude last character for input
+            // Target (ys) is the last character of the sequence
+            const ys = textIndices.slice(-1)[0] // Get last character index
 
             xsArray.push(xs)
             ysArray.push(ys)
@@ -163,7 +169,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
 
         const xsTensor = tf.tensor2d(
             xsArray,
-            [batchSize, sampleLength],
+            [batchSize, sampleLength - 1],
             'int32'
         )
         const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), charSetSize)
