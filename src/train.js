@@ -121,7 +121,7 @@ export async function trainModel(dataGenerator, args) {
 function* emaGenerator(alpha = 0.01) {
     let ema = null
     while (true) {
-        const newLoss = yield ema // Pause here and return exponential moving average. When resumed, 'newLoss' gets the new value.
+        const newLoss = yield ema // Pause here and return exponential moving average
         if (newLoss !== undefined) {
             ema = ema === null ? newLoss : alpha * newLoss + (1 - alpha) * ema // Update EMA with the new loss value
         }

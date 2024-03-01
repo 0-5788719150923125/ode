@@ -42,7 +42,7 @@ export default class ModelPrototype {
                 embeddingsConstraint: tf.constraints.maxNorm({
                     maxValue: 0.05
                 }),
-                embeddingsRegularizer: 'l1l2',
+                embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
         )
@@ -66,6 +66,11 @@ export default class ModelPrototype {
                     mergeMode: 'concat'
                 })
             )
+            // model.add(
+            //     tf.layers.layerNormalization({
+            //         epsilon: 1e-5
+            //     })
+            // )
         })
 
         // Add the final dense layer with softmax activation
@@ -109,7 +114,7 @@ export default class ModelPrototype {
 async function generate(prompt, temperature = 0.7, maxLength = 20) {
     let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
-    const fixedLength = 128
+    const fixedLength = this.config.maxSequenceLength
 
     if (tokenIndices.length > fixedLength) {
         tokenIndices = tokenIndices.slice(tokenIndices.length - fixedLength)
