@@ -87,6 +87,8 @@ export default class ModelPrototype {
             ),
             loss: this.lossFunction
         })
+
+        console.log(this.model.summary())
     }
 
     async generate(seed, temperature = 0.7, length = 20) {

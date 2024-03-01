@@ -14,8 +14,6 @@ onmessage = async function (event) {
     })
     await net.init()
 
-    console.log(net.model.summary())
-
     const trainArgs = {
         batchSize: 1,
         gradientAccumulationSteps: 128,
@@ -23,7 +21,7 @@ onmessage = async function (event) {
         generateEvery: 1024
     }
 
-    const dataset = stringSampler(sampleLen)
+    const dataset = stringSampler(trainArgs.sampleLen)
 
     await net.train(dataset, trainArgs)
 }

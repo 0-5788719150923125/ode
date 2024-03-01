@@ -46,9 +46,6 @@
     "jest": {
         "testEnvironment": "node"
     },
-    "browser": {
-        "aws-sdk": false
-    },
     "alias": {
         "aws-sdk": {
             "global": "{}"

@@ -1,4 +1,13 @@
-import * as tf from '@tensorflow/tfjs'
+import * as tfjs from '@tensorflow/tfjs'
+import { randomBetween } from './utils'
+
+let tf = tfjs
+
+;(async function () {
+    if (typeof window === 'undefined') {
+        tf = await import('@tensorflow/tfjs-node-gpu')
+    }
+})()
 
 let currentXs = null
 let currentYs = null
@@ -19,8 +28,9 @@ export async function trainModel(dataGenerator, args) {
         createBatchGenerator(dataGenerator, this.vocab, batchSize, sampleLen)
     )
     await this.model.fitDataset(ds, {
-        epochs: 1,
+        // epochs: 1,
         yieldEvery: 'auto',
+        verbose: 0,
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
@@ -135,7 +145,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
         for (let i = 0; i < batchSize; ++i) {
             const text = dataGenerator.next().value
             // Ensure you get a length between 1 and sampleLength (inclusive)
-            const randomLen = Math.floor(Math.random() * sampleLength) + 1
+            const randomLen = randomBetween(1, sampleLength)
 
             // Convert characters to indices, filtering out characters not in vocab
             let textIndices = text

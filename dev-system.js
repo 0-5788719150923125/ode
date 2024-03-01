@@ -14,8 +14,6 @@ export async function trainModel() {
     })
     await net.init()
 
-    console.log(net.model.summary())
-
     const trainArgs = {
         batchSize: 64,
         gradientAccumulationSteps: 2,
@@ -23,7 +21,7 @@ export async function trainModel() {
         generateEvery: 32
     }
 
-    const dataset = stringSampler(sampleLen)
+    const dataset = stringSampler(trainArgs.sampleLen)
 
     await net.train(dataset, trainArgs)
 }
