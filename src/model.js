@@ -54,23 +54,25 @@ export default class ModelPrototype {
                     layer: tf.layers.gru({
                         units: layer,
                         kernelInitializer: 'glorotUniform',
-                        recurrentInitializer: 'orthogonal',
-                        biasInitializer: 'zeros',
                         kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
+                        activation: 'tanh',
+                        recurrentInitializer: 'orthogonal',
+                        recurrentActivation: 'sigmoid',
                         recurrentConstraint: tf.constraints.maxNorm({
                             axis: 0
                         }),
+                        biasInitializer: 'zeros',
                         dropout: 0.1,
                         returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
                     mergeMode: 'concat'
                 })
             )
-            // model.add(
-            //     tf.layers.layerNormalization({
-            //         epsilon: 1e-5
-            //     })
-            // )
+            this.model.add(
+                tf.layers.layerNormalization({
+                    epsilon: 1e-5
+                })
+            )
         })
 
         // Add the final dense layer with softmax activation

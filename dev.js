@@ -1,4 +1,4 @@
-import { trainModel } from './dev-engine.js'
+import { trainModel } from './dev-train.js'
 ;(async function () {
     // if node.js
     if (typeof window === 'undefined') {
