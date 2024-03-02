@@ -5,7 +5,8 @@ import { trainModel } from './dev-train.js'
         await trainModel({
             backend: 'tensorflow',
             batchSize: 64,
-            gradientAccumulationSteps: 2
+            gradientAccumulationSteps: 2,
+            generateEvery: 64
         })
     } else {
         // browser
@@ -15,7 +16,8 @@ import { trainModel } from './dev-train.js'
         worker.postMessage({
             backend: 'webgl',
             batchSize: 8,
-            gradientAccumulationSteps: 16
+            gradientAccumulationSteps: 16,
+            generateEvery: 0
         })
     }
 })()

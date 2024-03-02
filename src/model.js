@@ -46,7 +46,8 @@ export default class ModelPrototype {
                     maxValue: 0.1
                 }),
                 embeddingsRegularizer: tf.regularizers.l2(),
-                maskZero: true
+                maskZero: true,
+                stateful: false
             })
         )
 
@@ -119,10 +120,13 @@ export default class ModelPrototype {
 }
 
 async function generateText(prompt, temperature = 0.7, maxLength = 20) {
+    let generated = prompt
+
     let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
     const fixedLength = this.config.maxSequenceLength
 
+    // Prepare initial token indices
     if (tokenIndices.length > fixedLength) {
         tokenIndices = tokenIndices.slice(tokenIndices.length - fixedLength)
     } else if (tokenIndices.length < fixedLength) {
@@ -131,14 +135,12 @@ async function generateText(prompt, temperature = 0.7, maxLength = 20) {
             .concat(tokenIndices)
     }
 
-    let generated = prompt
+    let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
 
     for (let i = 0; i < maxLength; i++) {
-        const input = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+        const output = this.model.predict(inputs).squeeze()
 
-        const output = this.model.predict(input).squeeze()
-
-        let winnerIndex = await sample(output, temperature)
+        let winnerIndex = await greedySample(output, temperature)
 
         if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
             winnerIndex = 0 // Fallback to the first index if out of bounds
@@ -147,24 +149,29 @@ async function generateText(prompt, temperature = 0.7, maxLength = 20) {
         const nextChar = this.vocab[winnerIndex]
         generated += nextChar
 
+        // Update tokenIndices and inputTensor for the next iteration
         tokenIndices.push(winnerIndex)
         if (tokenIndices.length > fixedLength) {
-            tokenIndices.shift()
+            tokenIndices.shift() // Remove the oldest token
         }
 
-        tf.dispose([input, output])
+        // Efficiently update the input tensor by shifting it and appending the new token
+        tf.dispose(inputs)
+        inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+
+        tf.dispose(output)
     }
+
+    tf.dispose(inputs)
 
     return generated
 }
 
-async function sample(probabilities, temperature) {
-    return tf.tidy(() => {
-        const logits = tf.div(
-            tf.log(probabilities),
-            Math.max(temperature, 1e-6)
-        )
-        const normalized = false
-        return tf.multinomial(logits, 1, null, normalized).dataSync()[0]
-    })
+async function greedySample(probabilities, temperature) {
+    const logits = tf.div(tf.log(probabilities), Math.max(temperature, 1e-6))
+    const normalized = false
+    const predictions = tf.multinomial(logits, 1, null, normalized)
+    const index = await predictions.data().then((data) => data[0])
+    tf.dispose([logits, predictions])
+    return index
 }
