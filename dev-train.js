@@ -11,7 +11,7 @@ export async function trainModel(backend = 'cpu') {
 
     const net = new ODE({
         backend: backend,
-        layout: [128, 128, 128],
+        layout: [96, 96, 96],
         learningRate: 1e-2,
         decay: 0.9,
         momentum: 0.01,
