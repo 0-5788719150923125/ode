@@ -57,17 +57,21 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
-                        activation: 'swish',
+                        activation: 'softsign',
                         dropout: 0.1,
                         stateful: false,
                         kernelInitializer: 'glorotUniform',
-                        kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
+                        kernelConstraint: tf.constraints.maxNorm({
+                            axis: 0,
+                            maxValue: 2.0
+                        }),
                         recurrentInitializer: 'orthogonal',
                         recurrentActivation: 'sigmoid',
                         recurrentConstraint: tf.constraints.maxNorm({
-                            axis: 0
+                            axis: 0,
+                            maxValue: 2.0
                         }),
-                        returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
+                        returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
                     }),
                     mergeMode: 'ave'
                 })
