@@ -93,7 +93,11 @@ export async function trainModel(dataGenerator, args) {
                 console.log(
                     `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss.toFixed(14)}, ELAPSED=${timer.next().value / 1000}s`
                 )
-                if (batch % generateEvery === 0 && batch !== 0) {
+                if (
+                    generateEvery > 0 &&
+                    batch % generateEvery === 0 &&
+                    batch !== 0
+                ) {
                     console.log(logs)
 
                     if (typeof window === 'undefined') {
