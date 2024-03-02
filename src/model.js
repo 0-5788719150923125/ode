@@ -16,12 +16,12 @@ import { startTraining } from './train.js'
 export default class ModelPrototype {
     constructor(config) {
         this.config = config
+        this.padToken = '¶'
         this.vocab = Array.from(
             new Set(
                 `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'";:(){}[]<>#~-_|/\\\n `
             )
         )
-        this.padToken = '¶'
         this.vocab.unshift(this.padToken)
         this.model = tf.sequential()
     }
@@ -111,8 +111,10 @@ export default class ModelPrototype {
         return await startTraining.call(this, dataGenerator, args)
     }
 
-    async save(path = `file://models/ode`) {
-        await this.model.save(path, { includeOptimizer: false })
+    async save(path = `data/models/ode`) {
+        const fs = await import('fs')
+        fs.mkdirSync(path, { recursive: true })
+        await this.model.save(`file://${path}`, { includeOptimizer: false })
     }
 }
 
