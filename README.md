@@ -8,4 +8,4 @@ The Second Law of Thermodynamics states that the energy of a system always decre
 
 # usage
 
-tbd (look at [dev.js](./dev.js) for now)
+Test things with: [dev.js](./dev.js)

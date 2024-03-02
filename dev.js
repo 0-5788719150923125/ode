@@ -15,8 +15,8 @@ import { trainModel } from './dev-train.js'
         })
         worker.postMessage({
             backend: 'webgl',
-            batchSize: 8,
-            gradientAccumulationSteps: 16,
+            batchSize: 1,
+            gradientAccumulationSteps: 128,
             generateEvery: 0
         })
     }
