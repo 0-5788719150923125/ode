@@ -30,8 +30,6 @@ export default class ModelPrototype {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
 
-        tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
-
         tf.enableProdMode()
 
         console.log('Backend:', tf.backend())
@@ -46,8 +44,7 @@ export default class ModelPrototype {
                     maxValue: 0.1
                 }),
                 embeddingsRegularizer: tf.regularizers.l2(),
-                maskZero: true,
-                stateful: false
+                maskZero: true
             })
         )
 
@@ -62,6 +59,7 @@ export default class ModelPrototype {
                         units: layer,
                         activation: 'swish',
                         dropout: 0.1,
+                        stateful: false,
                         kernelInitializer: 'glorotUniform',
                         kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
                         recurrentInitializer: 'orthogonal',

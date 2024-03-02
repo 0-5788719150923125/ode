@@ -14,30 +14,100 @@ let tf = tfjs
     }
 })()
 
-let currentXs = null
-let currentYs = null
-
 export async function startTraining(dataGenerator, args) {
-    const {
-        batchSize,
-        gradientAccumulationSteps,
-        sampleLen,
-        generateEvery,
-        predictLength
-    } = args
+    const trainArgs = {
+        batchSize: 32,
+        gradientAccumulationSteps: 1,
+        sampleLen: 64,
+        generateEvery: 64,
+        predictLength: 50,
+        ...args
+    }
 
+    let previousLoss = 0
     let accumulatedGrads = {}
     let accumulationCounter = 0
+    let currentXs = null
+    let currentYs = null
+    const dataset = tf.data.generator(
+        createBatchGenerator(
+            dataGenerator,
+            this.vocab,
+            trainArgs.batchSize,
+            trainArgs.sampleLen
+        )
+    )
 
     const timer = elapsedTimeGenerator()
     const emaCalc = emaGenerator()
     emaCalc.next()
 
-    const dataset = tf.data.generator(
-        createBatchGenerator(dataGenerator, this.vocab, batchSize, sampleLen)
-    )
+    function createBatchGenerator(
+        dataGenerator,
+        vocab,
+        batchSize,
+        inputLength
+    ) {
+        return function* () {
+            yield* batchGenerator(dataGenerator, vocab, batchSize, inputLength)
+        }
+    }
 
-    let previousLoss = 0
+    function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
+        const sampleLength = inputLength // Adjusted for input sequences
+        const charSetSize = vocab.length
+        while (true) {
+            let xsArray = []
+            let ysArray = []
+
+            for (let i = 0; i < batchSize; ++i) {
+                const text = dataGenerator.next().value
+                // Ensure you get a length between 1 and sampleLength (inclusive)
+                const randomLen = randomBetween(1, sampleLength)
+
+                // Convert characters to indices, filtering out characters not in vocab
+                let textIndices = text
+                    .split('')
+                    .map((char) => vocab.indexOf(char))
+                    .filter((index) => index !== -1)
+
+                // If the sequence is too long, truncate it to randomLen
+                if (textIndices.length > randomLen) {
+                    textIndices = textIndices.slice(0, randomLen)
+                }
+
+                // Pad sequences on the left if they are shorter than sampleLength
+                if (textIndices.length < sampleLength) {
+                    textIndices = Array(sampleLength - textIndices.length)
+                        .fill(0)
+                        .concat(textIndices)
+                }
+
+                // Create input sequence (xs)
+                const xs = textIndices.slice(0, -1) // Exclude last character for input
+                // Target (ys) is the last character of the sequence
+                const ys = textIndices.slice(-1)[0] // Get last character index
+
+                xsArray.push(xs)
+                ysArray.push(ys)
+            }
+
+            const xsTensor = tf.tensor2d(
+                xsArray,
+                [batchSize, sampleLength - 1],
+                'int32'
+            )
+            const ysTensor = tf.oneHot(
+                tf.tensor1d(ysArray, 'int32'),
+                charSetSize
+            )
+
+            currentXs = tf.clone(xsTensor)
+            currentYs = tf.clone(ysTensor)
+
+            yield { xs: xsTensor, ys: ysTensor }
+        }
+    }
 
     await this.model.fitDataset(dataset, {
         epochs: Number.MAX_SAFE_INTEGER,
@@ -73,7 +143,9 @@ export async function startTraining(dataGenerator, args) {
 
                 accumulationCounter++
 
-                if (accumulationCounter === gradientAccumulationSteps) {
+                if (
+                    accumulationCounter === trainArgs.gradientAccumulationSteps
+                ) {
                     // Clip gradients to prevent explosion
                     const clippedGrads = clipGradients(accumulatedGrads, 2.3)
 
@@ -106,8 +178,8 @@ export async function startTraining(dataGenerator, args) {
                     `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${comparedLoss.old}${colors.BLUE}${comparedLoss.new}${colors.WHITE}, ELAPSED=${timer.next().value / 1000}s`
                 )
                 if (
-                    generateEvery > 0 &&
-                    batch % generateEvery === 0 &&
+                    trainArgs.generateEvery > 0 &&
+                    batch % trainArgs.generateEvery === 0 &&
                     batch !== 0
                 ) {
                     console.log(logs)
@@ -123,7 +195,7 @@ export async function startTraining(dataGenerator, args) {
                         const output = await this.generate(
                             prompt,
                             temp,
-                            predictLength
+                            trainArgs.predictLength
                         )
                         console.log(`TEMPERATURE: ${temp}`)
                         console.log(output)
@@ -150,65 +222,5 @@ function* emaGenerator(alpha = 0.01) {
         if (newLoss !== undefined) {
             ema = ema === null ? newLoss : alpha * newLoss + (1 - alpha) * ema // Update EMA with the new loss value
         }
-    }
-}
-
-function createBatchGenerator(dataGenerator, vocab, batchSize, inputLength) {
-    return function* () {
-        yield* batchGenerator(dataGenerator, vocab, batchSize, inputLength)
-    }
-}
-
-function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
-    const sampleLength = inputLength // Adjusted for input sequences
-    const charSetSize = vocab.length
-
-    while (true) {
-        let xsArray = []
-        let ysArray = []
-
-        for (let i = 0; i < batchSize; ++i) {
-            const text = dataGenerator.next().value
-            // Ensure you get a length between 1 and sampleLength (inclusive)
-            const randomLen = randomBetween(1, sampleLength)
-
-            // Convert characters to indices, filtering out characters not in vocab
-            let textIndices = text
-                .split('')
-                .map((char) => vocab.indexOf(char))
-                .filter((index) => index !== -1)
-
-            // If the sequence is too long, truncate it to randomLen
-            if (textIndices.length > randomLen) {
-                textIndices = textIndices.slice(0, randomLen)
-            }
-
-            // Pad sequences on the left if they are shorter than sampleLength
-            if (textIndices.length < sampleLength) {
-                textIndices = Array(sampleLength - textIndices.length)
-                    .fill(0)
-                    .concat(textIndices)
-            }
-
-            // Create input sequence (xs)
-            const xs = textIndices.slice(0, -1) // Exclude last character for input
-            // Target (ys) is the last character of the sequence
-            const ys = textIndices.slice(-1)[0] // Get last character index
-
-            xsArray.push(xs)
-            ysArray.push(ys)
-        }
-
-        const xsTensor = tf.tensor2d(
-            xsArray,
-            [batchSize, sampleLength - 1],
-            'int32'
-        )
-        const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), charSetSize)
-
-        currentXs = tf.clone(xsTensor)
-        currentYs = tf.clone(ysTensor)
-
-        yield { xs: xsTensor, ys: ysTensor }
     }
 }
