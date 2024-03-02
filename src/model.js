@@ -29,6 +29,7 @@ export default class ModelPrototype {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
+
         tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 256000000)
 
         tf.enableProdMode()
@@ -48,6 +49,8 @@ export default class ModelPrototype {
                 maskZero: true
             })
         )
+
+        // Apply dropout on the embeddings layer
         this.model.add(tf.layers.dropout({ rate: 0.1 }))
 
         // Add GRU layers
