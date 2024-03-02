@@ -11,16 +11,18 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
-import { trainModel } from './train.js'
+import { startTraining } from './train.js'
 
 export default class ModelPrototype {
     constructor(config) {
         this.config = config
         this.vocab = Array.from(
             new Set(
-                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'";:(){}[]<>#~-_|/\\\n `
+                `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'";:(){}[]<>#~-_|/\\\n `
             )
         )
+        this.padToken = '¶'
+        this.vocab.unshift(this.padToken)
         this.model = tf.sequential()
     }
 
@@ -40,7 +42,7 @@ export default class ModelPrototype {
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.05
+                    maxValue: 0.1
                 }),
                 embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
@@ -62,7 +64,6 @@ export default class ModelPrototype {
                         recurrentConstraint: tf.constraints.maxNorm({
                             axis: 0
                         }),
-                        biasInitializer: 'zeros',
                         dropout: 0.1,
                         returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
@@ -71,7 +72,7 @@ export default class ModelPrototype {
             )
             this.model.add(
                 tf.layers.layerNormalization({
-                    epsilon: 1e-4
+                    epsilon: 1e-5
                 })
             )
         })
@@ -96,19 +97,18 @@ export default class ModelPrototype {
         })
 
         console.log(this.model.summary())
+        console.log(this.model.optimizer)
     }
 
     async generate(seed, temperature = 0.7, length = 20) {
-        const bound = generate.bind(this)
-        return await bound(seed, temperature, length)
+        return await generate.call(this, seed, temperature, length)
     }
 
     async train(dataGenerator, args) {
-        const bound = trainModel.bind(this)
-        await bound(dataGenerator, args)
+        return await startTraining.call(this, dataGenerator, args)
     }
 
-    async save(path = `file://data/model`) {
+    async save(path = `file://models/ode`) {
         await this.model.save(path, { includeOptimizer: false })
     }
 }

@@ -1,5 +1,10 @@
 import * as tfjs from '@tensorflow/tfjs'
-import { elapsedTimeGenerator, randomBetween } from './utils.js'
+import {
+    colors,
+    elapsedTimeGenerator,
+    findMatches,
+    randomBetween
+} from './utils.js'
 
 let tf = tfjs
 
@@ -12,7 +17,7 @@ let tf = tfjs
 let currentXs = null
 let currentYs = null
 
-export async function trainModel(dataGenerator, args) {
+export async function startTraining(dataGenerator, args) {
     const {
         batchSize,
         gradientAccumulationSteps,
@@ -24,8 +29,6 @@ export async function trainModel(dataGenerator, args) {
     let accumulatedGrads = {}
     let accumulationCounter = 0
 
-    console.log(this.model.optimizer)
-
     const timer = elapsedTimeGenerator()
     const emaCalc = emaGenerator()
     emaCalc.next()
@@ -33,6 +36,9 @@ export async function trainModel(dataGenerator, args) {
     const dataset = tf.data.generator(
         createBatchGenerator(dataGenerator, this.vocab, batchSize, sampleLen)
     )
+
+    let previousLoss = 0
+
     await this.model.fitDataset(dataset, {
         epochs: Number.MAX_SAFE_INTEGER,
         yieldEvery: 'auto',
@@ -90,8 +96,14 @@ export async function trainModel(dataGenerator, args) {
 
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
+                const comparedLoss = findMatches(
+                    previousLoss.toFixed(14).toString(),
+                    logs.loss.toFixed(14).toString()
+                )
+                previousLoss = logs.loss
+
                 console.log(
-                    `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss.toFixed(14)}, ELAPSED=${timer.next().value / 1000}s`
+                    `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${comparedLoss.old}${colors.BLUE}${comparedLoss.new}${colors.WHITE}, ELAPSED=${timer.next().value / 1000}s`
                 )
                 if (
                     generateEvery > 0 &&
@@ -174,7 +186,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
             // Pad sequences on the left if they are shorter than sampleLength
             if (textIndices.length < sampleLength) {
                 textIndices = Array(sampleLength - textIndices.length)
-                    .fill(vocab.indexOf('¶'))
+                    .fill(0)
                     .concat(textIndices)
             }
 
