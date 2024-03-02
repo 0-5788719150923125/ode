@@ -19,7 +19,7 @@ export default class ModelPrototype {
         this.padToken = '�'
         this.vocab = Array.from(
             new Set(
-                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'";:(){}[]<>#~-_|/\\\n `
+                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
             )
         )
         this.vocab.unshift(this.padToken)
