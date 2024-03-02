@@ -55,7 +55,7 @@ export default class ModelPrototype {
                         units: layer,
                         kernelInitializer: 'glorotUniform',
                         kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
-                        activation: 'tanh',
+                        activation: 'swish',
                         recurrentInitializer: 'orthogonal',
                         recurrentActivation: 'sigmoid',
                         recurrentConstraint: tf.constraints.maxNorm({
@@ -65,12 +65,12 @@ export default class ModelPrototype {
                         dropout: 0.1,
                         returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
-                    mergeMode: 'concat'
+                    mergeMode: 'ave'
                 })
             )
             this.model.add(
                 tf.layers.layerNormalization({
-                    epsilon: 1e-5
+                    epsilon: 1e-4
                 })
             )
         })

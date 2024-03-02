@@ -1,5 +1,5 @@
 import * as tfjs from '@tensorflow/tfjs'
-import { randomBetween } from './utils.js'
+import { elapsedTimeGenerator, randomBetween } from './utils.js'
 
 let tf = tfjs
 
@@ -21,6 +21,7 @@ export async function trainModel(dataGenerator, args) {
 
     console.log(this.model.optimizer)
 
+    const timer = elapsedTimeGenerator()
     const emaCalc = emaGenerator()
     emaCalc.next()
 
@@ -70,13 +71,7 @@ export async function trainModel(dataGenerator, args) {
 
                 if (accumulationCounter === gradientAccumulationSteps) {
                     // Clip gradients to prevent explosion
-                    const clippedGrads = {}
-                    Object.keys(accumulatedGrads).forEach((key) => {
-                        clippedGrads[key] = tf.keep(
-                            tf.clipByValue(accumulatedGrads[key], -1.0, 1.0)
-                        )
-                        accumulatedGrads[key].dispose()
-                    })
+                    const clippedGrads = clipGradients(accumulatedGrads, 2.3)
 
                     this.model.optimizer.applyGradients(clippedGrads)
 
@@ -99,7 +94,9 @@ export async function trainModel(dataGenerator, args) {
 
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
-                console.log(`EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}`)
+                console.log(
+                    `EMA=${updatedEma.toFixed(4)}, LOSS=${logs.loss}, ELAPSED=${timer.next().value / 1000}s`
+                )
                 if (batch % generateEvery === 0 && batch !== 0) {
                     console.log(logs)
 
@@ -108,7 +105,10 @@ export async function trainModel(dataGenerator, args) {
                     }
 
                     for (const temp of [0, 0.1, 0.7]) {
-                        const output = await this.generate('who', temp, 50)
+                        const prompt = dataGenerator
+                            .next()
+                            .value.slice(0, randomBetween(1, 16))
+                        const output = await this.generate(prompt, temp, 50)
                         console.log(`TEMPERATURE: ${temp}`)
                         console.log(output)
                     }
@@ -116,6 +116,15 @@ export async function trainModel(dataGenerator, args) {
             }
         }
     })
+}
+
+function clipGradients(grads, value) {
+    const clippedGrads = {}
+    Object.keys(grads).forEach((key) => {
+        clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
+        grads[key].dispose()
+    })
+    return clippedGrads
 }
 
 function* emaGenerator(alpha = 0.01) {
