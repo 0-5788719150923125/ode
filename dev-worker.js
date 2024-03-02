@@ -1,5 +1,5 @@
-import { trainModel } from './dev-engine.js'
+import { trainModel } from './dev-train.js'
 
 onmessage = async function (event) {
-    await trainModel('webgl')
+    await trainModel(event.data)
 }

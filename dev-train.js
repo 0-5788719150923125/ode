@@ -1,16 +1,18 @@
 import ODE, { stringSampler } from './src/index.js'
 
-export async function trainModel(backend = 'cpu') {
+export async function trainModel(args) {
     const trainArgs = {
+        backend: 'cpu',
         batchSize: 64,
         gradientAccumulationSteps: 2,
         sampleLen: 64,
         generateEvery: 64,
-        predictLength: 50
+        predictLength: 50,
+        ...args
     }
 
     const net = new ODE({
-        backend: backend,
+        backend: trainArgs.backend,
         layout: [96, 96, 96],
         learningRate: 1e-2,
         decay: 9e-1,
