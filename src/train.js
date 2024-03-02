@@ -103,7 +103,7 @@ export async function trainModel(dataGenerator, args) {
                     for (const temp of [0, 0.1, 0.7]) {
                         const prompt = dataGenerator
                             .next()
-                            .value.slice(0, randomBetween(1, 16))
+                            .value.slice(1, randomBetween(1, 16))
                         const output = await this.generate(
                             prompt,
                             temp,
