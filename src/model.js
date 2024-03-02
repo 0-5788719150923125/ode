@@ -46,6 +46,7 @@ export default class ModelPrototype {
                 maskZero: true
             })
         )
+        this.model.add(tf.layers.dropout({ rate: 0.1 }))
 
         // Add GRU layers
         this.config.layout.forEach((layer, i) => {
@@ -108,7 +109,7 @@ export default class ModelPrototype {
     }
 
     async save(path = `file://data/model`) {
-        await this.model.save(path, { includeOptimizer: true })
+        await this.model.save(path, { includeOptimizer: false })
     }
 }
 
