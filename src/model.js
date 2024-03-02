@@ -57,16 +57,16 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
-                        activation: 'softsign',
                         dropout: 0.1,
                         stateful: false,
+                        activation: 'softsign',
                         kernelInitializer: 'glorotUniform',
                         kernelConstraint: tf.constraints.maxNorm({
                             axis: 0,
                             maxValue: 2.0
                         }),
-                        recurrentInitializer: 'orthogonal',
                         recurrentActivation: 'sigmoid',
+                        recurrentInitializer: 'orthogonal',
                         recurrentConstraint: tf.constraints.maxNorm({
                             axis: 0,
                             maxValue: 2.0
@@ -84,6 +84,10 @@ export default class ModelPrototype {
         })
 
         // Add the final dense layer with softmax activation
+        // model.add(tf.layers.timeDistributed({
+        //     layer: tf.layers.dense({units: 8}),
+        //     inputShape: [10, 16],
+        //  }));
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,
