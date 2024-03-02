@@ -3,8 +3,8 @@ import ODE, { stringSampler } from './src/index.js'
 export async function trainModel(args) {
     const trainArgs = {
         backend: 'cpu',
-        batchSize: 64,
-        gradientAccumulationSteps: 2,
+        batchSize: 32,
+        gradientAccumulationSteps: 1,
         sampleLen: 64,
         generateEvery: 64,
         predictLength: 50,
@@ -13,12 +13,11 @@ export async function trainModel(args) {
 
     const net = new ODE({
         backend: trainArgs.backend,
-        layout: [96, 96, 96],
+        layout: [128, 128, 128],
         learningRate: 1e-2,
         decay: 9e-1,
         momentum: 1e-2,
         epsilon: 1e-8,
-        predictLength: 100,
         embeddingDimensions: 32,
         maxSequenceLength: trainArgs.sampleLen
     })

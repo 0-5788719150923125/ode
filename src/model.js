@@ -59,15 +59,15 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
+                        activation: 'swish',
+                        dropout: 0.1,
                         kernelInitializer: 'glorotUniform',
                         kernelConstraint: tf.constraints.maxNorm({ axis: 0 }),
-                        activation: 'swish',
                         recurrentInitializer: 'orthogonal',
                         recurrentActivation: 'sigmoid',
                         recurrentConstraint: tf.constraints.maxNorm({
                             axis: 0
                         }),
-                        dropout: 0.1,
                         returnSequences: i < this.config.layout.length - 1 // Set to false for the last GRU layer
                     }),
                     mergeMode: 'ave'
@@ -75,7 +75,7 @@ export default class ModelPrototype {
             )
             this.model.add(
                 tf.layers.layerNormalization({
-                    epsilon: 1e-5
+                    epsilon: 1e-3
                 })
             )
         })
