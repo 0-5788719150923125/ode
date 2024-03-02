@@ -84,7 +84,6 @@ export default class ModelPrototype {
         )
 
         // Compile the model
-        this.lossFunction = tf.metrics.categoricalCrossentropy
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
@@ -92,7 +91,7 @@ export default class ModelPrototype {
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
-            loss: this.lossFunction
+            loss: [tf.metrics.categoricalCrossentropy]
         })
 
         console.log(this.model.summary())

@@ -35,33 +35,26 @@ export async function trainModel(dataGenerator, args) {
         callbacks: {
             onTrainBegin: () => {},
             onBatchEnd: async (batch, logs) => {
-                const gradsAndVars = this.model.optimizer.computeGradients(
-                    () => {
-                        // Compute losses on the xs (input) data for this batch
-                        const predictions = this.model
-                            .predict(currentXs)
-                            .asType('float32')
-
-                        const loss = this.lossFunction(
-                            currentYs,
-                            predictions
-                        ).mean()
-                        return loss
-                    }
-                )
-
-                if (!gradsAndVars) return
+                // Compute losses on the xs (input) data for this batch
+                const gradients = this.model.optimizer.computeGradients(() => {
+                    const predictions = this.model.predict(currentXs)
+                    const loss = this.model.loss[0](
+                        currentYs,
+                        predictions
+                    ).mean()
+                    return loss
+                })
 
                 // Accumulate gradients
-                Object.keys(gradsAndVars.grads).forEach((key) => {
+                Object.keys(gradients.grads).forEach((key) => {
                     if (!accumulatedGrads[key]) {
                         accumulatedGrads[key] = tf.keep(
-                            tf.zerosLike(gradsAndVars.grads[key])
+                            tf.zerosLike(gradients.grads[key])
                         )
                     }
                     const tempGrad = tf.add(
                         accumulatedGrads[key],
-                        gradsAndVars.grads[key]
+                        gradients.grads[key]
                     )
                     accumulatedGrads[key].dispose()
                     accumulatedGrads[key] = tf.keep(tempGrad)
@@ -73,11 +66,11 @@ export async function trainModel(dataGenerator, args) {
                     // Clip gradients to prevent explosion
                     const clippedGrads = clipGradients(accumulatedGrads, 2.3)
 
-                    this.model.optimizer.applyGradients(clippedGrads)
-
                     // Reset for the next accumulation cycle
                     accumulatedGrads = {}
                     accumulationCounter = 0
+
+                    this.model.optimizer.applyGradients(clippedGrads)
 
                     // Dispose of the clipped gradients after application
                     Object.values(clippedGrads).forEach((tensor) =>
@@ -85,12 +78,10 @@ export async function trainModel(dataGenerator, args) {
                     )
                 }
 
-                // Ensure to dispose of grads after accumulation
-                if (gradsAndVars && gradsAndVars.grads) {
-                    Object.values(gradsAndVars.grads).forEach(
-                        (grad) => grad && grad.dispose()
-                    )
-                }
+                // Dispose of grads after accumulation
+                Object.values(gradients.grads).forEach(
+                    (grad) => grad && grad.dispose()
+                )
 
                 const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
 
