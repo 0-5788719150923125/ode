@@ -16,10 +16,10 @@ import { startTraining } from './train.js'
 export default class ModelPrototype {
     constructor(config) {
         this.config = config
-        this.padToken = '¶'
+        this.padToken = '�'
         this.vocab = Array.from(
             new Set(
-                `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'";:(){}[]<>#~-_|/\\\n `
+                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'";:(){}[]<>#~-_|/\\\n `
             )
         )
         this.vocab.unshift(this.padToken)
