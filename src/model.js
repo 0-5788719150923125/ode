@@ -104,7 +104,7 @@ export default class ModelPrototype {
     }
 
     async generate(seed, temperature = 0.7, length = 20) {
-        return await generate.call(this, seed, temperature, length)
+        return await generateText.call(this, seed, temperature, length)
     }
 
     async train(dataGenerator, args) {
@@ -116,7 +116,7 @@ export default class ModelPrototype {
     }
 }
 
-async function generate(prompt, temperature = 0.7, maxLength = 20) {
+async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
     const fixedLength = this.config.maxSequenceLength
