@@ -108,7 +108,7 @@ export default class ModelPrototype {
     }
 
     async save(path = `file://data/model`) {
-        await this.model.save(path)
+        await this.model.save(path, { includeOptimizer: true })
     }
 }
 

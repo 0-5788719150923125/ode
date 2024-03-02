@@ -1,12 +1,12 @@
-import ODE from './src/index.js'
-import { stringSampler } from './src/utils.js'
+import ODE, { stringSampler } from './src/index.js'
 
 export async function trainModel(backend = 'cpu') {
     const trainArgs = {
         batchSize: 64,
         gradientAccumulationSteps: 2,
         sampleLen: 64,
-        generateEvery: 64
+        generateEvery: 64,
+        predictLength: 50
     }
 
     const net = new ODE({

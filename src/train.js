@@ -13,8 +13,13 @@ let currentXs = null
 let currentYs = null
 
 export async function trainModel(dataGenerator, args) {
-    const { batchSize, gradientAccumulationSteps, sampleLen, generateEvery } =
-        args
+    const {
+        batchSize,
+        gradientAccumulationSteps,
+        sampleLen,
+        generateEvery,
+        predictLength
+    } = args
 
     let accumulatedGrads = {}
     let accumulationCounter = 0
@@ -99,7 +104,11 @@ export async function trainModel(dataGenerator, args) {
                         const prompt = dataGenerator
                             .next()
                             .value.slice(0, randomBetween(1, 16))
-                        const output = await this.generate(prompt, temp, 50)
+                        const output = await this.generate(
+                            prompt,
+                            temp,
+                            predictLength
+                        )
                         console.log(`TEMPERATURE: ${temp}`)
                         console.log(output)
                     }
