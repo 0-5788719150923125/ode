@@ -24,7 +24,6 @@ export async function startTraining(dataGenerator, args) {
         ...args
     }
 
-    let previousLoss = 0
     let currentXs = null
     let currentYs = null
     const dataset = tf.data.generator(
@@ -36,15 +35,14 @@ export async function startTraining(dataGenerator, args) {
         )
     )
 
+    const logger = new Logger()
     const gradientAccumulator = new GradientAccumulator(
         this.model,
         this.model.optimizer,
         trainArgs.gradientAccumulationSteps
     )
-    const timer = elapsedTimeGenerator()
-    const emaCalc = emaGenerator()
-    emaCalc.next()
 
+    // The training loop
     await this.model.fitDataset(dataset, {
         epochs: Number.MAX_SAFE_INTEGER,
         yieldEvery: 'auto',
@@ -54,39 +52,16 @@ export async function startTraining(dataGenerator, args) {
                 // Compute losses and accumulate gradients
                 gradientAccumulator.compute(currentXs, currentYs).step()
 
-                const updatedEma = emaCalc.next(logs.loss).value // Send new loss to generator and get updated EMA
+                // Print logs
+                logger.log(batch, logs.loss)
 
-                const comparedLoss = findMatches(
-                    previousLoss.toFixed(14).toString(),
-                    logs.loss.toFixed(14).toString()
+                // Print sample text
+                await textSampler(
+                    dataGenerator,
+                    batch,
+                    trainArgs.generateEvery,
+                    trainArgs.predictLength
                 )
-                previousLoss = logs.loss
-
-                console.log(
-                    `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${comparedLoss.old}${colors.BLUE}${comparedLoss.new}${colors.WHITE}, ELAPSED=${timer.next().value / 1000}s`
-                )
-                if (
-                    trainArgs.generateEvery > 0 &&
-                    batch % trainArgs.generateEvery === 0 &&
-                    batch !== 0
-                ) {
-                    if (typeof window === 'undefined') {
-                        await this.save()
-                    }
-
-                    for (const temp of [0, 0.1, 0.7]) {
-                        const prompt = dataGenerator
-                            .next()
-                            .value.slice(1, randomBetween(1, 16))
-                        const output = await this.generate(
-                            prompt,
-                            temp,
-                            trainArgs.predictLength
-                        )
-                        console.log(`TEMPERATURE: ${temp}`)
-                        console.log(output)
-                    }
-                }
             }
         }
     })
@@ -159,6 +134,28 @@ export async function startTraining(dataGenerator, args) {
     }
 }
 
+class Logger {
+    constructor() {
+        this.timer = elapsedTimeGenerator()
+        this.ema = emaGenerator()
+        this.ema.next()
+        this.previousLoss = 0
+    }
+    log(batch, currentLoss) {
+        const updatedEma = this.ema.next(currentLoss).value // Send new loss to generator and get updated EMA
+
+        const coloredLoss = findMatches(
+            this.previousLoss.toFixed(14).toString(),
+            currentLoss.toFixed(14).toString()
+        )
+        this.previousLoss = currentLoss
+
+        console.log(
+            `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${colors.BLUE}${coloredLoss.new}${colors.WHITE}, ELAPSED=${this.timer.next().value / 1000}s`
+        )
+    }
+}
+
 class GradientAccumulator {
     constructor(model, optimizer, accumulationSteps) {
         this.model = model
@@ -213,6 +210,23 @@ class GradientAccumulator {
         Object.values(this.gradients.grads).forEach(
             (grad) => grad && grad.dispose()
         )
+    }
+}
+
+async function textSampler(dataGenerator, batch, generateEvery, predictLength) {
+    if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
+        if (typeof window === 'undefined') {
+            await this.save()
+        }
+
+        for (const temp of [0, 0.1, 0.7]) {
+            const prompt = dataGenerator
+                .next()
+                .value.slice(1, randomBetween(1, 16))
+            const output = await this.generate(prompt, temp, predictLength)
+            console.log(`TEMPERATURE: ${temp}`)
+            console.log(output)
+        }
     }
 }
 
