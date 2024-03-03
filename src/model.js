@@ -84,10 +84,14 @@ export default class ModelPrototype {
         })
 
         // Add the final dense layer with softmax activation
-        // model.add(tf.layers.timeDistributed({
-        //     layer: tf.layers.dense({units: 8}),
-        //     inputShape: [10, 16],
-        //  }));
+        // this.model.add(
+        //     tf.layers.timeDistributed({
+        //         layer: tf.layers.dense({
+        //             units: this.vocab.length,
+        //             activation: 'softmax'
+        //         })
+        //     })
+        // )
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,
