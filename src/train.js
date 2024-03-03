@@ -58,8 +58,9 @@ export async function startTraining(dataGenerator, args) {
 
                 // Print sample text
                 await textSampler.call(
-                    dataGenerator,
+                    this,
                     batch,
+                    dataGenerator,
                     trainArgs.generateEvery,
                     trainArgs.predictLength
                 )
@@ -214,7 +215,7 @@ class GradientAccumulator {
     }
 }
 
-async function textSampler(dataGenerator, batch, generateEvery, predictLength) {
+async function textSampler(batch, dataGenerator, generateEvery, predictLength) {
     if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
         if (typeof window === 'undefined') {
             await this.save()
