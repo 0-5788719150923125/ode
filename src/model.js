@@ -49,7 +49,7 @@ export default class ModelPrototype {
         )
 
         // Apply dropout on the embeddings layer
-        this.model.add(tf.layers.dropout({ rate: 0.1 }))
+        // this.model.add(tf.layers.dropout({ rate: 0.1 }))
 
         // Add GRU layers
         this.config.layout.forEach((layer, i) => {
@@ -57,7 +57,7 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
-                        dropout: 0.1,
+                        // dropout: 0.1,
                         stateful: false,
                         activation: 'softsign',
                         kernelInitializer: 'glorotUniform',
