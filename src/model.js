@@ -40,10 +40,10 @@ export default class ModelPrototype {
                 inputDim: this.vocab.length, // Should match size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
-                embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.1
-                }),
-                embeddingsRegularizer: tf.regularizers.l2(),
+                // embeddingsConstraint: tf.constraints.maxNorm({
+                //     maxValue: 0.1
+                // }),
+                // embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
         )
