@@ -26,6 +26,7 @@ export async function startTraining(dataGenerator, args) {
 
     let currentXs = null
     let currentYs = null
+
     const dataset = tf.data.generator(
         createBatchGenerator(
             dataGenerator,
@@ -56,7 +57,7 @@ export async function startTraining(dataGenerator, args) {
                 logger.log(batch, logs.loss)
 
                 // Print sample text
-                await textSampler(
+                await textSampler.call(
                     dataGenerator,
                     batch,
                     trainArgs.generateEvery,
