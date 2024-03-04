@@ -164,19 +164,33 @@ async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     return generated
 }
 
-async function sampleSequences(probabilities, temperature) {
+async function sampleSequences(probabilities, temperature, greedy = false) {
     // Reshape the probabilities if needed (assumes output is [batchSize, sequenceLength, vocabSize])
     const reshapedProbabilities = probabilities.reshape([
         probabilities.shape[1],
         probabilities.shape[2]
     ])
 
-    // Use `argMax` to get predicted indices
-    const predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
+    let logits, predictions, predictedIndices
+    if (greedy) {
+        // argMax implementation
+        predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
+    } else {
+        // Apply temperature scaling to logits
+        logits = tf.div(
+            tf.log(reshapedProbabilities),
+            Math.max(temperature, 1e-6)
+        )
+
+        // Sample using multinomial
+        predictions = tf.multinomial(logits, 1, null, false)
+        predictedIndices = await predictions.data()
+    }
 
     // Map indices to characters
     const sequence = predictedIndices.map((index) => this.vocab[index])
 
+    tf.dispose(predictions)
     return sequence.join('')
 }
 
