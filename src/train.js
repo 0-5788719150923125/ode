@@ -131,7 +131,10 @@ export async function startTraining(dataGenerator, args) {
                 // Create target sequence (ys) and right-pad it to match inputLength
                 let ys = textIndices.slice(sampleLength, inputLength)
 
-                ys = ys.concat(Array(xs.length - predictLength).fill(0)) // Fill with padding value (0 or another designated value)
+                // Pad on the left also
+                ys = Array(xs.length - predictLength)
+                    .fill(0)
+                    .concat(ys)
 
                 // console.log(xs.concat(ys).map((char) => vocab[char]).join(''))
 

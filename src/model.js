@@ -123,7 +123,7 @@ export default class ModelPrototype {
     }
 }
 
-function preprocessData(texts, vocab, expectedSequenceLength) {
+function preprocessText(texts, vocab, expectedSequenceLength) {
     const inputIndices = texts.map((text) => {
         const chars = text.split('')
         const indices = chars.map((char) => vocab.indexOf(char))
@@ -150,7 +150,7 @@ async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     prompt = prompt.slice(-maxSequenceLength)
 
     // Initialize input sequence data
-    let inputSequence = preprocessData([prompt], this.vocab, maxSequenceLength)
+    let inputSequence = preprocessText([prompt], this.vocab, maxSequenceLength)
 
     const inputs = tf.tensor2d(inputSequence, [
         inputSequence.length,
@@ -177,7 +177,7 @@ async function sampleSequences(probabilities, temperature, greedy = false) {
 
     let logits, predictions, predictedIndices
     if (greedy) {
-        // argMax implementation
+        // Greedy implementation
         predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
     } else {
         // Apply temperature scaling to logits

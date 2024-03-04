@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
 
-function createGRUModel(vocabSize, maxSequenceLength) {
+function createGRUModel(vocabSize) {
     const model = tf.sequential()
 
     model.add(
@@ -36,25 +36,40 @@ const inputTexts = ['hello ', 'how are ', 'the weather ']
 
 const outputTexts = ['world ', 'you doing? ', 'is nice ']
 
-const maxSequenceLength = Math.max(...inputTexts.map((t) => t.length))
+const maxSequenceLength = 32
 
-function preprocessData(texts, vocab, maxSequenceLength) {
+function preprocessData(texts, vocab, maxSequenceLength, paddingSide = 'left') {
     return texts.map((text) => {
         const chars = text.split('')
         const indices = chars.map((char) => vocab.indexOf(char))
         const padding = new Array(maxSequenceLength - indices.length).fill(0)
-        return indices.concat(padding)
+        if (paddingSide == 'left') {
+            return padding.concat(indices)
+        } else {
+            return indices.concat(padding)
+        }
     }) // This returns a 2D array: Array<Array<number>>, which is what we want
 }
 
-const inputIndices = preprocessData(inputTexts, vocab, maxSequenceLength)
+const inputIndices = preprocessData(
+    inputTexts,
+    vocab,
+    maxSequenceLength,
+    'left'
+)
+const outputIndices = preprocessData(
+    outputTexts,
+    vocab,
+    maxSequenceLength,
+    'left'
+)
 console.log(inputIndices)
+console.log(outputIndices)
+
 const xTensor = tf.tensor2d(inputIndices, [
     inputIndices.length,
     maxSequenceLength
 ]) // Use tensor2d instead of tensor3d
-
-const outputIndices = preprocessData(outputTexts, vocab, maxSequenceLength)
 
 const flatOutputIndices = outputIndices.flat().flat()
 
@@ -66,12 +81,12 @@ console.log(xTensor)
 console.log(yTensor)
 
 // Create and compile the model
-const model = createGRUModel(vocab.length, maxSequenceLength)
+const model = createGRUModel(vocab.length)
 model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' })
 
 async function trainModel() {
     await model.fit(xTensor, yTensor, {
-        epochs: 1000,
+        epochs: 500,
         verbose: 1
     })
 
@@ -85,6 +100,7 @@ async function trainModel() {
 
     // Predict using the adjusted 2D tensor
     const prediction = model.predict(predictionTensor)
+    console.log(prediction.dataSync())
 
     // Convert predictions to indices (use argMax for categoricalCrossentropy)
     const predictedIndices = prediction.argMax(-1).dataSync()
