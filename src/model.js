@@ -35,18 +35,18 @@ export default class ModelPrototype {
         console.log('Backend:', tf.backend())
 
         // Add the embedding layer as the first layer
-        // this.model.add(
-        //     tf.layers.embedding({
-        //         inputDim: this.vocab.length, // Should match size of the vocabulary
-        //         outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
-        //         embeddingsInitializer: 'glorotUniform',
-        //         // embeddingsConstraint: tf.constraints.maxNorm({
-        //         //     maxValue: 0.1
-        //         // }),
-        //         // embeddingsRegularizer: tf.regularizers.l2(),
-        //         maskZero: true
-        //     })
-        // )
+        this.model.add(
+            tf.layers.embedding({
+                inputDim: this.vocab.length, // Should match size of the vocabulary
+                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
+                embeddingsInitializer: 'glorotUniform',
+                // embeddingsConstraint: tf.constraints.maxNorm({
+                //     maxValue: 0.1
+                // }),
+                // embeddingsRegularizer: tf.regularizers.l2(),
+                maskZero: true
+            })
+        )
 
         // Apply dropout on the embeddings layer
         // this.model.add(tf.layers.dropout({ rate: 0.1 }))
@@ -55,7 +55,6 @@ export default class ModelPrototype {
         this.config.layout.forEach((layer, i) => {
             this.model.add(
                 tf.layers.bidirectional({
-                    inputShape: [this.config.contextLength, 1],
                     layer: tf.layers.gru({
                         units: layer,
                         // dropout: 0.1,
@@ -138,7 +137,7 @@ function preprocessData(texts, vocab, expectedSequenceLength) {
             .slice(indices.length, expectedSequenceLength)
             .concat(indices)
 
-        return paddedIndices.map((i) => [i])
+        return paddedIndices.map((i) => i)
     })
 
     return inputIndices
@@ -153,7 +152,12 @@ async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     // Initialize input sequence data
     let inputSequence = preprocessData([prompt], this.vocab, maxSequenceLength)
 
-    const output = this.model.predict([tf.tensor3d(inputSequence)])
+    const inputs = tf.tensor2d(inputSequence, [
+        inputSequence.length,
+        maxSequenceLength
+    ])
+
+    const output = this.model.predict([inputs])
 
     const nextSequence = await sampleSequences.call(this, output, temperature)
 

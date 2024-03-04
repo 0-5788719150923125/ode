@@ -121,10 +121,8 @@ export async function startTraining(dataGenerator, args) {
                 }
 
                 // Create input sequence (xs)
-                let xs = textIndices
-                    .slice(0, sampleLength)
-                    .map((char) => [char])
-                xs = Array(predictLength).fill([0]).concat(xs)
+                let xs = textIndices.slice(0, sampleLength).map((char) => char)
+                xs = Array(predictLength).fill(0).concat(xs)
 
                 // Create target sequence (ys) and right-pad it to match inputLength
                 let ys = textIndices.slice(sampleLength, inputLength)
@@ -135,7 +133,7 @@ export async function startTraining(dataGenerator, args) {
                 ysArray.push(ys)
             }
 
-            const xsTensor = tf.tensor3d(xsArray)
+            const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength])
 
             // Convert ysArray to a tensor, then one-hot encode
             const ysTensor = tf
