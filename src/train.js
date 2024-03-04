@@ -133,12 +133,14 @@ export async function startTraining(dataGenerator, args) {
 
                 ys = ys.concat(Array(xs.length - predictLength).fill(0)) // Fill with padding value (0 or another designated value)
 
+                // console.log(xs.concat(ys).map((char) => vocab[char]).join(''))
+
                 xsArray.push(xs)
                 ysArray.push(ys)
             }
 
-            console.log(xsArray)
-            console.log(ysArray)
+            // console.log(xsArray)
+            // console.log(ysArray)
 
             const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength])
 
