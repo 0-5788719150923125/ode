@@ -101,7 +101,7 @@ export default class ModelPrototype {
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
-            loss: [tf.metrics.categoricalCrossentropy]
+            loss: [tf.losses.softmaxCrossEntropy]
         })
 
         console.log(this.model.summary())
