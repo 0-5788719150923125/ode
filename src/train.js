@@ -249,10 +249,14 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             const prompt = dataGenerator
                 .next()
                 .value.slice(1, randomBetween(1, 16))
-            const output = await this.generate(prompt, temp, 80, true)
+            const output = await this.generate(prompt, temp, 80, false)
             console.log(`TEMPERATURE: ${temp}`)
             console.log(output)
         }
+        const prompt = dataGenerator.next().value.slice(1, randomBetween(1, 16))
+        const output = await this.generate(prompt, 0, 80, true)
+        console.log(`GREEDY: True`)
+        console.log(output)
     }
 }
 

@@ -64,13 +64,13 @@ const inputIndices = preprocessData(
     inputTexts,
     vocab,
     maxSequenceLength,
-    'both'
+    'left'
 )
 const outputIndices = preprocessData(
     outputTexts,
     vocab,
     maxSequenceLength,
-    'both'
+    'left'
 )
 console.log(inputIndices)
 console.log(outputIndices)
@@ -95,7 +95,7 @@ model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' })
 
 async function trainModel() {
     await model.fit(xTensor, yTensor, {
-        epochs: 2500,
+        epochs: 500,
         verbose: 1
     })
 

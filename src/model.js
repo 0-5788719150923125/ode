@@ -168,7 +168,11 @@ async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     return generated
 }
 
-async function sampleSequences(probabilities, temperature, greedy = false) {
+async function sampleSequences(
+    probabilities,
+    temperature = 0.7,
+    greedy = false
+) {
     // Reshape the probabilities if needed (assumes output is [batchSize, sequenceLength, vocabSize])
     const reshapedProbabilities = probabilities.reshape([
         probabilities.shape[1],
