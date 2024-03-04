@@ -193,12 +193,3 @@ async function sampleSequences(probabilities, temperature, greedy = false) {
     tf.dispose(predictions)
     return sequence.join('')
 }
-
-async function greedySample(probabilities, temperature) {
-    const logits = tf.div(tf.log(probabilities), Math.max(temperature, 1e-6))
-    const normalized = false
-    const predictions = tf.multinomial(logits, 1, null, normalized)
-    const index = await predictions.data().then((data) => data[0])
-    tf.dispose([logits, predictions])
-    return index
-}
