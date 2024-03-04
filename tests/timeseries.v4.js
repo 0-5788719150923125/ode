@@ -72,7 +72,7 @@ model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' })
 async function trainModel() {
     await model.fit(xTensor, yTensor, {
         epochs: 1000,
-        verbose: 0
+        verbose: 1
     })
 
     // Predict
