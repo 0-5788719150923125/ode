@@ -109,7 +109,7 @@ async function trainModel() {
 
         // Predict using the adjusted 2D tensor
         const prediction = model.predict(predictionTensor)
-        console.log(prediction.dataSync())
+        // console.log(prediction.dataSync())
 
         // Convert predictions to indices (use argMax for categoricalCrossentropy)
         const predictedIndices = prediction.argMax(-1).dataSync()
