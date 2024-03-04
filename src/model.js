@@ -55,7 +55,7 @@ export default class ModelPrototype {
         this.config.layout.forEach((layer, i) => {
             this.model.add(
                 tf.layers.bidirectional({
-                    inputShape: [32, 1],
+                    inputShape: [this.config.contextLength, 1],
                     layer: tf.layers.gru({
                         units: layer,
                         // dropout: 0.1,
@@ -93,22 +93,15 @@ export default class ModelPrototype {
                 })
             })
         )
-        // this.model.add(
-        //     tf.layers.dense({
-        //         units: this.vocab.length,
-        //         activation: 'softmax'
-        //     })
-        // )
 
         // Compile the model
         this.model.compile({
-            // optimizer: tf.train.rmsprop(
-            //     this.config.learningRate || 1e-2,
-            //     this.config.decay || 0,
-            //     this.config.momentum || 0,
-            //     this.config.epsilon || 1e-8
-            // ),
-            optimizer: 'adam',
+            optimizer: tf.train.rmsprop(
+                this.config.learningRate || 1e-2,
+                this.config.decay || 0,
+                this.config.momentum || 0,
+                this.config.epsilon || 1e-8
+            ),
             loss: [tf.metrics.categoricalCrossentropy]
         })
 
@@ -131,52 +124,60 @@ export default class ModelPrototype {
     }
 }
 
+function preprocessData(texts, vocab, expectedSequenceLength) {
+    const inputIndices = texts.map((text) => {
+        const chars = text.split('')
+        const indices = chars.map((char) => vocab.indexOf(char))
+
+        // Pad on the left
+        const padding = new Array(expectedSequenceLength - indices.length).fill(
+            0
+        )
+        const paddedIndices = padding
+            .concat(indices)
+            .slice(indices.length, expectedSequenceLength)
+            .concat(indices)
+
+        return paddedIndices.map((i) => [i])
+    })
+
+    return inputIndices
+}
+
 async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     let generated = prompt
+    const maxSequenceLength = this.config.contextLength
 
-    let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
+    prompt = prompt.slice(-maxSequenceLength)
 
-    const fixedLength = this.config.maxSequenceLength
+    // Initialize input sequence data
+    let inputSequence = preprocessData([prompt], this.vocab, maxSequenceLength)
 
-    // Prepare initial token indices
-    if (tokenIndices.length > fixedLength) {
-        tokenIndices = tokenIndices.slice(tokenIndices.length - fixedLength)
-    } else if (tokenIndices.length < fixedLength) {
-        tokenIndices = new Array(fixedLength - tokenIndices.length)
-            .fill(0)
-            .concat(tokenIndices)
-    }
+    const output = this.model.predict([tf.tensor3d(inputSequence)])
 
-    let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+    const nextSequence = await sampleSequences.call(this, output, temperature)
 
-    for (let i = 0; i < maxLength; i++) {
-        const output = this.model.predict(inputs).squeeze()
+    generated += nextSequence
 
-        let winnerIndex = await greedySample(output, temperature)
-
-        if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
-            winnerIndex = 0 // Fallback to the first index if out of bounds
-        }
-
-        const nextChar = this.vocab[winnerIndex]
-        generated += nextChar
-
-        // Update tokenIndices and inputTensor for the next iteration
-        tokenIndices.push(winnerIndex)
-        if (tokenIndices.length > fixedLength) {
-            tokenIndices.shift() // Remove the oldest token
-        }
-
-        // Efficiently update the input tensor by shifting it and appending the new token
-        tf.dispose(inputs)
-        inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
-
-        tf.dispose(output)
-    }
-
-    tf.dispose(inputs)
+    tf.dispose(output)
 
     return generated
+}
+
+async function sampleSequences(probabilities, temperature) {
+    // Reshape the probabilities if needed (assumes output is [batchSize, sequenceLength, vocabSize])
+    const reshapedProbabilities = probabilities.reshape([
+        probabilities.shape[1],
+        probabilities.shape[2]
+    ])
+
+    // Use `argMax` to get predicted indices
+    const predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
+
+    // Map indices to characters
+    const sequence = predictedIndices.map((index) => this.vocab[index])
+
+    return sequence.join('')
 }
 
 async function greedySample(probabilities, temperature) {

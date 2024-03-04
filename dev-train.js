@@ -19,6 +19,7 @@ export async function trainModel(args) {
         momentum: 1e-2,
         epsilon: 1e-8,
         embeddingDimensions: 32,
+        contextLength: trainArgs.sampleLen,
         maxSequenceLength: trainArgs.sampleLen
     })
 

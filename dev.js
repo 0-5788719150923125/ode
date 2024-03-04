@@ -7,7 +7,7 @@ import { trainModel } from './dev-train.js'
             batchSize: 8,
             gradientAccumulationSteps: 2,
             generateEvery: 4,
-            sampleLen: 32
+            sampleLen: 64
         })
     } else {
         // browser
