@@ -108,8 +108,8 @@ export default class ModelPrototype {
         console.log(this.model.optimizer)
     }
 
-    async generate(seed, temperature = 0.7, length = 20) {
-        return await generateText.call(this, seed, temperature, length)
+    async generate(seed, temperature = 0.7, length = 20, greedy = false) {
+        return await generateText.call(this, seed, temperature, length, greedy)
     }
 
     async train(dataGenerator, args) {

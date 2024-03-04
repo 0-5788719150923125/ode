@@ -43,10 +43,19 @@ function preprocessData(texts, vocab, maxSequenceLength, paddingSide = 'left') {
         const chars = text.split('')
         const indices = chars.map((char) => vocab.indexOf(char))
         const padding = new Array(maxSequenceLength - indices.length).fill(0)
-        if (paddingSide == 'left') {
+        if (paddingSide === 'left') {
             return padding.concat(indices)
-        } else {
+        } else if (paddingSide === 'right') {
             return indices.concat(padding)
+        } else {
+            while (indices.length < maxSequenceLength) {
+                if (Math.random() < 0.5) {
+                    indices.push(0)
+                } else {
+                    indices.unshift(0)
+                }
+            }
+            return indices
         }
     }) // This returns a 2D array: Array<Array<number>>, which is what we want
 }
@@ -55,13 +64,13 @@ const inputIndices = preprocessData(
     inputTexts,
     vocab,
     maxSequenceLength,
-    'left'
+    'both'
 )
 const outputIndices = preprocessData(
     outputTexts,
     vocab,
     maxSequenceLength,
-    'left'
+    'both'
 )
 console.log(inputIndices)
 console.log(outputIndices)
@@ -86,11 +95,10 @@ model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' })
 
 async function trainModel() {
     await model.fit(xTensor, yTensor, {
-        epochs: 500,
+        epochs: 2500,
         verbose: 1
     })
 
-    // Predict
     // Adjust the prediction input to match the expected 2D shape
     const predictionInput = preprocessData(['hello '], vocab, maxSequenceLength)
     const predictionTensor = tf.tensor2d(predictionInput, [

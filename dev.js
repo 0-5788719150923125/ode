@@ -6,7 +6,7 @@ import { trainModel } from './dev-train.js'
             backend: 'tensorflow',
             batchSize: 64,
             gradientAccumulationSteps: 2,
-            generateEvery: 3,
+            generateEvery: 32,
             sampleLen: 64
         })
     } else {
