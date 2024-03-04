@@ -33,7 +33,7 @@ export async function startTraining(dataGenerator, args) {
             this.vocab,
             trainArgs.batchSize,
             trainArgs.sampleLen,
-            3
+            trainArgs.predictLength
         )
     )
 
@@ -62,8 +62,7 @@ export async function startTraining(dataGenerator, args) {
                     this,
                     batch,
                     dataGenerator,
-                    trainArgs.generateEvery,
-                    trainArgs.predictLength
+                    trainArgs.generateEvery
                 )
             }
         }
@@ -95,7 +94,6 @@ export async function startTraining(dataGenerator, args) {
         predictLength
     ) {
         const sampleLength = inputLength - predictLength
-        const vocabSize = vocab.length
 
         while (true) {
             let xsArray = []
@@ -103,9 +101,13 @@ export async function startTraining(dataGenerator, args) {
 
             for (let i = 0; i < batchSize; ++i) {
                 const text = dataGenerator.next().value
+                const sample = text.slice(
+                    0,
+                    randomBetween(1 + predictLength, inputLength)
+                )
 
                 // Convert characters to indices, filtering out characters not in vocab
-                let textIndices = text
+                let textIndices = sample
                     .split('')
                     .map((char) => vocab.indexOf(char))
                     .filter((index) => index !== -1)
@@ -117,7 +119,9 @@ export async function startTraining(dataGenerator, args) {
 
                 // Pad sequences on the left if they are shorter than inputLength
                 if (textIndices.length < inputLength) {
-                    textIndices = Array(inputLength).fill(0).concat(textIndices)
+                    textIndices = Array(inputLength - textIndices.length)
+                        .fill(0)
+                        .concat(textIndices)
                 }
 
                 // Create input sequence (xs)
@@ -132,6 +136,9 @@ export async function startTraining(dataGenerator, args) {
                 xsArray.push(xs)
                 ysArray.push(ys)
             }
+
+            console.log(xsArray)
+            console.log(ysArray)
 
             const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength])
 
@@ -227,7 +234,7 @@ class GradientAccumulator {
     }
 }
 
-async function textSampler(batch, dataGenerator, generateEvery, predictLength) {
+async function textSampler(batch, dataGenerator, generateEvery) {
     if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
         if (typeof window === 'undefined') {
             await this.save()
@@ -237,7 +244,7 @@ async function textSampler(batch, dataGenerator, generateEvery, predictLength) {
             const prompt = dataGenerator
                 .next()
                 .value.slice(1, randomBetween(1, 16))
-            const output = await this.generate(prompt, temp, predictLength)
+            const output = await this.generate(prompt, temp, 80)
             console.log(`TEMPERATURE: ${temp}`)
             console.log(output)
         }

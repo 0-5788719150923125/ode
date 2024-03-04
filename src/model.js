@@ -61,26 +61,26 @@ export default class ModelPrototype {
                         stateful: false,
                         activation: 'softsign',
                         kernelInitializer: 'glorotUniform',
-                        kernelConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
+                        // kernelConstraint: tf.constraints.maxNorm({
+                        //     axis: 0,
+                        //     maxValue: 2.0
+                        // }),
                         recurrentActivation: 'sigmoid',
                         recurrentInitializer: 'orthogonal',
-                        recurrentConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
+                        // recurrentConstraint: tf.constraints.maxNorm({
+                        //     axis: 0,
+                        //     maxValue: 2.0
+                        // }),
                         returnSequences: true // False for the last GRU layer
                     }),
                     mergeMode: 'ave'
                 })
             )
-            this.model.add(
-                tf.layers.layerNormalization({
-                    epsilon: 1e-3
-                })
-            )
+            // this.model.add(
+            //     tf.layers.layerNormalization({
+            //         epsilon: 1e-3
+            //     })
+            // )
         })
 
         // Add the final dense layer with softmax activation
