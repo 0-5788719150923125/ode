@@ -32,7 +32,8 @@ export async function startTraining(dataGenerator, args) {
             dataGenerator,
             this.vocab,
             trainArgs.batchSize,
-            trainArgs.sampleLen
+            trainArgs.sampleLen,
+            3
         )
     )
 
@@ -72,24 +73,36 @@ export async function startTraining(dataGenerator, args) {
         dataGenerator,
         vocab,
         batchSize,
-        inputLength
+        inputLength,
+        predictLength
     ) {
         return function* () {
-            yield* batchGenerator(dataGenerator, vocab, batchSize, inputLength)
+            yield* batchGenerator(
+                dataGenerator,
+                vocab,
+                batchSize,
+                inputLength,
+                predictLength
+            )
         }
     }
 
-    function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
-        const sampleLength = inputLength // Adjusted for input sequences
-        const charSetSize = vocab.length
+    function* batchGenerator(
+        dataGenerator,
+        vocab,
+        batchSize,
+        inputLength,
+        predictLength
+    ) {
+        const sampleLength = inputLength - predictLength
+        const vocabSize = vocab.length
+
         while (true) {
             let xsArray = []
             let ysArray = []
 
             for (let i = 0; i < batchSize; ++i) {
                 const text = dataGenerator.next().value
-                // Ensure you get a length between 1 and sampleLength (inclusive)
-                const randomLen = randomBetween(1, sampleLength)
 
                 // Convert characters to indices, filtering out characters not in vocab
                 let textIndices = text
@@ -97,36 +110,37 @@ export async function startTraining(dataGenerator, args) {
                     .map((char) => vocab.indexOf(char))
                     .filter((index) => index !== -1)
 
-                // If the sequence is too long, truncate it to randomLen
-                if (textIndices.length > randomLen) {
-                    textIndices = textIndices.slice(0, randomLen)
+                // Ensure sequence is not longer than inputLength
+                if (textIndices.length > inputLength) {
+                    textIndices = textIndices.slice(0, inputLength)
                 }
 
-                // Pad sequences on the left if they are shorter than sampleLength
-                if (textIndices.length < sampleLength) {
-                    textIndices = Array(sampleLength - textIndices.length)
-                        .fill(0)
-                        .concat(textIndices)
+                // Pad sequences on the left if they are shorter than inputLength
+                if (textIndices.length < inputLength) {
+                    textIndices = Array(inputLength).fill(0).concat(textIndices)
                 }
 
                 // Create input sequence (xs)
-                const xs = textIndices.slice(0, -1) // Exclude last character for input
-                // Target (ys) is the last character of the sequence
-                const ys = textIndices.slice(-1)[0] // Get last character index
+                let xs = textIndices
+                    .slice(0, sampleLength)
+                    .map((char) => [char])
+                xs = Array(predictLength).fill([0]).concat(xs)
+
+                // Create target sequence (ys) and right-pad it to match inputLength
+                let ys = textIndices.slice(sampleLength, inputLength)
+
+                ys = ys.concat(Array(xs.length - predictLength).fill(0)) // Fill with padding value (0 or another designated value)
 
                 xsArray.push(xs)
                 ysArray.push(ys)
             }
 
-            const xsTensor = tf.tensor2d(
-                xsArray,
-                [batchSize, sampleLength - 1],
-                'int32'
-            )
-            const ysTensor = tf.oneHot(
-                tf.tensor1d(ysArray, 'int32'),
-                charSetSize
-            )
+            const xsTensor = tf.tensor3d(xsArray)
+
+            // Convert ysArray to a tensor, then one-hot encode
+            const ysTensor = tf
+                .oneHot(tf.tensor1d(ysArray.flat(), 'int32'), vocab.length)
+                .reshape([batchSize, inputLength, vocab.length])
 
             currentXs = tf.clone(xsTensor)
             currentYs = tf.clone(ysTensor)

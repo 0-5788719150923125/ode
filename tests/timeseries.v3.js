@@ -47,14 +47,20 @@ function preprocessData(texts, vocab, maxSequenceLength) {
 const maxSequenceLength = Math.max(...inputTexts.map((t) => t.length))
 
 const inputIndices = preprocessData(inputTexts, vocab, maxSequenceLength)
+
 const xTensor = tf.tensor3d(inputIndices)
 
 const outputIndices = preprocessData(outputTexts, vocab, maxSequenceLength)
-const flatOutputIndices = outputIndices.flat()
+
+const flatOutputIndices = outputIndices.flat().flat()
 console.log(flatOutputIndices)
+
 const yTensor = tf
-    .oneHot(tf.tensor1d(flatOutputIndices.flat(), 'int32'), vocab.length)
+    .oneHot(tf.tensor1d(flatOutputIndices, 'int32'), vocab.length)
     .reshape([inputTexts.length, maxSequenceLength, vocab.length])
+
+console.log(xTensor)
+console.log(yTensor)
 
 // Create and compile the model
 const model = createGRUModel(vocab.length, maxSequenceLength)

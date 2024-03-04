@@ -35,18 +35,18 @@ export default class ModelPrototype {
         console.log('Backend:', tf.backend())
 
         // Add the embedding layer as the first layer
-        this.model.add(
-            tf.layers.embedding({
-                inputDim: this.vocab.length, // Should match size of the vocabulary
-                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
-                embeddingsInitializer: 'glorotUniform',
-                // embeddingsConstraint: tf.constraints.maxNorm({
-                //     maxValue: 0.1
-                // }),
-                // embeddingsRegularizer: tf.regularizers.l2(),
-                maskZero: true
-            })
-        )
+        // this.model.add(
+        //     tf.layers.embedding({
+        //         inputDim: this.vocab.length, // Should match size of the vocabulary
+        //         outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
+        //         embeddingsInitializer: 'glorotUniform',
+        //         // embeddingsConstraint: tf.constraints.maxNorm({
+        //         //     maxValue: 0.1
+        //         // }),
+        //         // embeddingsRegularizer: tf.regularizers.l2(),
+        //         maskZero: true
+        //     })
+        // )
 
         // Apply dropout on the embeddings layer
         // this.model.add(tf.layers.dropout({ rate: 0.1 }))
@@ -55,6 +55,7 @@ export default class ModelPrototype {
         this.config.layout.forEach((layer, i) => {
             this.model.add(
                 tf.layers.bidirectional({
+                    inputShape: [32, 1],
                     layer: tf.layers.gru({
                         units: layer,
                         // dropout: 0.1,
@@ -71,7 +72,7 @@ export default class ModelPrototype {
                             axis: 0,
                             maxValue: 2.0
                         }),
-                        returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
+                        returnSequences: true // False for the last GRU layer
                     }),
                     mergeMode: 'ave'
                 })
@@ -84,29 +85,30 @@ export default class ModelPrototype {
         })
 
         // Add the final dense layer with softmax activation
-        // this.model.add(
-        //     tf.layers.timeDistributed({
-        //         layer: tf.layers.dense({
-        //             units: this.vocab.length,
-        //             activation: 'softmax'
-        //         })
-        //     })
-        // )
         this.model.add(
-            tf.layers.dense({
-                units: this.vocab.length,
-                activation: 'softmax'
+            tf.layers.timeDistributed({
+                layer: tf.layers.dense({
+                    units: this.vocab.length,
+                    activation: 'softmax'
+                })
             })
         )
+        // this.model.add(
+        //     tf.layers.dense({
+        //         units: this.vocab.length,
+        //         activation: 'softmax'
+        //     })
+        // )
 
         // Compile the model
         this.model.compile({
-            optimizer: tf.train.rmsprop(
-                this.config.learningRate || 1e-2,
-                this.config.decay || 0,
-                this.config.momentum || 0,
-                this.config.epsilon || 1e-8
-            ),
+            // optimizer: tf.train.rmsprop(
+            //     this.config.learningRate || 1e-2,
+            //     this.config.decay || 0,
+            //     this.config.momentum || 0,
+            //     this.config.epsilon || 1e-8
+            // ),
+            optimizer: 'adam',
             loss: [tf.metrics.categoricalCrossentropy]
         })
 
