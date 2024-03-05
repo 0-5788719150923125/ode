@@ -24,7 +24,6 @@ export default class ModelPrototype {
             )
         )
         this.vocab.unshift(this.padToken)
-        // this.model = tf.sequential()
     }
 
     async init() {
@@ -189,7 +188,7 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     return generated
 }
 
-function greedySampling(probabilities) {
+export function greedySampling(probabilities) {
     const index = tf.tidy(() => {
         const predictedIndex = tf.argMax(probabilities)
         return predictedIndex.dataSync()[0]
@@ -197,7 +196,7 @@ function greedySampling(probabilities) {
     return index
 }
 
-function temperatureSampling(logits, temperature) {
+export function temperatureSampling(logits, temperature) {
     return tf.tidy(() => {
         const scaled = logits.div(tf.scalar(temperature))
         const probabilities = scaled.softmax()
