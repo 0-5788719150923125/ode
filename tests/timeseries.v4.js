@@ -35,14 +35,35 @@ const vocab = Array.from(
 
 // Create and compile the model
 const model = createGRUModel(vocab.length)
-model.compile({ optimizer: 'adam', loss: [tf.losses.softmaxCrossEntropy] })
+model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' })
 
+console.log(model.summary())
 const inputTexts = ['hello ', 'how are ', 'the weather ']
 const outputTexts = ['world ', 'you doing? ', 'is nice ']
 
 const maxSequenceLength = 32
 
-function preprocessData(texts, vocab, maxSequenceLength, paddingSide = 'left') {
+// function shuffleArray(array) {
+//     for (let i = array.length - 1; i > 0; i--) {
+//         const j = Math.floor(Math.random() * (i + 1))
+//         ;[array[i], array[j]] = [array[j], array[i]] // Swap elements
+//     }
+//     return array
+// }
+
+function preprocessData(
+    texts,
+    numDuplicates = 0,
+    vocab,
+    maxSequenceLength,
+    paddingSide = 'left'
+) {
+    let duplicates = texts
+    if (numDuplicates > 0) {
+        duplicates = Array.from({ length: 100 }, () => texts).flat()
+    }
+
+    // console.log(duplicates)
     return texts.map((text) => {
         const chars = text.split('')
         const indices = chars.map((char) => vocab.indexOf(char))
@@ -66,29 +87,33 @@ function preprocessData(texts, vocab, maxSequenceLength, paddingSide = 'left') {
 
 const inputIndices = preprocessData(
     inputTexts,
+    100,
     vocab,
     maxSequenceLength,
     'left'
 )
 const outputIndices = preprocessData(
     outputTexts,
+    100,
     vocab,
     maxSequenceLength,
     'left'
 )
-console.log(inputIndices)
-console.log(outputIndices)
+console.log(inputIndices.slice(0, 3))
+console.log(outputIndices.slice(0, 3))
 
 const xTensor = tf.tensor2d(inputIndices, [
     inputIndices.length,
     maxSequenceLength
 ])
 
-const flatOutputIndices = outputIndices.flat().flat()
+const ySequences = outputIndices.map((sequence) =>
+    tf.oneHot(tf.tensor1d(sequence, 'int32'), vocab.length)
+)
 
-const yTensor = tf
-    .oneHot(tf.tensor1d(flatOutputIndices, 'int32'), vocab.length)
-    .reshape([inputTexts.length, maxSequenceLength, vocab.length])
+// Then, we stack these tensors together to create a single 3D tensor
+// The shape of the tensor will be [numSequences, sequenceLength, vocabSize]
+const yTensor = tf.stack(ySequences)
 
 console.log(xTensor)
 console.log(yTensor)
@@ -101,11 +126,18 @@ async function trainModel() {
         callbacks: {
             onBatchEnd: async (batch, logs) => {
                 step++
-                console.log(`STEP=${step}, LOSS=${logs.loss}`)
+                if (step % 10 === 0) {
+                    console.log(`STEP=${step}, LOSS=${logs.loss}`)
+                }
                 if (step % 100 === 0) {
-                    for (const text of inputTexts) {
+                    for (const text of [
+                        inputTexts[0],
+                        inputTexts[1],
+                        inputTexts[2]
+                    ]) {
                         const predictionInput = preprocessData(
                             [text],
+                            0,
                             vocab,
                             maxSequenceLength
                         )

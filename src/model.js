@@ -136,12 +136,14 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
 
     let tokenIndices = preprocessData(prompt, this.vocab, fixedLength, 'left')
 
+    tf.tidy(() => {})
+
     let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
 
     for (let i = 0; i < maxNewChars; i++) {
         const output = this.model.predict(inputs).squeeze()
 
-        let winnerIndex = await multinomialSampling(output, temperature)
+        let winnerIndex = await greedySampling(output)
 
         if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
             winnerIndex = 0 // Fallback to the first index if out of bounds
@@ -168,15 +170,38 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     return generated
 }
 
-async function multinomialSampling(logits, temperature) {
-    const scaledLogits = tf.div(logits, Math.max(temperature, 1e-6))
-    // Apply softmax to the scaled logits to get probabilities
-    const probabilities = tf.softmax(scaledLogits)
-    // Use tf.multinomial to sample from these probabilities
-    const predictions = tf.multinomial(probabilities, 1)
-    // Extract the sampled index
-    const index = await predictions.data().then((data) => data[0])
-    // Dispose of tensors to free memory
-    tf.dispose([scaledLogits, probabilities, predictions])
+async function greedySampling(probabilities) {
+    const index = tf.tidy(() => {
+        const predictedIndex = tf.argMax(probabilities)
+        return predictedIndex.dataSync()[0]
+    })
     return index
+}
+
+async function multinomialSampling(logits, temperature) {
+    const probabilities = tf.div(tf.log(logits), Math.max(temperature, 1e-6))
+    const scaledProbs = tf.softmax(probabilities)
+    const predictions = tf.multinomial(scaledProbs, 1)
+    const index = await predictions.data().then((data) => data[0])
+    tf.dispose([probabilities, predictions])
+    return index
+}
+
+async function stochasticSampling(probabilities) {
+    // Convert probabilities to a flat array
+    const probsArray = await probabilities
+        .data()
+        .then((data) => Array.from(data))
+    // Calculate the cumulative sum of the probabilities
+    const cumulativeSum = probsArray.map(
+        (
+            (sum) => (value) =>
+                (sum += value)
+        )(0)
+    )
+    // Generate a random number between 0 and 1
+    const random = Math.random() * cumulativeSum[cumulativeSum.length - 1]
+    // Find the first index where the cumulative sum is greater than the random number
+    const selectedIndex = cumulativeSum.findIndex((sum) => sum > random)
+    return selectedIndex
 }

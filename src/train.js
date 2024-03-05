@@ -239,7 +239,6 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
             this.model,
-            this.optimizer,
             currentXs,
             currentYs
         )
@@ -344,32 +343,38 @@ async function textSampler(batch, dataGenerator, generateEvery) {
 //     return { grads: gradients, loss: lossValue }
 // }
 
-// function computeGradients(model, optimizer, currentXs, currentYs) {
-//     let loss
+function computeGradients(model, currentXs, currentYs) {
+    let loss
+    const { value, grads } = tf.variableGrads(() => {
+        const predictions = model.predict(currentXs)
+        const lossValue = tf.losses.softmaxCrossEntropy(currentYs, predictions)
+        loss = lossValue.dataSync()[0]
+        return lossValue
+    })
 
-//     // Forward pass
-//     const preds = model.predict(currentXs)
+    // // Forward pass
+    // const preds = model.predict(currentXs)
 
-//     // Compute loss
-//     loss = tf.losses.softmaxCrossEntropy(currentYs, preds)
+    // // Compute loss
+    // loss = tf.losses.softmaxCrossEntropy(currentYs, preds)
 
-//     // Compute gradients
-//     const gradients = tf.grad(tf.losses.softmaxCrossEntropy)(
-//         currentXs,
-//         currentYs
-//     )
+    // // Compute gradients
+    // const gradients = tf.grad(tf.losses.softmaxCrossEntropy)(
+    //     currentXs,
+    //     currentYs
+    // )
 
-//     // Apply gradients
-//     // optimizer.applyGradients(grads)
-//     // const gradients = tf.tidy(() => {
-//     //     return optimizer.computeGradients(() => {
-//     //         const predictions = model.predict(currentXs)
-//     //         loss = tf.losses.softmaxCrossEntropy(currentYs, predictions).mean()
-//     //         return loss
-//     //     })
-//     // })
-//     return { grads: gradients, loss: loss.dataSync()[0] }
-// }
+    // Apply gradients
+    // optimizer.applyGradients(grads)
+    // const gradients = tf.tidy(() => {
+    //     return optimizer.computeGradients(() => {
+    //         const predictions = model.predict(currentXs)
+    //         loss = tf.losses.softmaxCrossEntropy(currentYs, predictions).mean()
+    //         return loss
+    //     })
+    // })
+    return { grads, loss }
+}
 
 function clipGradients(grads, value) {
     const clippedGrads = {}
