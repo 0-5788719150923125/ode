@@ -147,7 +147,12 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
         for (let i = 0; i < maxNewChars; i++) {
             const output = this.model.predict(inputs).squeeze()
 
-            let winnerIndex = greedySampling(output)
+            let winnerIndex
+            if ((temperature = 0)) {
+                winnerIndex = greedySampling(output)
+            } else {
+                winnerIndex = temperatureSampling(output, temperature)
+            }
 
             if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
                 winnerIndex = 0 // Fallback to the first index if out of bounds
@@ -183,6 +188,15 @@ function greedySampling(probabilities) {
         return predictedIndex.dataSync()[0]
     })
     return index
+}
+
+function temperatureSampling(logits, temperature) {
+    return tf.tidy(() => {
+        const scaled = logits.div(tf.scalar(temperature))
+        const probabilities = scaled.softmax()
+        const sampledIndex = tf.multinomial(probabilities, 1).dataSync()[0]
+        return sampledIndex
+    })
 }
 
 function multinomialSampling(logits, temperature) {
