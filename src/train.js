@@ -105,7 +105,7 @@ export async function startTraining(dataGenerator, args) {
                 const textIndices = preprocessData(
                     sample,
                     vocab,
-                    inputLength,
+                    inputLength + 1, // because we predict n + 1
                     'left'
                 )
 
@@ -120,7 +120,7 @@ export async function startTraining(dataGenerator, args) {
             }
             const xsTensor = tf.tensor2d(
                 xsArray,
-                [batchSize, inputLength - 1],
+                [batchSize, inputLength],
                 'int32'
             )
             const ysTensor = tf.oneHot(
