@@ -25,8 +25,8 @@ export async function startTraining(dataGenerator, args) {
         ...args
     }
 
-    let currentXs = null
-    let currentYs = null
+    // let currentXs = null
+    // let currentYs = null
 
     // const dataset = tf.data.generator(
     //     createBatchGenerator(
@@ -110,15 +110,15 @@ export async function startTraining(dataGenerator, args) {
 
     // a custom train loop
     while (true) {
-        dataset.next().value
         let loss
         // Gradient Calculation using tf.tidy for automatic memory cleanup
         tf.tidy(() => {
+            const batch = dataset.next().value
             // Compute gradients with respect to the model's variables
             const { value, grads } = tf.variableGrads(() => {
-                const predictions = this.model.predict(currentXs)
+                const predictions = this.model.predict(batch.xs)
                 const lossValue = tf.losses.softmaxCrossEntropy(
-                    currentYs,
+                    batch.ys,
                     predictions
                 )
                 loss = lossValue.dataSync()[0]
@@ -203,8 +203,8 @@ export async function startTraining(dataGenerator, args) {
                 vocab.length
             )
 
-            currentXs = tf.clone(xsTensor)
-            currentYs = tf.clone(ysTensor)
+            // currentXs = tf.clone(xsTensor)
+            // currentYs = tf.clone(ysTensor)
 
             yield { xs: xsTensor, ys: ysTensor }
         }
