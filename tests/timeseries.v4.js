@@ -90,14 +90,14 @@ const inputIndices = preprocessData(
     100,
     vocab,
     maxSequenceLength,
-    'left'
+    'both'
 )
 const outputIndices = preprocessData(
     outputTexts,
     100,
     vocab,
     maxSequenceLength,
-    'left'
+    'right'
 )
 console.log(inputIndices.slice(0, 3))
 console.log(outputIndices.slice(0, 3))
@@ -121,7 +121,7 @@ console.log(yTensor)
 async function trainModel() {
     let step = 0
     await model.fit(xTensor, yTensor, {
-        epochs: 2500,
+        epochs: 10000,
         verbose: 0,
         callbacks: {
             onBatchEnd: async (batch, logs) => {
