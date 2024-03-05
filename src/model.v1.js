@@ -11,30 +11,12 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
-import { generateText } from './model.v2.js'
-import { startTraining } from './train.js'
+import ModelPrototype from './model.v0.js'
 
-export default class ModelPrototype {
-    constructor(config) {
-        this.config = config
-        this.padToken = '�'
-        this.vocab = Array.from(
-            new Set(
-                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
-            )
-        )
-        this.vocab.unshift(this.padToken)
-        this.model = tf.sequential()
-    }
-
+export default class OmniscientDeterministicEngine extends ModelPrototype {
     async init() {
-        await tf.ready()
-        await tf.setBackend(this.config.backend || 'cpu')
-
-        tf.enableProdMode()
-
-        console.log('Backend:', tf.backend())
-
+        await super.init()
+        this.model = tf.sequential()
         // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
@@ -106,19 +88,5 @@ export default class ModelPrototype {
 
         console.log(this.model.summary())
         console.log(this.model.optimizer)
-    }
-
-    async generate(seed, temperature = 0.7, length = 20, greedy = false) {
-        return await generateText.call(this, seed, temperature, length, greedy)
-    }
-
-    async train(dataGenerator, args) {
-        return await startTraining.call(this, dataGenerator, args)
-    }
-
-    async save(path = `data/models/ode`) {
-        const fs = await import('fs')
-        fs.mkdirSync(path, { recursive: true })
-        await this.model.save(`file://${path}`, { includeOptimizer: false })
     }
 }
