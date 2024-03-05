@@ -60,7 +60,7 @@ export default class ModelPrototype {
                         units: layer,
                         dropout: 0.1,
                         stateful: false,
-                        activation: 'tanh',
+                        activation: 'softsign',
                         kernelInitializer: 'glorotUniform',
                         kernelConstraint: tf.constraints.maxNorm({
                             axis: 0,

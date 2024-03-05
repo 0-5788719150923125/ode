@@ -61,58 +61,12 @@ export async function startTraining(dataGenerator, args) {
             trainArgs.generateEvery
         )
     }
-
-    function* batchGenerator(
-        dataGenerator,
-        vocab,
-        batchSize,
-        inputLength,
-        predictLength
-    ) {
-        while (true) {
-            let xsArray = []
-            let ysArray = []
-
-            for (let i = 0; i < batchSize; ++i) {
-                const text = dataGenerator.next().value
-                const sample = text.slice(0, randomBetween(1, inputLength))
-
-                const textIndices = preprocessData(
-                    sample,
-                    vocab,
-                    inputLength + 1, // because we predict n + 1
-                    'left'
-                )
-
-                // create input sequence
-                const xs = textIndices.slice(0, -1)
-
-                // predict the last character index
-                const ys = textIndices.slice(-1)[0]
-
-                xsArray.push(xs)
-                ysArray.push(ys)
-            }
-
-            const xsTensor = tf.tensor2d(
-                xsArray,
-                [batchSize, inputLength],
-                'int32'
-            )
-            const ysTensor = tf.oneHot(
-                tf.tensor1d(ysArray, 'int32'),
-                vocab.length
-            )
-
-            yield { xs: xsTensor, ys: ysTensor }
-        }
-    }
 }
 
 class Logger {
     constructor() {
         this.timer = elapsedTimeGenerator()
-        this.ema = emaGenerator(0.1)
+        this.ema = emaGenerator()
         this.ema.next()
         this.previousLoss = 0
     }
@@ -204,6 +158,45 @@ class GradientAccumulator {
 
         // Dispose of grads after accumulation
         Object.values(this.gradients).forEach((grad) => grad && grad.dispose())
+    }
+}
+
+function* batchGenerator(
+    dataGenerator,
+    vocab,
+    batchSize,
+    inputLength,
+    predictLength
+) {
+    while (true) {
+        let xsArray = []
+        let ysArray = []
+
+        for (let i = 0; i < batchSize; ++i) {
+            const text = dataGenerator.next().value
+            const sample = text.slice(0, randomBetween(1, inputLength))
+
+            const textIndices = preprocessData(
+                sample,
+                vocab,
+                inputLength + 1, // because we predict n + 1
+                'left'
+            )
+
+            // create input sequence
+            const xs = textIndices.slice(0, -1)
+
+            // predict the last character index
+            const ys = textIndices.slice(-1)[0]
+
+            xsArray.push(xs)
+            ysArray.push(ys)
+        }
+
+        const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
+        const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), vocab.length)
+
+        yield { xs: xsTensor, ys: ysTensor }
     }
 }
 
