@@ -224,7 +224,6 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
         super(config)
         this.expertCount = config.expertCount || 2 // Number of experts
         this.units = config.units // Number of units for each expert layer
-        this.inputDim = config.inputDim // Explicitly pass input dimension
     }
 
     build(inputShape) {
@@ -235,7 +234,7 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
                 units: this.units,
                 kernelInitializer: 'glorotUniform',
                 useBias: true,
-                inputShape: [this.inputDim] // Set input shape here for each expert
+                inputShape: [this.inputDim * this.expertCount] // Set input shape here for each expert
             })
             this.experts.push(expertLayer)
         }
@@ -259,7 +258,6 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
         const config = super.getConfig()
         config.expertCount = this.expertCount
         config.units = this.units
-        config.inputDim = this.inputDim
         return config
     }
 
@@ -311,7 +309,12 @@ model
     .fit(xTrain, yTrain, {
         epochs: 10,
         batchSize: 32,
-        callbacks: tf.callbacks.earlyStopping({ patience: 3 })
+        // callbacks: tf.callbacks.earlyStopping({ patience: 3 })
+        callbacks: {
+            onBatchEnd: (batch, logs) => {
+                console.log(logs)
+            }
+        }
     })
     .then((info) => {
         console.log('Training complete')
