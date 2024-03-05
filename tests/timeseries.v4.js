@@ -38,7 +38,6 @@ const model = createGRUModel(vocab.length)
 model.compile({ optimizer: 'adam', loss: [tf.losses.softmaxCrossEntropy] })
 
 const inputTexts = ['hello ', 'how are ', 'the weather ']
-
 const outputTexts = ['world ', 'you doing? ', 'is nice ']
 
 const maxSequenceLength = 32
@@ -83,7 +82,7 @@ console.log(outputIndices)
 const xTensor = tf.tensor2d(inputIndices, [
     inputIndices.length,
     maxSequenceLength
-]) // Use tensor2d instead of tensor3d
+])
 
 const flatOutputIndices = outputIndices.flat().flat()
 
@@ -105,7 +104,6 @@ async function trainModel() {
                 console.log(`STEP=${step}, LOSS=${logs.loss}`)
                 if (step % 100 === 0) {
                     for (const text of inputTexts) {
-                        // Adjust the prediction input to match the expected 2D shape
                         const predictionInput = preprocessData(
                             [text],
                             vocab,
@@ -114,18 +112,14 @@ async function trainModel() {
                         const predictionTensor = tf.tensor2d(predictionInput, [
                             predictionInput.length,
                             maxSequenceLength
-                        ]) // Ensure this matches the training input shape
+                        ])
 
-                        // Predict using the adjusted 2D tensor
                         const prediction = model.predict(predictionTensor)
-                        // console.log(prediction.dataSync())
 
-                        // Convert predictions to indices (use argMax for categoricalCrossentropy)
                         const predictedIndices = prediction
                             .argMax(-1)
                             .dataSync()
 
-                        // Map indices to characters
                         const predictedText = Array.from(predictedIndices)
                             .map((index) => vocab[index])
                             .join('')
