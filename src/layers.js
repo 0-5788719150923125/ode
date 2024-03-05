@@ -243,6 +243,8 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
     }
 
     call(inputs, kwargs) {
+        this.invokeCallHook(inputs, kwargs)
+        console.log(model.summary())
         return tf.tidy(() => {
             const selectedExpertIndex = Math.floor(
                 Math.random() * this.expertCount
