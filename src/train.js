@@ -3,6 +3,7 @@ import {
     colors,
     elapsedTimeGenerator,
     findMatches,
+    preprocessData,
     randomBetween
 } from './utils.js'
 
@@ -93,59 +94,30 @@ export async function startTraining(dataGenerator, args) {
         inputLength,
         predictLength
     ) {
-        const sampleLength = inputLength - predictLength
-
         while (true) {
             let xsArray = []
             let ysArray = []
 
             for (let i = 0; i < batchSize; ++i) {
                 const text = dataGenerator.next().value
-                // const sample = text.slice(
-                //     0,
-                //     randomBetween(1 + predictLength, inputLength)
-                // )
-                const sample = text
+                const sample = text.slice(0, randomBetween(1, inputLength))
 
-                // Convert characters to indices, filtering out characters not in vocab
-                let textIndices = sample
-                    .split('')
-                    .map((char) => vocab.indexOf(char))
-                    .filter((index) => index !== -1)
+                const textIndices = preprocessData(
+                    sample,
+                    vocab,
+                    inputLength,
+                    'left'
+                )
 
-                // Ensure sequence is not longer than inputLength
-                if (textIndices.length > inputLength) {
-                    textIndices = textIndices.slice(0, inputLength)
-                }
-
-                // Pad sequences on the left if they are shorter than inputLength
-                if (textIndices.length < inputLength) {
-                    textIndices = Array(inputLength - textIndices.length)
-                        .fill(0)
-                        .concat(textIndices)
-                }
-
-                // Create input sequence (xs)
-                // let xs = textIndices
-                //     .slice(0, inputLength / 2)
-                //     .map((char) => char)
+                // create input sequence
                 const xs = textIndices.slice(0, -1)
-                // xs = Array(predictLength).fill(0).concat(xs)
 
-                // Create target sequence (ys) and right-pad it to match inputLength
-                // let ys = textIndices.slice(inputLength / 2, inputLength)
+                // predict the last character index
                 const ys = textIndices.slice(-1)[0]
-                // Pad on the left also
-                // ys = Array(xs.length - predictLength)
-                //     .fill(0)
-                //     .concat(ys)
-
-                // console.log(xs.concat(ys).map((char) => vocab[char]).join(''))
 
                 xsArray.push(xs)
                 ysArray.push(ys)
             }
-
             const xsTensor = tf.tensor2d(
                 xsArray,
                 [batchSize, inputLength - 1],
@@ -212,9 +184,10 @@ class GradientAccumulator {
                     tf.zerosLike(this.gradients.grads[key])
                 )
             }
-            const tempGrad = tf
-                .add(this.accumulatedGrads[key], this.gradients.grads[key])
-                .div(2)
+            const tempGrad = tf.add(
+                this.accumulatedGrads[key],
+                this.gradients.grads[key]
+            )
             this.accumulatedGrads[key].dispose()
             this.accumulatedGrads[key] = tf.keep(tempGrad)
         })
@@ -222,12 +195,24 @@ class GradientAccumulator {
         this.accumulationCounter++
 
         if (this.accumulationCounter === this.accumulationSteps) {
+            // Average the gradients after accumulation
+            Object.keys(this.accumulatedGrads).forEach((key) => {
+                const avgGrad = this.accumulatedGrads[key].div(
+                    tf.scalar(this.accumulationSteps)
+                )
+                this.accumulatedGrads[key].dispose()
+                this.accumulatedGrads[key] = tf.keep(avgGrad)
+            })
+
             // Clip gradients to prevent explosion
             const clippedGrads = clipGradients(this.accumulatedGrads, 2.3)
 
             // Reset for the next accumulation cycle
-            this.accumulatedGrads = {}
             this.accumulationCounter = 0
+            Object.values(this.accumulatedGrads).forEach((tensor) =>
+                tensor.dispose()
+            )
+            this.accumulatedGrads = {}
 
             this.optimizer.applyGradients(clippedGrads)
 
@@ -248,7 +233,7 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             await this.save()
         }
 
-        for (const temp of [0, 0.1, 0.3, 0.7, 1.59, 2.3, 3.14]) {
+        for (const temp of [0, 0.1, 0.7]) {
             const prompt = dataGenerator
                 .next()
                 .value.slice(1, randomBetween(1, 16))
@@ -256,10 +241,6 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             console.log(`TEMPERATURE: ${temp}`)
             console.log(output)
         }
-        const prompt = dataGenerator.next().value.slice(1, randomBetween(1, 16))
-        const output = await this.generate(prompt, 0, 80, true)
-        console.log(`GREEDY: True`)
-        console.log(output)
     }
 }
 

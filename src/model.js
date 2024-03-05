@@ -11,7 +11,6 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
-// import { sparseCategoricalCrossentropy } from '@tensorflow/tfjs-layers/dist/losses.js'
 import { startTraining } from './train.js'
 
 export default class ModelPrototype {
@@ -41,10 +40,10 @@ export default class ModelPrototype {
                 inputDim: this.vocab.length, // Should match size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
-                // embeddingsConstraint: tf.constraints.maxNorm({
-                //     maxValue: 0.1
-                // }),
-                // embeddingsRegularizer: tf.regularizers.l2(),
+                embeddingsConstraint: tf.constraints.maxNorm({
+                    maxValue: 0.1
+                }),
+                embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
         )
@@ -62,26 +61,26 @@ export default class ModelPrototype {
                         stateful: false,
                         activation: 'softsign',
                         kernelInitializer: 'glorotUniform',
-                        // kernelConstraint: tf.constraints.maxNorm({
-                        //     axis: 0,
-                        //     maxValue: 2.0
-                        // }),
+                        kernelConstraint: tf.constraints.maxNorm({
+                            axis: 0,
+                            maxValue: 2.0
+                        }),
                         recurrentActivation: 'sigmoid',
                         recurrentInitializer: 'orthogonal',
-                        // recurrentConstraint: tf.constraints.maxNorm({
-                        //     axis: 0,
-                        //     maxValue: 2.0
-                        // }),
+                        recurrentConstraint: tf.constraints.maxNorm({
+                            axis: 0,
+                            maxValue: 2.0
+                        }),
                         returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
                     }),
                     mergeMode: 'ave'
                 })
             )
-            // this.model.add(
-            //     tf.layers.layerNormalization({
-            //         epsilon: 1e-3
-            //     })
-            // )
+            this.model.add(
+                tf.layers.layerNormalization({
+                    epsilon: 1e-3
+                })
+            )
         })
 
         // this.model.add(
@@ -92,14 +91,6 @@ export default class ModelPrototype {
         // )
 
         // Add the final dense layer with softmax activation
-        // this.model.add(
-        //     tf.layers.timeDistributed({
-        //         layer: tf.layers.dense({
-        //             units: this.vocab.length,
-        //             activation: 'softmax'
-        //         })
-        //     })
-        // )
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,

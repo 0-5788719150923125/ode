@@ -14,7 +14,7 @@ export async function trainModel(args) {
     const net = new ODE({
         backend: trainArgs.backend,
         layout: [128, 128, 128],
-        learningRate: 1e-3,
+        learningRate: 1e-2,
         decay: 0.9,
         momentum: 0.01,
         epsilon: 1e-8,
