@@ -6,7 +6,6 @@ import {
     preprocessData,
     randomBetween
 } from './utils.js'
-import { focalLoss } from './losses.js'
 
 let tf = tfjs
 
@@ -30,6 +29,7 @@ export async function startTraining(dataGenerator, args) {
     const gradientAccumulator = new GradientAccumulator(
         this.model,
         this.model.optimizer,
+        this.lossFunctions,
         trainArgs.gradientAccumulationSteps
     )
 
@@ -89,9 +89,10 @@ class Logger {
 }
 
 class GradientAccumulator {
-    constructor(model, optimizer, accumulationSteps) {
+    constructor(model, optimizer, lossFunctions, accumulationSteps) {
         this.model = model
         this.optimizer = optimizer
+        this.lossFunctions = lossFunctions
         this.accumulationSteps = accumulationSteps
         this.accumulationCounter = 0
         this.accumulatedGrads = {}
@@ -100,7 +101,7 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { value, grads, loss } = computeGradients(
             this.model,
-            this.lossFunctions[0],
+            this.lossFunctions[0](),
             currentXs,
             currentYs
         )
@@ -224,7 +225,7 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
     const { value, grads } = tf.variableGrads(() => {
         const predictions = model.predict(currentXs)
         // const lossValue = tf.losses.softmaxCrossEntropy(currentYs, predictions)
-        const lossValue = lossFunction()(currentYs, predictions)
+        const lossValue = lossFunction(currentYs, predictions)
         loss = lossValue.dataSync()[0]
         return lossValue
     })

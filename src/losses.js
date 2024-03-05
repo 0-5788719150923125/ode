@@ -8,7 +8,7 @@ let tf = tfjs
     }
 })()
 
-export function focalLoss(gamma = 2.0, alpha = 0.25) {
+export function focalLoss(gamma = 2.0, alpha = 0.999) {
     return (yTrue, yPred) => {
         const epsilon = 1e-7
         yPred = yPred.clipByValue(epsilon, 1 - epsilon)
