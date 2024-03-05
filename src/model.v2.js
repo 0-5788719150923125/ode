@@ -15,8 +15,8 @@ import ModelPrototype from './model.v0.js'
 import { focalLoss } from './losses.js'
 
 export default class OmniscientDeterministicEngine extends ModelPrototype {
-    async init() {
-        await super.init()
+    build() {
+        super.build()
 
         const inputs = tf.input({ shape: [null] })
 
@@ -103,8 +103,5 @@ export default class OmniscientDeterministicEngine extends ModelPrototype {
             ),
             loss: this.lossFunctions
         })
-
-        console.log(this.model.summary())
-        console.log(this.model.optimizer)
     }
 }

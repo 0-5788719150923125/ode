@@ -30,10 +30,19 @@ export default class ModelPrototype {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-
         tf.enableProdMode()
-
         console.log('Backend:', tf.backend())
+        this.build()
+        this.postInit()
+    }
+
+    build() {
+        // pass
+    }
+
+    postInit() {
+        console.log(this.model.summary())
+        console.log(this.model.optimizer)
     }
 
     async generate(seed, temperature = 0.7, length = 20, greedy = false) {
