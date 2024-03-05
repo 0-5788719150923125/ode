@@ -4,7 +4,7 @@ omniscient deterministic engine
 
 # usage
 
-Test things with: [dev.js](./dev.js)
+See: [dev.js](./dev.js)
 
 # serial experiments
 

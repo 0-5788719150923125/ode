@@ -59,7 +59,8 @@ export async function startTraining(dataGenerator, args) {
             this,
             step,
             dataGenerator,
-            trainArgs.generateEvery
+            trainArgs.generateEvery,
+            trainArgs.predictLength
         )
     }
 }
@@ -164,13 +165,7 @@ class GradientAccumulator {
     }
 }
 
-function* batchGenerator(
-    dataGenerator,
-    vocab,
-    batchSize,
-    inputLength,
-    predictLength
-) {
+function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
     while (true) {
         let xsArray = []
         let ysArray = []

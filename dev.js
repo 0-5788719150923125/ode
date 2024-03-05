@@ -8,7 +8,6 @@ import { trainModel } from './dev-train.js'
             gradientAccumulationSteps: 2,
             generateEvery: 128,
             sampleLen: 48
-            // predictLength: 16
         })
     } else {
         // browser

@@ -123,12 +123,9 @@ export function greedySampling(probabilities) {
 
 export function temperatureSampling(logits, temperature) {
     return tf.tidy(() => {
-        const scaled = logits.div(tf.scalar(Math.max(temperature, 1e-6)))
-        const probabilities = scaled.softmax()
-        // const probabilities = tf.div(
-        //     tf.log(logits),
-        //     Math.max(temperature, 1e-6)
-        // )
+        // const scaled = logits.div(tf.scalar(Math.max(temperature, 1e-6)))
+        // const probabilities = scaled.softmax()
+        const probabilities = tf.div(logits, Math.max(temperature, 1e-6))
         const sampledIndex = tf.multinomial(probabilities, 1).dataSync()[0]
         return sampledIndex
     })
