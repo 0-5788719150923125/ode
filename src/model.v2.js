@@ -13,6 +13,7 @@ import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import { startTraining } from './train.js'
 import { preprocessData } from './utils.js'
+import { focalLoss } from './losses.js'
 
 export default class ModelPrototype {
     constructor(config) {
@@ -99,13 +100,17 @@ export default class ModelPrototype {
         const finalDense = tf.layers
             .dense({
                 units: this.vocab.length,
-                activation: 'linear'
+                activation: 'softmax'
             })
             .apply(previousLayerOutput)
 
         this.model = tf.model({ inputs: inputs, outputs: finalDense })
 
         // Compile the model
+        this.lossFunctions = [
+            // tf.losses.softmaxCrossEntropy
+            focalLoss
+        ]
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
@@ -113,7 +118,7 @@ export default class ModelPrototype {
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
-            loss: [tf.losses.softmaxCrossEntropy]
+            loss: this.lossFunctions
         })
 
         console.log(this.model.summary())
