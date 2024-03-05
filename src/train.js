@@ -28,14 +28,75 @@ export async function startTraining(dataGenerator, args) {
     let currentXs = null
     let currentYs = null
 
-    const dataset = tf.data.generator(
-        createBatchGenerator(
-            dataGenerator,
-            this.vocab,
-            trainArgs.batchSize,
-            trainArgs.sampleLen,
-            trainArgs.predictLength
-        )
+    // const dataset = tf.data.generator(
+    //     createBatchGenerator(
+    //         dataGenerator,
+    //         this.vocab,
+    //         trainArgs.batchSize,
+    //         trainArgs.sampleLen,
+    //         trainArgs.predictLength
+    //     )
+    // )
+
+    // const dataset = tf.data.generator(
+    //     createBatchGenerator(
+    //         dataGenerator,
+    //         this.vocab,
+    //         trainArgs.batchSize,
+    //         trainArgs.sampleLen,
+    //         trainArgs.predictLength
+    //     )
+    // )
+
+    // The old training loop
+    // await this.model.fitDataset(dataset, {
+    //     epochs: Number.MAX_SAFE_INTEGER,
+    //     yieldEvery: 'auto',
+    //     verbose: 0,
+    //     callbacks: {
+    //         onBatchBegin: async (batch, logs) => {
+    //             // Compute losses and accumulate gradients
+    //             // gradientAccumulator.compute(currentXs, currentYs).step()
+    //         },
+    //         onBatchEnd: async (batch, logs) => {
+    //             // Print logs
+    //             logger.log(batch, logs.loss)
+
+    //             // Print sample text
+    //             await textSampler.call(
+    //                 this,
+    //                 batch,
+    //                 dataGenerator,
+    //                 trainArgs.generateEvery
+    //             )
+    //         }
+    //     }
+    // })
+
+    // function createBatchGenerator(
+    //     dataGenerator,
+    //     vocab,
+    //     batchSize,
+    //     inputLength,
+    //     predictLength
+    // ) {
+    //     return function* () {
+    //         yield* batchGenerator(
+    //             dataGenerator,
+    //             vocab,
+    //             batchSize,
+    //             inputLength,
+    //             predictLength
+    //         )
+    //     }
+    // }
+
+    const dataset = batchGenerator(
+        dataGenerator,
+        this.vocab,
+        trainArgs.batchSize,
+        trainArgs.sampleLen,
+        trainArgs.predictLength
     )
 
     const logger = new Logger()
@@ -45,47 +106,59 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.gradientAccumulationSteps
     )
 
-    // The training loop
-    await this.model.fitDataset(dataset, {
-        epochs: Number.MAX_SAFE_INTEGER,
-        yieldEvery: 'auto',
-        verbose: 0,
-        callbacks: {
-            onBatchBegin: async (batch, logs) => {
-                // Compute losses and accumulate gradients
-                // gradientAccumulator.compute(currentXs, currentYs).step()
-            },
-            onBatchEnd: async (batch, logs) => {
-                // Print logs
-                logger.log(batch, logs.loss)
+    let step = 0
 
-                // Print sample text
-                await textSampler.call(
-                    this,
-                    batch,
-                    dataGenerator,
-                    trainArgs.generateEvery
+    // a custom train loop
+    while (true) {
+        dataset.next().value
+        let loss
+        // Gradient Calculation using tf.tidy for automatic memory cleanup
+        tf.tidy(() => {
+            // Compute gradients with respect to the model's variables
+            const { value, grads } = tf.variableGrads(() => {
+                const predictions = this.model.predict(currentXs)
+                const lossValue = tf.losses.softmaxCrossEntropy(
+                    currentYs,
+                    predictions
                 )
-            }
-        }
-    })
+                loss = lossValue.dataSync()[0]
+                return lossValue
+            })
 
-    function createBatchGenerator(
-        dataGenerator,
-        vocab,
-        batchSize,
-        inputLength,
-        predictLength
-    ) {
-        return function* () {
-            yield* batchGenerator(
-                dataGenerator,
-                vocab,
-                batchSize,
-                inputLength,
-                predictLength
-            )
-        }
+            // Apply gradients to update the model's weights
+            this.model.optimizer.applyGradients(grads)
+            // console.log(Math.random())
+            // const lossFunc = () => {
+            //     console.log('predicting')
+            //     const predictions = this.model.predict(currentXs)
+            //     const lossValue = tf.losses.softmaxCrossEntropy(
+            //         currentYs,
+            //         predictions
+            //     )
+            //     return lossValue
+            // }
+
+            // // Compute gradients
+            // const grads = tf.grads(lossFunc)
+            // // console.log(grads)
+
+            // // Apply gradients to update the model's weights
+            // this.model.optimizer.applyGradients(grads)
+        })
+
+        // await gradientAccumulator.compute(currentXs, currentYs)
+        // await gradientAccumulator.step()
+        // // Print logs
+        step++
+        // logger.log(step, gradientAccumulator.getLoss())
+        logger.log(step, loss)
+        // // Print sample text
+        await textSampler.call(
+            this,
+            step,
+            dataGenerator,
+            trainArgs.generateEvery
+        )
     }
 
     function* batchGenerator(
@@ -171,64 +244,73 @@ class GradientAccumulator {
         this.accumulatedGrads = {}
     }
 
-    compute(currentXs, currentYs) {
-        this.gradients = computeGradients(
+    async compute(currentXs, currentYs) {
+        const { grads, loss } = computeGradients(
             this.model,
             this.optimizer,
             currentXs,
             currentYs
         )
+        this.gradients = grads
+        this.loss = loss
+
         tf.dispose([currentXs, currentYs])
         return this
     }
 
+    getLoss() {
+        return this.loss
+    }
+
     async step() {
-        Object.keys(this.gradients.grads).forEach((key) => {
-            if (!this.accumulatedGrads[key]) {
-                this.accumulatedGrads[key] = tf.keep(
-                    tf.zerosLike(this.gradients.grads[key])
-                )
-            }
-            const tempGrad = tf.add(
-                this.accumulatedGrads[key],
-                this.gradients.grads[key]
-            )
-            this.accumulatedGrads[key].dispose()
-            this.accumulatedGrads[key] = tf.keep(tempGrad)
-        })
+        this.optimizer.applyGradients(this.gradients.grads)
+        tf.dispose(this.gradients)
+        // Object.keys(this.gradients.grads).forEach((key) => {
+        //     if (!this.accumulatedGrads[key]) {
+        //         this.accumulatedGrads[key] = tf.keep(
+        //             tf.zerosLike(this.gradients.grads[key])
+        //         )
+        //     }
+        //     const tempGrad = tf.add(
+        //         this.accumulatedGrads[key],
+        //         this.gradients.grads[key]
+        //     )
+        //     this.accumulatedGrads[key].dispose()
+        //     this.accumulatedGrads[key] = tf.keep(tempGrad)
+        // })
 
-        this.accumulationCounter++
+        // this.accumulationCounter++
 
-        if (this.accumulationCounter === this.accumulationSteps) {
-            // Average the gradients after accumulation
-            Object.keys(this.accumulatedGrads).forEach((key) => {
-                const avgGrad = this.accumulatedGrads[key].div(
-                    tf.scalar(this.accumulationSteps)
-                )
-                this.accumulatedGrads[key].dispose()
-                this.accumulatedGrads[key] = tf.keep(avgGrad)
-            })
+        // if (this.accumulationCounter === this.accumulationSteps) {
+        //     // Average the gradients after accumulation
+        //     Object.keys(this.accumulatedGrads).forEach((key) => {
+        //         const avgGrad = this.accumulatedGrads[key].div(
+        //             tf.scalar(this.accumulationSteps)
+        //         )
+        //         this.accumulatedGrads[key].dispose()
+        //         this.accumulatedGrads[key] = tf.keep(avgGrad)
+        //     })
 
-            // Clip gradients to prevent explosion
-            const clippedGrads = clipGradients(this.accumulatedGrads, 2.3)
+        //     // Clip gradients to prevent explosion
+        //     const clippedGrads = clipGradients(this.accumulatedGrads, 2.3)
 
-            // Reset for the next accumulation cycle
-            this.accumulationCounter = 0
-            Object.values(this.accumulatedGrads).forEach((tensor) =>
-                tensor.dispose()
-            )
-            this.accumulatedGrads = {}
+        //     // Reset for the next accumulation cycle
+        //     this.accumulationCounter = 0
+        //     Object.values(this.accumulatedGrads).forEach((tensor) =>
+        //         tensor.dispose()
+        //     )
+        //     this.accumulatedGrads = {}
 
-            this.optimizer.applyGradients(clippedGrads)
+        //     this.optimizer.applyGradients(clippedGrads)
 
-            // Dispose of the clipped gradients after application
-            Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
-        }
+        //     // Dispose of the clipped gradients after application
+        //     Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
+        // }
 
-        // Dispose of grads after accumulation
-        Object.values(this.gradients.grads).forEach(
-            (grad) => grad && grad.dispose()
-        )
+        // // Dispose of grads after accumulation
+        // Object.values(this.gradients.grads).forEach(
+        //     (grad) => grad && grad.dispose()
+        // )
     }
 }
 
@@ -249,18 +331,53 @@ async function textSampler(batch, dataGenerator, generateEvery) {
     }
 }
 
-function computeGradients(model, optimizer, currentXs, currentYs) {
-    const gradients = tf.tidy(() => {
-        return optimizer.computeGradients(() => {
-            const predictions = model.predict(currentXs)
-            const loss = tf.losses
-                .softmaxCrossEntropy(currentYs, predictions)
-                .mean()
-            return loss
-        })
-    })
-    return gradients
-}
+// function computeGradients(model, optimizer, currentXs, currentYs) {
+//     // let loss // Define loss outside of tf.tidy
+//     const { gradients, loss } = tf.tidy(() => {
+//         const lossFn = () => {
+//             const predictions = model.predict(currentXs)
+//             return tf.losses.softmaxCrossEntropy(currentYs, predictions).mean()
+//         }
+
+//         // Use tf.variableGrads to calculate the gradients
+//         const grads = tf.variableGrads(lossFn)
+//         // loss = grads.value
+//         return { gradients: grads, loss: grads.value } // Only return the computed gradients
+//     })
+
+//     // The loss tensor is converted to a number before it is disposed of
+//     const lossValue = loss.dataSync()[0]
+//     loss.dispose() // Dispose of the loss tensor to free memory
+
+//     return { grads: gradients, loss: lossValue }
+// }
+
+// function computeGradients(model, optimizer, currentXs, currentYs) {
+//     let loss
+
+//     // Forward pass
+//     const preds = model.predict(currentXs)
+
+//     // Compute loss
+//     loss = tf.losses.softmaxCrossEntropy(currentYs, preds)
+
+//     // Compute gradients
+//     const gradients = tf.grad(tf.losses.softmaxCrossEntropy)(
+//         currentXs,
+//         currentYs
+//     )
+
+//     // Apply gradients
+//     // optimizer.applyGradients(grads)
+//     // const gradients = tf.tidy(() => {
+//     //     return optimizer.computeGradients(() => {
+//     //         const predictions = model.predict(currentXs)
+//     //         loss = tf.losses.softmaxCrossEntropy(currentYs, predictions).mean()
+//     //         return loss
+//     //     })
+//     // })
+//     return { grads: gradients, loss: loss.dataSync()[0] }
+// }
 
 function clipGradients(grads, value) {
     const clippedGrads = {}

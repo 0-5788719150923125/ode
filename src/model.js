@@ -95,7 +95,7 @@ export default class ModelPrototype {
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,
-                activation: 'softmax'
+                activation: 'linear'
             })
         )
 
@@ -141,7 +141,7 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     for (let i = 0; i < maxNewChars; i++) {
         const output = this.model.predict(inputs).squeeze()
 
-        let winnerIndex = await greedySample(output, temperature)
+        let winnerIndex = await multinomialSampling(output, temperature)
 
         if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
             winnerIndex = 0 // Fallback to the first index if out of bounds
@@ -168,11 +168,15 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     return generated
 }
 
-async function greedySample(probabilities, temperature) {
-    const logits = tf.div(tf.log(probabilities), Math.max(temperature, 1e-6))
-    const normalized = false
-    const predictions = tf.multinomial(logits, 1, null, normalized)
+async function multinomialSampling(logits, temperature) {
+    const scaledLogits = tf.div(logits, Math.max(temperature, 1e-6))
+    // Apply softmax to the scaled logits to get probabilities
+    const probabilities = tf.softmax(scaledLogits)
+    // Use tf.multinomial to sample from these probabilities
+    const predictions = tf.multinomial(probabilities, 1)
+    // Extract the sampled index
     const index = await predictions.data().then((data) => data[0])
-    tf.dispose([logits, predictions])
+    // Dispose of tensors to free memory
+    tf.dispose([scaledLogits, probabilities, predictions])
     return index
 }
