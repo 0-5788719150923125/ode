@@ -12,6 +12,7 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import { startTraining } from './train.js'
+import { preprocessData } from './utils.js'
 
 export default class ModelPrototype {
     constructor(config) {
@@ -128,45 +129,16 @@ export default class ModelPrototype {
     }
 }
 
-function preprocessText(texts, vocab, expectedSequenceLength) {
-    const inputIndices = texts.map((text) => {
-        const chars = text.split('')
-        const indices = chars.map((char) => vocab.indexOf(char))
-
-        // Pad on the left
-        const padding = new Array(expectedSequenceLength - indices.length).fill(
-            0
-        )
-        const paddedIndices = padding
-            .concat(indices)
-            .slice(indices.length, expectedSequenceLength)
-            .concat(indices)
-
-        return paddedIndices.map((i) => i)
-    })
-
-    return inputIndices
-}
-
-async function generateText(prompt, temperature = 0.7, maxLength = 20) {
+async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     let generated = prompt
-
-    let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
     const fixedLength = this.config.maxSequenceLength
 
-    // Prepare initial token indices
-    if (tokenIndices.length > fixedLength) {
-        tokenIndices = tokenIndices.slice(tokenIndices.length - fixedLength)
-    } else if (tokenIndices.length < fixedLength) {
-        tokenIndices = new Array(fixedLength - tokenIndices.length)
-            .fill(0)
-            .concat(tokenIndices)
-    }
+    let tokenIndices = preprocessData(prompt, this.vocab, fixedLength, 'left')
 
     let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
 
-    for (let i = 0; i < maxLength; i++) {
+    for (let i = 0; i < maxNewChars; i++) {
         const output = this.model.predict(inputs).squeeze()
 
         let winnerIndex = await greedySample(output, temperature)
@@ -204,62 +176,3 @@ async function greedySample(probabilities, temperature) {
     tf.dispose([logits, predictions])
     return index
 }
-
-// async function generateText(prompt, temperature = 0.7, maxLength = 20) {
-//     let generated = prompt
-//     const maxSequenceLength = this.config.contextLength
-
-//     prompt = prompt.slice(-maxSequenceLength)
-
-//     // Initialize input sequence data
-//     let inputSequence = preprocessText([prompt], this.vocab, maxSequenceLength)
-
-//     const inputs = tf.tensor2d(inputSequence, [
-//         inputSequence.length,
-//         maxSequenceLength
-//     ])
-
-//     const output = this.model.predict([inputs])
-
-//     const nextSequence = await sampleSequences.call(this, output, temperature)
-
-//     generated += nextSequence
-
-//     tf.dispose(output)
-
-//     return generated
-// }
-
-// async function sampleSequences(
-//     probabilities,
-//     temperature = 0.7,
-//     greedy = false
-// ) {
-//     // Reshape the probabilities if needed (assumes output is [batchSize, sequenceLength, vocabSize])
-//     const reshapedProbabilities = probabilities.reshape([
-//         probabilities.shape[1],
-//         probabilities.shape[2]
-//     ])
-
-//     let logits, predictions, predictedIndices
-//     if (greedy) {
-//         // Greedy implementation
-//         predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
-//     } else {
-//         // Apply temperature scaling to logits
-//         logits = tf.div(
-//             tf.log(reshapedProbabilities),
-//             Math.max(temperature, 1e-6)
-//         )
-
-//         // Sample using multinomial
-//         predictions = tf.multinomial(logits, 1, null, false)
-//         predictedIndices = await predictions.data()
-//     }
-
-//     // Map indices to characters
-//     const sequence = predictedIndices.map((index) => this.vocab[index])
-
-//     tf.dispose(predictions)
-//     return sequence.join('')
-// }

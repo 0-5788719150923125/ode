@@ -6,9 +6,9 @@ import { trainModel } from './dev-train.js'
             backend: 'tensorflow',
             batchSize: 64,
             gradientAccumulationSteps: 2,
-            generateEvery: 32,
-            sampleLen: 32,
-            predictLength: 16
+            generateEvery: 2,
+            sampleLen: 48
+            // predictLength: 16
         })
     } else {
         // browser
