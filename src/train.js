@@ -101,7 +101,7 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { value, grads, loss } = computeGradients(
             this.model,
-            this.lossFunctions[0](),
+            this.lossFunctions[0],
             currentXs,
             currentYs
         )

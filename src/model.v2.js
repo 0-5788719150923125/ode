@@ -91,8 +91,8 @@ export default class OmniscientDeterministicEngine extends ModelPrototype {
 
         // Compile the model
         this.lossFunctions = [
-            // tf.losses.softmaxCrossEntropy
-            focalLoss
+            tf.losses.softmaxCrossEntropy
+            // focalLoss
         ]
         this.model.compile({
             optimizer: tf.train.rmsprop(

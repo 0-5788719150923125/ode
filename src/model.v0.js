@@ -12,6 +12,7 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import { startTraining } from './train.js'
+import { preprocessData } from './utils.js'
 
 export default class ModelPrototype {
     constructor(config) {
@@ -113,12 +114,12 @@ export function greedySampling(probabilities) {
 
 export function temperatureSampling(logits, temperature) {
     return tf.tidy(() => {
-        // const scaled = logits.div(tf.scalar(temperature))
-        // const probabilities = scaled.softmax()
-        const probabilities = tf.div(
-            tf.log(logits),
-            Math.max(temperature, 1e-6)
-        )
+        const scaled = logits.div(tf.scalar(Math.max(temperature, 1e-6)))
+        const probabilities = scaled.softmax()
+        // const probabilities = tf.div(
+        //     tf.log(logits),
+        //     Math.max(temperature, 1e-6)
+        // )
         const sampledIndex = tf.multinomial(probabilities, 1).dataSync()[0]
         return sampledIndex
     })
