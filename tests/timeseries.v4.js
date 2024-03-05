@@ -87,17 +87,17 @@ function preprocessData(
 
 const inputIndices = preprocessData(
     inputTexts,
-    100,
+    10000,
     vocab,
     maxSequenceLength,
     'both'
 )
 const outputIndices = preprocessData(
     outputTexts,
-    100,
+    10000,
     vocab,
     maxSequenceLength,
-    'right'
+    'both'
 )
 console.log(inputIndices.slice(0, 3))
 console.log(outputIndices.slice(0, 3))
