@@ -14,7 +14,7 @@ import '@tensorflow/tfjs-backend-webgl'
 import { startTraining } from './train.js'
 import { preprocessData } from './utils.js'
 
-export default class ModelPrototype {
+export default class ModelBase {
     constructor(config) {
         this.model
         this.config = config

@@ -11,10 +11,10 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
-import ModelPrototype from './model.v0.js'
+import ModelBase from './model.v0.js'
 import { focalLoss } from './losses.js'
 
-export default class OmniscientDeterministicEngine extends ModelPrototype {
+export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
 
