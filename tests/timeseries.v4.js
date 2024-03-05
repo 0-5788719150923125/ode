@@ -90,14 +90,14 @@ const inputIndices = preprocessData(
     10000,
     vocab,
     maxSequenceLength,
-    'both'
+    'left'
 )
 const outputIndices = preprocessData(
     outputTexts,
     10000,
     vocab,
     maxSequenceLength,
-    'both'
+    'right'
 )
 console.log(inputIndices.slice(0, 3))
 console.log(outputIndices.slice(0, 3))

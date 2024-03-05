@@ -234,7 +234,7 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
                 units: this.units,
                 kernelInitializer: 'glorotUniform',
                 useBias: true,
-                inputShape: [this.inputDim * this.expertCount] // Set input shape here for each expert
+                inputShape: [this.inputDim * this.expertCount]
             })
             this.experts.push(expertLayer)
         }
