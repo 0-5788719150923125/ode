@@ -101,10 +101,11 @@ export async function startTraining(dataGenerator, args) {
 
             for (let i = 0; i < batchSize; ++i) {
                 const text = dataGenerator.next().value
-                const sample = text.slice(
-                    0,
-                    randomBetween(1 + predictLength, inputLength)
-                )
+                // const sample = text.slice(
+                //     0,
+                //     randomBetween(1 + predictLength, inputLength)
+                // )
+                const sample = text
 
                 // Convert characters to indices, filtering out characters not in vocab
                 let textIndices = sample
@@ -125,16 +126,19 @@ export async function startTraining(dataGenerator, args) {
                 }
 
                 // Create input sequence (xs)
-                let xs = textIndices.slice(0, sampleLength).map((char) => char)
-                xs = Array(predictLength).fill(0).concat(xs)
+                // let xs = textIndices
+                //     .slice(0, inputLength / 2)
+                //     .map((char) => char)
+                const xs = textIndices.slice(0, -1)
+                // xs = Array(predictLength).fill(0).concat(xs)
 
                 // Create target sequence (ys) and right-pad it to match inputLength
-                let ys = textIndices.slice(sampleLength, inputLength)
-
+                // let ys = textIndices.slice(inputLength / 2, inputLength)
+                const ys = textIndices.slice(-1)[0]
                 // Pad on the left also
-                ys = Array(xs.length - predictLength)
-                    .fill(0)
-                    .concat(ys)
+                // ys = Array(xs.length - predictLength)
+                //     .fill(0)
+                //     .concat(ys)
 
                 // console.log(xs.concat(ys).map((char) => vocab[char]).join(''))
 
@@ -142,15 +146,15 @@ export async function startTraining(dataGenerator, args) {
                 ysArray.push(ys)
             }
 
-            // console.log(xsArray)
-            // console.log(ysArray)
-
-            const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength])
-
-            // Convert ysArray to a tensor, then one-hot encode
-            const ysTensor = tf
-                .oneHot(tf.tensor1d(ysArray.flat(), 'int32'), vocab.length)
-                .reshape([batchSize, inputLength, vocab.length])
+            const xsTensor = tf.tensor2d(
+                xsArray,
+                [batchSize, inputLength - 1],
+                'int32'
+            )
+            const ysTensor = tf.oneHot(
+                tf.tensor1d(ysArray, 'int32'),
+                vocab.length
+            )
 
             currentXs = tf.clone(xsTensor)
             currentYs = tf.clone(ysTensor)
@@ -208,10 +212,9 @@ class GradientAccumulator {
                     tf.zerosLike(this.gradients.grads[key])
                 )
             }
-            const tempGrad = tf.add(
-                this.accumulatedGrads[key],
-                this.gradients.grads[key]
-            )
+            const tempGrad = tf
+                .add(this.accumulatedGrads[key], this.gradients.grads[key])
+                .div(2)
             this.accumulatedGrads[key].dispose()
             this.accumulatedGrads[key] = tf.keep(tempGrad)
         })

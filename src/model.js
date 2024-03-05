@@ -11,6 +11,7 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
+// import { sparseCategoricalCrossentropy } from '@tensorflow/tfjs-layers/dist/losses.js'
 import { startTraining } from './train.js'
 
 export default class ModelPrototype {
@@ -40,10 +41,10 @@ export default class ModelPrototype {
                 inputDim: this.vocab.length, // Should match size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
-                embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.1
-                }),
-                embeddingsRegularizer: tf.regularizers.l2(),
+                // embeddingsConstraint: tf.constraints.maxNorm({
+                //     maxValue: 0.1
+                // }),
+                // embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
         )
@@ -61,35 +62,48 @@ export default class ModelPrototype {
                         stateful: false,
                         activation: 'softsign',
                         kernelInitializer: 'glorotUniform',
-                        kernelConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
+                        // kernelConstraint: tf.constraints.maxNorm({
+                        //     axis: 0,
+                        //     maxValue: 2.0
+                        // }),
                         recurrentActivation: 'sigmoid',
                         recurrentInitializer: 'orthogonal',
-                        recurrentConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
-                        returnSequences: true // False for the last GRU layer
+                        // recurrentConstraint: tf.constraints.maxNorm({
+                        //     axis: 0,
+                        //     maxValue: 2.0
+                        // }),
+                        returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
                     }),
                     mergeMode: 'ave'
                 })
             )
-            this.model.add(
-                tf.layers.layerNormalization({
-                    epsilon: 1e-3
-                })
-            )
+            // this.model.add(
+            //     tf.layers.layerNormalization({
+            //         epsilon: 1e-3
+            //     })
+            // )
         })
 
+        // this.model.add(
+        //     tf.layers.dense({
+        //         units: 64,
+        //         activation: 'swish'
+        //     })
+        // )
+
         // Add the final dense layer with softmax activation
+        // this.model.add(
+        //     tf.layers.timeDistributed({
+        //         layer: tf.layers.dense({
+        //             units: this.vocab.length,
+        //             activation: 'softmax'
+        //         })
+        //     })
+        // )
         this.model.add(
-            tf.layers.timeDistributed({
-                layer: tf.layers.dense({
-                    units: this.vocab.length,
-                    activation: 'softmax'
-                })
+            tf.layers.dense({
+                units: this.vocab.length,
+                activation: 'softmax'
             })
         )
 
@@ -145,59 +159,116 @@ function preprocessText(texts, vocab, expectedSequenceLength) {
 
 async function generateText(prompt, temperature = 0.7, maxLength = 20) {
     let generated = prompt
-    const maxSequenceLength = this.config.contextLength
 
-    prompt = prompt.slice(-maxSequenceLength)
+    let tokenIndices = Array.from(prompt).map((e) => this.vocab.indexOf(e))
 
-    // Initialize input sequence data
-    let inputSequence = preprocessText([prompt], this.vocab, maxSequenceLength)
+    const fixedLength = this.config.maxSequenceLength
 
-    const inputs = tf.tensor2d(inputSequence, [
-        inputSequence.length,
-        maxSequenceLength
-    ])
+    // Prepare initial token indices
+    if (tokenIndices.length > fixedLength) {
+        tokenIndices = tokenIndices.slice(tokenIndices.length - fixedLength)
+    } else if (tokenIndices.length < fixedLength) {
+        tokenIndices = new Array(fixedLength - tokenIndices.length)
+            .fill(0)
+            .concat(tokenIndices)
+    }
 
-    const output = this.model.predict([inputs])
+    let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
 
-    const nextSequence = await sampleSequences.call(this, output, temperature)
+    for (let i = 0; i < maxLength; i++) {
+        const output = this.model.predict(inputs).squeeze()
 
-    generated += nextSequence
+        let winnerIndex = await greedySample(output, temperature)
 
-    tf.dispose(output)
+        if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
+            winnerIndex = 0 // Fallback to the first index if out of bounds
+        }
+
+        const nextChar = this.vocab[winnerIndex]
+        generated += nextChar
+
+        // Update tokenIndices and inputTensor for the next iteration
+        tokenIndices.push(winnerIndex)
+        if (tokenIndices.length > fixedLength) {
+            tokenIndices.shift() // Remove the oldest token
+        }
+
+        // Efficiently update the input tensor by shifting it and appending the new token
+        tf.dispose(inputs)
+        inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+
+        tf.dispose(output)
+    }
+
+    tf.dispose(inputs)
 
     return generated
 }
 
-async function sampleSequences(
-    probabilities,
-    temperature = 0.7,
-    greedy = false
-) {
-    // Reshape the probabilities if needed (assumes output is [batchSize, sequenceLength, vocabSize])
-    const reshapedProbabilities = probabilities.reshape([
-        probabilities.shape[1],
-        probabilities.shape[2]
-    ])
-
-    let logits, predictions, predictedIndices
-    if (greedy) {
-        // Greedy implementation
-        predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
-    } else {
-        // Apply temperature scaling to logits
-        logits = tf.div(
-            tf.log(reshapedProbabilities),
-            Math.max(temperature, 1e-6)
-        )
-
-        // Sample using multinomial
-        predictions = tf.multinomial(logits, 1, null, false)
-        predictedIndices = await predictions.data()
-    }
-
-    // Map indices to characters
-    const sequence = predictedIndices.map((index) => this.vocab[index])
-
-    tf.dispose(predictions)
-    return sequence.join('')
+async function greedySample(probabilities, temperature) {
+    const logits = tf.div(tf.log(probabilities), Math.max(temperature, 1e-6))
+    const normalized = false
+    const predictions = tf.multinomial(logits, 1, null, normalized)
+    const index = await predictions.data().then((data) => data[0])
+    tf.dispose([logits, predictions])
+    return index
 }
+
+// async function generateText(prompt, temperature = 0.7, maxLength = 20) {
+//     let generated = prompt
+//     const maxSequenceLength = this.config.contextLength
+
+//     prompt = prompt.slice(-maxSequenceLength)
+
+//     // Initialize input sequence data
+//     let inputSequence = preprocessText([prompt], this.vocab, maxSequenceLength)
+
+//     const inputs = tf.tensor2d(inputSequence, [
+//         inputSequence.length,
+//         maxSequenceLength
+//     ])
+
+//     const output = this.model.predict([inputs])
+
+//     const nextSequence = await sampleSequences.call(this, output, temperature)
+
+//     generated += nextSequence
+
+//     tf.dispose(output)
+
+//     return generated
+// }
+
+// async function sampleSequences(
+//     probabilities,
+//     temperature = 0.7,
+//     greedy = false
+// ) {
+//     // Reshape the probabilities if needed (assumes output is [batchSize, sequenceLength, vocabSize])
+//     const reshapedProbabilities = probabilities.reshape([
+//         probabilities.shape[1],
+//         probabilities.shape[2]
+//     ])
+
+//     let logits, predictions, predictedIndices
+//     if (greedy) {
+//         // Greedy implementation
+//         predictedIndices = reshapedProbabilities.argMax(-1).dataSync()
+//     } else {
+//         // Apply temperature scaling to logits
+//         logits = tf.div(
+//             tf.log(reshapedProbabilities),
+//             Math.max(temperature, 1e-6)
+//         )
+
+//         // Sample using multinomial
+//         predictions = tf.multinomial(logits, 1, null, false)
+//         predictedIndices = await predictions.data()
+//     }
+
+//     // Map indices to characters
+//     const sequence = predictedIndices.map((index) => this.vocab[index])
+
+//     tf.dispose(predictions)
+//     return sequence.join('')
+// }
