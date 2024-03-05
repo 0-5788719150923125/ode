@@ -40,17 +40,17 @@ export default class ModelPrototype {
             tf.layers.embedding({
                 inputDim: this.vocab.length, // Should match size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
-                embeddingsInitializer: 'glorotUniform',
-                embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.1
-                }),
-                embeddingsRegularizer: tf.regularizers.l2(),
+                // embeddingsInitializer: 'glorotUniform',
+                // embeddingsConstraint: tf.constraints.maxNorm({
+                //     maxValue: 0.1
+                // }),
+                // embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
         )
 
         // Apply dropout on the embeddings layer
-        this.model.add(tf.layers.dropout({ rate: 0.1 }))
+        // this.model.add(tf.layers.dropout({ rate: 0.1 }))
 
         // Add GRU layers
         this.config.layout.forEach((layer, i) => {
@@ -58,30 +58,30 @@ export default class ModelPrototype {
                 tf.layers.bidirectional({
                     layer: tf.layers.gru({
                         units: layer,
-                        dropout: 0.1,
+                        // dropout: 0.1,
                         stateful: false,
-                        activation: 'softsign',
-                        kernelInitializer: 'glorotUniform',
-                        kernelConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
-                        recurrentActivation: 'sigmoid',
-                        recurrentInitializer: 'orthogonal',
-                        recurrentConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
+                        activation: 'tanh',
+                        // kernelInitializer: 'glorotUniform',
+                        // kernelConstraint: tf.constraints.maxNorm({
+                        //     axis: 0,
+                        //     maxValue: 2.0
+                        // }),
+                        // recurrentActivation: 'sigmoid',
+                        // recurrentInitializer: 'orthogonal',
+                        // recurrentConstraint: tf.constraints.maxNorm({
+                        //     axis: 0,
+                        //     maxValue: 2.0
+                        // }),
                         returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
                     }),
-                    mergeMode: 'ave'
+                    mergeMode: 'concat'
                 })
             )
-            this.model.add(
-                tf.layers.layerNormalization({
-                    epsilon: 1e-3
-                })
-            )
+            // this.model.add(
+            //     tf.layers.layerNormalization({
+            //         epsilon: 1e-3
+            //     })
+            // )
         })
 
         // this.model.add(
@@ -107,7 +107,7 @@ export default class ModelPrototype {
                 this.config.momentum || 0,
                 this.config.epsilon || 1e-8
             ),
-            loss: [tf.losses.softmaxCrossEntropy]
+            loss: ['categoricalCrossentropy']
         })
 
         console.log(this.model.summary())

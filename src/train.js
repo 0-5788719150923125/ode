@@ -51,10 +51,11 @@ export async function startTraining(dataGenerator, args) {
         yieldEvery: 'auto',
         verbose: 0,
         callbacks: {
-            onBatchEnd: async (batch, logs) => {
+            onBatchBegin: async (batch, logs) => {
                 // Compute losses and accumulate gradients
-                gradientAccumulator.compute(currentXs, currentYs).step()
-
+                // gradientAccumulator.compute(currentXs, currentYs).step()
+            },
+            onBatchEnd: async (batch, logs) => {
                 // Print logs
                 logger.log(batch, logs.loss)
 
@@ -118,6 +119,7 @@ export async function startTraining(dataGenerator, args) {
                 xsArray.push(xs)
                 ysArray.push(ys)
             }
+
             const xsTensor = tf.tensor2d(
                 xsArray,
                 [batchSize, inputLength],
@@ -139,7 +141,7 @@ export async function startTraining(dataGenerator, args) {
 class Logger {
     constructor() {
         this.timer = elapsedTimeGenerator()
-        this.ema = emaGenerator()
+        this.ema = emaGenerator(0.1)
         this.ema.next()
         this.previousLoss = 0
     }
@@ -152,8 +154,10 @@ class Logger {
         )
         this.previousLoss = currentLoss
 
+        const memory = tf.memory().numBytes / 1_000_000_000
+
         console.log(
-            `STEP=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${colors.BLUE}${coloredLoss.new}${colors.WHITE}, ELAPSED=${this.timer.next().value / 1000}s`
+            `STEP=${batch}, MEM=${memory.toFixed(4)}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${colors.BLUE}${coloredLoss.new}${colors.WHITE}, ELAPSED=${this.timer.next().value / 1000}s`
         )
     }
 }
@@ -174,6 +178,7 @@ class GradientAccumulator {
             currentXs,
             currentYs
         )
+        tf.dispose([currentXs, currentYs])
         return this
     }
 
@@ -245,10 +250,14 @@ async function textSampler(batch, dataGenerator, generateEvery) {
 }
 
 function computeGradients(model, optimizer, currentXs, currentYs) {
-    const gradients = optimizer.computeGradients(() => {
-        const predictions = model.predict(currentXs)
-        const loss = model.loss[0](currentYs, predictions).mean()
-        return loss
+    const gradients = tf.tidy(() => {
+        return optimizer.computeGradients(() => {
+            const predictions = model.predict(currentXs)
+            const loss = tf.losses
+                .softmaxCrossEntropy(currentYs, predictions)
+                .mean()
+            return loss
+        })
     })
     return gradients
 }
