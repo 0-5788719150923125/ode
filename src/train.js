@@ -28,15 +28,14 @@ export async function startTraining(dataGenerator, args) {
     // let currentXs = null
     // let currentYs = null
 
-    // const dataset = tf.data.generator(
-    //     createBatchGenerator(
-    //         dataGenerator,
-    //         this.vocab,
-    //         trainArgs.batchSize,
-    //         trainArgs.sampleLen,
-    //         trainArgs.predictLength
-    //     )
-    // )
+    const logger = new Logger()
+    const gradientAccumulator = new GradientAccumulator(
+        this.model,
+        this.model.optimizer,
+        trainArgs.gradientAccumulationSteps
+    )
+
+    let step = 0
 
     // const dataset = tf.data.generator(
     //     createBatchGenerator(
@@ -99,21 +98,14 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.predictLength
     )
 
-    const logger = new Logger()
-    const gradientAccumulator = new GradientAccumulator(
-        this.model,
-        this.model.optimizer,
-        trainArgs.gradientAccumulationSteps
-    )
-
-    let step = 0
-
     // a custom train loop
     while (true) {
         let loss
         // Gradient Calculation using tf.tidy for automatic memory cleanup
         tf.tidy(() => {
             const batch = dataset.next().value
+            // const batch = dataset.take(1)
+            // console.log(batch)
             // Compute gradients with respect to the model's variables
             const { value, grads } = tf.variableGrads(() => {
                 const predictions = this.model.predict(batch.xs)

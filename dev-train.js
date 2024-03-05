@@ -16,7 +16,7 @@ export async function trainModel(args) {
         layout: [96, 96],
         learningRate: 0.003,
         decay: 0.9,
-        momentum: 0,
+        momentum: 0.01,
         epsilon: 1e-8,
         embeddingDimensions: 64,
         contextLength: trainArgs.sampleLen,
