@@ -136,73 +136,130 @@ class SimplifiedMoELayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(SimplifiedMoELayer)
 
+// class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.expertCount = config.expertCount || 2 // Number of experts
+//         this.units = config.units // Number of units for each expert layer
+//     }
+
+//     build(inputShape) {
+//         // Initialize gating mechanism weights correctly
+//         // this.gate = this.addWeight(
+//         //     'gate',
+//         //     [inputShape[inputShape.length - 1], this.expertCount],
+//         //     'float32',
+//         //     tf.initializers.glorotUniform({})
+//         // )
+
+//         this.experts = []
+//         // Initialization of expert layers
+//         for (let i = 0; i < this.expertCount; i++) {
+//             const expertLayer = tf.layers.dense({
+//                 units: this.units, // This should match the model design, not necessarily inputShape / expertCount
+//                 kernelInitializer: 'glorotUniform',
+//                 useBias: true
+//             })
+//             // No need to call build here, as applying the layer will handle this
+//             this.experts.push(expertLayer)
+//         }
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             // Given adjustments and explanation...
+//             const selectedExpertIndex = Math.floor(
+//                 Math.random() * this.expertCount
+//             )
+//             const expertLayer = this.experts[selectedExpertIndex]
+//             // Assuming inputs shape is [batchSize, 64] due to GRU output
+//             const output = expertLayer.apply(inputs) // Should work with [batchSize, 64] input shape
+//             return output
+//         })
+//     }
+
+//     // call(inputs) {
+//     //     console.error(inputs)
+//     //     return tf.tidy(() => {
+//     //         // Calculate gate scores
+//     //         const gateScores = tf.softmax(
+//     //             tf.matMul(inputs, this.gate.read()),
+//     //             -1
+//     //         ) // Ensure softmax for distribution
+
+//     //         let output = null
+//     //         // Apply each expert based on gate scores
+//     //         for (let i = 0; i < this.expertCount; i++) {
+//     //             const expertOutput = this.experts[i].apply(inputs)
+//     //             const weightedOutput = tf.mul(
+//     //                 expertOutput,
+//     //                 gateScores.slice([0, i], [-1, 1])
+//     //             )
+
+//     //             if (output === null) {
+//     //                 output = weightedOutput
+//     //             } else {
+//     //                 output = tf.add(output, weightedOutput)
+//     //             }
+//     //         }
+
+//     //         return output
+//     //     })
+//     // }
+
+//     getConfig() {
+//         const config = super.getConfig()
+//         config.expertCount = this.expertCount
+//         config.units = this.units
+//         return config
+//     }
+
+//     static get className() {
+//         return 'SparseMixtureOfExpertsLayer'
+//     }
+// }
+
 class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.expertCount = config.expertCount || 2 // Number of experts
-        this.units = config.units // Number of units in the gating and expert layers
-        this.experts = []
+        this.units = config.units // Number of units for each expert layer
+        this.inputDim = config.inputDim // Explicitly pass input dimension
     }
 
     build(inputShape) {
-        this.gate = this.addWeight(
-            'gate',
-            [256, this.expertCount], // Adjust to match GRU's output size
-            'float32',
-            tf.initializers.glorotUniform({})
-        )
-
-        // Correctly size the expert layers
-        const expertUnits = Math.floor(
-            inputShape[inputShape.length - 1] / this.expertCount
-        )
-
+        this.experts = []
         for (let i = 0; i < this.expertCount; i++) {
+            // Define each expert with the anticipated input shape
             const expertLayer = tf.layers.dense({
-                units: expertUnits, // Adjusted units
+                units: this.units,
                 kernelInitializer: 'glorotUniform',
-                useBias: false
+                useBias: true,
+                inputShape: [this.inputDim] // Set input shape here for each expert
             })
-            expertLayer.build(inputShape)
             this.experts.push(expertLayer)
         }
+        // This is required to set the layer's built property to true.
+        super.build(inputShape)
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
-            // Calculate gate scores for each expert
-            const gateScores = []
-            for (let i = 0; i < this.expertCount; i++) {
-                const expertWeights = this.experts[i].getWeights()[0]
-                gateScores.push(tf.matMul(inputs, expertWeights, false, true)) // transposeB=true
-            }
-            const gateScoresTensor = tf.stack(gateScores, (axis = 1))
-
-            // Select the expert with the highest score
-            const gateMaxIndices = tf.argMax(gateScoresTensor, 1)
-
-            // Apply experts directly
-            const expertOutputs = []
-            for (let i = 0; i < this.expertCount; i++) {
-                expertOutputs.push(this.experts[i].apply(inputs))
-            }
-
-            // Gather based on indices
-            const selectedOutputs = tf.gatherND(
-                tf.stack(expertOutputs, (axis = 1)),
-                gateMaxIndices.expandDims(1),
-                1
+            const selectedExpertIndex = Math.floor(
+                Math.random() * this.expertCount
             )
-
-            return selectedOutputs.squeeze([1])
+            const expertLayer = this.experts[selectedExpertIndex]
+            // Apply the selected expert layer to the inputs
+            const output = expertLayer.apply(inputs)
+            return output
         })
     }
 
-    // TensorFlow.js requires the getConfig method to save and load models
     getConfig() {
         const config = super.getConfig()
         config.expertCount = this.expertCount
         config.units = this.units
+        config.inputDim = this.inputDim
         return config
     }
 
@@ -214,17 +271,32 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
 tf.serialization.registerClass(SparseMixtureOfExpertsLayer)
 
 // Generate some mock data with corrected type casting for 'oneHot'
-const xTrain = tf.randomNormal([1000, 10, 64]) // 1000 samples, 10 time steps, 64 features per step
+const xTrain = tf.randomNormal([1000, 10, 16]) // 1000 samples, 10 time steps, 64 features per step
 const yIndices = tf.floor(tf.randomUniform([1000], 0, 10)).toInt() // Correctly cast to int32
 const yTrain = tf.oneHot(yIndices, 10) // 1000 labels, 10 classes
 
 // Define the model
 const model = tf.sequential()
 model.add(
-    tf.layers.gru({ units: 256, returnSequences: false, inputShape: [10, 64] })
-) // Note returnSequences set to false
-model.add(new SparseMixtureOfExpertsLayer({ units: 128, expertCount: 2 }))
-model.add(tf.layers.dense({ units: 10, activation: 'softmax' })) // Assuming a classification task with 10 classes
+    tf.layers.gru({
+        units: 64,
+        returnSequences: false,
+        inputShape: [10, 16] // Ensure this matches your input data shape
+    })
+)
+model.add(
+    new SparseMixtureOfExpertsLayer({
+        units: 64,
+        expertCount: 2,
+        inputDim: 64 // Pass the correct input dimension expected by experts
+    })
+)
+model.add(
+    tf.layers.dense({
+        units: 10,
+        activation: 'softmax'
+    })
+)
 
 model.compile({
     optimizer: 'adam',
