@@ -148,7 +148,7 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
             const output = this.model.predict(inputs).squeeze()
 
             let winnerIndex
-            if ((temperature = 0)) {
+            if (temperature === 0) {
                 winnerIndex = greedySampling(output)
             } else {
                 winnerIndex = temperatureSampling(output, temperature)
