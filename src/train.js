@@ -2,6 +2,7 @@ import * as tfjs from '@tensorflow/tfjs'
 import {
     colors,
     elapsedTimeGenerator,
+    emaGenerator,
     findMatches,
     preprocessData,
     randomBetween
@@ -120,29 +121,17 @@ class GradientAccumulator {
 
     async step() {
         this.accumulationCounter++
-        Object.keys(this.gradients).forEach((key) => {
-            if (!this.accumulatedGrads[key]) {
-                this.accumulatedGrads[key] = tf.keep(
-                    tf.zerosLike(this.gradients[key])
-                )
-            }
-            const tempGrad = tf.add(
-                this.accumulatedGrads[key],
-                this.gradients[key]
-            )
-            this.accumulatedGrads[key].dispose()
-            this.accumulatedGrads[key] = tf.keep(tempGrad)
-        })
+        this.accumulatedGrads = accumulateGradients(
+            this.gradients,
+            this.accumulatedGrads
+        )
 
         if (this.accumulationCounter === this.accumulationSteps) {
             // Average the gradients after accumulation
-            Object.keys(this.accumulatedGrads).forEach((key) => {
-                const avgGrad = this.accumulatedGrads[key].div(
-                    tf.scalar(this.accumulationSteps)
-                )
-                this.accumulatedGrads[key].dispose()
-                this.accumulatedGrads[key] = tf.keep(avgGrad)
-            })
+            this.accumulatedGrads = averageGradients(
+                this.accumulatedGrads,
+                this.accumulationSteps
+            )
 
             // Clip gradients to prevent explosion
             const clippedGrads = clipGradients(this.accumulatedGrads, 2.3)
@@ -154,6 +143,7 @@ class GradientAccumulator {
             )
             this.accumulatedGrads = {}
 
+            // Update gradients, step the optimizer, changing weights
             this.optimizer.applyGradients(clippedGrads)
 
             // Dispose of the clipped gradients after application
@@ -163,6 +153,28 @@ class GradientAccumulator {
         // Dispose of grads after accumulation
         Object.values(this.gradients).forEach((grad) => grad && grad.dispose())
     }
+}
+
+function accumulateGradients(gradients, accumulatedGrads) {
+    Object.keys(gradients).forEach((key) => {
+        if (!accumulatedGrads[key]) {
+            accumulatedGrads[key] = tf.keep(tf.zerosLike(gradients[key]))
+        }
+        const tempGrad = tf.add(accumulatedGrads[key], gradients[key])
+        accumulatedGrads[key].dispose()
+        accumulatedGrads[key] = tf.keep(tempGrad)
+    })
+    return accumulatedGrads
+}
+
+function averageGradients(grads, accumulationSteps) {
+    const accumulatedGrads = grads
+    Object.keys(accumulatedGrads).forEach((key) => {
+        const avgGrad = accumulatedGrads[key].div(tf.scalar(accumulationSteps))
+        accumulatedGrads[key].dispose()
+        accumulatedGrads[key] = tf.keep(avgGrad)
+    })
+    return accumulatedGrads
 }
 
 function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
@@ -177,7 +189,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
             const textIndices = preprocessData(
                 sample,
                 vocab,
-                inputLength + 1, // because we predict n + 1
+                inputLength, // because we predict n + 1
                 'left'
             )
 
@@ -191,7 +203,11 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
             ysArray.push(ys)
         }
 
-        const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
+        const xsTensor = tf.tensor2d(
+            xsArray,
+            [batchSize, inputLength - 1],
+            'int32'
+        )
         const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), vocab.length)
 
         yield { xs: xsTensor, ys: ysTensor }
@@ -219,7 +235,6 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
     let loss
     const { value, grads } = tf.variableGrads(() => {
         const predictions = model.predict(currentXs)
-        // const lossValue = tf.losses.softmaxCrossEntropy(currentYs, predictions)
         const lossValue = lossFunction(currentYs, predictions)
         loss = lossValue.dataSync()[0]
         return lossValue
@@ -234,14 +249,4 @@ function clipGradients(grads, value) {
         grads[key].dispose()
     })
     return clippedGrads
-}
-
-function* emaGenerator(alpha = 0.01) {
-    let ema = null
-    while (true) {
-        const newLoss = yield ema // Pause here and return exponential moving average
-        if (newLoss !== undefined) {
-            ema = ema === null ? newLoss : alpha * newLoss + (1 - alpha) * ema // Update EMA with the new loss value
-        }
-    }
 }

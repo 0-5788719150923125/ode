@@ -29,27 +29,20 @@ function createGRUModel(vocabSize) {
 
 const vocab = Array.from(
     new Set(
-        `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\\\`;:(){}[]<>#*^%$@~+-=_|/\n `
+        `¶ 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\\\`;:(){}[]<>#*^%$@~+-=_|/\n`
     )
 )
 
 // Create and compile the model
 const model = createGRUModel(vocab.length)
-model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy' })
+model.compile({ optimizer: 'rmsprop', loss: 'categoricalCrossentropy' })
 
 console.log(model.summary())
+
 const inputTexts = ['hello ', 'how are ', 'the weather ']
 const outputTexts = ['world ', 'you doing? ', 'is nice ']
 
 const maxSequenceLength = 32
-
-// function shuffleArray(array) {
-//     for (let i = array.length - 1; i > 0; i--) {
-//         const j = Math.floor(Math.random() * (i + 1))
-//         ;[array[i], array[j]] = [array[j], array[i]] // Swap elements
-//     }
-//     return array
-// }
 
 function preprocessData(
     texts,
@@ -97,7 +90,7 @@ const outputIndices = preprocessData(
     10000,
     vocab,
     maxSequenceLength,
-    'right'
+    'left'
 )
 console.log(inputIndices.slice(0, 3))
 console.log(outputIndices.slice(0, 3))
