@@ -26,7 +26,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.5
+                    maxValue: 0.1
                 }),
                 embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
@@ -39,9 +39,9 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         // Add recurrent layers
         let previousLayerOutput = dropout
         this.config.layout.forEach((units, i) => {
-            const bidirectionalGRU = tf.layers
+            const bidirectional = tf.layers
                 .bidirectional({
-                    layer: tf.layers.gru({
+                    layer: tf.layers.lstm({
                         units: units,
                         dropout: 0.1,
                         stateful: false,
@@ -57,9 +57,9 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                             axis: 0,
                             maxValue: 2.0
                         }),
-                        returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
+                        returnSequences: i < this.config.layout.length - 1 // False for the last recurrent layer
                     }),
-                    mergeMode: 'ave'
+                    mergeMode: 'concat'
                 })
                 .apply(previousLayerOutput)
 
@@ -67,7 +67,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 .layerNormalization({
                     epsilon: 1e-3
                 })
-                .apply(bidirectionalGRU)
+                .apply(bidirectional)
             previousLayerOutput = layerNorm
         })
 
