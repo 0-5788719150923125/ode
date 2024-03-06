@@ -190,7 +190,8 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
 
         for (let i = 0; i < batchSize; ++i) {
             const text = dataGenerator.next().value
-            const sample = text.slice(0, randomBetween(1, inputLength))
+            // const sample = text.slice(0, randomBetween(1, inputLength))
+            const sample = text
 
             const textIndices = preprocessData(
                 sample,

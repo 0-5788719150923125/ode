@@ -1,4 +1,6 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
+// import pkg from '@tensorflow/tfjs-layers/dist/losses.js'
+// const { sparseCategoricalCrossentropy } = pkg
 
 function createGRUModel(vocabSize) {
     const model = tf.sequential()
