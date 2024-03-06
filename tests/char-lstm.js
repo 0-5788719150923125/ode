@@ -9,7 +9,7 @@ let tf = tfjs
     await tf.setBackend('tensorflow')
 })()
 
-import { shaks13 } from '../src/utils.js'
+import { shaks13 } from '../src/data.js'
 
 const text = shaks13
 
