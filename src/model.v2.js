@@ -12,7 +12,6 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import ModelBase from './model.v0.js'
-import { focalLoss } from './losses.js'
 
 export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
@@ -89,10 +88,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         this.model = tf.model({ inputs: inputs, outputs: finalDense })
 
         // Compile the model
-        this.lossFunctions = [
-            tf.losses.softmaxCrossEntropy
-            // focalLoss
-        ]
+        this.lossFunctions = [tf.losses.softmaxCrossEntropy]
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,

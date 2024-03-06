@@ -5,7 +5,7 @@ import { trainModel } from './dev-train.js'
         await trainModel({
             backend: 'tensorflow',
             batchSize: 64,
-            gradientAccumulationSteps: 1,
+            gradientAccumulationSteps: 4,
             generateEvery: 128,
             sampleLen: 96
         })

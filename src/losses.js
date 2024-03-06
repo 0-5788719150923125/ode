@@ -8,6 +8,42 @@ let tf = tfjs
     }
 })()
 
+export function categoricalCrossentropy(target, output, fromLogits = false) {
+    return tf.tidy(() => {
+        if (fromLogits) {
+            output = tf.softmax(output)
+        } else {
+            // scale preds so that the class probabilities of each sample sum to 1.
+            const outputSum = tf.sum(output, output.shape.length - 1, true)
+            output = tf.div(output, outputSum)
+        }
+        output = tf.clipByValue(output, 1e-7, 1 - 1e-7)
+        return tf.neg(
+            tf.sum(
+                tf.mul(tf.cast(target, 'float32'), tf.log(output)),
+                output.shape.length - 1
+            )
+        )
+    })
+}
+
+export function sparseCategoricalCrossentropy(
+    target,
+    output,
+    fromLogits = false
+) {
+    return tf.tidy(() => {
+        const flatTarget = tf.cast(tf.floor(K.flatten(target)), 'int32')
+        output = tf.clipByValue(output, 1e-7, 1 - 1e-7)
+        const outputShape = output.shape
+        const oneHotTarget = tf.reshape(
+            tf.oneHot(flatTarget, outputShape[outputShape.length - 1]),
+            outputShape
+        )
+        return categoricalCrossentropy(oneHotTarget, output, fromLogits)
+    })
+}
+
 export function focalLoss(gamma = 2.0, alpha = 0.25) {
     return function (yTrue, yPred) {
         // Ensure predictions are probabilities (not logits)
