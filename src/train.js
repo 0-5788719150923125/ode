@@ -82,7 +82,13 @@ class Logger {
         )
         this.previousLoss = currentLoss
 
-        const memory = tf.memory().numBytes / 1_000_000_000
+        let memory = tf.memory()
+
+        if (memory.numBytesInGPU) {
+            memory = memory.numBytesInGPU / 1_000_000_000
+        } else {
+            memory = memory.numBytes / 1_000_000_000
+        }
 
         console.log(
             `STEP=${batch}, MEM=${memory.toFixed(4)}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${colors.BLUE}${coloredLoss.new}${colors.WHITE}, ELAPSED=${this.timer.next().value / 1000}s`

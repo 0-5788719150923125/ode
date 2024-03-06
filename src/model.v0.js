@@ -123,15 +123,6 @@ export function temperatureSampling(logits, temperature) {
     })
 }
 
-function multinomialSampling(logits, temperature) {
-    const probabilities = tf.div(tf.log(logits), Math.max(temperature, 1e-6))
-    const scaledProbs = tf.softmax(probabilities)
-    const predictions = tf.multinomial(scaledProbs, 1)
-    const index = predictions.dataSync()[0]
-    tf.dispose([probabilities, predictions])
-    return index
-}
-
 export function topKSampling(logits, k) {
     return tf.tidy(() => {
         // Step 1: Use tf.topk to find the top k logits and their indices
@@ -141,7 +132,8 @@ export function topKSampling(logits, k) {
 
         // Step 2: Calculate the probabilities of the top k logits
         // Normalize the values to prevent large logits from dominating
-        const scaledValues = values.sub(values.max()).softmax()
+        // const scaledValues = values.sub(values.max()).softmax()
+        const scaledValues = values.sub(values.max())
 
         // Step 3: Sample from the top k values
         const sampledIndex = tf
@@ -153,21 +145,4 @@ export function topKSampling(logits, k) {
 
         return originalIndex
     })
-}
-
-function stochasticSampling(probabilities) {
-    // Convert probabilities to a flat array
-    const probsArray = probabilities.dataSync()
-    // Calculate the cumulative sum of the probabilities
-    const cumulativeSum = probsArray.map(
-        (
-            (sum) => (value) =>
-                (sum += value)
-        )(0)
-    )
-    // Generate a random number between 0 and 1
-    const random = Math.random() * cumulativeSum[cumulativeSum.length - 1]
-    // Find the first index where the cumulative sum is greater than the random number
-    const selectedIndex = cumulativeSum.findIndex((sum) => sum > random)
-    return selectedIndex
 }

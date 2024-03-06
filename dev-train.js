@@ -13,12 +13,12 @@ export async function trainModel(args) {
 
     const net = new ODE({
         backend: trainArgs.backend,
-        layout: [64, 64, 64],
+        layout: [128, 128, 128, 128, 128],
         learningRate: 0.01,
         decay: 0.9,
         momentum: 0.01,
         epsilon: 1e-8,
-        embeddingDimensions: 32,
+        embeddingDimensions: 64,
         contextLength: trainArgs.sampleLen,
         maxSequenceLength: trainArgs.sampleLen
     })
