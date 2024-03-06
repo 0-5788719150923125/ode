@@ -65,7 +65,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
 
             const layerNorm = tf.layers
                 .layerNormalization({
-                    epsilon: 1e-5
+                    epsilon: 1e-3
                 })
                 .apply(bidirectionalGRU)
             previousLayerOutput = layerNorm

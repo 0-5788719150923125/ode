@@ -82,6 +82,7 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
             if (temperature === 0) {
                 winnerIndex = greedySampling(output)
             } else {
+                // winnerIndex = topKSampling(output, 4)
                 winnerIndex = temperatureSampling(output, temperature)
             }
 
@@ -129,6 +130,29 @@ function multinomialSampling(logits, temperature) {
     const index = predictions.dataSync()[0]
     tf.dispose([probabilities, predictions])
     return index
+}
+
+export function topKSampling(logits, k) {
+    return tf.tidy(() => {
+        // Step 1: Use tf.topk to find the top k logits and their indices
+        const topk = tf.topk(logits, k)
+        const values = topk.values
+        const indices = topk.indices
+
+        // Step 2: Calculate the probabilities of the top k logits
+        // Normalize the values to prevent large logits from dominating
+        const scaledValues = values.sub(values.max()).softmax()
+
+        // Step 3: Sample from the top k values
+        const sampledIndex = tf
+            .multinomial(scaledValues, 1, null, false)
+            .dataSync()[0]
+
+        // Step 4: Map the sampled index back to the original logits' space using the indices tensor
+        const originalIndex = indices.arraySync()[sampledIndex]
+
+        return originalIndex
+    })
 }
 
 function stochasticSampling(probabilities) {
