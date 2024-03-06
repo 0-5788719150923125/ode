@@ -98,15 +98,8 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
                 tokenIndices.shift() // Remove the oldest token
             }
 
-            // Efficiently update the input tensor by shifting it and appending the new token
-            tf.dispose(inputs)
             inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
-
-            tf.dispose(output)
         }
-
-        tf.dispose(inputs)
-
         return generated
     })
 
@@ -123,8 +116,6 @@ export function greedySampling(probabilities) {
 
 export function temperatureSampling(logits, temperature) {
     return tf.tidy(() => {
-        // const scaled = logits.div(tf.scalar(Math.max(temperature, 1e-6)))
-        // const probabilities = scaled.softmax()
         const probabilities = tf.div(logits, Math.max(temperature, 1e-6))
         const sampledIndex = tf.multinomial(probabilities, 1).dataSync()[0]
         return sampledIndex

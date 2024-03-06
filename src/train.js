@@ -220,7 +220,7 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             await this.save()
         }
 
-        for (const temp of [0, 0.1, 0.7]) {
+        for (const temp of [0, 0.3, 0.7]) {
             const prompt = dataGenerator
                 .next()
                 .value.slice(1, randomBetween(1, 16))

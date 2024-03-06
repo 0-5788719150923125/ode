@@ -18,16 +18,15 @@ export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
 
-        const inputs = tf.input({ shape: [null] })
-
         // Add the embedding layer as the first layer
+        const inputs = tf.input({ shape: [null] })
         const embeddings = tf.layers
             .embedding({
                 inputDim: this.vocab.length, // Should match size of the vocabulary
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.1
+                    maxValue: 0.5
                 }),
                 embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
@@ -37,7 +36,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         // Apply dropout on the embeddings layer
         const dropout = tf.layers.dropout({ rate: 0.1 }).apply(embeddings)
 
-        // Add GRU layers
+        // Add recurrent layers
         let previousLayerOutput = dropout
         this.config.layout.forEach((units, i) => {
             const bidirectionalGRU = tf.layers
@@ -60,13 +59,13 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                         }),
                         returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
                     }),
-                    mergeMode: 'concat'
+                    mergeMode: 'ave'
                 })
                 .apply(previousLayerOutput)
 
             const layerNorm = tf.layers
                 .layerNormalization({
-                    epsilon: 1e-3
+                    epsilon: 1e-5
                 })
                 .apply(bidirectionalGRU)
             previousLayerOutput = layerNorm

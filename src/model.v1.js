@@ -13,22 +13,20 @@ import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import ModelBase from './model.v0.js'
 
-export default class OmniscientDeterministicEngine extends ModelBase {
+export default class ModelPrototype extends ModelBase {
     build() {
         super.build()
 
         this.model = tf.sequential()
 
-        // Add the embedding layer as the first layer
         this.model.add(
             tf.layers.embedding({
-                inputDim: this.vocab.length, // Should match size of the vocabulary
-                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
+                inputDim: this.vocab.length,
+                outputDim: this.config.embeddingDimensions,
                 maskZero: true
             })
         )
 
-        // Add GRU layers
         this.config.layout.forEach((layer, i) => {
             this.model.add(
                 tf.layers.bidirectional({
@@ -43,7 +41,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             )
         })
 
-        // Add the final dense layer
         this.model.add(
             tf.layers.dense({
                 units: this.vocab.length,
@@ -51,7 +48,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
         )
 
-        // Compile the model
         this.lossFunctions = [tf.losses.softmaxCrossEntropy]
         this.model.compile({
             optimizer: tf.train.rmsprop(
