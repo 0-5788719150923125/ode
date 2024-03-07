@@ -92,7 +92,7 @@ async function trainModel() {
                     const elapsedTime = timer.next().value
                     const updatedEma = ema.next(logs.loss).value
                     console.log(
-                        `STEP=${step}, ELAPSED=${elapsedTime}, EMA=${updatedEma.toFixed(5)}, LOSS=${logs.loss}`
+                        `STEP=${step}, ELAPSED=${elapsedTime.toFixed(2)}Hrs, EMA=${updatedEma.toFixed(5)}, LOSS=${logs.loss}`
                     )
                 }
                 if (step % 100 === 0) {
