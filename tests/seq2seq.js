@@ -1,9 +1,14 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
 import { shaks13 } from '../src/data.js'
-import { emaGenerator, preprocessData, randomBetween } from '../src/utils.js'
+import {
+    emaGenerator,
+    preprocessData,
+    sequentialStringSampler,
+    stringSampler
+} from '../src/utils.js'
 
 const batchSize = 64
-const maxSequenceLength = 100
+const maxSequenceLength = 50
 
 const vocab = Array.from(
     new Set(
@@ -11,19 +16,19 @@ const vocab = Array.from(
     )
 )
 
-const dataGenerator = sequentialStringSampler(maxSequenceLength, shaks13)
+const dataGenerator = sequentialStringSampler(maxSequenceLength + 1, shaks13)
 const dataset = tf.data.generator(
-    createBatchGenerator(dataGenerator, vocab, batchSize, maxSequenceLength)
+    createBatchGenerator(dataGenerator, vocab, batchSize)
 )
 
-function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
+function createGRUModel(vocabSize, batchSize) {
     const model = tf.sequential()
 
     model.add(
         tf.layers.embedding({
             inputDim: vocabSize,
-            inputLength: maxSequenceLength,
-            batchInputShape: [batchSize, maxSequenceLength],
+            inputLength: maxSequenceLength / 2,
+            batchInputShape: [batchSize, maxSequenceLength / 2],
             outputDim: 256,
             maskZero: true
         })
@@ -69,7 +74,7 @@ function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
 }
 
 // Create and compile the model
-const model = createGRUModel(vocab.length, batchSize, maxSequenceLength / 2)
+const model = createGRUModel(vocab.length, batchSize)
 model.compile({ optimizer: 'rmsprop', loss: 'categoricalCrossentropy' })
 
 console.log(model.summary())
@@ -87,7 +92,7 @@ async function trainModel() {
         callbacks: {
             onBatchEnd: async (batch, logs) => {
                 step++
-                model.resetStates()
+                // model.resetStates()
                 if (step % 10 === 0) {
                     const elapsedTime = timer.next().value
                     const updatedEma = ema.next(logs.loss).value
@@ -96,6 +101,7 @@ async function trainModel() {
                     )
                 }
                 if (step % 100 === 0) {
+                    model.resetStates()
                     console.log('GREEDY:')
                     makePrediction(0)
                     model.resetStates()
@@ -125,36 +131,13 @@ function* trainingTimer() {
     }
 }
 
-function* sequentialStringSampler(sampleLen, str) {
-    let index = 0 // Start from the first character
-    while (true) {
-        if (index + sampleLen > str.length) {
-            index = 0 // Loop back to the start if there's not enough room left for a full sample
-        }
-        yield str.substring(index, index + sampleLen) // Yield a substring of length sampleLen
-        index++ // Move to the next character for the start of the next substring
-    }
-}
-
-function createBatchGenerator(
-    dataGenerator,
-    vocab,
-    batchSize,
-    inputLength,
-    predictLength
-) {
+function createBatchGenerator(dataGenerator, vocab, batchSize) {
     return function* () {
-        yield* batchGenerator(
-            dataGenerator,
-            vocab,
-            batchSize,
-            inputLength,
-            predictLength
-        )
+        yield* batchGenerator(dataGenerator, vocab, batchSize)
     }
 }
 
-function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
+function* batchGenerator(dataGenerator, vocab, batchSize) {
     while (true) {
         let xsArray = []
         let ysArray = []
@@ -163,35 +146,36 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
             const text = dataGenerator.next().value
             // const sample = text.slice(0, randomBetween(1, inputLength))
             const sample = text
+            // console.log(sample.length)
 
             const textIndices = preprocessData(
                 sample,
                 vocab,
-                inputLength,
+                maxSequenceLength,
                 'left'
             )
 
             // const numTokensShifted = randomBetween(1, 6)
             // create input sequence
-            const xs = textIndices.slice(0, inputLength / 2)
+            const xs = textIndices.slice(0, maxSequenceLength / 2)
 
             // predict the last character index
-            const ys = textIndices.slice(inputLength / 2, inputLength)
-
+            const ys = textIndices.slice(1, maxSequenceLength / 2 + 1)
+            // console.log(xs.length, ys.length)
             xsArray.push(xs)
             ysArray.push(ys)
         }
 
         const xsTensor = tf.tensor2d(
             xsArray,
-            [batchSize, inputLength / 2],
+            [batchSize, maxSequenceLength / 2],
             'int32'
         )
 
         const ysFlat = ysArray.flat()
         const ysTensor = tf
             .oneHot(tf.tensor1d(ysFlat, 'int32'), vocab.length)
-            .reshape([batchSize, inputLength / 2, vocab.length])
+            .reshape([batchSize, maxSequenceLength / 2, vocab.length])
 
         yield { xs: xsTensor, ys: ysTensor }
     }
@@ -199,13 +183,18 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
 
 function makePrediction(temperature = 1.0) {
     const sample = dataGenerator.next().value
-    const textIndices = preprocessData(sample, vocab, maxSequenceLength, 'left')
+    const textIndices = preprocessData(
+        sample,
+        vocab,
+        maxSequenceLength / 2,
+        'left'
+    )
     const xs = textIndices.slice(0, maxSequenceLength / 2)
     const xsTensor = tf.tensor2d([xs], [1, maxSequenceLength / 2], 'int32')
 
     // Predict with the model
     const prediction = model.predict(xsTensor)
-    console.log(prediction)
+    // console.log(prediction)
 
     // Squeeze to remove batch dimension since batch size is 1
     const squeezedPred = prediction.squeeze()

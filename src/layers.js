@@ -136,6 +136,26 @@ class SimplifiedMoELayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(SimplifiedMoELayer)
 
+// class AttentionLayer extends tf.layers.Layer {
+//         // Step 1: Define a learnable query vector (assuming your features size is `n`)
+//         const query = tf.variable(tf.randomNormal([this.vocab.length, 1]))
+
+//         // Step 2: Compute attention scores using dot product
+//         // `lstmOutput` shape: [batch, timesteps, features]
+//         // `query` shape: [features, 1]
+//         // We need to perform a batch dot product, resulting in a shape of [batch, timesteps, 1] for scores
+//         const scores = tf.matMul(dense1, query, false, true)
+
+//         // Step 3: Apply softmax to get attention weights
+//         const weights = tf.softmax(scores, 1) // Softmax over the timesteps dimension
+
+//         // Step 4: Compute the context vector as a weighted sum of LSTM outputs
+//         // `weights` shape: [batch, timesteps, 1]
+//         // `lstmOutput` shape: [batch, timesteps, features]
+//         // We need to multiply and sum over the timesteps, resulting in [batch, features] for the context vector
+//         const contextVector = tf.sum(tf.mul(dense1, weights), 1)
+// }
+
 // class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
 //     constructor(config) {
 //         super(config)

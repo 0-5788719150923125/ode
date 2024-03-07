@@ -25,7 +25,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.1
+                    maxValue: 0.2
                 }),
                 embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
@@ -33,10 +33,10 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             .apply(inputs)
 
         // Apply dropout on the embeddings layer
-        const dropout = tf.layers.dropout({ rate: 0.1 }).apply(embeddings)
+        const dropout1 = tf.layers.dropout({ rate: 0.1 }).apply(embeddings)
 
         // Add recurrent layers
-        let previousLayerOutput = dropout
+        let previousLayerOutput = dropout1
         this.config.layout.forEach((units, i) => {
             const bidirectional = tf.layers
                 .bidirectional({
@@ -70,12 +70,17 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             previousLayerOutput = layerNorm
         })
 
-        // this.model.add(
-        //     tf.layers.dense({
-        //         units: 64,
-        //         activation: 'swish'
-        //     })
-        // )
+        const dense1 = tf.layers
+            .dense({
+                units: 4096,
+                activation: 'linear',
+                useBias: true,
+                kernelInitializer: 'randomUniform'
+            })
+            .apply(previousLayerOutput)
+
+        // Apply dropout on the embeddings layer
+        const dropout2 = tf.layers.dropout({ rate: 0.1 }).apply(dense1)
 
         // Add the final dense layer
         const finalDense = tf.layers
@@ -83,7 +88,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 units: this.vocab.length,
                 activation: 'linear'
             })
-            .apply(previousLayerOutput)
+            .apply(dropout2)
 
         this.model = tf.model({ inputs: inputs, outputs: finalDense })
     }

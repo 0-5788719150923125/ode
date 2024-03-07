@@ -26,6 +26,7 @@ export async function startTraining(dataGenerator, args) {
         ...args
     }
 
+    let step = 0
     const logger = new Logger()
     const gradientAccumulator = new GradientAccumulator(
         this.model,
@@ -33,8 +34,6 @@ export async function startTraining(dataGenerator, args) {
         this.lossFunctions,
         trainArgs.gradientAccumulationSteps
     )
-
-    let step = 0
 
     const dataset = batchGenerator(
         dataGenerator,
