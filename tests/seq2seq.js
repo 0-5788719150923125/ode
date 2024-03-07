@@ -1,13 +1,13 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
 import { shaks13 } from '../src/data.js'
-import { emaGenerator, preprocessData } from '../src/utils.js'
+import { emaGenerator, preprocessData, randomBetween } from '../src/utils.js'
 
 const batchSize = 64
 const maxSequenceLength = 100
 
 const vocab = Array.from(
     new Set(
-        `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\\\`;:(){}[]<>#*^%$@~+-=_|/\n `
+        `�¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\\\`;:(){}[]<>#*^%$@~+-=_|/\n `
     )
 )
 
@@ -152,11 +152,12 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
                 'left'
             )
 
+            // const numTokensShifted = randomBetween(1, 6)
             // create input sequence
             const xs = textIndices.slice(0, inputLength / 2)
 
             // predict the last character index
-            const ys = textIndices.slice(1, inputLength / 2 + 1)
+            const ys = textIndices.slice(inputLength / 2, inputLength)
 
             xsArray.push(xs)
             ysArray.push(ys)
@@ -204,7 +205,8 @@ function makePrediction(temperature = 1.0) {
     }
 
     const predictedText = predictedSequence.join('')
-    console.log([`input: ${sample}`, `output: ${predictedText}`])
+    console.log(`input: ${sample}`)
+    console.log(`output: ${predictedText}`)
 }
 
 // Adjust greedySampling to work with single timestep predictions
@@ -220,6 +222,10 @@ function temperatureSampling(preds, temperature = 1.0) {
     logits = logits.div(tf.scalar(temperature))
     let expPreds = logits.exp()
     let probs = expPreds.div(expPreds.sum())
+    // let sumProbs = probs.sum().dataSync()[0]
+
+    // // Print the sum of probabilities for debugging
+    // console.log(`Sum of probabilities: ${sumProbs}`)
 
     // Sample from the adjusted probabilities
     return tf.multinomial(probs, 1).dataSync()[0]
