@@ -93,12 +93,12 @@ export function* stringSampler(sampleLen, str = shaks13) {
 }
 
 export function* sequentialStringSampler(sampleLen, str) {
-    let index = 0 // Start from the first character
+    let index = 0
     while (true) {
         if (index + sampleLen > str.length) {
-            index = 0 // Loop back to the start if there's not enough room left for a full sample
+            index = 0
         }
         yield str.substring(index, index + sampleLen) // Yield a substring of length sampleLen
-        index++ // Move to the next character for the start of the next substring
+        index++ // Make 1 time step over the str
     }
 }
