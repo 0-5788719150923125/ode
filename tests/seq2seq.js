@@ -100,7 +100,7 @@ function makePrediction(temperature = 1.0) {
     }
 
     const predictedText = predictedSequence.join('')
-    console.log('Predicted text:', predictedText)
+    console.log([`input: ${sample}`, `output: ${predictedText}`])
 }
 
 // Adjust greedySampling to work with single timestep predictions
@@ -200,7 +200,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
             const xs = textIndices.slice(0, inputLength / 2)
 
             // predict the last character index
-            const ys = textIndices.slice(inputLength / 2, inputLength)
+            const ys = textIndices.slice(1, inputLength / 2 + 1)
 
             xsArray.push(xs)
             ysArray.push(ys)
