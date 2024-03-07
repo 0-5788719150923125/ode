@@ -11,7 +11,7 @@ const vocab = Array.from(
     )
 )
 
-const dataGenerator = stringSampler(maxSequenceLength, shaks13)
+const dataGenerator = sequentialStringSampler(maxSequenceLength, shaks13)
 const dataset = tf.data.generator(
     createBatchGenerator(dataGenerator, vocab, batchSize, maxSequenceLength)
 )
@@ -23,6 +23,7 @@ function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
         tf.layers.embedding({
             inputDim: vocabSize,
             inputLength: maxSequenceLength,
+            batchInputShape: [batchSize, maxSequenceLength],
             outputDim: 256,
             maskZero: true
         })
@@ -33,7 +34,7 @@ function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
             layer: tf.layers.gru({
                 units: 128,
                 returnSequences: true,
-                stateful: false,
+                stateful: true,
                 returnState: false
             }),
             mergeMode: 'concat'
@@ -51,7 +52,7 @@ function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
             layer: tf.layers.gru({
                 units: 128,
                 returnSequences: true,
-                stateful: false,
+                stateful: true,
                 returnState: false
             }),
             mergeMode: 'concat'
@@ -75,6 +76,7 @@ console.log(model.summary())
 
 async function trainModel() {
     let step = 0
+    const timer = trainingTimer()
     const ema = emaGenerator()
     ema.next()
     makePrediction(0)
@@ -85,21 +87,26 @@ async function trainModel() {
         callbacks: {
             onBatchEnd: async (batch, logs) => {
                 step++
+                model.resetStates()
                 if (step % 10 === 0) {
+                    const elapsedTime = timer.next().value
                     const updatedEma = ema.next(logs.loss).value
                     console.log(
-                        `STEP=${step}, EMA=${updatedEma.toFixed(5)}, LOSS=${logs.loss}`
+                        `STEP=${step}, ELAPSED=${elapsedTime}, EMA=${updatedEma.toFixed(5)}, LOSS=${logs.loss}`
                     )
                 }
                 if (step % 100 === 0) {
                     console.log('GREEDY:')
                     makePrediction(0)
-                    console.log('TEMPERATURE (0.1):')
-                    makePrediction(0.1)
-                    console.log('TEMPERATURE (0.3):')
-                    makePrediction(0.3)
-                    console.log('TEMPERATURE (0.7):')
-                    makePrediction(0.7)
+                    model.resetStates()
+                    // console.log('TEMPERATURE (0.1):')
+                    // makePrediction(0.1)
+                    // model.resetStates()
+                    // console.log('TEMPERATURE (0.3):')
+                    // makePrediction(0.3)
+                    // model.resetStates()
+                    // console.log('TEMPERATURE (0.7):')
+                    // makePrediction(0.7)
                 }
             }
         }
@@ -108,12 +115,24 @@ async function trainModel() {
 
 trainModel()
 
-function* stringSampler(sampleLen, str = shaks13) {
+function* trainingTimer() {
+    const startTime = new Date() // Mark the start time
+
     while (true) {
-        // Generate a random start index within the string's bounds
-        const startIndex = Math.floor(Math.random() * (str.length - sampleLen))
-        // Yield a ${sampleLen} substring
-        yield str.substring(startIndex, startIndex + sampleLen)
+        const currentTime = new Date() // Get the current time on each call
+        const elapsedTime = (currentTime - startTime) / (1000 * 60 * 60) // Calculate elapsed time in hours
+        yield elapsedTime // Yield the elapsed time in hours
+    }
+}
+
+function* sequentialStringSampler(sampleLen, str) {
+    let index = 0 // Start from the first character
+    while (true) {
+        if (index + sampleLen > str.length) {
+            index = 0 // Loop back to the start if there's not enough room left for a full sample
+        }
+        yield str.substring(index, index + sampleLen) // Yield a substring of length sampleLen
+        index++ // Move to the next character for the start of the next substring
     }
 }
 
@@ -194,12 +213,12 @@ function makePrediction(temperature = 1.0) {
     for (let i = 0; i < squeezedPred.shape[0]; i++) {
         const timestepPred = squeezedPred.slice([i, 0], [1, -1])
 
-        let sampledIndex
-        if (temperature === 0) {
-            sampledIndex = greedySampling(timestepPred)
-        } else {
-            sampledIndex = temperatureSampling(timestepPred, temperature)
-        }
+        let sampledIndex = greedySampling(timestepPred)
+        // if (temperature === 0) {
+        //     sampledIndex = greedySampling(timestepPred)
+        // } else {
+        //     sampledIndex = temperatureSampling(timestepPred, temperature)
+        // }
 
         predictedSequence.push(vocab[sampledIndex])
     }
