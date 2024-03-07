@@ -73,7 +73,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const dense1 = tf.layers
             .dense({
                 units: 4096,
-                activation: 'linear',
+                activation: 'swish',
                 useBias: true,
                 kernelInitializer: 'randomUniform'
             })
