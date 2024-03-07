@@ -1,4 +1,18 @@
-import * as tf from '@tensorflow/tfjs'
+import * as tfjs from '@tensorflow/tfjs'
+
+let tf = tfjs
+
+;(async function () {
+    if (typeof window === 'undefined') {
+        await tf.ready()
+        await tf.setBackend('tensorflow')
+        tf = await import('@tensorflow/tfjs-node-gpu')
+    }
+})()
+
+// import '@tensorflow/tfjs-backend-wasm'
+// import '@tensorflow/tfjs-backend-webgpu'
+// import '@tensorflow/tfjs-backend-webgl'
 
 class MixtureOfExpertsLayer extends tf.layers.Layer {
     constructor(config) {
@@ -136,15 +150,23 @@ class SimplifiedMoELayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(SimplifiedMoELayer)
 
-// class AttentionLayer extends tf.layers.Layer {
-//         // Step 1: Define a learnable query vector (assuming your features size is `n`)
-//         const query = tf.variable(tf.randomNormal([this.vocab.length, 1]))
+// export class AttentionLayer extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.n = config.n
+//     }
 
+//     build(inputShape) {
+//         // Step 1: Define a learnable query vector (assuming your features size is `n`)
+//         this.query = tf.variable(tf.randomNormal([this.n, 1]))
+//     }
+
+//     call(inputs) {
 //         // Step 2: Compute attention scores using dot product
 //         // `lstmOutput` shape: [batch, timesteps, features]
 //         // `query` shape: [features, 1]
 //         // We need to perform a batch dot product, resulting in a shape of [batch, timesteps, 1] for scores
-//         const scores = tf.matMul(dense1, query, false, true)
+//         const scores = tf.matMul(inputs, this.query, false, true)
 
 //         // Step 3: Apply softmax to get attention weights
 //         const weights = tf.softmax(scores, 1) // Softmax over the timesteps dimension
@@ -153,8 +175,23 @@ tf.serialization.registerClass(SimplifiedMoELayer)
 //         // `weights` shape: [batch, timesteps, 1]
 //         // `lstmOutput` shape: [batch, timesteps, features]
 //         // We need to multiply and sum over the timesteps, resulting in [batch, features] for the context vector
-//         const contextVector = tf.sum(tf.mul(dense1, weights), 1)
+//         const output = tf.sum(tf.mul(inputs, weights), 1)
+
+//         return output
+//     }
+
+//     getConfig() {
+//         return {
+//             units: this.n
+//         }
+//     }
+
+//     static get className() {
+//         return 'AttentionLayer'
+//     }
 // }
+
+tf.serialization.registerClass(AttentionLayer)
 
 // class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
 //     constructor(config) {
