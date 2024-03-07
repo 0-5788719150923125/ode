@@ -205,6 +205,7 @@ function makePrediction(temperature = 1.0) {
 
     // Predict with the model
     const prediction = model.predict(xsTensor)
+    console.log(prediction)
 
     // Squeeze to remove batch dimension since batch size is 1
     const squeezedPred = prediction.squeeze()
