@@ -86,17 +86,5 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             .apply(previousLayerOutput)
 
         this.model = tf.model({ inputs: inputs, outputs: finalDense })
-
-        // Compile the model
-        this.lossFunctions = [tf.losses.softmaxCrossEntropy]
-        this.model.compile({
-            optimizer: tf.train.rmsprop(
-                this.config.learningRate || 1e-2,
-                this.config.decay || 0,
-                this.config.momentum || 0,
-                this.config.epsilon || 1e-8
-            ),
-            loss: this.lossFunctions
-        })
     }
 }

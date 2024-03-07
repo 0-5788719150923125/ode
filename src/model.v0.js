@@ -32,7 +32,14 @@ export default class ModelBase {
         await tf.setBackend(this.config.backend || 'cpu')
         tf.enableProdMode()
         console.log('Backend:', tf.backend())
-        this.build()
+        console.log(this.config)
+        if (this.config.loadFromFile) {
+            console.log('loading from file')
+            await this.load()
+        } else {
+            this.build()
+        }
+
         this.postInit()
     }
 
@@ -41,6 +48,17 @@ export default class ModelBase {
     }
 
     postInit() {
+        // Compile the model
+        this.lossFunctions = [tf.losses.softmaxCrossEntropy]
+        this.model.compile({
+            optimizer: tf.train.rmsprop(
+                this.config.learningRate || 1e-2,
+                this.config.decay || 0,
+                this.config.momentum || 0,
+                this.config.epsilon || 1e-8
+            ),
+            loss: this.lossFunctions
+        })
         console.log(this.model.summary())
         console.log(this.model.optimizer)
     }
@@ -57,6 +75,11 @@ export default class ModelBase {
         const fs = await import('fs')
         fs.mkdirSync(path, { recursive: true })
         await this.model.save(`file://${path}`, { includeOptimizer: false })
+    }
+
+    async load(path = `data/models/ode`) {
+        this.model = await tf.loadLayersModel(`file://${path}/model.json`)
+        console.log('successfully loaded model from disk')
     }
 }
 

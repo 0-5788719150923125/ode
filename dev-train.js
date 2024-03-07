@@ -12,15 +12,16 @@ export async function trainModel(args) {
     }
 
     const net = new ODE({
-        backend: trainArgs.backend,
         layout: [256, 256],
         learningRate: 0.01,
         decay: 0.9,
         momentum: 0,
         epsilon: 1e-8,
         embeddingDimensions: 256,
+        backend: trainArgs.backend,
         contextLength: trainArgs.sampleLen,
-        maxSequenceLength: trainArgs.sampleLen
+        maxSequenceLength: trainArgs.sampleLen,
+        ...trainArgs
     })
 
     await net.init()
