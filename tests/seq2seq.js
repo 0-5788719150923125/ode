@@ -12,17 +12,20 @@ function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
         tf.layers.embedding({
             inputDim: vocabSize,
             inputLength: maxSequenceLength,
-            outputDim: 128,
+            outputDim: 256,
             maskZero: true
         })
     )
 
     model.add(
-        tf.layers.gru({
-            units: 128,
-            returnSequences: false,
-            stateful: false,
-            returnState: false
+        tf.layers.bidirectional({
+            layer: tf.layers.gru({
+                units: 128,
+                returnSequences: false,
+                stateful: false,
+                returnState: false
+            }),
+            mergeMode: 'concat'
         })
     )
 
@@ -33,11 +36,14 @@ function createGRUModel(vocabSize, batchSize, maxSequenceLength) {
     )
 
     model.add(
-        tf.layers.gru({
-            units: 128,
-            returnSequences: true,
-            stateful: false,
-            returnState: false
+        tf.layers.bidirectional({
+            layer: tf.layers.gru({
+                units: 128,
+                returnSequences: true,
+                stateful: false,
+                returnState: false
+            }),
+            mergeMode: 'concat'
         })
     )
 
@@ -66,47 +72,6 @@ const dataGenerator = stringSampler(maxSequenceLength, shaks13)
 const dataset = tf.data.generator(
     createBatchGenerator(dataGenerator, vocab, batchSize, maxSequenceLength)
 )
-
-// function greedySampling(preds) {
-//     console.log(preds.dataSync().slice(0, 20))
-//     return preds.argMax(-1).dataSync()
-// }
-
-// function temperatureSampling(preds, temperature = 1.0) {
-//     // Adjust the predictions by temperature
-//     let logits = preds.log()
-//     logits = logits.div(tf.scalar(temperature))
-//     let expPreds = logits.exp()
-//     let probs = expPreds.div(expPreds.sum())
-
-//     // Sample from the adjusted probabilities
-//     return tf.multinomial(probs, 1).dataSync()[0]
-// }
-
-// function makePrediction(temperature = 1.0) {
-//     const sample = dataGenerator.next().value
-//     const textIndices = preprocessData(sample, vocab, maxSequenceLength, 'left')
-//     const xs = textIndices.slice(0, maxSequenceLength / 2)
-//     const xsTensor = tf.tensor2d([xs], [1, maxSequenceLength / 2], 'int32')
-
-//     // Predict with the model
-//     const prediction = model.predict(xsTensor)
-
-//     // Use the last time step's output for sampling
-//     const lastStepPred = prediction
-//         .squeeze()
-//         .slice([prediction.shape[1] - 1], [1])
-
-//     let sampledIndex
-//     if (temperature === 0) {
-//         sampledIndex = greedySampling(lastStepPred)
-//     } else {
-//         sampledIndex = temperatureSampling(lastStepPred, temperature)
-//     }
-
-//     const predictedChar = vocab[sampledIndex]
-//     console.log('Predicted character:', predictedChar)
-// }
 
 function makePrediction(temperature = 1.0) {
     const sample = dataGenerator.next().value
