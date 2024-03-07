@@ -4,9 +4,9 @@ let tf = tfjs
 
 ;(async function () {
     if (typeof window === 'undefined') {
+        tf = await import('@tensorflow/tfjs-node-gpu')
         await tf.ready()
         await tf.setBackend('tensorflow')
-        tf = await import('@tensorflow/tfjs-node-gpu')
     }
 })()
 
@@ -190,8 +190,6 @@ tf.serialization.registerClass(SimplifiedMoELayer)
 //         return 'AttentionLayer'
 //     }
 // }
-
-tf.serialization.registerClass(AttentionLayer)
 
 // class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
 //     constructor(config) {
