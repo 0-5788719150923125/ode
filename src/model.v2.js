@@ -70,17 +70,10 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             previousLayerOutput = layerNorm
         })
 
-        const dense1 = tf.layers
-            .dense({
-                units: 4096,
-                activation: 'swish',
-                useBias: true,
-                kernelInitializer: 'randomUniform'
-            })
-            .apply(previousLayerOutput)
-
         // Apply dropout on the embeddings layer
-        const dropout2 = tf.layers.dropout({ rate: 0.1 }).apply(dense1)
+        const dropout2 = tf.layers
+            .dropout({ rate: 0.1 })
+            .apply(previousLayerOutput)
 
         // Add the final dense layer
         const finalDense = tf.layers
