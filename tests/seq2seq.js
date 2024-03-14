@@ -46,12 +46,6 @@ function createGRUModel(vocabSize, batchSize) {
         })
     )
 
-    // model.add(
-    //     tf.layers.repeatVector({
-    //         n: maxSequenceLength
-    //     })
-    // )
-
     model.add(
         tf.layers.bidirectional({
             layer: tf.layers.gru({

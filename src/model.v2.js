@@ -21,37 +21,37 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const inputs = tf.input({ shape: [null] })
         const embeddings = tf.layers
             .embedding({
-                inputDim: this.vocab.length, // Should match size of the vocabulary
-                outputDim: 256, // Dimension of the embedding vectors
-                embeddingsInitializer: 'glorotUniform',
-                embeddingsConstraint: tf.constraints.maxNorm({
-                    maxValue: 0.2
-                }),
-                embeddingsRegularizer: tf.regularizers.l2(),
+                inputDim: this.vocab.length,
+                outputDim: 256,
+                // embeddingsInitializer: 'glorotUniform',
+                // embeddingsConstraint: tf.constraints.maxNorm({
+                //     maxValue: 0.2
+                // }),
+                // embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
             .apply(inputs)
 
-        const layers = [512, 256, 128, 64, 32, 16, 8, 4, 2]
+        const layers = [512, 256, 128]
         let recurrentOutput = embeddings
-        layers.forEach((units, i) => {
+        layers.forEach((size, i) => {
             const layer = tf.layers
-                .lstm({
-                    units: units,
-                    dropout: 0.1,
-                    stateful: false,
+                .gru({
+                    units: size,
+                    // dropout: 0,
+                    // stateful: false,
                     activation: 'softsign',
-                    kernelInitializer: 'glorotUniform',
-                    kernelConstraint: tf.constraints.maxNorm({
-                        axis: 0,
-                        maxValue: 2.0
-                    }),
+                    // kernelInitializer: 'glorotUniform',
+                    // kernelConstraint: tf.constraints.maxNorm({
+                    //     axis: 0,
+                    //     maxValue: 2.0
+                    // }),
                     recurrentActivation: 'sigmoid',
-                    recurrentInitializer: 'orthogonal',
-                    recurrentConstraint: tf.constraints.maxNorm({
-                        axis: 0,
-                        maxValue: 2.0
-                    }),
+                    // recurrentInitializer: 'orthogonal',
+                    // recurrentConstraint: tf.constraints.maxNorm({
+                    //     axis: 0,
+                    //     maxValue: 2.0
+                    // }),
                     returnSequences: i < layers.length - 1 // False for the last recurrent layer
                 })
                 .apply(recurrentOutput)
