@@ -22,7 +22,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const embeddings = tf.layers
             .embedding({
                 inputDim: this.vocab.length, // Should match size of the vocabulary
-                outputDim: this.config.embeddingDimensions, // Dimension of the embedding vectors
+                outputDim: 256, // Dimension of the embedding vectors
                 embeddingsInitializer: 'glorotUniform',
                 embeddingsConstraint: tf.constraints.maxNorm({
                     maxValue: 0.2
@@ -32,48 +32,32 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             .apply(inputs)
 
-        // Apply dropout on the embeddings layer
-        const dropout1 = tf.layers.dropout({ rate: 0.1 }).apply(embeddings)
-
-        // Add recurrent layers
-        let previousLayerOutput = dropout1
-        this.config.layout.forEach((units, i) => {
-            const bidirectional = tf.layers
-                .bidirectional({
-                    layer: tf.layers.lstm({
-                        units: units,
-                        dropout: 0.1,
-                        stateful: false,
-                        activation: 'softsign',
-                        kernelInitializer: 'glorotUniform',
-                        kernelConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
-                        recurrentActivation: 'sigmoid',
-                        recurrentInitializer: 'orthogonal',
-                        recurrentConstraint: tf.constraints.maxNorm({
-                            axis: 0,
-                            maxValue: 2.0
-                        }),
-                        returnSequences: i < this.config.layout.length - 1 // False for the last recurrent layer
+        const layers = [512, 256, 128, 64, 32, 16, 8, 4, 2]
+        let recurrentOutput = embeddings
+        layers.forEach((units, i) => {
+            const layer = tf.layers
+                .lstm({
+                    units: units,
+                    dropout: 0.1,
+                    stateful: false,
+                    activation: 'softsign',
+                    kernelInitializer: 'glorotUniform',
+                    kernelConstraint: tf.constraints.maxNorm({
+                        axis: 0,
+                        maxValue: 2.0
                     }),
-                    mergeMode: 'concat'
+                    recurrentActivation: 'sigmoid',
+                    recurrentInitializer: 'orthogonal',
+                    recurrentConstraint: tf.constraints.maxNorm({
+                        axis: 0,
+                        maxValue: 2.0
+                    }),
+                    returnSequences: i < layers.length - 1 // False for the last recurrent layer
                 })
-                .apply(previousLayerOutput)
+                .apply(recurrentOutput)
 
-            const layerNorm = tf.layers
-                .layerNormalization({
-                    epsilon: 1e-3
-                })
-                .apply(bidirectional)
-            previousLayerOutput = layerNorm
+            recurrentOutput = layer
         })
-
-        // Apply dropout on the embeddings layer
-        const dropout2 = tf.layers
-            .dropout({ rate: 0.1 })
-            .apply(previousLayerOutput)
 
         // Add the final dense layer
         const finalDense = tf.layers
@@ -81,7 +65,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 units: this.vocab.length,
                 activation: 'linear'
             })
-            .apply(dropout2)
+            .apply(recurrentOutput)
 
         this.model = tf.model({ inputs: inputs, outputs: finalDense })
     }

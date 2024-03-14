@@ -325,6 +325,54 @@ class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(SparseMixtureOfExpertsLayer)
 
+class SparseMoE {
+    constructor(options) {
+        this.numExperts = options.numExperts
+        this.expertLayers = []
+        this.gatingMechanism = tf.layers.dense({
+            units: this.numExperts,
+            activation: 'softmax'
+        })
+
+        // Initialize experts
+        for (let i = 0; i < this.numExperts; i++) {
+            const expertLayer = tf.layers.dense({
+                units: options.expertOutputUnits
+            })
+            this.expertLayers.push(expertLayer)
+        }
+    }
+
+    apply(input) {
+        const gateOutputs = this.gatingMechanism.apply(input)
+        let output = null
+
+        // Assume a simple selection mechanism: choosing the expert with the highest gate output
+        const selectedIndex = tf.argMax(gateOutputs, 1)
+        output = tf
+            .oneHot(selectedIndex, this.numExperts)
+            .mul(gateOutputs)
+            .sum(1)
+
+        // Apply selected expert. This is a simplification, real implementation may differ.
+        const expertOutputs = this.expertLayers.map((expert, index) => {
+            // This step needs to dynamically select the expert based on the selectedIndex.
+            // A more complex implementation might be required for actual sparse selection.
+            return expert.apply(input).mul(output)
+        })
+
+        // Combine expert outputs. This simplistic approach assumes only one expert is active.
+        // In reality, you might combine outputs based on weights from the gating mechanism.
+        return tf.stack(expertOutputs).sum(0)
+    }
+
+    static get className() {
+        return 'SparseMoE'
+    }
+}
+
+tf.serialization.registerClass(SparseMoE)
+
 // Generate some mock data with corrected type casting for 'oneHot'
 const xTrain = tf.randomNormal([1000, 10, 16]) // 1000 samples, 10 time steps, 64 features per step
 const yIndices = tf.floor(tf.randomUniform([1000], 0, 10)).toInt() // Correctly cast to int32
@@ -339,6 +387,12 @@ model.add(
         inputShape: [10, 16] // Ensure this matches your input data shape
     })
 )
+// model.add(
+//     new SparseMoE({
+//         expertOutputUnits: 64,
+//         numExperts: 2
+//     })
+// )
 model.add(
     new SparseMixtureOfExpertsLayer({
         units: 64,

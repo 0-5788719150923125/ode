@@ -83,29 +83,80 @@ export default class ModelBase {
     }
 }
 
+// async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
+//     const fixedLength = this.config.maxSequenceLength
+
+//     const generated = tf.tidy(() => {
+//         let generated = prompt
+
+//         let tokenIndices = preprocessData(
+//             prompt,
+//             this.vocab,
+//             fixedLength,
+//             'left'
+//         )
+
+//         let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+
+//         for (let i = 0; i < maxNewChars; i++) {
+//             const output = this.model.predict(inputs).squeeze()
+
+//             let winnerIndex
+//             if (temperature === 0) {
+//                 winnerIndex = greedySampling(output)
+//             } else {
+//                 // winnerIndex = topKSampling(output, 4)
+//                 winnerIndex = temperatureSampling(output, temperature)
+//             }
+
+//             if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
+//                 winnerIndex = 0 // Fallback to the first index if out of bounds
+//             }
+
+//             const nextChar = this.vocab[winnerIndex]
+//             generated += nextChar
+
+//             // Update tokenIndices and inputTensor for the next iteration
+//             tokenIndices.push(winnerIndex)
+//             if (tokenIndices.length > fixedLength) {
+//                 tokenIndices.shift() // Remove the oldest token
+//             }
+
+//             inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+//         }
+//         return generated
+//     })
+
+//     return generated
+// }
+
 async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     const fixedLength = this.config.maxSequenceLength
 
+    // Assuming preprocessData returns an array of token indices
+    let tokenIndices = preprocessData(prompt, this.vocab, fixedLength, 'left')
+
     const generated = tf.tidy(() => {
-        let generated = prompt
+        let generatedText = prompt
 
-        let tokenIndices = preprocessData(
-            prompt,
-            this.vocab,
-            fixedLength,
-            'left'
-        )
+        // Initialize a TensorBuffer for more efficient manipulation
+        const inputBuffer = tf.buffer([1, fixedLength], 'int32')
 
-        let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+        // Correctly set initial token indices into the buffer
+        tokenIndices.forEach((tokenIndex, index) => {
+            inputBuffer.set(tokenIndex, 0, index)
+        })
 
         for (let i = 0; i < maxNewChars; i++) {
+            // Convert the buffer to a tensor for prediction
+            const inputs = inputBuffer.toTensor()
+
             const output = this.model.predict(inputs).squeeze()
 
             let winnerIndex
             if (temperature === 0) {
                 winnerIndex = greedySampling(output)
             } else {
-                // winnerIndex = topKSampling(output, 4)
                 winnerIndex = temperatureSampling(output, temperature)
             }
 
@@ -114,17 +165,17 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
             }
 
             const nextChar = this.vocab[winnerIndex]
-            generated += nextChar
+            generatedText += nextChar
 
-            // Update tokenIndices and inputTensor for the next iteration
-            tokenIndices.push(winnerIndex)
-            if (tokenIndices.length > fixedLength) {
-                tokenIndices.shift() // Remove the oldest token
+            // Update the inputBuffer for the next iteration
+            // Shift left by one position and push the new winnerIndex at the end
+            for (let j = 0; j < fixedLength - 1; j++) {
+                inputBuffer.set(inputBuffer.get(0, j + 1), 0, j)
             }
-
-            inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
+            inputBuffer.set(winnerIndex, 0, fixedLength - 1)
         }
-        return generated
+
+        return generatedText
     })
 
     return generated
