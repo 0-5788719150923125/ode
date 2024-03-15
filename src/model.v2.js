@@ -22,8 +22,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const embeddings = tf.layers
             .embedding({
                 inputDim: this.vocab.length,
-                outputDim: 256,
-                // embeddingsInitializer: 'glorotUniform',
+                outputDim: 16,
+                embeddingsInitializer: 'glorotUniform',
                 // embeddingsConstraint: tf.constraints.maxNorm({
                 //     maxValue: 0.2
                 // }),
@@ -32,7 +32,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             .apply(inputs)
 
-        const layers = [512, 256, 128]
+        const layers = [256, 256, 256, 256]
         let recurrentOutput = embeddings
         layers.forEach((size, i) => {
             const layer = tf.layers
@@ -41,13 +41,13 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                     // dropout: 0,
                     // stateful: false,
                     activation: 'softsign',
-                    // kernelInitializer: 'glorotUniform',
+                    kernelInitializer: 'glorotUniform',
                     // kernelConstraint: tf.constraints.maxNorm({
                     //     axis: 0,
                     //     maxValue: 2.0
                     // }),
                     recurrentActivation: 'sigmoid',
-                    // recurrentInitializer: 'orthogonal',
+                    recurrentInitializer: 'orthogonal',
                     // recurrentConstraint: tf.constraints.maxNorm({
                     //     axis: 0,
                     //     maxValue: 2.0
