@@ -153,6 +153,36 @@ export class TransformerEncoderBlock extends tf.layers.Layer {
 }
 tf.serialization.registerClass(TransformerEncoderBlock)
 
+export class ResidualConnectionLayer extends tf.layers.Layer {
+    constructor() {
+        super({})
+    }
+
+    build(inputShape) {
+        // No weights to initialize, but you might need to perform some checks or initializations based on input shapes.
+    }
+
+    computeOutputShape(inputShape) {
+        // Assuming inputShape[0] matches inputShape[1] as they should be identical for residual connections.
+        return inputShape[0]
+    }
+
+    call(inputs) {
+        // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
+        if (inputs.length !== 2) {
+            throw new Error('ResidualConnectionLayer expects 2 inputs.')
+        }
+
+        const [originalInput, blockOutput] = inputs
+        return tf.add(originalInput, blockOutput)
+    }
+
+    static get className() {
+        return 'ResidualConnectionLayer'
+    }
+}
+tf.serialization.registerClass(ResidualConnectionLayer)
+
 // class MixtureOfExpertsLayer extends tf.layers.Layer {
 //     constructor(config) {
 //         super(config)
