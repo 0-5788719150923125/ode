@@ -17,23 +17,23 @@ import * as tf from '@tensorflow/tfjs'
 export class CausalAttentionLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.dModel = config.dModel || 256 // Set default if dModel is not provided
+        this.units = config.units || 256
     }
 
     build(inputShape) {
         // Initialize the necessary dense layers for internal transformations
         this.queryDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
         this.keyDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
         this.valueDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
@@ -44,8 +44,7 @@ export class CausalAttentionLayer extends tf.layers.Layer {
         this.keyDense.build([null, lastDimension])
         this.valueDense.build([null, lastDimension])
 
-        // Collecting weights from the internal layers manually if needed
-        // This is not necessary for training but if you need to manually access these weights
+        // REQUIRED: collecting weights from the internal layers manually
         this._trainableWeights = [
             ...this.queryDense.trainableWeights,
             ...this.keyDense.trainableWeights,
@@ -56,42 +55,8 @@ export class CausalAttentionLayer extends tf.layers.Layer {
     }
 
     computeOutputShape(inputShape) {
-        // Assume 'values' has the defining output shape
         return inputShape
     }
-
-    // call(inputs) {
-    //     return tf.tidy(() => {
-    //         const queries = this.queryDense.apply(inputs)
-    //         const keys = this.keyDense.apply(inputs)
-    //         const values = this.valueDense.apply(inputs)
-
-    //         const keysTransposed = tf.transpose(keys, [0, 2, 1])
-
-    //         let scores = tf.matMul(queries, keysTransposed)
-    //         scores = tf.div(scores, tf.sqrt(tf.scalar(this.dModel)))
-
-    //         // Creating a causal mask without using .triu()
-    //         const seqLen = queries.shape[1]
-    //         const mask = tf
-    //             .tensor2d(
-    //                 Array.from({ length: seqLen }, (_, i) =>
-    //                     Array.from({ length: seqLen }, (_, j) =>
-    //                         i >= j ? 0 : -1e9
-    //                     )
-    //                 )
-    //             )
-    //             .expandDims(0)
-    //             .tile([queries.shape[0], 1, 1]) // Adjust the tiling to match batch size
-
-    //         scores = tf.add(scores, mask)
-
-    //         const attentionWeights = tf.softmax(scores, -1)
-    //         const contextVector = tf.matMul(attentionWeights, values)
-
-    //         return contextVector
-    //     })
-    // }
 
     call(inputs) {
         return tf.tidy(() => {
@@ -102,7 +67,7 @@ export class CausalAttentionLayer extends tf.layers.Layer {
             const keysTransposed = tf.transpose(keys, [0, 2, 1])
 
             let scores = tf.matMul(queries, keysTransposed)
-            scores = tf.div(scores, tf.sqrt(tf.scalar(this.dModel)))
+            scores = tf.div(scores, tf.sqrt(tf.scalar(this.units)))
 
             // Manually creating a causal mask
             const seqLen = queries.shape[1]
@@ -121,6 +86,7 @@ export class CausalAttentionLayer extends tf.layers.Layer {
 
             scores = tf.add(scores, maskExpanded)
 
+            // compute the scaled dot product
             const attentionWeights = tf.softmax(scores, -1)
             const contextVector = tf.matMul(attentionWeights, values)
 

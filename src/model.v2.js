@@ -47,7 +47,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             recurrentOutput = layer
 
             if (intermediateLayer) {
-                const attention = new CausalAttentionLayer({ dModel: 128 })
+                const attention = new CausalAttentionLayer({ units: 128 })
                 recurrentOutput = attention.apply(recurrentOutput)
             }
         })
