@@ -37,7 +37,7 @@ export async function startTraining(dataGenerator, args) {
 
     const dataset = batchGenerator(
         dataGenerator,
-        this.vocab,
+        this.tokenizer,
         trainArgs.batchSize,
         trainArgs.sampleLen,
         trainArgs.predictLength
@@ -182,7 +182,7 @@ function averageGradients(grads, accumulationSteps) {
     return accumulatedGrads
 }
 
-function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
+function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
     while (true) {
         let xsArray = []
         let ysArray = []
@@ -192,7 +192,7 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
 
             const textIndices = preprocessData(
                 sample,
-                vocab,
+                tokenizer.model,
                 inputLength, // because we predict n + 1
                 'left'
             )
@@ -212,7 +212,10 @@ function* batchGenerator(dataGenerator, vocab, batchSize, inputLength) {
             [batchSize, inputLength - 1],
             'int32'
         )
-        const ysTensor = tf.oneHot(tf.tensor1d(ysArray, 'int32'), vocab.length)
+        const ysTensor = tf.oneHot(
+            tf.tensor1d(ysArray, 'int32'),
+            tokenizer.getLength()
+        )
 
         yield { xs: xsTensor, ys: ysTensor }
     }

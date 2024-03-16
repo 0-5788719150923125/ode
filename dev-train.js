@@ -7,7 +7,7 @@ export async function trainModel(args) {
         gradientAccumulationSteps: 1,
         sampleLen: 64,
         generateEvery: 64,
-        predictLength: 50,
+        predictLength: 32,
         ...args
     }
 
@@ -24,7 +24,7 @@ export async function trainModel(args) {
 
     await net.init()
 
-    const dataset = stringSampler(trainArgs.sampleLen)
+    const dataset = stringSampler(trainArgs.sampleLen * 3)
 
     await net.train(dataset, trainArgs)
 }

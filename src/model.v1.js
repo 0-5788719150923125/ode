@@ -21,7 +21,7 @@ export default class ModelPrototype extends ModelBase {
 
         this.model.add(
             tf.layers.embedding({
-                inputDim: this.vocab.length,
+                inputDim: this.tokenizer.getLength(),
                 outputDim: this.config.embeddingDimensions,
                 maskZero: true
             })
@@ -43,7 +43,7 @@ export default class ModelPrototype extends ModelBase {
 
         this.model.add(
             tf.layers.dense({
-                units: this.vocab.length,
+                units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
         )

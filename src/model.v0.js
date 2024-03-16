@@ -11,6 +11,7 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
+import Tokenizer from './tokenizer.js'
 import { startTraining } from './train.js'
 import { preprocessData } from './utils.js'
 
@@ -18,13 +19,7 @@ export default class ModelBase {
     constructor(config) {
         this.model
         this.config = config
-        this.padToken = '�'
-        this.vocab = Array.from(
-            new Set(
-                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
-            )
-        )
-        this.vocab.unshift(this.padToken)
+        this.tokenizer = new Tokenizer()
     }
 
     async init() {
@@ -83,58 +78,16 @@ export default class ModelBase {
     }
 }
 
-// async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
-//     const fixedLength = this.config.maxSequenceLength
-
-//     const generated = tf.tidy(() => {
-//         let generated = prompt
-
-//         let tokenIndices = preprocessData(
-//             prompt,
-//             this.vocab,
-//             fixedLength,
-//             'left'
-//         )
-
-//         let inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
-
-//         for (let i = 0; i < maxNewChars; i++) {
-//             const output = this.model.predict(inputs).squeeze()
-
-//             let winnerIndex
-//             if (temperature === 0) {
-//                 winnerIndex = greedySampling(output)
-//             } else {
-//                 // winnerIndex = topKSampling(output, 4)
-//                 winnerIndex = temperatureSampling(output, temperature)
-//             }
-
-//             if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
-//                 winnerIndex = 0 // Fallback to the first index if out of bounds
-//             }
-
-//             const nextChar = this.vocab[winnerIndex]
-//             generated += nextChar
-
-//             // Update tokenIndices and inputTensor for the next iteration
-//             tokenIndices.push(winnerIndex)
-//             if (tokenIndices.length > fixedLength) {
-//                 tokenIndices.shift() // Remove the oldest token
-//             }
-
-//             inputs = tf.tensor2d([tokenIndices], [1, fixedLength], 'int32')
-//         }
-//         return generated
-//     })
-
-//     return generated
-// }
-
 async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     const fixedLength = this.config.maxSequenceLength
 
     // Assuming preprocessData returns an array of token indices
-    let tokenIndices = preprocessData(prompt, this.vocab, fixedLength, 'left')
+    let tokenIndices = preprocessData(
+        prompt,
+        this.tokenizer.model,
+        fixedLength,
+        'left'
+    )
 
     const generated = tf.tidy(() => {
         let generatedText = prompt
@@ -160,14 +113,15 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
                 winnerIndex = temperatureSampling(output, temperature)
             }
 
-            if (winnerIndex < 0 || winnerIndex >= this.vocab.length) {
+            if (winnerIndex < 0 || winnerIndex >= this.tokenizer.getLength()) {
                 winnerIndex = 0 // Fallback to the first index if out of bounds
             }
 
-            const nextChar = this.vocab[winnerIndex]
-            generatedText += nextChar
+            const nextChar = this.tokenizer.model.convert_ids_to_tokens([
+                winnerIndex
+            ])
+            generatedText += nextChar[0]
 
-            // Update the inputBuffer for the next iteration
             // Shift left by one position and push the new winnerIndex at the end
             for (let j = 0; j < fixedLength - 1; j++) {
                 inputBuffer.set(inputBuffer.get(0, j + 1), 0, j)

@@ -21,8 +21,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const inputs = tf.input({ shape: [null] })
         const embeddings = tf.layers
             .embedding({
-                inputDim: this.vocab.length,
-                outputDim: 16,
+                inputDim: this.tokenizer.getLength(),
+                outputDim: 256,
                 embeddingsInitializer: 'glorotUniform',
                 // embeddingsConstraint: tf.constraints.maxNorm({
                 //     maxValue: 0.2
@@ -32,7 +32,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             .apply(inputs)
 
-        const layers = [256, 256, 256, 256]
+        const layers = [128, 128, 128]
         let recurrentOutput = embeddings
         layers.forEach((size, i) => {
             const layer = tf.layers
@@ -62,7 +62,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         // Add the final dense layer
         const finalDense = tf.layers
             .dense({
-                units: this.vocab.length,
+                units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
             .apply(recurrentOutput)

@@ -54,12 +54,11 @@ export function findMatches(sequence1, sequence2) {
 
 export function preprocessData(
     text,
-    vocab,
+    tokenizer,
     maxSequenceLength,
     paddingSide = 'left'
 ) {
-    const chars = text.split('')
-    let indices = chars.map((char) => vocab.indexOf(char))
+    let indices = tokenizer.encode(text)
 
     // Ensure sequence is not longer than inputLength
     if (indices.length > maxSequenceLength) {
