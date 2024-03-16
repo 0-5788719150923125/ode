@@ -23,7 +23,7 @@ export function* elapsedTimeGenerator() {
     }
 }
 
-export function* emaGenerator(alpha = 0.01) {
+export function* emaGenerator(alpha = 0.001) {
     let ema = null
     while (true) {
         const newLoss = yield ema // Pause here and return exponential moving average

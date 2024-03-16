@@ -18,24 +18,22 @@ export class CausalAttentionLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.units = config.units || 256
+        this.kernelInitializer = config.kernelInitializer || 'glorotUniform'
     }
 
     build(inputShape) {
         // Initialize the necessary dense layers for internal transformations
         this.queryDense = tf.layers.dense({
             units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
+            kernelInitializer: this.kernelInitializer
         })
         this.keyDense = tf.layers.dense({
             units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
+            kernelInitializer: this.kernelInitializer
         })
         this.valueDense = tf.layers.dense({
             units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
+            kernelInitializer: this.kernelInitializer
         })
 
         // Ensuring internal layers are ready to be built with proper input shape

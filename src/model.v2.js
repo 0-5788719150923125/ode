@@ -32,22 +32,27 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const layers = [128, 128, 128]
         let recurrentOutput = embeddings
         layers.forEach((size, i) => {
-            const intermediateLayer = i < layers.length - 1
-            const layer = tf.layers
-                .gru({
-                    units: size,
-                    activation: 'softsign',
-                    kernelInitializer: 'glorotUniform',
-                    recurrentActivation: 'sigmoid',
-                    recurrentInitializer: 'orthogonal',
-                    returnSequences: intermediateLayer
+            const notLastLayer = i < layers.length - 1
+            const layer = tf.layers.gru({
+                units: size,
+                activation: 'softsign',
+                kernelInitializer: 'glorotUniform',
+                recurrentActivation: 'sigmoid',
+                recurrentInitializer: 'orthogonal',
+                returnSequences: notLastLayer
+            })
+            recurrentOutput = layer.apply(recurrentOutput)
+
+            const norm = tf.layers.layerNormalization({
+                epsilon: 1e-3
+            })
+            recurrentOutput = norm.apply(recurrentOutput)
+
+            if (notLastLayer) {
+                const attention = new CausalAttentionLayer({
+                    units: 128,
+                    kernelInitializer: 'glorotUniform'
                 })
-                .apply(recurrentOutput)
-
-            recurrentOutput = layer
-
-            if (intermediateLayer) {
-                const attention = new CausalAttentionLayer({ units: 128 })
                 recurrentOutput = attention.apply(recurrentOutput)
             }
         })
