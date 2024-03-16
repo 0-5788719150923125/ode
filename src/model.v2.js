@@ -35,13 +35,13 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             recurrentOutput = norm.apply(recurrentOutput)
 
-            // if (notLastLayer) {
-            //     const attention = new CausalAttentionLayer({
-            //         units: 128,
-            //         kernelInitializer: 'glorotUniform'
-            //     })
-            //     recurrentOutput = attention.apply(recurrentOutput)
-            // }
+            if (notLastLayer) {
+                const attention = new CausalAttentionLayer({
+                    units: 128,
+                    kernelInitializer: 'glorotUniform'
+                })
+                recurrentOutput = attention.apply(recurrentOutput)
+            }
         })
 
         // Add the final dense layer

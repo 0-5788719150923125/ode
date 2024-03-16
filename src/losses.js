@@ -1,12 +1,4 @@
-import * as tfjs from '@tensorflow/tfjs'
-
-let tf = tfjs
-
-;(async function () {
-    if (typeof window === 'undefined') {
-        tf = await import('@tensorflow/tfjs-node-gpu')
-    }
-})()
+import * as tf from '@tensorflow/tfjs'
 
 export function categoricalCrossentropy(target, output, fromLogits = false) {
     return tf.tidy(() => {

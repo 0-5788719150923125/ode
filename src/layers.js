@@ -1,19 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
 
-// let tf = tfjs
-
-// ;(async function () {
-//     if (typeof window === 'undefined') {
-//         tf = await import('@tensorflow/tfjs-node-gpu')
-//         await tf.ready()
-//         await tf.setBackend('tensorflow')
-//     }
-// })()
-
-// // import '@tensorflow/tfjs-backend-wasm'
-// // import '@tensorflow/tfjs-backend-webgpu'
-// // import '@tensorflow/tfjs-backend-webgl'
-
 export class CausalAttentionLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -98,6 +84,74 @@ export class CausalAttentionLayer extends tf.layers.Layer {
 }
 
 tf.serialization.registerClass(CausalAttentionLayer)
+
+export class TransformerEncoderBlock extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units
+    }
+
+    build(inputShape) {
+        // Dense layer for projecting input to the desired dimensionality
+        this.projection = this.addWeight(
+            'projection',
+            [inputShape[2], this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        // Causal attention layer
+        this.attention = new CausalAttentionLayer({
+            units: this.units,
+            kernelInitializer: 'glorotUniform'
+        })
+
+        // Feed-forward network components
+        this.ffn1 = tf.layers.dense({
+            units: this.units * 4, // Arbitrary expansion factor
+            activation: 'relu'
+        })
+
+        this.ffn2 = tf.layers.dense({
+            units: this.units // Project back to original dimensionality
+        })
+
+        // Normalization layers
+        this.norm1 = tf.layers.layerNormalization({ axis: -1 })
+        this.norm2 = tf.layers.layerNormalization({ axis: -1 })
+
+        super.build(inputShape) // Mark the layer as built
+    }
+
+    call(inputs) {
+        let x = inputs
+
+        // Attention with residual connection
+        const attentionOutput = this.attention.apply(x)
+
+        // Make sure to wrap inputs in an array
+        x = tf.layers.add().apply([x, attentionOutput])
+
+        // Apply first normalization
+        x = this.norm1.apply(x)
+
+        // Feedforward network with residual connection
+        let ffnOutput = this.ffn1.apply(x)
+        ffnOutput = this.ffn2.apply(ffnOutput)
+        // Again, ensure we're passing an array of tensors to add
+        x = tf.layers.add().apply([x, ffnOutput])
+
+        // Apply second normalization
+        x = this.norm2.apply(x)
+
+        return x
+    }
+
+    static get className() {
+        return 'TransformerEncoderBlock'
+    }
+}
+tf.serialization.registerClass(TransformerEncoderBlock)
 
 // class MixtureOfExpertsLayer extends tf.layers.Layer {
 //     constructor(config) {
