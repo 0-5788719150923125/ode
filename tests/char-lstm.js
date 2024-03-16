@@ -82,7 +82,12 @@ const generate = (
 
     let generated = ''
 
+    let totalDuration = 0
+    let count = 0
+
     while (generated.length < displayLength) {
+        const startTime = performance.now()
+
         const inputBuffer = new tf.TensorBuffer([1, sampleLen, charSetSize])
 
         ;[...Array(sampleLen)].map((_, i) =>
@@ -112,8 +117,15 @@ const generate = (
         generated += charSet[winnerIndex]
         sentenceIndices = sentenceIndices.slice(1)
         sentenceIndices.push(winnerIndex)
+
+        const endTime = performance.now()
+        const duration = endTime - startTime
+        totalDuration += duration
+        count++
     }
-    console.log(`Generated text (temperature=${temperature}):\n ${generated}\n`)
+
+    console.log(`Generated text (temperature=${temperature}):\n${generated}\n`)
+    console.log(`Average duration per iteration: ${totalDuration / count} ms`)
 }
 
 ;(async () => {
@@ -125,7 +137,7 @@ const generate = (
     const batchSize = 128 // hyperparameter controlling the frequency weights are updated
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     const displayLength = 120 // how many characters you want to generate after training
-    const lstmLayerSize = [128, 128] // the configuration of eah sequential lstm network
+    const lstmLayerSize = [16, 16, 16] // the configuration of eah sequential lstm network
     const temperatures = [0, 0.3, 0.7]
 
     const charSet = Array.from(new Set(Array.from(text)))
