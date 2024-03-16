@@ -5,7 +5,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
 
-        // Add the embedding layer as the first layer
         const inputs = this.tf.input({ shape: [null] })
         const embeddings = this.tf.layers
             .embedding({
@@ -19,6 +18,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const layers = [128, 128, 128, 128]
         let recurrentOutput = embeddings
         layers.forEach((size, i) => {
+            const notFirstLayer = i !== 0
             const notLastLayer = i < layers.length - 1
             const layer = this.tf.layers.gru({
                 units: size,
@@ -30,7 +30,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             const currentOutput = layer.apply(recurrentOutput)
 
-            if (i !== 0 && notLastLayer) {
+            if (notFirstLayer && notLastLayer) {
                 const residual = new ResidualConnectionLayer()
                 recurrentOutput = residual.apply([
                     currentOutput,
@@ -47,7 +47,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
 
             if (notLastLayer) {
                 const attention = new CausalAttentionLayer({
-                    units: 128,
+                    units: size,
                     kernelInitializer: 'glorotUniform'
                 })
                 recurrentOutput = attention.apply(recurrentOutput)
@@ -55,13 +55,13 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         })
 
         // Add the final dense layer
-        const finalDense = this.tf.layers
+        const outputs = this.tf.layers
             .dense({
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
             .apply(recurrentOutput)
 
-        this.model = this.tf.model({ inputs: inputs, outputs: finalDense })
+        this.model = this.tf.model({ inputs, outputs })
     }
 }
