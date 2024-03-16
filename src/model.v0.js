@@ -17,6 +17,7 @@ import { preprocessData } from './utils.js'
 
 export default class ModelBase {
     constructor(config) {
+        this.tf = tf
         this.model
         this.config = config
         this.tokenizer = new Tokenizer()

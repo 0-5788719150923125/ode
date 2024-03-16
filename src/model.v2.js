@@ -1,16 +1,3 @@
-import * as tfjs from '@tensorflow/tfjs'
-
-let tf = tfjs
-
-;(async function () {
-    if (typeof window === 'undefined') {
-        tf = await import('@tensorflow/tfjs-node-gpu')
-    }
-})()
-
-import '@tensorflow/tfjs-backend-wasm'
-import '@tensorflow/tfjs-backend-webgpu'
-import '@tensorflow/tfjs-backend-webgl'
 import ModelBase from './model.v0.js'
 import { CausalAttentionLayer } from './layers.js'
 
@@ -19,8 +6,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         super.build()
 
         // Add the embedding layer as the first layer
-        const inputs = tf.input({ shape: [null] })
-        const embeddings = tf.layers
+        const inputs = this.tf.input({ shape: [null] })
+        const embeddings = this.tf.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: 64,
@@ -33,7 +20,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         let recurrentOutput = embeddings
         layers.forEach((size, i) => {
             const notLastLayer = i < layers.length - 1
-            const layer = tf.layers.gru({
+            const layer = this.tf.layers.gru({
                 units: size,
                 activation: 'softsign',
                 kernelInitializer: 'glorotUniform',
@@ -43,28 +30,28 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             recurrentOutput = layer.apply(recurrentOutput)
 
-            const norm = tf.layers.layerNormalization({
+            const norm = this.tf.layers.layerNormalization({
                 epsilon: 1e-3
             })
             recurrentOutput = norm.apply(recurrentOutput)
 
-            if (notLastLayer) {
-                const attention = new CausalAttentionLayer({
-                    units: 128,
-                    kernelInitializer: 'glorotUniform'
-                })
-                recurrentOutput = attention.apply(recurrentOutput)
-            }
+            // if (notLastLayer) {
+            //     const attention = new CausalAttentionLayer({
+            //         units: 128,
+            //         kernelInitializer: 'glorotUniform'
+            //     })
+            //     recurrentOutput = attention.apply(recurrentOutput)
+            // }
         })
 
         // Add the final dense layer
-        const finalDense = tf.layers
+        const finalDense = this.tf.layers
             .dense({
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
             .apply(recurrentOutput)
 
-        this.model = tf.model({ inputs: inputs, outputs: finalDense })
+        this.model = this.tf.model({ inputs: inputs, outputs: finalDense })
     }
 }

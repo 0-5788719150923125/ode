@@ -1,16 +1,3 @@
-import * as tfjs from '@tensorflow/tfjs'
-
-let tf = tfjs
-
-;(async function () {
-    if (typeof window === 'undefined') {
-        tf = await import('@tensorflow/tfjs-node-gpu')
-    }
-})()
-
-import '@tensorflow/tfjs-backend-wasm'
-import '@tensorflow/tfjs-backend-webgpu'
-import '@tensorflow/tfjs-backend-webgl'
 import ModelBase from './model.v0.js'
 
 export default class ModelPrototype extends ModelBase {
