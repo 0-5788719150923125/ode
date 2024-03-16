@@ -25,9 +25,12 @@ export default class ModelBase {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
+
         tf.enableProdMode()
+
         console.log('Backend:', tf.backend())
         console.log(this.config)
+
         if (this.config.loadFromFile) {
             console.log('loading from file')
             await this.load()
@@ -84,7 +87,7 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     // Assuming preprocessData returns an array of token indices
     let tokenIndices = preprocessData(
         prompt,
-        this.tokenizer.model,
+        this.tokenizer,
         fixedLength,
         'left'
     )
@@ -117,10 +120,8 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
                 winnerIndex = 0 // Fallback to the first index if out of bounds
             }
 
-            const nextChar = this.tokenizer.model.convert_ids_to_tokens([
-                winnerIndex
-            ])
-            generatedText += nextChar[0]
+            const nextToken = this.tokenizer.decode([winnerIndex])
+            generatedText += nextToken
 
             // Shift left by one position and push the new winnerIndex at the end
             for (let j = 0; j < fixedLength - 1; j++) {

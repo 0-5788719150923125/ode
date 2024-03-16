@@ -192,7 +192,7 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
 
             const textIndices = preprocessData(
                 sample,
-                tokenizer.model,
+                tokenizer,
                 inputLength, // because we predict n + 1
                 'left'
             )

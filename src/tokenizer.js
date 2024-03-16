@@ -17,4 +17,12 @@ export default class Tokenizer {
     getLength() {
         return this.model.vocab_size
     }
+
+    encode(string) {
+        return this.model.encode(string)
+    }
+
+    decode(sequence) {
+        return this.model.decode(sequence)
+    }
 }

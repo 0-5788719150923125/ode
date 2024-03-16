@@ -22,12 +22,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const embeddings = tf.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: 256,
+                outputDim: 64,
                 embeddingsInitializer: 'glorotUniform',
-                // embeddingsConstraint: tf.constraints.maxNorm({
-                //     maxValue: 0.2
-                // }),
-                // embeddingsRegularizer: tf.regularizers.l2(),
                 maskZero: true
             })
             .apply(inputs)
@@ -38,20 +34,10 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             const layer = tf.layers
                 .gru({
                     units: size,
-                    // dropout: 0,
-                    // stateful: false,
                     activation: 'softsign',
                     kernelInitializer: 'glorotUniform',
-                    // kernelConstraint: tf.constraints.maxNorm({
-                    //     axis: 0,
-                    //     maxValue: 2.0
-                    // }),
                     recurrentActivation: 'sigmoid',
                     recurrentInitializer: 'orthogonal',
-                    // recurrentConstraint: tf.constraints.maxNorm({
-                    //     axis: 0,
-                    //     maxValue: 2.0
-                    // }),
                     returnSequences: i < layers.length - 1 // False for the last recurrent layer
                 })
                 .apply(recurrentOutput)
