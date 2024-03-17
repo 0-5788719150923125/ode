@@ -227,11 +227,17 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             await this.save()
         }
 
-        const prompt = dataGenerator.next().value.slice(1, randomBetween(3, 16))
+        const maxLength = 50
+        const seedLength = randomBetween(3, 16)
+        const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const temp of [0, 0.3, 0.7]) {
-            const output = await this.generate(prompt, temp, 80, false)
-            console.log(`TEMPERATURE: ${temp}`)
+            const startTime = performance.now()
+            const output = await this.generate(prompt, temp, maxLength, false)
+            const endTime = performance.now()
+            console.log(
+                `TEMPERATURE: ${temp}, TIME: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
+            )
             console.log(output)
         }
     }

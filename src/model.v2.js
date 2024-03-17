@@ -9,13 +9,13 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const embeddings = this.tf.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: 64,
+                outputDim: 256,
                 embeddingsInitializer: 'glorotUniform',
                 maskZero: true
             })
             .apply(inputs)
 
-        const layers = [128, 128, 128, 128]
+        const layers = [96, 96, 96, 96, 96]
         let recurrentOutput = embeddings
         layers.forEach((size, i) => {
             const notFirstLayer = i !== 0
@@ -45,16 +45,15 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             recurrentOutput = norm.apply(recurrentOutput)
 
-            if (notLastLayer) {
-                const attention = new CausalAttentionLayer({
-                    units: size,
-                    kernelInitializer: 'glorotUniform'
-                })
-                recurrentOutput = attention.apply(recurrentOutput)
-            }
+            // if (notLastLayer) {
+            //     const attention = new CausalAttentionLayer({
+            //         units: size,
+            //         kernelInitializer: 'glorotUniform'
+            //     })
+            //     recurrentOutput = attention.apply(recurrentOutput)
+            // }
         })
 
-        // Add the final dense layer
         const outputs = this.tf.layers
             .dense({
                 units: this.tokenizer.getLength(),

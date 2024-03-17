@@ -137,7 +137,7 @@ const generate = (
     const batchSize = 128 // hyperparameter controlling the frequency weights are updated
     const validationSplit = 0.0625 // fraction of training data which will be treated as validation data
     const displayLength = 120 // how many characters you want to generate after training
-    const lstmLayerSize = [16, 16, 16] // the configuration of eah sequential lstm network
+    const lstmLayerSize = [128, 128] // the configuration of eah sequential lstm network
     const temperatures = [0, 0.3, 0.7]
 
     const charSet = Array.from(new Set(Array.from(text)))
