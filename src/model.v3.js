@@ -13,6 +13,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
 
+        let state
+
         const inputs = this.tf.input({ shape: [null] })
         const embeddings = this.tf.layers.embedding({
             inputDim: this.tokenizer.getLength(),
@@ -21,7 +23,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             maskZero: true
         })
 
-        let state = embeddings.apply(inputs)
+        state = embeddings.apply(inputs)
 
         let encoder = new PositionalEncodingLayer({
             embeddingDim: this.units,
@@ -48,5 +50,20 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         const outputs = head.apply(state)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    postInit() {
+        this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
+        this.model.compile({
+            optimizer: this.tf.train.adam(
+                this.config.learningRate || 1e-3,
+                this.config.beta1 || 0.9,
+                this.config.beta2 || 0.999,
+                this.config.epsilon || 1e-8
+            ),
+            loss: this.lossFunctions
+        })
+        console.log(this.model.summary())
+        console.log(this.model.optimizer)
     }
 }

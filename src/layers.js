@@ -76,7 +76,6 @@ class MultiHeadAttention extends tf.layers.Layer {
         this.supportsMasking = true
         this.numHeads = config.numHeads
         this.units = config.units
-        // Ensure depth is evenly divisible by the number of heads
         this.depth = this.units / this.numHeads
     }
 
@@ -222,16 +221,14 @@ export class TransformerBlock extends tf.layers.Layer {
             attnOutput
         ])
         // Apply Layer Normalization
-        let out1 = this.layernorm1.apply(attnOutput)
+        const normalized = this.layernorm1.apply(attnOutput)
         // Feed-Forward Network block
-        let ffnOutput = this.largeFeedforward.apply(out1)
-        ffnOutput = this.smallFeedforward.apply(ffnOutput)
+        let ffOutput = this.largeFeedforward.apply(normalized)
+        ffOutput = this.smallFeedforward.apply(ffOutput)
         // Apply Residual Connection around Feed-Forward Network
-        ffnOutput = this.ffnResidualConnection.apply([out1, ffnOutput])
-        // Apply Layer Normalization
-        let out2 = this.layernorm2.apply(ffnOutput)
-
-        return out2
+        ffOutput = this.ffnResidualConnection.apply([normalized, ffOutput])
+        // Apply layer norm before return
+        return this.layernorm2.apply(ffOutput)
     }
 
     getConfig() {
