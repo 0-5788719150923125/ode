@@ -23,11 +23,10 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             .apply(inputs)
 
-        let x = embeddings
-        // x = new PositionalEncodingLayer({
-        //     embeddingDim: size,
-        //     maxSeqLength: this.config.contextLength
-        // }).apply(x)
+        let x = new PositionalEncodingLayer({
+            embeddingDim: size,
+            maxSeqLength: this.config.contextLength
+        }).apply(embeddings)
 
         for (let i = 0; i < layers; i++) {
             x = new CausalAttentionLayer({ units: size }).apply(x)

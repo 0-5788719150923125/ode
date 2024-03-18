@@ -83,7 +83,7 @@ export default class ModelBase {
 }
 
 async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
-    const fixedLength = this.config.maxSequenceLength
+    const fixedLength = this.config.contextLength
 
     // Assuming preprocessData returns an array of token indices
     let tokenIndices = preprocessData(

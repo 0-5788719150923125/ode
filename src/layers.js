@@ -3,44 +3,56 @@ import * as tf from '@tensorflow/tfjs'
 export class PositionalEncodingLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.embeddingDim = config.embeddingDim
-    }
-
-    call(inputs) {
-        // Dynamically generate positional encoding based on the sequence length of the inputs
-        const seqLength = 255
-        const posEncoding = this.dynamicPositionalEncoding(
-            inputs,
-            seqLength,
+        this.maxSeqLength = config.maxSeqLength || 256
+        this.embeddingDim = config.embeddingDim || 256
+        // Pre-compute the positional encoding matrix for the maximum sequence length.
+        this.posEncoding = this.precomputePositionalEncoding(
+            this.maxSeqLength,
             this.embeddingDim
         )
-
-        // Adds the positional encoding to the inputs
-        return tf.add(inputs, posEncoding)
     }
 
-    dynamicPositionalEncoding(inputs, seqLength, embeddingDim) {
+    precomputePositionalEncoding(seqLength, embeddingDim) {
         return tf.tidy(() => {
             const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
             const i = tf.range(0, embeddingDim, 1, 'float32').expandDims(0)
-            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim))
+            const angleRads = tf.div(
+                pos,
+                tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim))
+            )
 
-            const angleRads = tf.div(pos, angleRates)
-
-            // Apply sin to even indices in the array
+            // Apply sine to even indices and cosine to odd indices
             const sines = angleRads.slice([0, 0], [-1, embeddingDim / 2]).sin()
-            // Apply cos to odd indices in the array
             const cosines = angleRads
                 .slice([0, embeddingDim / 2], [-1, -1])
                 .cos()
+            const posEncoding = tf.concat([sines, cosines], -1)
 
-            // Concatenate sines and cosines along the last dimension
-            const posEncoding = tf.concat([sines, cosines], -1).expandDims(0)
-            // Ensure the positional encoding matches the batch size of inputs
-            const posEncodingExpanded = tf.tile(posEncoding, [16, 1, 1])
-
-            return posEncodingExpanded
+            return posEncoding.expandDims(0)
         })
+    }
+
+    call(inputs) {
+        let x = inputs
+        if (Array.isArray(inputs)) {
+            x = inputs[0]
+        }
+
+        // Dynamically adjust the positional encoding to match the input shape
+        const inputSeqLength = x.shape[1]
+        const batchSize = x.shape[0]
+
+        // Use slicing to adjust the positional encoding to the current input sequence length
+        const posEncodingSliced = tf.slice(
+            this.posEncoding,
+            [0, 0, 0],
+            [1, inputSeqLength, -1]
+        )
+
+        // Ensure positional encoding is broadcasted correctly over the batch size
+        const posEncodingTiled = tf.tile(posEncodingSliced, [batchSize, 1, 1])
+
+        return tf.add(x, posEncodingTiled)
     }
 
     computeOutputShape(inputShape) {
@@ -51,6 +63,7 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
         return 'PositionalEncodingLayer'
     }
 }
+
 tf.serialization.registerClass(PositionalEncodingLayer)
 
 export class CausalAttentionLayer extends tf.layers.Layer {
