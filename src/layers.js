@@ -11,25 +11,40 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
             this.maxSeqLength,
             this.embeddingDim
         )
+        this.testPositionalEncoding()
     }
 
     precomputePositionalEncoding(seqLength, embeddingDim) {
         return tf.tidy(() => {
             const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
-            const i = tf.range(0, embeddingDim, 1, 'float32').expandDims(0)
-            const angleRads = tf.div(
-                pos,
-                tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim))
+            const i = tf.range(0, embeddingDim / 2, 1, 'float32').expandDims(0) // Only need half as many i values
+            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim)) // Multiply i by 2 here
+
+            const angles = pos.div(angleRates)
+
+            const sines = angles.sin()
+            const cosines = angles.cos()
+
+            // Stack sines and cosines in depth (along last dimension) and then interleave them
+            const stacked = tf.stack([sines, cosines], 2) // Shape [seqLength, embeddingDim/2, 2]
+            const posEncoding = stacked.reshape([seqLength, embeddingDim])
+            return posEncoding.expandDims(0) // Add batch dimension
+        })
+    }
+
+    testPositionalEncoding() {
+        tf.tidy(() => {
+            const seqLength = 4 // Small sequence length for easy inspection
+            const embeddingDim = 8 // Small embedding dimension for easy inspection
+
+            // Call your modified precomputePositionalEncoding method
+            const posEncodingTensor = this.precomputePositionalEncoding(
+                seqLength,
+                embeddingDim
             )
 
-            // Apply sine to even indices and cosine to odd indices
-            const sines = angleRads.slice([0, 0], [-1, embeddingDim / 2]).sin()
-            const cosines = angleRads
-                .slice([0, embeddingDim / 2], [-1, -1])
-                .cos()
-            const posEncoding = tf.concat([sines, cosines], -1)
-
-            return posEncoding.expandDims(0)
+            // Now print the tensor to inspect its values
+            posEncodingTensor.print() // This will print the tensor's values to the console
         })
     }
 
