@@ -199,20 +199,17 @@ class MultiHeadAttention extends tf.layers.Layer {
         super.build(inputShape)
     }
 
-    call(inputs) {
-        // Properly handle inputs whether it's from an array of tensors or a single tensor.
+    call(inputs, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-        // Assume inputs is already shaped as [batchSize, seqLength, dModel]
         let batchSize = inputs.shape[0]
         let seqLength = inputs.shape[1]
 
-        // Apply dense layers to compute Q, K, V
         let q = this.queryDense.apply(inputs)
         let k = this.keyDense.apply(inputs)
         let v = this.valueDense.apply(inputs)
 
-        // Reshape and transpose for attention calculations
+        // Split the heads for multi-head attention
         q = tf
             .reshape(q, [batchSize, seqLength, this.numHeads, this.depth])
             .transpose([0, 2, 1, 3])
@@ -223,18 +220,20 @@ class MultiHeadAttention extends tf.layers.Layer {
             .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
             .transpose([0, 2, 1, 3])
 
-        // Calculate attention scores and weights
-        let attentionScores = tf.matMul(q, k)
-        attentionScores = attentionScores.div(tf.sqrt(tf.scalar(this.depth)))
+        // Attention mechanism
+        let attentionScores = tf
+            .matMul(q, k)
+            .div(tf.sqrt(tf.scalar(this.depth)))
         let attentionWeights = tf.softmax(attentionScores, -1)
-
-        // Compute attention output
-        let attentionOutput = tf.matMul(attentionWeights, v)
-        attentionOutput = attentionOutput
+        let attentionOutput = tf
+            .matMul(attentionWeights, v)
             .transpose([0, 2, 1, 3])
-            .reshape([batchSize, seqLength, this.units])
 
-        // Apply output dense layer
+        attentionOutput = tf.reshape(attentionOutput, [
+            batchSize,
+            seqLength,
+            this.units
+        ])
         return this.outputDense.apply(attentionOutput)
     }
 
@@ -264,21 +263,20 @@ export class TransformerBlock extends tf.layers.Layer {
         // Initialize MultiHeadAttention only once
         this.multiHeadAttention = new MultiHeadAttention({
             numHeads: this.numHeads,
-            dModel: this.units
+            units: this.units
         })
         this.multiHeadAttention.build(inputShape)
 
         // Initialize dense layers for the feedforward network
         this.ffn1 = tf.layers.dense({
             units: this.hiddenDim,
-            activation: 'relu'
+            activation: 'swish'
         })
         this.ffn2 = tf.layers.dense({ units: this.units })
 
         // Manually call build on dense layers to initialize weights
-        const ffnInputShape = [inputShape[0], this.hiddenDim]
-        this.ffn1.build(ffnInputShape)
-        this.ffn2.build([inputShape[0], this.units])
+        this.ffn1.build(inputShape)
+        this.ffn2.build([inputShape[0], inputShape[1], this.hiddenDim])
 
         // Initialize layer normalizations
         this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
@@ -298,15 +296,13 @@ export class TransformerBlock extends tf.layers.Layer {
         super.build(inputShape) // Mark the layer as built
     }
 
-    call(inputs) {
-        let x = Array.isArray(inputs) ? inputs[0] : inputs
-
-        const attnOutput = this.multiHeadAttention.call(x)
-        let out1 = this.layernorm1.call(tf.add(x, attnOutput))
-
-        let ffnOutput = this.ffn1.call(out1) // First FFN layer
-        ffnOutput = this.ffn2.call(ffnOutput) // Second FFN layer with the output of the first
-        let out2 = this.layernorm2.call(tf.add(out1, ffnOutput))
+    call(inputs, training = false) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        let attnOutput = this.multiHeadAttention.apply(inputs, training)
+        let out1 = this.layernorm1.apply(tf.add(inputs, attnOutput), training)
+        let ffnOutput1 = this.ffn1.apply(out1)
+        let ffnOutput2 = this.ffn2.apply(ffnOutput1)
+        let out2 = this.layernorm2.apply(tf.add(out1, ffnOutput2), training)
 
         return out2
     }
