@@ -161,55 +161,56 @@ class MultiHeadAttention extends tf.layers.Layer {
         super(config)
         this.numHeads = config.numHeads
         this.dModel = config.dModel
+        // Ensure depth is evenly divisible by the number of heads
+        this.depth = this.dModel / this.numHeads
     }
 
     build(inputShape) {
-        // Ensure depth is divisible by the number of heads
-        this.depth = this.dModel / this.numHeads
-
-        this.queryWeights = this.addWeight(
-            'queryWeights',
-            [inputShape[2], this.dModel],
-            'float32',
-            tf.initializers.glorotUniform({})
-        )
-        this.keyWeights = this.addWeight(
-            'keyWeights',
-            [inputShape[2], this.dModel],
-            'float32',
-            tf.initializers.glorotUniform({})
-        )
-        this.valueWeights = this.addWeight(
-            'valueWeights',
-            [inputShape[2], this.dModel],
-            'float32',
-            tf.initializers.glorotUniform({})
-        )
-
-        this.dense = tf.layers.dense({ units: this.dModel })
+        // Dense layers for queries, keys, values
+        this.queryDense = tf.layers.dense({
+            units: this.dModel,
+            kernelInitializer: 'glorotUniform',
+            useBias: false
+        })
+        this.keyDense = tf.layers.dense({
+            units: this.dModel,
+            kernelInitializer: 'glorotUniform',
+            useBias: false
+        })
+        this.valueDense = tf.layers.dense({
+            units: this.dModel,
+            kernelInitializer: 'glorotUniform',
+            useBias: false
+        })
+        this.outputDense = tf.layers.dense({
+            units: this.dModel,
+            kernelInitializer: 'glorotUniform',
+            useBias: false
+        })
 
         // Register weights of this layer
         this._trainableWeights = [
-            this.queryWeights,
-            this.keyWeights,
-            this.valueWeights,
-            ...this.dense.trainableWeights
+            ...this.queryDense.trainableWeights,
+            ...this.keyDense.trainableWeights,
+            ...this.valueDense.trainableWeights,
+            ...this.outputDense.trainableWeights
         ]
 
-        super.build(inputShape) // Finalize the building process
+        super.build(inputShape)
     }
 
     call(inputs) {
-        let batchSize = inputs.shape[0]
-        let seqLength = inputs.shape[1]
-
         // Properly handle inputs whether it's from an array of tensors or a single tensor.
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-        // Calculate Q, K, V
-        let q = tf.matMul(inputs, this.queryWeights.read())
-        let k = tf.matMul(inputs, this.keyWeights.read())
-        let v = tf.matMul(inputs, this.valueWeights.read())
+        // Assume inputs is already shaped as [batchSize, seqLength, dModel]
+        let batchSize = inputs.shape[0]
+        let seqLength = inputs.shape[1]
+
+        // Apply dense layers to compute Q, K, V
+        let q = this.queryDense.apply(inputs)
+        let k = this.keyDense.apply(inputs)
+        let v = this.valueDense.apply(inputs)
 
         // Reshape and transpose for attention calculations
         q = tf
@@ -234,7 +235,7 @@ class MultiHeadAttention extends tf.layers.Layer {
             .reshape([batchSize, seqLength, this.dModel])
 
         // Apply output dense layer
-        return this.dense.apply(attentionOutput)
+        return this.outputDense.apply(attentionOutput)
     }
 
     getConfig() {
@@ -256,7 +257,7 @@ export class TransformerBlock extends tf.layers.Layer {
         super(config)
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
-        this.dff = config?.dff || 1024
+        this.dff = config?.dff || 256
     }
 
     build(inputShape) {
@@ -299,10 +300,6 @@ export class TransformerBlock extends tf.layers.Layer {
 
         const attnOutput = this.multiHeadAttention.call(x)
         let out1 = this.layernorm1.call(tf.add(x, attnOutput))
-
-        // const ffnOutput1 = this.ffn1.call(out1)
-        // const ffnOutput2 = this.ffn2.call(ffnOutput1)
-        // let out2 = this.layernorm2.call(tf.add(out1, ffnOutput2))
 
         let ffnOutput = this.ffn1.call(out1) // First FFN layer
         ffnOutput = this.ffn2.call(ffnOutput) // Second FFN layer with the output of the first

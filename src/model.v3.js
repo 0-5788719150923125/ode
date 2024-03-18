@@ -31,23 +31,23 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         }).apply(embeddings)
 
         for (let i = 0; i < this.layers; i++) {
-            x = new CausalAttentionLayer({ units: this.units }).apply(x)
-            x = this.tf.layers
-                .dense({
-                    units: this.units * 3,
-                    activation: 'swish',
-                    kernelInitializer: 'glorotUniform'
-                })
-                .apply(x)
-            x = this.tf.layers
-                .dense({
-                    units: this.units,
-                    activation: 'linear',
-                    kernelInitializer: 'glorotUniform'
-                })
-                .apply(x)
-            // x = new TransformerBlock().apply(x)
-            x = this.tf.layers.layerNormalization().apply(x)
+            // x = new CausalAttentionLayer({ units: this.units }).apply(x)
+            // x = this.tf.layers
+            //     .dense({
+            //         units: this.units * 3,
+            //         activation: 'swish',
+            //         kernelInitializer: 'glorotUniform'
+            //     })
+            //     .apply(x)
+            // x = this.tf.layers
+            //     .dense({
+            //         units: this.units,
+            //         activation: 'linear',
+            //         kernelInitializer: 'glorotUniform'
+            //     })
+            //     .apply(x)
+            x = new TransformerBlock().apply(x)
+            // x = this.tf.layers.layerNormalization().apply(x)
         }
 
         const pooled = this.tf.layers.globalAveragePooling1d().apply(x)
