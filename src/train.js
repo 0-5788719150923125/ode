@@ -244,8 +244,8 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             await this.save()
         }
 
-        const maxLength = 50
-        const seedLength = randomBetween(3, 16)
+        const maxLength = 64
+        const seedLength = randomBetween(16, 48)
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const temp of [0, 0.3, 0.7]) {
