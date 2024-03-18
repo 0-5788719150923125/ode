@@ -47,46 +47,6 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.predictLength
     )
 
-    // function createBatchGenerator(
-    //     dataGenerator,
-    //     tokenizer,
-    //     batchSize,
-    //     sampleLen,
-    //     predictLength
-    // ) {
-    //     return function* () {
-    //         yield* batchGenerator(
-    //             dataGenerator,
-    //             tokenizer,
-    //             batchSize,
-    //             sampleLen,
-    //             predictLength
-    //         )
-    //     }
-    // }
-
-    // const dataset = tf.data.generator(
-    //     createBatchGenerator(
-    //         dataGenerator,
-    //         this.tokenizer,
-    //         trainArgs.batchSize,
-    //         trainArgs.sampleLen,
-    //         trainArgs.predictLength
-    //     )
-    // )
-
-    // await this.model.fitDataset(dataset, {
-    //     epochs: 1000,
-    //     verbose: 0,
-    //     batchSize: 2,
-    //     callbacks: {
-    //         onBatchEnd: async (batch, logs) => {
-    //             console.log(tf.memory())
-    //             // tf.dispose([outside, outside.xs, outside.ys])
-    //         }
-    //     }
-    // })
-
     // a custom train loop
     while (true) {
         step++
@@ -95,7 +55,6 @@ export async function startTraining(dataGenerator, args) {
         await gradientAccumulator.compute(batch.xs, batch.ys)
         await gradientAccumulator.step()
         tf.dispose([batch.xs, batch.ys])
-        // console.log(tf.memory())
 
         // Print logs
         logger.log(step, gradientAccumulator.getLoss())
@@ -221,28 +180,16 @@ function accumulateGradients(gradients, accumulatedGrads) {
     return accumulatedGrads
 }
 
-// function averageGradients(grads, accumulationSteps) {
-//     const accumulatedGrads = grads
-//     Object.keys(accumulatedGrads).forEach((key) => {
-//         // const avgGrad = accumulatedGrads[key].div(tf.scalar(accumulationSteps))
-//         // accumulatedGrads[key].dispose()
-//         // accumulatedGrads[key] = tf.keep(avgGrad)
-//     })
-//     // tf.dispose(grads)
-//     return accumulatedGrads
-// }
 function averageGradients(grads, accumulationSteps) {
-    const divisor = tf.scalar(accumulationSteps) // Create the scalar outside the loop to reuse
+    const divisor = tf.scalar(accumulationSteps) // Create the scalar outside the loop
     Object.keys(grads).forEach((key) => {
         const gradTensor = grads[key]
         const avgGrad = gradTensor.div(divisor)
         grads[key].dispose() // Dispose of the original gradient tensor
         grads[key] = avgGrad // Update with the averaged gradient
     })
-    divisor.dispose() // Dispose of the scalar tensor after the loop
+    divisor.dispose()
 
-    // No need for tf.keep() here as grads[key] = avgGrad assigns the reference to the grads object,
-    // which should be kept outside of this function.
     return grads
 }
 
@@ -276,9 +223,6 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
 
         const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
-        // Convert ysArray into a 2D tensor, then use tf.oneHot if needed.
-        // Note that depending on your model output and loss function,
-        // you might directly use integer labels in ysArray for efficiency.
         const ysOneHot = tf.tidy(() => {
             const ysTensor = tf.tensor2d(
                 ysArray,
@@ -290,51 +234,9 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
                 .reshape([batchSize, inputLength, tokenizer.getLength()])
         })
 
-        // If your model outputs logits and you're using a sparse categorical cross-entropy loss,
-        // you can directly use ysTensor as is, without converting to one-hot encoding.
-        // Otherwise, if your model ends with a softmax and you use categorical cross-entropy,
-        // convert ysTensor to one-hot encoding:
-
-        // tf.dispose([ysTensor])
-
-        yield { xs: xsTensor, ys: ysOneHot } // Use `ys: ysOneHot` if one-hot encoding
+        yield { xs: xsTensor, ys: ysOneHot }
     }
 }
-
-// function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
-//     while (true) {
-//         let xsArray = []
-//         let ysArray = []
-
-//         for (let i = 0; i < batchSize; ++i) {
-//             const sample = dataGenerator.next().value
-
-//             const textIndices = preprocessData(
-//                 sample,
-//                 tokenizer,
-//                 inputLength + 1, // because we predict n + 1
-//                 'left'
-//             )
-
-//             // create input sequence
-//             const xs = textIndices.slice(0, -1)
-
-//             // predict the last character index
-//             const ys = textIndices.slice(-1)[0]
-
-//             xsArray.push(xs)
-//             ysArray.push(ys)
-//         }
-
-//         const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
-//         const ysTensor = tf.oneHot(
-//             tf.tensor1d(ysArray, 'int32'),
-//             tokenizer.getLength()
-//         )
-
-//         yield { xs: xsTensor, ys: ysTensor }
-//     }
-// }
 
 async function textSampler(batch, dataGenerator, generateEvery) {
     if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
@@ -365,7 +267,6 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
         tf.variableGrads(() => {
             const predictions = model.predict(currentXs)
             const lossValue = lossFunction(currentYs, predictions)
-            // tf.dispose([currentXs, currentYs])
             loss = lossValue.dataSync()[0]
             return lossValue
         })
