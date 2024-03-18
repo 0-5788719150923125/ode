@@ -1,5 +1,58 @@
 import * as tf from '@tensorflow/tfjs'
 
+export class PositionalEncodingLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.embeddingDim = config.embeddingDim
+    }
+
+    call(inputs) {
+        // Dynamically generate positional encoding based on the sequence length of the inputs
+        const seqLength = 255
+        const posEncoding = this.dynamicPositionalEncoding(
+            inputs,
+            seqLength,
+            this.embeddingDim
+        )
+
+        // Adds the positional encoding to the inputs
+        return tf.add(inputs, posEncoding)
+    }
+
+    dynamicPositionalEncoding(inputs, seqLength, embeddingDim) {
+        return tf.tidy(() => {
+            const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+            const i = tf.range(0, embeddingDim, 1, 'float32').expandDims(0)
+            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim))
+
+            const angleRads = tf.div(pos, angleRates)
+
+            // Apply sin to even indices in the array
+            const sines = angleRads.slice([0, 0], [-1, embeddingDim / 2]).sin()
+            // Apply cos to odd indices in the array
+            const cosines = angleRads
+                .slice([0, embeddingDim / 2], [-1, -1])
+                .cos()
+
+            // Concatenate sines and cosines along the last dimension
+            const posEncoding = tf.concat([sines, cosines], -1).expandDims(0)
+            // Ensure the positional encoding matches the batch size of inputs
+            const posEncodingExpanded = tf.tile(posEncoding, [16, 1, 1])
+
+            return posEncodingExpanded
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    static get className() {
+        return 'PositionalEncodingLayer'
+    }
+}
+tf.serialization.registerClass(PositionalEncodingLayer)
+
 export class CausalAttentionLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -117,7 +170,7 @@ export class TransformerBlock extends tf.layers.Layer {
     }
 
     call(inputs) {
-        return this.ffn2.apply(this.ffn1.apply(inputs))
+        return tf.tidy(() => this.ffn2.apply(this.ffn1.apply(inputs)))
     }
 
     computeOutputShape(inputShape) {
@@ -125,7 +178,7 @@ export class TransformerBlock extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'TransformerEncoderBlock'
+        return 'TransformerBlock'
     }
 }
 
