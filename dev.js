@@ -7,7 +7,8 @@ import { trainModel } from './dev-train.js'
             batchSize: 8,
             gradientAccumulationSteps: 16,
             generateEvery: 32,
-            sampleLen: 256
+            sampleLen: 256,
+            overfit: 100
             // loadFromFile: 'data/models/ode'
         })
     } else {

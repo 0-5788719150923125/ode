@@ -11,6 +11,11 @@ export function randomBetween(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
+export function splitLines(text, num = 100) {
+    const lines = text.split(/\r?\n/)
+    return lines.slice(0, num).join('\n')
+}
+
 export function* elapsedTimeGenerator() {
     let previousTime = new Date()
 
@@ -82,7 +87,11 @@ export function preprocessData(
     }
 }
 
-export function* stringSampler(sampleLen, str = shaks13) {
+export function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
+    if (overfit > 0) {
+        str = splitLines(str, overfit)
+    }
+    console.log(str)
     while (true) {
         // Generate a random start index within the string's bounds
         const startIndex = Math.floor(Math.random() * (str.length - sampleLen))

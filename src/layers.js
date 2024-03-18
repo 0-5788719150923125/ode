@@ -69,93 +69,6 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(PositionalEncodingLayer)
 
-// Originally adapted from:
-// https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
-export class CausalAttentionLayer extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.units = config.units || 256
-        this.kernelInitializer = config.kernelInitializer || 'glorotUniform'
-    }
-
-    build(inputShape) {
-        // Initialize the necessary dense layers for internal transformations
-        this.queryDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: this.kernelInitializer
-        })
-        this.keyDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: this.kernelInitializer
-        })
-        this.valueDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: this.kernelInitializer
-        })
-
-        // Ensuring internal layers are ready to be built with proper input shape
-        const lastDimension = inputShape[inputShape.length - 1]
-        this.queryDense.build([null, lastDimension])
-        this.keyDense.build([null, lastDimension])
-        this.valueDense.build([null, lastDimension])
-
-        // REQUIRED: collecting weights from the internal layers manually
-        this._trainableWeights = [
-            ...this.queryDense.trainableWeights,
-            ...this.keyDense.trainableWeights,
-            ...this.valueDense.trainableWeights
-        ]
-
-        super.build(inputShape) // Mark the layer as built
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    call(inputs) {
-        return tf.tidy(() => {
-            const queries = this.queryDense.apply(inputs)
-            const keys = this.keyDense.apply(inputs)
-            const values = this.valueDense.apply(inputs)
-
-            const keysTransposed = tf.transpose(keys, [0, 2, 1])
-
-            let scores = tf.matMul(queries, keysTransposed)
-            scores = tf.div(scores, tf.sqrt(tf.scalar(this.units)))
-
-            // Manually creating a causal mask
-            const seqLen = queries.shape[1]
-            const onesUpperTriangle = tf
-                .ones([seqLen, seqLen])
-                .cumsum(0)
-                .cumsum(1)
-                .greaterEqual(1)
-            const mask = onesUpperTriangle
-                .logicalNot()
-                .cast('float32')
-                .mul(-1e9)
-            const maskExpanded = mask
-                .expandDims(0)
-                .tile([queries.shape[0], 1, 1])
-
-            scores = tf.add(scores, maskExpanded)
-
-            // compute the scaled dot product
-            const attentionWeights = tf.softmax(scores, -1)
-            const contextVector = tf.matMul(attentionWeights, values)
-
-            return contextVector
-        })
-    }
-
-    static get className() {
-        return 'CausalAttentionLayer'
-    }
-}
-
-tf.serialization.registerClass(CausalAttentionLayer)
-
 class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -340,6 +253,93 @@ export class LastTokenSelectionLayer extends tf.layers.Layer {
 }
 
 tf.serialization.registerClass(LastTokenSelectionLayer)
+
+// Originally adapted from:
+// https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
+export class CausalAttentionLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units || 256
+        this.kernelInitializer = config.kernelInitializer || 'glorotUniform'
+    }
+
+    build(inputShape) {
+        // Initialize the necessary dense layers for internal transformations
+        this.queryDense = tf.layers.dense({
+            units: this.units,
+            kernelInitializer: this.kernelInitializer
+        })
+        this.keyDense = tf.layers.dense({
+            units: this.units,
+            kernelInitializer: this.kernelInitializer
+        })
+        this.valueDense = tf.layers.dense({
+            units: this.units,
+            kernelInitializer: this.kernelInitializer
+        })
+
+        // Ensuring internal layers are ready to be built with proper input shape
+        const lastDimension = inputShape[inputShape.length - 1]
+        this.queryDense.build([null, lastDimension])
+        this.keyDense.build([null, lastDimension])
+        this.valueDense.build([null, lastDimension])
+
+        // REQUIRED: collecting weights from the internal layers manually
+        this._trainableWeights = [
+            ...this.queryDense.trainableWeights,
+            ...this.keyDense.trainableWeights,
+            ...this.valueDense.trainableWeights
+        ]
+
+        super.build(inputShape) // Mark the layer as built
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            const queries = this.queryDense.apply(inputs)
+            const keys = this.keyDense.apply(inputs)
+            const values = this.valueDense.apply(inputs)
+
+            const keysTransposed = tf.transpose(keys, [0, 2, 1])
+
+            let scores = tf.matMul(queries, keysTransposed)
+            scores = tf.div(scores, tf.sqrt(tf.scalar(this.units)))
+
+            // Manually creating a causal mask
+            const seqLen = queries.shape[1]
+            const onesUpperTriangle = tf
+                .ones([seqLen, seqLen])
+                .cumsum(0)
+                .cumsum(1)
+                .greaterEqual(1)
+            const mask = onesUpperTriangle
+                .logicalNot()
+                .cast('float32')
+                .mul(-1e9)
+            const maskExpanded = mask
+                .expandDims(0)
+                .tile([queries.shape[0], 1, 1])
+
+            scores = tf.add(scores, maskExpanded)
+
+            // compute the scaled dot product
+            const attentionWeights = tf.softmax(scores, -1)
+            const contextVector = tf.matMul(attentionWeights, values)
+
+            return contextVector
+        })
+    }
+
+    static get className() {
+        return 'CausalAttentionLayer'
+    }
+}
+
+tf.serialization.registerClass(CausalAttentionLayer)
 
 export class ResidualConnectionLayer extends tf.layers.Layer {
     constructor() {
