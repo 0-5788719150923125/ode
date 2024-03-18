@@ -6,32 +6,35 @@ import {
 } from './layers.js'
 
 export default class OmniscientDeterministicEngine extends ModelBase {
+    constructor(config) {
+        super(config)
+        this.layers = 3
+        this.size = 256
+    }
+
     build() {
         super.build()
-
-        const layers = 3
-        const size = 256
 
         // Add the embedding layer as the first layer
         const inputs = this.tf.input({ shape: [null] })
         let embeddings = this.tf.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: size,
+                outputDim: this.size,
                 embeddingsInitializer: 'glorotUniform',
                 maskZero: true
             })
             .apply(inputs)
 
         let x = new PositionalEncodingLayer({
-            embeddingDim: size,
+            embeddingDim: this.size,
             maxSeqLength: this.config.contextLength
         }).apply(embeddings)
 
-        for (let i = 0; i < layers; i++) {
-            x = new CausalAttentionLayer({ units: size }).apply(x)
+        for (let i = 0; i < this.layers; i++) {
+            x = new CausalAttentionLayer({ units: this.size }).apply(x)
             x = new TransformerBlock({
-                units: size
+                units: this.size
             }).apply(x)
             x = this.tf.layers.layerNormalization().apply(x)
         }
