@@ -3,7 +3,7 @@ import * as tf from '@tensorflow/tfjs'
 export class PositionalEncodingLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.maxSeqLength = config.maxSeqLength || 256
+        this.maxSeqLength = config.maxSeqLength || 255
         this.embeddingDim = config.embeddingDim || 256
         // Pre-compute the positional encoding matrix for the maximum sequence length.
         this.posEncoding = this.precomputePositionalEncoding(
@@ -33,10 +33,7 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
     }
 
     call(inputs) {
-        let x = inputs
-        if (Array.isArray(inputs)) {
-            x = inputs[0]
-        }
+        let x = Array.isArray(inputs) ? inputs[0] : inputs
 
         // Dynamically adjust the positional encoding to match the input shape
         const inputSeqLength = x.shape[1]
