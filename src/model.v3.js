@@ -18,30 +18,21 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         super.build()
 
         const inputs = this.tf.input({ shape: [null] })
-        const embeddings = this.tf.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform',
-                maskZero: true
-            })
-            .apply(inputs)
+        const embeddings = this.tf.layers.embedding({
+            inputDim: this.tokenizer.getLength(),
+            outputDim: this.units,
+            embeddingsInitializer: 'glorotUniform',
+            maskZero: true
+        })
 
-        // const positionalEncoder = new PositionalEncodingLayer({
-        //     embeddingDim: this.units,
-        //     maxSeqLength: this.config.contextLength
-        // })
+        let state = embeddings.apply(inputs)
 
-        let state = new PositionalEncodingLayer({
+        let encoder = new PositionalEncodingLayer({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
-        }).apply(embeddings)
+        })
 
-        // const maskingLayer = this.tf.layers.masking({ maskValue: 0 })
-        // const maskedOutput = maskingLayer.apply(state)
-        // console.log(maskedOutput)
-
-        // state = positionalEncoder.apply(state)
+        state = encoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
             const decoder = new TransformerBlock({
@@ -49,7 +40,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 innerDim: this.innerDim,
                 numHeads: this.numHeads,
                 activation: 'swish'
-                // mask: maskedOutput
             })
             state = decoder.apply(state)
         }
