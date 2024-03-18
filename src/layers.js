@@ -110,8 +110,8 @@ class MultiHeadAttention extends tf.layers.Layer {
     call(inputs, kwargs, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-        let batchSize = inputs.shape[0]
-        let seqLength = inputs.shape[1]
+        const batchSize = inputs.shape[0]
+        const seqLength = inputs.shape[1]
 
         let q = this.query.apply(inputs)
         let k = this.key.apply(inputs)
@@ -144,7 +144,7 @@ class MultiHeadAttention extends tf.layers.Layer {
             attentionScores = tf.add(attentionScores, maskExpanded)
         }
 
-        let attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
+        const attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
         let attentionOutput = tf
             .matMul(attentionWeights, v)
             .transpose([0, 2, 1, 3])
@@ -230,6 +230,7 @@ export class TransformerBlock extends tf.layers.Layer {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         // Calculate attention scores
         let attnOutput = this.multiHeadAttention.apply(inputs, kwargs)
+        // attnOutput.print()
         // Apply Residual Connection around Multi-Head Attention
         attnOutput = this.attentionResidualConnection.apply([
             inputs,
