@@ -33,23 +33,29 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
     }
 
     call(inputs) {
-        let x = Array.isArray(inputs) ? inputs[0] : inputs
+        return tf.tidy(() => {
+            let x = Array.isArray(inputs) ? inputs[0] : inputs
 
-        // Dynamically adjust the positional encoding to match the input shape
-        const inputSeqLength = x.shape[1]
-        const batchSize = x.shape[0]
+            // Dynamically adjust the positional encoding to match the input shape
+            const inputSeqLength = x.shape[1]
+            const batchSize = x.shape[0]
 
-        // Use slicing to adjust the positional encoding to the current input sequence length
-        const posEncodingSliced = tf.slice(
-            this.posEncoding,
-            [0, 0, 0],
-            [1, inputSeqLength, -1]
-        )
+            // Use slicing to adjust the positional encoding to the current input sequence length
+            const posEncodingSliced = tf.slice(
+                this.posEncoding,
+                [0, 0, 0],
+                [1, inputSeqLength, -1]
+            )
 
-        // Ensure positional encoding is broadcasted correctly over the batch size
-        const posEncodingTiled = tf.tile(posEncodingSliced, [batchSize, 1, 1])
+            // Ensure positional encoding is broadcasted correctly over the batch size
+            const posEncodingTiled = tf.tile(posEncodingSliced, [
+                batchSize,
+                1,
+                1
+            ])
 
-        return tf.add(x, posEncodingTiled)
+            return tf.add(x, posEncodingTiled)
+        })
     }
 
     computeOutputShape(inputShape) {
@@ -63,6 +69,8 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(PositionalEncodingLayer)
 
+// Originally adapted from:
+// https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
 export class CausalAttentionLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -148,51 +156,220 @@ export class CausalAttentionLayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(CausalAttentionLayer)
 
-export class TransformerBlock extends tf.layers.Layer {
+class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.units = config.units || 64
+        this.numHeads = config.numHeads
+        this.dModel = config.dModel
     }
 
     build(inputShape) {
-        this.ffn1 = tf.layers.dense({
-            units: this.units,
-            activation: 'relu',
-            kernelInitializer: 'glorotUniform'
-        })
-        this.ffn2 = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform'
-        })
+        // Ensure depth is divisible by the number of heads
+        this.depth = this.dModel / this.numHeads
 
-        // Ensuring internal layers are ready to be built with proper input shape
-        const lastDimension = inputShape[inputShape.length - 1]
-        this.ffn1.build([null, null, lastDimension])
-        this.ffn2.build([null, null, lastDimension])
+        this.queryWeights = this.addWeight(
+            'queryWeights',
+            [inputShape[2], this.dModel],
+            'float32',
+            tf.initializers.glorotUniform({})
+        )
+        this.keyWeights = this.addWeight(
+            'keyWeights',
+            [inputShape[2], this.dModel],
+            'float32',
+            tf.initializers.glorotUniform({})
+        )
+        this.valueWeights = this.addWeight(
+            'valueWeights',
+            [inputShape[2], this.dModel],
+            'float32',
+            tf.initializers.glorotUniform({})
+        )
 
-        // REQUIRED: collecting weights from the internal layers manually
+        this.dense = tf.layers.dense({ units: this.dModel })
+
+        // Register weights of this layer
         this._trainableWeights = [
-            ...this.ffn1.trainableWeights,
-            ...this.ffn2.trainableWeights
+            this.queryWeights,
+            this.keyWeights,
+            this.valueWeights,
+            ...this.dense.trainableWeights
         ]
 
-        super.build(inputShape)
+        super.build(inputShape) // Finalize the building process
     }
 
     call(inputs) {
-        return tf.tidy(() => this.ffn2.apply(this.ffn1.apply(inputs)))
+        let batchSize = inputs.shape[0]
+        let seqLength = inputs.shape[1]
+
+        // Properly handle inputs whether it's from an array of tensors or a single tensor.
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+        // Calculate Q, K, V
+        let q = tf.matMul(inputs, this.queryWeights.read())
+        let k = tf.matMul(inputs, this.keyWeights.read())
+        let v = tf.matMul(inputs, this.valueWeights.read())
+
+        // Reshape and transpose for attention calculations
+        q = tf
+            .reshape(q, [batchSize, seqLength, this.numHeads, this.depth])
+            .transpose([0, 2, 1, 3])
+        k = tf
+            .reshape(k, [batchSize, seqLength, this.numHeads, this.depth])
+            .transpose([0, 2, 3, 1])
+        v = tf
+            .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
+            .transpose([0, 2, 1, 3])
+
+        // Calculate attention scores and weights
+        let attentionScores = tf.matMul(q, k)
+        attentionScores = attentionScores.div(tf.sqrt(tf.scalar(this.depth)))
+        let attentionWeights = tf.softmax(attentionScores, -1)
+
+        // Compute attention output
+        let attentionOutput = tf.matMul(attentionWeights, v)
+        attentionOutput = attentionOutput
+            .transpose([0, 2, 1, 3])
+            .reshape([batchSize, seqLength, this.dModel])
+
+        // Apply output dense layer
+        return this.dense.apply(attentionOutput)
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
+    getConfig() {
+        return {
+            numHeads: this.numHeads,
+            dModel: this.dModel
+        }
+    }
+
+    static get className() {
+        return 'MultiHeadAttention'
+    }
+}
+
+tf.serialization.registerClass(MultiHeadAttention)
+
+export class TransformerBlock extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config?.units || 256
+        this.numHeads = config?.numHeads || 8
+        this.dff = config?.dff || 1024
+    }
+
+    build(inputShape) {
+        // Initialize MultiHeadAttention only once
+        this.multiHeadAttention = new MultiHeadAttention({
+            numHeads: this.numHeads,
+            dModel: this.units
+        })
+        this.multiHeadAttention.build(inputShape)
+
+        // Initialize dense layers for the feedforward network
+        this.ffn1 = tf.layers.dense({ units: this.dff, activation: 'relu' })
+        this.ffn2 = tf.layers.dense({ units: this.units })
+
+        // Manually call build on dense layers to initialize weights
+        const ffnInputShape = [inputShape[0], this.dff]
+        this.ffn1.build(ffnInputShape)
+        this.ffn2.build([inputShape[0], this.units])
+
+        // Initialize layer normalizations
+        this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
+        this.layernorm2 = tf.layers.layerNormalization({ epsilon: 1e-6 })
+        this.layernorm1.build(inputShape)
+        this.layernorm2.build(inputShape)
+
+        // Collect all trainable weights from internal layers
+        this._trainableWeights = [
+            ...this.multiHeadAttention.trainableWeights,
+            ...this.ffn1.trainableWeights,
+            ...this.ffn2.trainableWeights,
+            ...this.layernorm1.trainableWeights,
+            ...this.layernorm2.trainableWeights
+        ]
+
+        super.build(inputShape) // Mark the layer as built
+    }
+
+    call(inputs) {
+        let x = Array.isArray(inputs) ? inputs[0] : inputs
+
+        const attnOutput = this.multiHeadAttention.call(x)
+        let out1 = this.layernorm1.call(tf.add(x, attnOutput))
+
+        // const ffnOutput1 = this.ffn1.call(out1)
+        // const ffnOutput2 = this.ffn2.call(ffnOutput1)
+        // let out2 = this.layernorm2.call(tf.add(out1, ffnOutput2))
+
+        let ffnOutput = this.ffn1.call(out1) // First FFN layer
+        ffnOutput = this.ffn2.call(ffnOutput) // Second FFN layer with the output of the first
+        let out2 = this.layernorm2.call(tf.add(out1, ffnOutput))
+
+        return out2
+    }
+
+    getConfig() {
+        return {
+            units: this.units,
+            numHeads: this.numHeads,
+            dff: this.dff
+        }
     }
 
     static get className() {
         return 'TransformerBlock'
     }
 }
-
 tf.serialization.registerClass(TransformerBlock)
+
+// export class TransformerBlock extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.units = config.units || 64
+//     }
+
+//     build(inputShape) {
+//         this.ffn1 = tf.layers.dense({
+//             units: this.units,
+//             activation: 'relu',
+//             kernelInitializer: 'glorotUniform'
+//         })
+//         this.ffn2 = tf.layers.dense({
+//             units: this.units,
+//             kernelInitializer: 'glorotUniform'
+//         })
+
+//         // Ensuring internal layers are ready to be built with proper input shape
+//         const lastDimension = inputShape[inputShape.length - 1]
+//         this.ffn1.build([null, null, lastDimension])
+//         this.ffn2.build([null, null, lastDimension])
+
+//         // REQUIRED: collecting weights from the internal layers manually
+//         this._trainableWeights = [
+//             ...this.ffn1.trainableWeights,
+//             ...this.ffn2.trainableWeights
+//         ]
+
+//         super.build(inputShape)
+//     }
+
+//     call(inputs) {
+//         return tf.tidy(() => this.ffn2.apply(this.ffn1.apply(inputs)))
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     static get className() {
+//         return 'TransformerBlock'
+//     }
+// }
+
+// tf.serialization.registerClass(TransformerBlock)
 
 export class ResidualConnectionLayer extends tf.layers.Layer {
     constructor() {

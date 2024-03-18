@@ -17,7 +17,7 @@ export async function trainModel(args) {
         momentum: 0.01,
         epsilon: 1e-8,
         backend: trainArgs.backend,
-        contextLength: trainArgs.sampleLen - 1,
+        contextLength: trainArgs.sampleLen,
         ...trainArgs
     })
 

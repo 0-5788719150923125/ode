@@ -192,7 +192,7 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
             const textIndices = preprocessData(
                 sample,
                 tokenizer,
-                inputLength, // because we predict n + 1
+                inputLength + 1, // because we predict n + 1
                 'left'
             )
 
@@ -206,11 +206,7 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
             ysArray.push(ys)
         }
 
-        const xsTensor = tf.tensor2d(
-            xsArray,
-            [batchSize, inputLength - 1],
-            'int32'
-        )
+        const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
         const ysTensor = tf.oneHot(
             tf.tensor1d(ysArray, 'int32'),
             tokenizer.getLength()
