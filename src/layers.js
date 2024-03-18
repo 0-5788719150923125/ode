@@ -10,6 +10,7 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
             this.maxSeqLength,
             this.embeddingDim
         )
+        this.supportsMasking = true
     }
 
     precomputePositionalEncoding(seqLength, embeddingDim) {
@@ -32,7 +33,7 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
         })
     }
 
-    call(inputs) {
+    call(inputs, mask) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
@@ -58,9 +59,15 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
         })
     }
 
+    computeMask(inputs, mask) {
+        return mask
+    }
+
     computeOutputShape(inputShape) {
         return inputShape
     }
+
+    // This layer can declare support for masking and doesn't need to modify the computeMask method
 
     static get className() {
         return 'PositionalEncodingLayer'
