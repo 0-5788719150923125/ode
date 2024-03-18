@@ -1,9 +1,5 @@
 import ModelBase from './model.v0.js'
-import {
-    LastTokenSelectionLayer,
-    PositionalEncodingLayer,
-    TransformerBlock
-} from './layers.js'
+import { PositionalEncodingLayer, TransformerBlock } from './layers.js'
 
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
