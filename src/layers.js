@@ -177,6 +177,10 @@ export class TransformerBlock extends tf.layers.Layer {
             this.innerDim
         ])
 
+        // Residual connections/skip connections are critical here
+        this.attentionResidualConnection = new ResidualConnectionLayer()
+        this.ffnResidualConnection = new ResidualConnectionLayer()
+
         // Initialize layer normalizations
         this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
         this.layernorm2 = tf.layers.layerNormalization({ epsilon: 1e-6 })
@@ -197,11 +201,24 @@ export class TransformerBlock extends tf.layers.Layer {
 
     call(inputs, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        let attnOutput = this.multiHeadAttention.apply(inputs, training)
-        let out1 = this.layernorm1.apply(tf.add(inputs, attnOutput), training)
-        let ffnOutput1 = this.largeFeedforward.apply(out1)
-        let ffnOutput2 = this.smallFeedforward.apply(ffnOutput1)
-        return this.layernorm2.apply(tf.add(out1, ffnOutput2), training)
+        let attnOutput = this.multiHeadAttention.apply(inputs)
+        // Apply Residual Connection around Multi-Head Attention
+        attnOutput = this.attentionResidualConnection.apply([
+            inputs,
+            attnOutput
+        ])
+        // Apply Layer Normalization
+        let out1 = this.layernorm1.apply(attnOutput)
+
+        // Feed-Forward Network block
+        let ffnOutput = this.largeFeedforward.apply(out1)
+        ffnOutput = this.smallFeedforward.apply(ffnOutput)
+        // Apply Residual Connection around Feed-Forward Network
+        ffnOutput = this.ffnResidualConnection.apply([out1, ffnOutput])
+        // Apply Layer Normalization
+        let out2 = this.layernorm2.apply(ffnOutput)
+
+        return out2
     }
 
     getConfig() {
