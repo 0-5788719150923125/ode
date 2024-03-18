@@ -134,12 +134,14 @@ class MultiHeadAttention extends tf.layers.Layer {
             .div(tf.sqrt(tf.scalar(this.depth)))
 
         if (kwargs?.mask) {
-            // Expand mask to fit attention scores shape and apply
-            const maskExpanded = tf.expandDims(kwargs?.mask, 1).expandDims(-1)
-            attentionScores = tf.add(
-                attentionScores,
-                tf.cast(maskExpanded, 'float32').mul(-1e9)
-            )
+            // Invert the mask: true for tokens (no padding) becomes false, false for padding becomes true
+            const maskInverted = kwargs.mask.logicalNot()
+            // Convert the inverted mask to float and apply penalty to positions now marked as true (previously padding)
+            const maskPenalty = tf.cast(maskInverted, 'float32').mul(-1e9)
+            // Expand dimensions to make the mask compatible with attention scores
+            const maskExpanded = maskPenalty.expandDims(1).expandDims(2)
+            // Apply the expanded mask to the attention scores
+            attentionScores = tf.add(attentionScores, maskExpanded)
         }
 
         let attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
