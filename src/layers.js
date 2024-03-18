@@ -256,7 +256,7 @@ export class TransformerBlock extends tf.layers.Layer {
         super(config)
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
-        this.hiddenDim = config?.hiddenDim || 1024
+        this.innerDim = config?.innerDim || 1024
     }
 
     build(inputShape) {
@@ -269,14 +269,14 @@ export class TransformerBlock extends tf.layers.Layer {
 
         // Initialize dense layers for the feedforward network
         this.ffn1 = tf.layers.dense({
-            units: this.hiddenDim,
+            units: this.innerDim,
             activation: 'swish'
         })
         this.ffn2 = tf.layers.dense({ units: this.units })
 
         // Manually call build on dense layers to initialize weights
         this.ffn1.build(inputShape)
-        this.ffn2.build([inputShape[0], inputShape[1], this.hiddenDim])
+        this.ffn2.build([inputShape[0], inputShape[1], this.innerDim])
 
         // Initialize layer normalizations
         this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
@@ -311,7 +311,7 @@ export class TransformerBlock extends tf.layers.Layer {
         return {
             units: this.units,
             numHeads: this.numHeads,
-            hiddenDim: this.hiddenDim
+            innerDim: this.innerDim
         }
     }
 

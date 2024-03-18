@@ -10,6 +10,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         super(config)
         this.layers = 3
         this.units = 256
+        this.innerDim = this.units * 3
+        this.numHeads = 8
     }
 
     build() {
@@ -46,7 +48,11 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             //         kernelInitializer: 'glorotUniform'
             //     })
             //     .apply(x)
-            x = new TransformerBlock().apply(x)
+            x = new TransformerBlock({
+                units: this.units,
+                innerDim: this.innerDim,
+                numHeads: this.numHeads
+            }).apply(x)
             // x = this.tf.layers.layerNormalization().apply(x)
         }
 
