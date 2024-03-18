@@ -44,9 +44,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             state = decoder.apply(state)
         }
 
-        const selector = new LastTokenSelectionLayer()
-        state = selector.apply(state)
-
         const head = this.tf.layers.dense({
             units: this.tokenizer.getLength(),
             activation: 'linear'
