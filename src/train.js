@@ -236,7 +236,7 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             const output = await this.generate(prompt, temp, maxLength, false)
             const endTime = performance.now()
             console.log(
-                `TEMPERATURE: ${temp}, TIME: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
+                `TEMPERATURE: ${temp}, RATE: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
             )
             console.log(output)
         }

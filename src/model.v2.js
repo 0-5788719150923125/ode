@@ -15,11 +15,12 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             .apply(inputs)
 
-        const layers = [96, 96, 96, 96, 96]
         let recurrentOutput = embeddings
+
+        const layers = new Array(5).fill(128)
         layers.forEach((size, i) => {
             const notFirstLayer = i !== 0
-            const notLastLayer = i < layers.length - 1
+            const notLastLayer = i !== layers.length - 1
             const layer = this.tf.layers.gru({
                 units: size,
                 activation: 'softsign',
