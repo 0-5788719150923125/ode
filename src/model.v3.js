@@ -37,6 +37,10 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             maxSeqLength: this.config.contextLength
         }).apply(embeddings)
 
+        // const maskingLayer = this.tf.layers.masking({ maskValue: 0 })
+        // const maskedOutput = maskingLayer.apply(state)
+        // console.log(maskedOutput)
+
         // state = positionalEncoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
@@ -45,6 +49,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 innerDim: this.innerDim,
                 numHeads: this.numHeads,
                 activation: 'swish'
+                // mask: maskedOutput
             })
             state = decoder.apply(state)
         }

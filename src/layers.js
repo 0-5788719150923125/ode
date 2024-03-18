@@ -3,7 +3,7 @@ import * as tf from '@tensorflow/tfjs'
 export class PositionalEncodingLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.maxSeqLength = config.maxSeqLength || 255
+        this.maxSeqLength = config.maxSeqLength || 64
         this.embeddingDim = config.embeddingDim || 256
         // Pre-compute the positional encoding matrix for the maximum sequence length.
         this.posEncoding = this.precomputePositionalEncoding(
@@ -59,10 +59,6 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
         })
     }
 
-    // computeMask(inputs, mask) {
-    //     return mask
-    // }
-
     computeOutputShape(inputShape) {
         return inputShape
     }
@@ -77,11 +73,11 @@ tf.serialization.registerClass(PositionalEncodingLayer)
 class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
+        this.supportsMasking = true
         this.numHeads = config.numHeads
         this.units = config.units
         // Ensure depth is evenly divisible by the number of heads
         this.depth = this.units / this.numHeads
-        this.supportsMasking = true
     }
 
     build(inputShape) {
@@ -99,7 +95,7 @@ class MultiHeadAttention extends tf.layers.Layer {
         super.build(inputShape)
     }
 
-    call(inputs, mask, training = false) {
+    call(inputs, kwargs, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
         let batchSize = inputs.shape[0]
@@ -125,16 +121,14 @@ class MultiHeadAttention extends tf.layers.Layer {
             .matMul(q, k)
             .div(tf.sqrt(tf.scalar(this.depth)))
 
-        // if (inputs.kerasMask) {
-        //     // Expand mask to fit attention scores shape and apply
-        //     const maskExpanded = tf
-        //         .clone(inputs.kerasMask)
-        //         .expandDims(1)
-        //         .expandDims(-1)
-        //     attentionScores = attentionScores.add(
-        //         tf.cast(maskExpanded, 'float32').mul(-1e9)
-        //     ) // Apply mask
-        // }
+        if (kwargs?.mask) {
+            // Expand mask to fit attention scores shape and apply
+            const maskExpanded = tf.expandDims(kwargs?.mask, 1).expandDims(-1)
+            attentionScores = tf.add(
+                attentionScores,
+                tf.cast(maskExpanded, 'float32').mul(-1e9)
+            )
+        }
 
         let attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
         let attentionOutput = tf
@@ -148,10 +142,6 @@ class MultiHeadAttention extends tf.layers.Layer {
 
         return this.out.apply(attentionOutput)
     }
-
-    // computeMask(inputs, mask) {
-    //     return inputs
-    // }
 
     getConfig() {
         return {
@@ -170,6 +160,7 @@ tf.serialization.registerClass(MultiHeadAttention)
 export class TransformerBlock extends tf.layers.Layer {
     constructor(config) {
         super(config)
+        this.supportsMasking = true
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
         this.innerDim = config?.innerDim || 1024
@@ -221,9 +212,10 @@ export class TransformerBlock extends tf.layers.Layer {
         super.build(inputShape)
     }
 
-    call(inputs, training = false) {
+    call(inputs, kwargs, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        let attnOutput = this.multiHeadAttention.apply(inputs)
+        // Calculate attention scores
+        let attnOutput = this.multiHeadAttention.apply(inputs, kwargs)
         // Apply Residual Connection around Multi-Head Attention
         attnOutput = this.attentionResidualConnection.apply([
             inputs,
@@ -231,7 +223,6 @@ export class TransformerBlock extends tf.layers.Layer {
         ])
         // Apply Layer Normalization
         let out1 = this.layernorm1.apply(attnOutput)
-
         // Feed-Forward Network block
         let ffnOutput = this.largeFeedforward.apply(out1)
         ffnOutput = this.smallFeedforward.apply(ffnOutput)
