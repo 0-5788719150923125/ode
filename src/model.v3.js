@@ -15,7 +15,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
 
-        // Add the embedding layer as the first layer
         const inputs = this.tf.input({ shape: [null] })
         let embeddings = this.tf.layers
             .embedding({
@@ -41,7 +40,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
 
         const pooled = this.tf.layers.globalAveragePooling1d().apply(x)
 
-        // Add the final dense layer
         const outputs = this.tf.layers
             .dense({
                 units: this.tokenizer.getLength(),
