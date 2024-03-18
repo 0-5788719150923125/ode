@@ -85,58 +85,43 @@ export class CausalAttentionLayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(CausalAttentionLayer)
 
-export class TransformerEncoderBlock extends tf.layers.Layer {
+export class TransformerBlock extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.units = config.units
+        this.units = config.units || 64
     }
 
     build(inputShape) {
-        // CausalAttentionLayer for attention mechanism
-        this.attention = new CausalAttentionLayer({
+        this.ffn1 = tf.layers.dense({
+            units: this.units,
+            activation: 'relu',
+            kernelInitializer: 'glorotUniform'
+        })
+        this.ffn2 = tf.layers.dense({
             units: this.units,
             kernelInitializer: 'glorotUniform'
         })
 
-        // First feedforward network
-        this.ffn1 = tf.layers.dense({
-            units: this.units * 4, // Example expansion factor
-            activation: 'relu'
-        })
+        // Ensuring internal layers are ready to be built with proper input shape
+        const lastDimension = inputShape[inputShape.length - 1]
+        this.ffn1.build([null, null, lastDimension])
+        this.ffn2.build([null, null, lastDimension])
 
-        // Second feedforward network to project back to original units
-        this.ffn2 = tf.layers.dense({
-            units: this.units
-        })
+        // REQUIRED: collecting weights from the internal layers manually
+        this._trainableWeights = [
+            ...this.ffn1.trainableWeights,
+            ...this.ffn2.trainableWeights
+        ]
 
-        // Layer normalization layers
-        this.norm1 = tf.layers.layerNormalization({ axis: -1 })
-        this.norm2 = tf.layers.layerNormalization({ axis: -1 })
-
-        // Residual connection layers
-        this.residual1 = new ResidualConnectionLayer()
-        this.residual2 = new ResidualConnectionLayer()
+        super.build(inputShape)
     }
 
     call(inputs) {
-        let x = inputs
+        return this.ffn2.apply(this.ffn1.apply(inputs))
+    }
 
-        // Attention mechanism
-        const attentionOutput = this.attention.apply(x)
-
-        // Applying the first residual connection
-        x = this.residual1.apply([x, attentionOutput])
-        x = this.norm1.apply(x)
-
-        // Feedforward network
-        let ffnOutput = this.ffn1.apply(x)
-        ffnOutput = this.ffn2.apply(ffnOutput)
-
-        // Applying the second residual connection
-        x = this.residual2.apply([x, ffnOutput])
-        x = this.norm2.apply(x)
-
-        return x
+    computeOutputShape(inputShape) {
+        return inputShape
     }
 
     static get className() {
@@ -144,7 +129,7 @@ export class TransformerEncoderBlock extends tf.layers.Layer {
     }
 }
 
-tf.serialization.registerClass(TransformerEncoderBlock)
+tf.serialization.registerClass(TransformerBlock)
 
 export class ResidualConnectionLayer extends tf.layers.Layer {
     constructor() {
