@@ -18,21 +18,26 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         super.build()
 
         const inputs = this.tf.input({ shape: [null] })
-        const embeddings = this.tf.layers.embedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
-            embeddingsInitializer: 'glorotUniform',
-            maskZero: true
-        })
+        const embeddings = this.tf.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform',
+                maskZero: true
+            })
+            .apply(inputs)
 
-        let state = embeddings.apply(inputs)
+        // const positionalEncoder = new PositionalEncodingLayer({
+        //     embeddingDim: this.units,
+        //     maxSeqLength: this.config.contextLength
+        // })
 
-        const positionalEncoder = new PositionalEncodingLayer({
+        let state = new PositionalEncodingLayer({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
-        })
+        }).apply(embeddings)
 
-        state = positionalEncoder.apply(state)
+        // state = positionalEncoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
             const decoder = new TransformerBlock({

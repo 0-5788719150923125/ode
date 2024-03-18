@@ -59,15 +59,13 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
         })
     }
 
-    computeMask(inputs, mask) {
-        return mask
-    }
+    // computeMask(inputs, mask) {
+    //     return mask
+    // }
 
     computeOutputShape(inputShape) {
         return inputShape
     }
-
-    // This layer can declare support for masking and doesn't need to modify the computeMask method
 
     static get className() {
         return 'PositionalEncodingLayer'
@@ -83,6 +81,7 @@ class MultiHeadAttention extends tf.layers.Layer {
         this.units = config.units
         // Ensure depth is evenly divisible by the number of heads
         this.depth = this.units / this.numHeads
+        this.supportsMasking = true
     }
 
     build(inputShape) {
@@ -100,7 +99,7 @@ class MultiHeadAttention extends tf.layers.Layer {
         super.build(inputShape)
     }
 
-    call(inputs, training = false) {
+    call(inputs, mask, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
         let batchSize = inputs.shape[0]
@@ -121,22 +120,38 @@ class MultiHeadAttention extends tf.layers.Layer {
             .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
             .transpose([0, 2, 1, 3])
 
-        // Attention mechanism
+        // Compute raw attention scores
         let attentionScores = tf
             .matMul(q, k)
             .div(tf.sqrt(tf.scalar(this.depth)))
-        let attentionWeights = tf.softmax(attentionScores, -1)
+
+        // if (inputs.kerasMask) {
+        //     // Expand mask to fit attention scores shape and apply
+        //     const maskExpanded = tf
+        //         .clone(inputs.kerasMask)
+        //         .expandDims(1)
+        //         .expandDims(-1)
+        //     attentionScores = attentionScores.add(
+        //         tf.cast(maskExpanded, 'float32').mul(-1e9)
+        //     ) // Apply mask
+        // }
+
+        let attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
         let attentionOutput = tf
             .matMul(attentionWeights, v)
             .transpose([0, 2, 1, 3])
-
         attentionOutput = tf.reshape(attentionOutput, [
             batchSize,
             seqLength,
             this.units
         ])
+
         return this.out.apply(attentionOutput)
     }
+
+    // computeMask(inputs, mask) {
+    //     return inputs
+    // }
 
     getConfig() {
         return {
