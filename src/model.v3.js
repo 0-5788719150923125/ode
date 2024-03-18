@@ -1,5 +1,5 @@
 import ModelBase from './model.v0.js'
-import { PositionalEncodingLayer, TransformerBlock } from './layers.js'
+import { SinusoidalPositionalEncoding, TransformerBlock } from './layers.js'
 
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
@@ -25,7 +25,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
 
         state = embeddings.apply(inputs)
 
-        let encoder = new PositionalEncodingLayer({
+        let encoder = new SinusoidalPositionalEncoding({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
         })

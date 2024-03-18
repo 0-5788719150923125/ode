@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 
-export class PositionalEncodingLayer extends tf.layers.Layer {
+export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.supportsMasking = true
@@ -34,17 +34,15 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
 
     testPositionalEncoding() {
         tf.tidy(() => {
-            const seqLength = 4 // Small sequence length for easy inspection
-            const embeddingDim = 8 // Small embedding dimension for easy inspection
+            const seqLength = 4
+            const embeddingDim = 8
 
-            // Call your modified precomputePositionalEncoding method
             const posEncodingTensor = this.precomputePositionalEncoding(
                 seqLength,
                 embeddingDim
             )
 
-            // Now print the tensor to inspect its values
-            posEncodingTensor.print() // This will print the tensor's values to the console
+            posEncodingTensor.print()
         })
     }
 
@@ -79,11 +77,11 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'PositionalEncodingLayer'
+        return 'SinusoidalPositionalEncoding'
     }
 }
 
-tf.serialization.registerClass(PositionalEncodingLayer)
+tf.serialization.registerClass(SinusoidalPositionalEncoding)
 
 class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
@@ -205,8 +203,8 @@ export class TransformerBlock extends tf.layers.Layer {
         ])
 
         // Residual connections/skip connections are critical here
-        this.attentionResidualConnection = new ResidualConnectionLayer()
-        this.ffnResidualConnection = new ResidualConnectionLayer()
+        this.attentionResidualConnection = new ResidualConnection()
+        this.ffnResidualConnection = new ResidualConnection()
 
         // Initialize layer normalizations
         this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
@@ -261,24 +259,20 @@ export class TransformerBlock extends tf.layers.Layer {
 
 tf.serialization.registerClass(TransformerBlock)
 
-export class ResidualConnectionLayer extends tf.layers.Layer {
+export class ResidualConnection extends tf.layers.Layer {
     constructor() {
-        super({})
-    }
-
-    build(inputShape) {
-        // No weights to initialize, but you might need to perform some checks or initializations based on input shapes.
+        super()
     }
 
     computeOutputShape(inputShape) {
-        // Assuming inputShape[0] matches inputShape[1] as they should be identical for residual connections.
+        // inputShape[0] and inputShape[1 should be identical
         return inputShape[0]
     }
 
     call(inputs) {
         // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
         if (inputs.length !== 2) {
-            throw new Error('ResidualConnectionLayer expects 2 inputs.')
+            throw new Error('ResidualConnection expects 2 inputs.')
         }
 
         const [originalInput, blockOutput] = inputs
@@ -286,11 +280,11 @@ export class ResidualConnectionLayer extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'ResidualConnectionLayer'
+        return 'ResidualConnection'
     }
 }
 
-tf.serialization.registerClass(ResidualConnectionLayer)
+tf.serialization.registerClass(ResidualConnection)
 
 export class LastTokenSelectionLayer extends tf.layers.Layer {
     constructor(config) {
