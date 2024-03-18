@@ -38,7 +38,8 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             const decoder = new TransformerBlock({
                 units: this.units,
                 innerDim: this.innerDim,
-                numHeads: this.numHeads
+                numHeads: this.numHeads,
+                activation: 'swish'
             })
             state = decoder.apply(state)
         }

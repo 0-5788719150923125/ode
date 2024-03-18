@@ -34,11 +34,11 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
 
     call(inputs) {
         return tf.tidy(() => {
-            let x = Array.isArray(inputs) ? inputs[0] : inputs
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Dynamically adjust the positional encoding to match the input shape
-            const inputSeqLength = x.shape[1]
-            const batchSize = x.shape[0]
+            const inputSeqLength = inputs.shape[1]
+            const batchSize = inputs.shape[0]
 
             // Use slicing to adjust the positional encoding to the current input sequence length
             const posEncodingSliced = tf.slice(
@@ -54,7 +54,7 @@ export class PositionalEncodingLayer extends tf.layers.Layer {
                 1
             ])
 
-            return tf.add(x, posEncodingTiled)
+            return tf.add(inputs, posEncodingTiled)
         })
     }
 
@@ -166,35 +166,16 @@ class MultiHeadAttention extends tf.layers.Layer {
     }
 
     build(inputShape) {
-        // Dense layers for queries, keys, values
-        this.queryDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
+        // Create dense layers for queries, keys, values and output
+        const layers = ['query', 'key', 'value', 'out']
+        layers.map((type, i) => {
+            this[type] = tf.layers.dense({
+                units: this.units,
+                kernelInitializer: 'glorotUniform'
+            })
+            this[type].build(inputShape)
+            this._trainableWeights.push(...this[type].trainableWeights)
         })
-        this.keyDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
-        })
-        this.valueDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
-        })
-        this.outputDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform',
-            useBias: false
-        })
-
-        // Register weights of this layer
-        this._trainableWeights = [
-            ...this.queryDense.trainableWeights,
-            ...this.keyDense.trainableWeights,
-            ...this.valueDense.trainableWeights,
-            ...this.outputDense.trainableWeights
-        ]
 
         super.build(inputShape)
     }
@@ -205,9 +186,9 @@ class MultiHeadAttention extends tf.layers.Layer {
         let batchSize = inputs.shape[0]
         let seqLength = inputs.shape[1]
 
-        let q = this.queryDense.apply(inputs)
-        let k = this.keyDense.apply(inputs)
-        let v = this.valueDense.apply(inputs)
+        let q = this.query.apply(inputs)
+        let k = this.key.apply(inputs)
+        let v = this.value.apply(inputs)
 
         // Split the heads for multi-head attention
         q = tf
@@ -234,7 +215,7 @@ class MultiHeadAttention extends tf.layers.Layer {
             seqLength,
             this.units
         ])
-        return this.outputDense.apply(attentionOutput)
+        return this.out.apply(attentionOutput)
     }
 
     getConfig() {
@@ -257,26 +238,31 @@ export class TransformerBlock extends tf.layers.Layer {
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
         this.innerDim = config?.innerDim || 1024
+        this.activation = config?.activation || 'relu'
     }
 
     build(inputShape) {
-        // Initialize MultiHeadAttention only once
+        // Initialize MultiHeadAttention once per block
         this.multiHeadAttention = new MultiHeadAttention({
             numHeads: this.numHeads,
             units: this.units
         })
         this.multiHeadAttention.build(inputShape)
 
-        // Initialize dense layers for the feedforward network
-        this.ffn1 = tf.layers.dense({
+        // Initialize dense layers for projection
+        this.largeFeedforward = tf.layers.dense({
             units: this.innerDim,
-            activation: 'swish'
+            activation: this.activation
         })
-        this.ffn2 = tf.layers.dense({ units: this.units })
+        this.smallFeedforward = tf.layers.dense({ units: this.units })
 
         // Manually call build on dense layers to initialize weights
-        this.ffn1.build(inputShape)
-        this.ffn2.build([inputShape[0], inputShape[1], this.innerDim])
+        this.largeFeedforward.build(inputShape)
+        this.smallFeedforward.build([
+            inputShape[0],
+            inputShape[1],
+            this.innerDim
+        ])
 
         // Initialize layer normalizations
         this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
@@ -287,24 +273,22 @@ export class TransformerBlock extends tf.layers.Layer {
         // Collect all trainable weights from internal layers
         this._trainableWeights = [
             ...this.multiHeadAttention.trainableWeights,
-            ...this.ffn1.trainableWeights,
-            ...this.ffn2.trainableWeights,
+            ...this.largeFeedforward.trainableWeights,
+            ...this.smallFeedforward.trainableWeights,
             ...this.layernorm1.trainableWeights,
             ...this.layernorm2.trainableWeights
         ]
 
-        super.build(inputShape) // Mark the layer as built
+        super.build(inputShape)
     }
 
     call(inputs, training = false) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         let attnOutput = this.multiHeadAttention.apply(inputs, training)
         let out1 = this.layernorm1.apply(tf.add(inputs, attnOutput), training)
-        let ffnOutput1 = this.ffn1.apply(out1)
-        let ffnOutput2 = this.ffn2.apply(ffnOutput1)
-        let out2 = this.layernorm2.apply(tf.add(out1, ffnOutput2), training)
-
-        return out2
+        let ffnOutput1 = this.largeFeedforward.apply(out1)
+        let ffnOutput2 = this.smallFeedforward.apply(ffnOutput1)
+        return this.layernorm2.apply(tf.add(out1, ffnOutput2), training)
     }
 
     getConfig() {
@@ -329,21 +313,20 @@ export class LastTokenSelectionLayer extends tf.layers.Layer {
     }
 
     computeOutputShape(inputShape) {
-        // Assumes inputShape is [batchSize, sequenceLength, vocabSize]
-        // And output shape should be [batchSize, vocabSize]
+        // Transform input shape of [batchSize, sequenceLength, vocabSize]
+        // to an output shape of [batchSize, vocabSize], removing
+        // all predicted tokens except for the last
         return [inputShape[0], inputShape[2]]
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
-            const input = inputs instanceof Array ? inputs[0] : inputs
-            // input.shape is [null, sequenceLength, vocabSize]
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Use tf.slice along with tf.shape to dynamically determine the indices
-            const sequenceLength = input.shape[1]
+            const sequenceLength = inputs.shape[1]
             const lastTokenIndex = sequenceLength - 1
 
-            const lastTokenSlice = input
+            const lastTokenSlice = inputs
                 .slice([0, lastTokenIndex, 0], [-1, 1, -1])
                 .squeeze([1])
 
@@ -356,10 +339,7 @@ export class LastTokenSelectionLayer extends tf.layers.Layer {
     }
 }
 
-// Register the custom layer for later use
 tf.serialization.registerClass(LastTokenSelectionLayer)
-
-// Now you can use this custom layer in your model
 
 export class ResidualConnectionLayer extends tf.layers.Layer {
     constructor() {
