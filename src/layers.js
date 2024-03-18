@@ -322,51 +322,44 @@ export class TransformerBlock extends tf.layers.Layer {
 
 tf.serialization.registerClass(TransformerBlock)
 
-// export class TransformerBlock extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.units = config.units || 64
-//     }
+export class LastTokenSelectionLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.supportsMasking = true
+    }
 
-//     build(inputShape) {
-//         this.ffn1 = tf.layers.dense({
-//             units: this.units,
-//             activation: 'relu',
-//             kernelInitializer: 'glorotUniform'
-//         })
-//         this.ffn2 = tf.layers.dense({
-//             units: this.units,
-//             kernelInitializer: 'glorotUniform'
-//         })
+    computeOutputShape(inputShape) {
+        // Assumes inputShape is [batchSize, sequenceLength, vocabSize]
+        // And output shape should be [batchSize, vocabSize]
+        return [inputShape[0], inputShape[2]]
+    }
 
-//         // Ensuring internal layers are ready to be built with proper input shape
-//         const lastDimension = inputShape[inputShape.length - 1]
-//         this.ffn1.build([null, null, lastDimension])
-//         this.ffn2.build([null, null, lastDimension])
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const input = inputs instanceof Array ? inputs[0] : inputs
+            // input.shape is [null, sequenceLength, vocabSize]
 
-//         // REQUIRED: collecting weights from the internal layers manually
-//         this._trainableWeights = [
-//             ...this.ffn1.trainableWeights,
-//             ...this.ffn2.trainableWeights
-//         ]
+            // Use tf.slice along with tf.shape to dynamically determine the indices
+            const sequenceLength = input.shape[1]
+            const lastTokenIndex = sequenceLength - 1
 
-//         super.build(inputShape)
-//     }
+            const lastTokenSlice = input
+                .slice([0, lastTokenIndex, 0], [-1, 1, -1])
+                .squeeze([1])
 
-//     call(inputs) {
-//         return tf.tidy(() => this.ffn2.apply(this.ffn1.apply(inputs)))
-//     }
+            return lastTokenSlice
+        })
+    }
 
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
+    static get className() {
+        return 'LastTokenSelectionLayer'
+    }
+}
 
-//     static get className() {
-//         return 'TransformerBlock'
-//     }
-// }
+// Register the custom layer for later use
+tf.serialization.registerClass(LastTokenSelectionLayer)
 
-// tf.serialization.registerClass(TransformerBlock)
+// Now you can use this custom layer in your model
 
 export class ResidualConnectionLayer extends tf.layers.Layer {
     constructor() {

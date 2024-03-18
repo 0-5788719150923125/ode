@@ -1,6 +1,6 @@
 import ModelBase from './model.v0.js'
 import {
-    CausalAttentionLayer,
+    LastTokenSelectionLayer,
     PositionalEncodingLayer,
     TransformerBlock
 } from './layers.js'
@@ -9,61 +9,49 @@ export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 3
+        this.numHeads = 4
         this.units = 256
         this.innerDim = this.units * 3
-        this.numHeads = 8
     }
 
     build() {
         super.build()
 
         const inputs = this.tf.input({ shape: [null] })
-        let embeddings = this.tf.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform',
-                maskZero: true
-            })
-            .apply(inputs)
+        const embeddings = this.tf.layers.embedding({
+            inputDim: this.tokenizer.getLength(),
+            outputDim: this.units,
+            embeddingsInitializer: 'glorotUniform',
+            maskZero: true
+        })
 
-        let x = new PositionalEncodingLayer({
+        let state = embeddings.apply(inputs)
+
+        const positionalEncoder = new PositionalEncodingLayer({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
-        }).apply(embeddings)
+        })
+
+        state = positionalEncoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
-            // x = new CausalAttentionLayer({ units: this.units }).apply(x)
-            // x = this.tf.layers
-            //     .dense({
-            //         units: this.units * 3,
-            //         activation: 'swish',
-            //         kernelInitializer: 'glorotUniform'
-            //     })
-            //     .apply(x)
-            // x = this.tf.layers
-            //     .dense({
-            //         units: this.units,
-            //         activation: 'linear',
-            //         kernelInitializer: 'glorotUniform'
-            //     })
-            //     .apply(x)
-            x = new TransformerBlock({
+            const decoder = new TransformerBlock({
                 units: this.units,
                 innerDim: this.innerDim,
                 numHeads: this.numHeads
-            }).apply(x)
-            // x = this.tf.layers.layerNormalization().apply(x)
+            })
+            state = decoder.apply(state)
         }
 
-        const pooled = this.tf.layers.globalAveragePooling1d().apply(x)
+        const selector = new LastTokenSelectionLayer()
+        state = selector.apply(state)
 
-        const outputs = this.tf.layers
-            .dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
-            })
-            .apply(pooled)
+        const head = this.tf.layers.dense({
+            units: this.tokenizer.getLength(),
+            activation: 'linear'
+        })
+
+        const outputs = head.apply(state)
 
         this.model = this.tf.model({ inputs, outputs })
     }

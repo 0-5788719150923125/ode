@@ -4,9 +4,9 @@ import { trainModel } from './dev-train.js'
         // node.js
         await trainModel({
             backend: 'tensorflow',
-            batchSize: 16,
-            gradientAccumulationSteps: 8,
-            generateEvery: 128,
+            batchSize: 8,
+            gradientAccumulationSteps: 16,
+            generateEvery: 32,
             sampleLen: 256
             // loadFromFile: 'data/models/ode'
         })

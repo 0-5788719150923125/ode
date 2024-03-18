@@ -54,7 +54,8 @@ export default class ModelBase {
                 this.config.learningRate || 1e-2,
                 this.config.decay || 0,
                 this.config.momentum || 0,
-                this.config.epsilon || 1e-8
+                this.config.epsilon || 1e-8,
+                false
             ),
             loss: this.lossFunctions
         })
