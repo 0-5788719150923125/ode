@@ -5,10 +5,10 @@ import { trainModel } from './dev-train.js'
         await trainModel({
             backend: 'tensorflow',
             batchSize: 8,
-            gradientAccumulationSteps: 16,
+            gradientAccumulationSteps: 32,
             generateEvery: 32,
-            sampleLen: 64,
-            overfit: 100
+            sampleLen: 128
+            // overfit: 100
             // loadFromFile: 'data/models/ode'
         })
     } else {

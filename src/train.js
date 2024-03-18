@@ -255,7 +255,12 @@ async function textSampler(batch, dataGenerator, generateEvery) {
             console.log(
                 `TEMPERATURE: ${temp}, RATE: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
             )
-            console.log(output)
+            console.log(
+                colors.BLUE +
+                    prompt +
+                    colors.WHITE +
+                    output.slice(prompt.length, -1)
+            )
         }
     }
 }

@@ -91,7 +91,6 @@ export function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
     if (overfit > 0) {
         str = splitLines(str, overfit)
     }
-    console.log(str)
     while (true) {
         // Generate a random start index within the string's bounds
         const startIndex = Math.floor(Math.random() * (str.length - sampleLen))
