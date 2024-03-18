@@ -160,30 +160,30 @@ class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.numHeads = config.numHeads
-        this.dModel = config.dModel
+        this.units = config.units
         // Ensure depth is evenly divisible by the number of heads
-        this.depth = this.dModel / this.numHeads
+        this.depth = this.units / this.numHeads
     }
 
     build(inputShape) {
         // Dense layers for queries, keys, values
         this.queryDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
         this.keyDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
         this.valueDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
         this.outputDense = tf.layers.dense({
-            units: this.dModel,
+            units: this.units,
             kernelInitializer: 'glorotUniform',
             useBias: false
         })
@@ -232,7 +232,7 @@ class MultiHeadAttention extends tf.layers.Layer {
         let attentionOutput = tf.matMul(attentionWeights, v)
         attentionOutput = attentionOutput
             .transpose([0, 2, 1, 3])
-            .reshape([batchSize, seqLength, this.dModel])
+            .reshape([batchSize, seqLength, this.units])
 
         // Apply output dense layer
         return this.outputDense.apply(attentionOutput)
@@ -241,7 +241,7 @@ class MultiHeadAttention extends tf.layers.Layer {
     getConfig() {
         return {
             numHeads: this.numHeads,
-            dModel: this.dModel
+            units: this.units
         }
     }
 
@@ -257,7 +257,7 @@ export class TransformerBlock extends tf.layers.Layer {
         super(config)
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
-        this.dff = config?.dff || 256
+        this.hiddenDim = config?.hiddenDim || 1024
     }
 
     build(inputShape) {
@@ -269,11 +269,14 @@ export class TransformerBlock extends tf.layers.Layer {
         this.multiHeadAttention.build(inputShape)
 
         // Initialize dense layers for the feedforward network
-        this.ffn1 = tf.layers.dense({ units: this.dff, activation: 'relu' })
+        this.ffn1 = tf.layers.dense({
+            units: this.hiddenDim,
+            activation: 'relu'
+        })
         this.ffn2 = tf.layers.dense({ units: this.units })
 
         // Manually call build on dense layers to initialize weights
-        const ffnInputShape = [inputShape[0], this.dff]
+        const ffnInputShape = [inputShape[0], this.hiddenDim]
         this.ffn1.build(ffnInputShape)
         this.ffn2.build([inputShape[0], this.units])
 
@@ -312,7 +315,7 @@ export class TransformerBlock extends tf.layers.Layer {
         return {
             units: this.units,
             numHeads: this.numHeads,
-            dff: this.dff
+            hiddenDim: this.hiddenDim
         }
     }
 
@@ -320,6 +323,7 @@ export class TransformerBlock extends tf.layers.Layer {
         return 'TransformerBlock'
     }
 }
+
 tf.serialization.registerClass(TransformerBlock)
 
 // export class TransformerBlock extends tf.layers.Layer {
