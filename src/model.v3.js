@@ -25,7 +25,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
 
         state = embeddings.apply(inputs)
 
-        let encoder = new SinusoidalPositionalEncoding({
+        const encoder = new SinusoidalPositionalEncoding({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
         })

@@ -11,7 +11,6 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
             this.maxSeqLength,
             this.embeddingDim
         )
-        this.testPositionalEncoding()
     }
 
     precomputePositionalEncoding(seqLength, embeddingDim) {
@@ -32,27 +31,13 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
         })
     }
 
-    testPositionalEncoding() {
-        tf.tidy(() => {
-            const seqLength = 4
-            const embeddingDim = 8
-
-            const posEncodingTensor = this.precomputePositionalEncoding(
-                seqLength,
-                embeddingDim
-            )
-
-            posEncodingTensor.print()
-        })
-    }
-
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Dynamically adjust the positional encoding to match the input shape
             const inputSeqLength = inputs.shape[1]
-            const batchSize = inputs.shape[0]
+            // const batchSize = inputs.shape[0]
 
             // Use slicing to adjust the positional encoding to the current input sequence length
             const posEncodingSliced = tf.slice(
@@ -62,13 +47,13 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
             )
 
             // Ensure positional encoding is broadcasted correctly over the batch size
-            const posEncodingTiled = tf.tile(posEncodingSliced, [
-                batchSize,
-                1,
-                1
-            ])
+            // const posEncodingTiled = tf.tile(posEncodingSliced, [
+            //     batchSize,
+            //     1,
+            //     1
+            // ])
 
-            return tf.add(inputs, posEncodingTiled)
+            return tf.add(inputs, posEncodingSliced)
         })
     }
 
