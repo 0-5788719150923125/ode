@@ -4,8 +4,8 @@ import { SinusoidalPositionalEncoding, TransformerBlock } from './layers.js'
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.numHeads = 4
+        this.layers = 4
+        this.numHeads = 8
         this.units = 256
         this.innerDim = this.units * 3
     }

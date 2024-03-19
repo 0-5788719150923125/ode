@@ -12,7 +12,7 @@ export async function trainModel(args) {
     }
 
     const net = new ODE({
-        learningRate: 0.00333,
+        learningRate: 0.001,
         // decay: 0.9,
         // momentum: 0.01,
         epsilon: 1e-8,
