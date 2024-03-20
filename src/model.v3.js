@@ -41,7 +41,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
                 numHeads: this.numHeads,
                 units: this.units
             })
-
+            state = attention.apply(state)
             const decoder = new TransformerBlock({
                 units: this.units,
                 innerDim: this.innerDim,

@@ -24,42 +24,47 @@ export class LearnedPositionalEmbeddings extends tf.layers.Layer {
         )
     }
 
-    call(inputs) {
-        // Ensure inputs is not an array and is cast to int32 if it's used as indices
-        let inputTensor = Array.isArray(inputs) ? inputs[0] : inputs
-        inputTensor = tf.cast(inputTensor, 'int32') // Ensure token indices are integers
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            // Ensure inputs is not an array and is cast to int32 if it's used as indices
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
 
-        const tokenIndices = inputTensor
-        const batchSize = inputTensor.shape[0]
-        const sequenceLength = inputTensor.shape[1]
+            // Ensure token indices are integers
+            inputs = tf.cast(inputs, 'int32')
 
-        // Gather token embeddings, ensuring indices are int32
-        const tokenEmbeddings = tf.gather(
-            this.tokenEmbeddings.read(),
-            tokenIndices.flatten()
-        )
+            const tokenIndices = inputs
+            const batchSize = inputs.shape[0]
+            const sequenceLength = inputs.shape[1]
 
-        // The reshape here assumes the flattening and gathering does not change the overall expected shape
-        const reshapedTokenEmbeddings = tokenEmbeddings.reshape([
-            batchSize,
-            sequenceLength,
-            this.units
-        ])
+            // Gather token embeddings, ensuring indices are int32
+            const tokenEmbeddings = tf.gather(
+                this.tokenEmbeddings.read(),
+                tokenIndices.flatten()
+            )
 
-        // Create a range tensor for positional indices and ensure it's int32
-        const positions = tf.range(0, sequenceLength, 1, 'int32')
-        const positionalEmbeddings = tf.gather(
-            this.positionalEmbeddings.read(),
-            positions
-        )
+            // The reshape here assumes the flattening and gathering does not change the overall expected shape
+            const reshapedTokenEmbeddings = tokenEmbeddings.reshape([
+                batchSize,
+                sequenceLength,
+                this.units
+            ])
 
-        // Expanding and tiling the positional embeddings to match the batch size
-        const reshapedPositionalEmbeddings = positionalEmbeddings
-            .expandDims(0)
-            .tile([batchSize, 1, 1])
+            // Create a range tensor for positional indices and ensure it's int32
+            const positions = tf.range(0, sequenceLength, 1, 'int32')
+            const positionalEmbeddings = tf.gather(
+                this.positionalEmbeddings.read(),
+                positions
+            )
 
-        // Combine the embeddings
-        return tf.add(reshapedTokenEmbeddings, reshapedPositionalEmbeddings)
+            // Expanding and tiling the positional embeddings to match the batch size
+            const reshapedPositionalEmbeddings = positionalEmbeddings
+                .expandDims(0)
+                .tile([batchSize, 1, 1])
+
+            // Combine the embeddings
+            return tf.add(reshapedTokenEmbeddings, reshapedPositionalEmbeddings)
+        })
     }
 
     computeOutputShape(inputShape) {
@@ -118,6 +123,7 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
 
             // Dynamically adjust the positional encoding to match the input shape
             const inputSeqLength = inputs.shape[1]
@@ -164,58 +170,75 @@ export class MultiHeadAttention extends tf.layers.Layer {
             this[type].build(inputShape)
             this._trainableWeights.push(...this[type].trainableWeights)
         })
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+        // Initialize layer normalizations
+        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        this.layernorm.build(inputShape)
+        this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         super.build(inputShape)
     }
 
     call(inputs, kwargs, training = false) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
 
-        const batchSize = inputs.shape[0]
-        const seqLength = inputs.shape[1]
+            const batchSize = inputs.shape[0]
+            const seqLength = inputs.shape[1]
 
-        let q = this.query.apply(inputs)
-        let k = this.key.apply(inputs)
-        let v = this.value.apply(inputs)
+            let q = this.query.apply(inputs)
+            let k = this.key.apply(inputs)
+            let v = this.value.apply(inputs)
 
-        // Split the heads for multi-head attention
-        q = tf
-            .reshape(q, [batchSize, seqLength, this.numHeads, this.depth])
-            .transpose([0, 2, 1, 3])
-        k = tf
-            .reshape(k, [batchSize, seqLength, this.numHeads, this.depth])
-            .transpose([0, 2, 3, 1])
-        v = tf
-            .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
-            .transpose([0, 2, 1, 3])
+            // Split the heads for multi-head attention
+            q = tf
+                .reshape(q, [batchSize, seqLength, this.numHeads, this.depth])
+                .transpose([0, 2, 1, 3])
+            k = tf
+                .reshape(k, [batchSize, seqLength, this.numHeads, this.depth])
+                .transpose([0, 2, 3, 1])
+            v = tf
+                .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
+                .transpose([0, 2, 1, 3])
 
-        // Compute raw attention scores
-        let attentionScores = tf
-            .matMul(q, k)
-            .div(tf.sqrt(tf.scalar(this.depth)))
+            // Compute raw attention scores
+            let attentionScores = tf
+                .matMul(q, k)
+                .div(tf.sqrt(tf.scalar(this.depth)))
 
-        if (kwargs?.mask) {
-            // Invert the mask: true for tokens (no padding) becomes false, false for padding becomes true
-            const maskInverted = kwargs.mask.logicalNot()
-            // Convert the inverted mask to float and apply penalty to positions now marked as true (previously padding)
-            const maskPenalty = tf.cast(maskInverted, 'float32').mul(-1e9)
-            // Expand dimensions to make the mask compatible with attention scores
-            const maskExpanded = maskPenalty.expandDims(1).expandDims(2)
-            // Apply the expanded mask to the attention scores
-            attentionScores = tf.add(attentionScores, maskExpanded)
-        }
+            if (kwargs?.mask) {
+                // Invert the mask: true for tokens (no padding) becomes false, false for padding becomes true
+                const maskInverted = kwargs.mask.logicalNot()
+                // Convert the inverted mask to float and apply penalty to positions now marked as true (previously padding)
+                const maskPenalty = tf.cast(maskInverted, 'float32').mul(-1e9)
+                // Expand dimensions to make the mask compatible with attention scores
+                const maskExpanded = maskPenalty.expandDims(1).expandDims(2)
+                // Apply the expanded mask to the attention scores
+                attentionScores = tf.add(attentionScores, maskExpanded)
+            }
 
-        const attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
-        let attentionOutput = tf
-            .matMul(attentionWeights, v)
-            .transpose([0, 2, 1, 3])
-        attentionOutput = tf.reshape(attentionOutput, [
-            batchSize,
-            seqLength,
-            this.units
-        ])
+            const attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
+            let attentionOutput = tf
+                .matMul(attentionWeights, v)
+                .transpose([0, 2, 1, 3])
+            attentionOutput = tf.reshape(attentionOutput, [
+                batchSize,
+                seqLength,
+                this.units
+            ])
 
-        return this.out.apply(attentionOutput)
+            // Calculate attention scores
+            let attnOutput = this.out.apply(attentionOutput)
+
+            // Apply Residual Connection around Multi-Head Attention
+            attnOutput = this.residual.apply([inputs, attnOutput])
+            // Apply Layer Normalization
+            const normalized = this.layernorm.apply(attnOutput)
+
+            return normalized
+        })
     }
 
     getConfig() {
@@ -243,13 +266,6 @@ export class TransformerBlock extends tf.layers.Layer {
     }
 
     build(inputShape) {
-        // Initialize MultiHeadAttention once per block
-        this.multiHeadAttention = new MultiHeadAttention({
-            numHeads: this.numHeads,
-            units: this.units
-        })
-        this.multiHeadAttention.build(inputShape)
-
         // Initialize dense layers for projection
         this.largeFeedforward = tf.layers.dense({
             units: this.innerDim,
@@ -266,45 +282,34 @@ export class TransformerBlock extends tf.layers.Layer {
         ])
 
         // Residual connections/skip connections are critical here
-        this.attentionResidualConnection = new ResidualConnection()
-        this.ffnResidualConnection = new ResidualConnection()
+        this.residual = new ResidualConnection()
 
-        // Initialize layer normalizations
-        this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-5 })
-        this.layernorm2 = tf.layers.layerNormalization({ epsilon: 1e-5 })
-        this.layernorm1.build(inputShape)
-        this.layernorm2.build(inputShape)
+        // Initialize layer normalization
+        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
         this._trainableWeights = [
-            ...this.multiHeadAttention.trainableWeights,
             ...this.largeFeedforward.trainableWeights,
             ...this.smallFeedforward.trainableWeights,
-            ...this.layernorm1.trainableWeights,
-            ...this.layernorm2.trainableWeights
+            ...this.layernorm.trainableWeights
         ]
 
         super.build(inputShape)
     }
 
     call(inputs, kwargs, training = false) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        // Calculate attention scores
-        let attnOutput = this.multiHeadAttention.apply(inputs, kwargs)
-        // Apply Residual Connection around Multi-Head Attention
-        attnOutput = this.attentionResidualConnection.apply([
-            inputs,
-            attnOutput
-        ])
-        // Apply Layer Normalization
-        const normalized = this.layernorm1.apply(attnOutput)
-        // Feed-Forward Network block
-        let ffOutput = this.largeFeedforward.apply(normalized)
-        ffOutput = this.smallFeedforward.apply(ffOutput)
-        // Apply Residual Connection around Feed-Forward Network
-        ffOutput = this.ffnResidualConnection.apply([normalized, ffOutput])
-        // Apply layer norm before return
-        return this.layernorm2.apply(ffOutput)
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            // Feed-Forward Network block
+            let output = this.largeFeedforward.apply(inputs)
+            output = this.smallFeedforward.apply(output)
+            // Apply Residual Connection around Feed-Forward Network
+            output = this.residual.apply([inputs, output])
+            // Apply layer norm before return
+            return this.layernorm.apply(output)
+        })
     }
 
     getConfig() {
@@ -332,14 +337,17 @@ export class ResidualConnection extends tf.layers.Layer {
         return inputShape[0]
     }
 
-    call(inputs) {
-        // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
-        if (inputs.length !== 2) {
-            throw new Error('ResidualConnection expects 2 inputs.')
-        }
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            this.invokeCallHook(inputs, kwargs)
+            // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
+            if (inputs.length !== 2) {
+                throw new Error('ResidualConnection expects 2 inputs.')
+            }
 
-        const [originalInput, blockOutput] = inputs
-        return tf.add(originalInput, blockOutput)
+            const [originalInput, blockOutput] = inputs
+            return tf.add(originalInput, blockOutput)
+        })
     }
 
     static get className() {
