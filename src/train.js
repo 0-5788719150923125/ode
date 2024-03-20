@@ -52,24 +52,28 @@ export async function startTraining(dataGenerator, args) {
     )
 
     // a custom train loop
-    while (true) {
-        step++
+    try {
+        while (true) {
+            step++
 
-        const batch = dataset.next().value
-        await gradientAccumulator.compute(batch.xs, batch.ys)
-        await gradientAccumulator.step()
+            const batch = dataset.next().value
+            await gradientAccumulator.compute(batch.xs, batch.ys)
+            await gradientAccumulator.step()
 
-        // Print logs
-        logger.log(step, gradientAccumulator.getLoss())
+            // Print logs
+            logger.log(step, gradientAccumulator.getLoss())
 
-        // Print sample text
-        await predictionSampler.call(
-            this,
-            step,
-            dataGenerator,
-            trainArgs.generateEvery,
-            trainArgs.predictLength
-        )
+            // Print sample text
+            await predictionSampler.call(
+                this,
+                step,
+                dataGenerator,
+                trainArgs.generateEvery,
+                trainArgs.predictLength
+            )
+        }
+    } catch (err) {
+        console.error('Oof!')
     }
 }
 

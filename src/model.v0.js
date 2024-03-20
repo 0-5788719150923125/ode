@@ -11,7 +11,7 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
-import Tokenizer from './tokenizer.js'
+import { BasicSubwordTokenizer } from './tokenizers.js'
 import { DebugLayer } from './layers.js'
 import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
@@ -27,10 +27,12 @@ export default class ModelBase {
         this.tf = tf
         this.model
         this.config = config
-        this.tokenizer = new Tokenizer()
+        this.tokenizer = new BasicSubwordTokenizer()
     }
 
     async init() {
+        await this.tokenizer.writeVocabularyToFile()
+
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
 
