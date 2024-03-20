@@ -52,15 +52,15 @@ export default class ModelBase {
         this.model.compile({
             optimizer: tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
-                this.config.decay || 0,
-                this.config.momentum || 0,
+                this.config.decay || 0.9,
+                this.config.momentum || 0.01,
                 this.config.epsilon || 1e-8,
                 false
             ),
             loss: this.lossFunctions
         })
-        console.log(this.model.summary())
         console.log(this.model.optimizer)
+        console.log(this.model.summary())
     }
 
     async generate(seed, temperature = 0.7, length = 20, greedy = false) {

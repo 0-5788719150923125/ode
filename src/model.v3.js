@@ -8,9 +8,9 @@ import {
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
         super(config)
-        this.layers = 4
+        this.layers = 3
         this.numHeads = 8
-        this.units = 256
+        this.units = 128
         this.innerDim = this.units * 4
     }
 
@@ -37,23 +37,39 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         state = encoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
-            const attention = new MultiHeadAttention({
-                numHeads: this.numHeads,
-                units: this.units
-            })
-            state = attention.apply(state)
-            const decoder = new TransformerBlock({
+            // const attention = new MultiHeadAttention({
+            //     numHeads: this.numHeads,
+            //     units: this.units
+            // })
+            // state = attention.apply(state)
+            // const decoder = new TransformerBlock({
+            //     units: this.units,
+            //     innerDim: this.innerDim,
+            //     numHeads: this.numHeads,
+            //     activation: 'swish'
+            // })
+            // state = decoder.apply(state)
+            const layer = this.tf.layers.gru({
                 units: this.units,
-                innerDim: this.innerDim,
-                numHeads: this.numHeads,
-                activation: 'swish'
+                activation: 'softsign',
+                kernelInitializer: 'glorotUniform',
+                recurrentActivation: 'sigmoid',
+                recurrentInitializer: 'orthogonal',
+                returnSequences: true
             })
-            state = decoder.apply(state)
+            state = layer.apply(state)
         }
 
-        const head = this.tf.layers.dense({
-            units: this.tokenizer.getLength(),
-            activation: 'linear'
+        // const head = this.tf.layers.dense({
+        //     units: this.tokenizer.getLength(),
+        //     activation: 'linear'
+        // })
+
+        const head = this.tf.layers.timeDistributed({
+            layer: this.tf.layers.dense({
+                units: this.tokenizer.getLength(),
+                activation: 'linear'
+            })
         })
 
         const outputs = head.apply(state)
@@ -61,17 +77,17 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    postInit() {
-        this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
-        this.model.compile({
-            optimizer: this.tf.train.adam(
-                this.config.learningRate || 1e-3,
-                this.config.beta1 || 0.9,
-                this.config.beta2 || 0.999,
-                this.config.epsilon || 1e-8
-            ),
-            loss: this.lossFunctions
-        })
-        console.log(this.model.summary())
-    }
+    // postInit() {
+    //     this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
+    //     this.model.compile({
+    //         optimizer: this.tf.train.adam(
+    //             this.config.learningRate || 1e-3,
+    //             this.config.beta1 || 0.9,
+    //             this.config.beta2 || 0.999,
+    //             this.config.epsilon || 1e-8
+    //         ),
+    //         loss: this.lossFunctions
+    //     })
+    //     console.log(this.model.summary())
+    // }
 }

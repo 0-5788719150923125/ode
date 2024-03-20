@@ -127,7 +127,7 @@ class GradientAccumulator {
             Object.values(this.accumulatedGrads).forEach((tensor) =>
                 tensor.dispose()
             )
-            // tf.dispose(this.accumulatedGrads)
+
             this.accumulatedGrads = {}
 
             // Update gradients, step the optimizer, changing weights
