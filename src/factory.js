@@ -1,6 +1,6 @@
 export default async function loadModelVersion(args) {
     const defaults = {
-        version: '3',
+        version: '4',
         ...args
     }
     try {
