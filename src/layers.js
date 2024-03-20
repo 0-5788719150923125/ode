@@ -1,5 +1,74 @@
 import * as tf from '@tensorflow/tfjs'
 
+export class DebugLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.config = config
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(input, kwargs)
+            console.log(inputs)
+            // const x = tf.util.flatten(input.arraySync())
+            // console.log(
+            //     this.config.name + '>',
+            //     input.shape,
+            //     x[0],
+            //     x[x.length - 1]
+            // )
+            return input
+        })
+    }
+
+    static get className() {
+        return 'DebugLayer'
+    }
+}
+
+tf.serialization.registerClass(DebugLayer)
+
+export class ExpandDims extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        // The axis parameter determines where the new axis is added.
+        // -1 adds a new axis at the end, which is typical for adding a feature dimension.
+        this.axis = config.axis
+    }
+
+    // This method specifies the transformation applied by the layer.
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            // Expands the dimensions of the inputs tensor according to the specified axis.
+            return tf.expandDims(inputs, this.axis)
+        })
+    }
+
+    // The computeOutputShape method lets TensorFlow.js know how the shape of the input tensor changes.
+    computeOutputShape(inputShape) {
+        // This modifies the input shape by adding a 1 in the specified axis position.
+        let outputShape = inputShape.slice()
+        if (this.axis >= 0) {
+            outputShape.splice(this.axis, 0, 1)
+        } else {
+            // When axis is -1, the new axis is added at the end of the shape.
+            outputShape.push(1)
+        }
+        return outputShape
+    }
+
+    static get className() {
+        return 'ExpandDims'
+    }
+}
+// Make sure to register the custom layer so it can be used in models and identified by its class name.
+tf.serialization.registerClass(ExpandDims)
+
 export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor(config) {
         super(config)

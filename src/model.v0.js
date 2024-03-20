@@ -12,6 +12,7 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import Tokenizer from './tokenizer.js'
+import { DebugLayer } from './layers.js'
 import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
 
@@ -46,6 +47,7 @@ export default class ModelBase {
         }
 
         this.postInit()
+        console.log(`Loaded model: v${this.config.version}`)
     }
 
     build() {
@@ -86,6 +88,11 @@ export default class ModelBase {
     async load(path = `data/models/ode`) {
         this.model = await tf.loadLayersModel(`file://${path}/model.json`)
         console.log('successfully loaded model from disk')
+    }
+
+    debug(inputs) {
+        const layer = new DebugLayer()
+        console.log(layer.apply(inputs))
     }
 
     sampler(type = 'string') {

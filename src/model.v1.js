@@ -6,27 +6,33 @@ import ModelBase from './model.v0.js'
  * @extends ModelBase
  */
 export default class ModelPrototype extends ModelBase {
+    constructor(config) {
+        super(config)
+        this.layout = [128, 128]
+        this.embeddingDimensions = 256
+    }
+
     build() {
         super.build()
 
-        this.model = tf.sequential()
+        this.model = this.tf.sequential()
 
         this.model.add(
-            tf.layers.embedding({
+            this.tf.layers.embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.config.embeddingDimensions,
+                outputDim: this.embeddingDimensions,
                 maskZero: true
             })
         )
 
-        this.config.layout.forEach((layer, i) => {
+        this.layout.forEach((layer, i) => {
             this.model.add(
-                tf.layers.bidirectional({
-                    layer: tf.layers.gru({
+                this.tf.layers.bidirectional({
+                    layer: this.tf.layers.gru({
                         units: layer,
                         activation: 'tanh',
                         recurrentActivation: 'sigmoid',
-                        returnSequences: i < this.config.layout.length - 1 // False for the last GRU layer
+                        returnSequences: i < this.layout.length - 1 // False for the last GRU layer
                     }),
                     mergeMode: 'concat'
                 })
@@ -34,21 +40,10 @@ export default class ModelPrototype extends ModelBase {
         })
 
         this.model.add(
-            tf.layers.dense({
+            this.tf.layers.dense({
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
         )
-
-        this.lossFunctions = [tf.losses.softmaxCrossEntropy]
-        this.model.compile({
-            optimizer: tf.train.rmsprop(
-                this.config.learningRate || 1e-2,
-                this.config.decay || 0,
-                this.config.momentum || 0,
-                this.config.epsilon || 1e-8
-            ),
-            loss: this.lossFunctions
-        })
     }
 }

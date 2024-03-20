@@ -5,7 +5,7 @@ let tf = tfjs
 let isBrowser = true
 ;(async function () {
     if (typeof window === 'undefined') {
-        let isBrowser = false
+        isBrowser = false
         tf = await import('@tensorflow/tfjs-node-gpu')
     }
 })()

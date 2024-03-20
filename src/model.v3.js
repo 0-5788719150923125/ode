@@ -1,4 +1,5 @@
 import ModelBase from './model.v0.js'
+import { ExpandDims } from './layers.js'
 
 /**
  * A GRU-based RNN that uses a time-distributed, dense output
@@ -28,6 +29,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         })
 
         state = embeddings.apply(inputs)
+        // this.debug(state)
 
         for (let i = 0; i < this.layers; i++) {
             const layer = this.tf.layers.gru({
