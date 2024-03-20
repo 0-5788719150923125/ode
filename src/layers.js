@@ -48,10 +48,11 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
             )
 
             const angles = pos.div(angleRates)
-            const sines = angles.sin() // Shape [seqLength, embeddingDim / 2]
-            const cosines = angles.cos() // Shape [seqLength, embeddingDim / 2]
+            const sines = angles.sin()
+            // Shape [seqLength, embeddingDim / 2]
+            const cosines = angles.cos()
 
-            // Interleave sines and cosines
+            // Interleave sines and cosines: [0, 1, 0... 1, 0, 1]
             const posEncoding = tf.reshape(tf.stack([sines, cosines], 2), [
                 1,
                 seqLength,
