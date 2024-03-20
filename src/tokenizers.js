@@ -3,7 +3,7 @@ import { load_vocab } from '@lenml/llama2-tokenizer-vocab-llama2'
 import { shaks13 } from './data.js'
 
 export class BasicSubwordTokenizer {
-    constructor(corpus = shaks13, maxVocabSize = 8888) {
+    constructor(corpus = shaks13, maxVocabSize = 6666) {
         this.maxVocabSize = maxVocabSize
         const initialVocab =
             `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `.split(
@@ -14,75 +14,62 @@ export class BasicSubwordTokenizer {
         this.tokenFrequencies = new Map()
         this.spaceToken = 'τ'
         console.log('training a tokenizer')
-        this.train(corpus, 10000000, 1, 7)
+        this.train(corpus, 10_000_000, 1, 7)
         console.log(Array.from(this.vocab).length)
         console.log(this.maxVocabSize)
     }
 
-    train(corpus, iterations = 10000, minLength = 2, maxLength = 7) {
-        // Initial pass to handle spaces properly and ensure single characters are included
-        for (const char of corpus) {
-            if (char.trim() === '') {
-                // Increment the space token's frequency for actual spaces
-                this.tokenFrequencies.set(
-                    this.spaceToken,
-                    (this.tokenFrequencies.get(this.spaceToken) || 0) + 1
-                )
-            } else if (char) {
-                // Exclude null or undefined characters
-                this.tokenFrequencies.set(
-                    char,
-                    (this.tokenFrequencies.get(char) || 0) + 1
-                )
-            }
-        }
+    train(corpus, maxIterations = 10_000_000, minLength = 2, maxLength = 7) {
+        let vocabSize = this.vocab.size
+        let newTokensFound = true
+        let iterationCounter = 0 // Added counter to manage logging
 
-        // Sample substrings from the entire corpus, avoiding leading or trailing spaces
-        for (let i = 0; i < iterations; i++) {
-            let start = Math.floor(Math.random() * (corpus.length - maxLength))
-            let end =
-                start +
-                minLength +
-                Math.floor(Math.random() * (maxLength - minLength))
-            let token = corpus.substring(start, Math.min(end, corpus.length))
-
-            // If the token contains spaces, we split it into words and sample individual words
-            if (/\s/.test(token)) {
-                const words = token.split(/\s+/)
-                for (const word of words) {
-                    // Exclude leading or trailing spaces
-                    if (word.trim() !== '') {
-                        // Increment the frequency of the word
+        while (vocabSize < this.maxVocabSize && newTokensFound) {
+            newTokensFound = false
+            for (let i = 0; i < corpus.length - maxLength; i++) {
+                for (let len = minLength; len <= maxLength; len++) {
+                    let token = corpus.substring(i, i + len).replace(/\s+/g, '')
+                    if (token && !this.vocab.has(token)) {
                         this.tokenFrequencies.set(
-                            word,
-                            (this.tokenFrequencies.get(word) || 0) + 1
+                            token,
+                            (this.tokenFrequencies.get(token) || 0) + 1
                         )
+                        newTokensFound = true
                     }
                 }
-            } else {
-                // Remove any continuous spaces from the sampled token
-                token = token.replace(/\s+/g, '')
+            }
 
-                if (token) {
-                    this.tokenFrequencies.set(
-                        token,
-                        (this.tokenFrequencies.get(token) || 0) + 1
-                    )
-                }
+            this.finalizeVocabulary()
+            console.log('boop')
+            if (this.vocab.size > vocabSize) {
+                vocabSize = this.vocab.size
+                // Logging after each vocabulary update
+                console.log(`Current vocab length is: ${vocabSize}`)
+                console.log(
+                    `Trained tokenizer in ${iterationCounter} iterations`
+                )
+            } else {
+                // Break the loop if no new tokens were added in this iteration
+                break
+            }
+
+            iterationCounter++
+            // Additional logging condition, adjust as needed for frequency
+            if (iterationCounter % 10 === 0) {
+                console.log(
+                    `Iteration ${iterationCounter}: vocab size is ${vocabSize}`
+                )
             }
         }
-
-        this.finalizeVocabulary()
     }
 
     finalizeVocabulary() {
+        const neededTokens = this.maxVocabSize - this.vocab.size
         const sortedTokens = Array.from(this.tokenFrequencies.entries())
-            .filter(([token]) => token !== null && token !== undefined) // Exclude null or undefined tokens
             .sort((a, b) => b[1] - a[1])
-            .map((entry) => entry[0])
-            .slice(0, this.maxVocabSize - this.vocab.size)
+            .slice(0, neededTokens)
 
-        sortedTokens.forEach((token, index) => {
+        sortedTokens.forEach(([token]) => {
             if (!this.vocab.has(token)) {
                 this.vocab.set(token, this.vocab.size)
             }
