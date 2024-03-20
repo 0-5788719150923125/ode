@@ -9,7 +9,7 @@ import {
  * A small transformer with multi-head attention and sinusoidal position embeddings.
  * @extends ModelBase
  */
-export default class OmniscientDeterministicEngine extends ModelBase {
+export default class OmniscientDeterministicEnsemble extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 4
@@ -21,8 +21,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
 
-        let state
-
         const inputs = this.tf.input({ shape: [null] })
         const embeddings = this.tf.layers.embedding({
             inputDim: this.tokenizer.getLength(),
@@ -31,28 +29,28 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             maskZero: true
         })
 
-        state = embeddings.apply(inputs)
+        let outputs = embeddings.apply(inputs)
 
         const encoder = new SinusoidalPositionalEncoding({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
         })
 
-        state = encoder.apply(state)
+        outputs = encoder.apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             const attention = new MultiHeadAttention({
                 numHeads: this.numHeads,
                 units: this.units
             })
-            state = attention.apply(state)
+            outputs = attention.apply(outputs)
             const decoder = new TransformerBlock({
                 units: this.units,
                 innerDim: this.innerDim,
                 numHeads: this.numHeads,
                 activation: 'swish'
             })
-            state = decoder.apply(state)
+            outputs = decoder.apply(outputs)
         }
 
         const head = this.tf.layers.dense({
@@ -60,9 +58,9 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             activation: 'linear'
         })
 
-        state = head.apply(state)
+        outputs = head.apply(outputs)
 
-        this.model = this.tf.model({ inputs, outputs: state })
+        this.model = this.tf.model({ inputs, outputs })
     }
 
     async compile() {
