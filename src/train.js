@@ -33,6 +33,7 @@ export async function startTraining(dataGenerator, args) {
         ...args
     }
 
+    let batch = 0
     let step = 0
     const logger = new Logger()
     const gradientAccumulator = new GradientAccumulator(
@@ -54,19 +55,22 @@ export async function startTraining(dataGenerator, args) {
     // a custom train loop
     try {
         while (true) {
-            step++
+            batch++
+            if (batch % trainArgs.gradientAccumulationSteps === 0) {
+                step++
+            }
 
-            const batch = dataset.next().value
-            await gradientAccumulator.compute(batch.xs, batch.ys)
+            const tensors = dataset.next().value
+            await gradientAccumulator.compute(tensors.xs, tensors.ys)
             await gradientAccumulator.step()
 
             // Print logs
-            logger.log(step, gradientAccumulator.getLoss())
+            logger.log(batch, step, gradientAccumulator.getLoss())
 
             // Print sample text
             await predictionSampler.call(
                 this,
-                step,
+                batch,
                 dataGenerator,
                 trainArgs.generateEvery,
                 trainArgs.predictLength
@@ -324,7 +328,7 @@ class Logger {
         this.ema.next()
         this.previousLoss = 0
     }
-    log(batch, currentLoss) {
+    log(batch, step, currentLoss) {
         const updatedEma = this.ema.next(currentLoss).value // Send new loss to generator and get updated EMA
 
         let white = colors.WHITE
@@ -351,7 +355,7 @@ class Logger {
         }
 
         console.log(
-            `STEP=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, ELAPSED=${this.timer.next().value / 1000}s`
+            `STEP=${step}, BATCH=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, ELAPSED=${this.timer.next().value / 1000}s`
         )
     }
 }

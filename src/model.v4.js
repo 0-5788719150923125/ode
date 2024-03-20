@@ -70,7 +70,7 @@ export default class OmniscientDeterministicEnsemble extends ModelBase {
                 this.config.learningRate || 1e-3,
                 this.config.beta1 || 0.9,
                 this.config.beta2 || 0.999,
-                this.config.epsilon || 1e-8
+                this.config.epsilon || 1e-7
             ),
             loss: this.lossFunctions
         })
