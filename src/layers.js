@@ -1,5 +1,88 @@
 import * as tf from '@tensorflow/tfjs'
 
+export class LearnedPositionalEmbeddings extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.vocabSize = config.vocabSize
+        this.maxSeqLength = config.maxSeqLength
+        this.units = config.units
+    }
+
+    build(inputShape) {
+        // Since this is a layer initialization method, weights are typically initialized here
+        this.tokenEmbeddings = this.addWeight(
+            'token_embeddings',
+            [this.vocabSize, this.units],
+            null,
+            tf.initializers.glorotUniform()
+        )
+        this.positionalEmbeddings = this.addWeight(
+            'positional_embeddings',
+            [this.maxSeqLength, this.units],
+            null,
+            tf.initializers.glorotUniform()
+        )
+    }
+
+    call(inputs) {
+        // Ensure inputs is not an array and is cast to int32 if it's used as indices
+        let inputTensor = Array.isArray(inputs) ? inputs[0] : inputs
+        inputTensor = tf.cast(inputTensor, 'int32') // Ensure token indices are integers
+
+        const tokenIndices = inputTensor
+        const batchSize = inputTensor.shape[0]
+        const sequenceLength = inputTensor.shape[1]
+
+        // Gather token embeddings, ensuring indices are int32
+        const tokenEmbeddings = tf.gather(
+            this.tokenEmbeddings.read(),
+            tokenIndices.flatten()
+        )
+
+        // The reshape here assumes the flattening and gathering does not change the overall expected shape
+        const reshapedTokenEmbeddings = tokenEmbeddings.reshape([
+            batchSize,
+            sequenceLength,
+            this.units
+        ])
+
+        // Create a range tensor for positional indices and ensure it's int32
+        const positions = tf.range(0, sequenceLength, 1, 'int32')
+        const positionalEmbeddings = tf.gather(
+            this.positionalEmbeddings.read(),
+            positions
+        )
+
+        // Expanding and tiling the positional embeddings to match the batch size
+        const reshapedPositionalEmbeddings = positionalEmbeddings
+            .expandDims(0)
+            .tile([batchSize, 1, 1])
+
+        // Combine the embeddings
+        return tf.add(reshapedTokenEmbeddings, reshapedPositionalEmbeddings)
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.units]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            vocabSize: this.vocabSize,
+            maxSeqLength: this.maxSeqLength,
+            units: this.units
+        })
+        return config
+    }
+
+    static get className() {
+        return 'LearnedPositionalEmbeddings'
+    }
+}
+
+tf.serialization.registerClass(LearnedPositionalEmbeddings)
+
 export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -26,7 +109,8 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
 
             // Stack sines and cosines in depth (along last dimension) and then interleave them
             const stacked = tf.stack([sines, cosines], 2) // Shape [seqLength, embeddingDim/2, 2]
-            const posEncoding = stacked.reshape([seqLength, embeddingDim])
+            let posEncoding = stacked.reshape([seqLength, embeddingDim])
+            // posEncoding = tf.mul(posEncoding, tf.rsqrt(embeddingDim)) // Normalize by sqrt(embeddingDim)
             return posEncoding.expandDims(0) // Add batch dimension
         })
     }
@@ -37,7 +121,6 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
 
             // Dynamically adjust the positional encoding to match the input shape
             const inputSeqLength = inputs.shape[1]
-            // const batchSize = inputs.shape[0]
 
             // Use slicing to adjust the positional encoding to the current input sequence length
             const posEncodingSliced = tf.slice(
@@ -45,13 +128,6 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
                 [0, 0, 0],
                 [1, inputSeqLength, -1]
             )
-
-            // Ensure positional encoding is broadcasted correctly over the batch size
-            // const posEncodingTiled = tf.tile(posEncodingSliced, [
-            //     batchSize,
-            //     1,
-            //     1
-            // ])
 
             return tf.add(inputs, posEncodingSliced)
         })
@@ -68,13 +144,13 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
 
 tf.serialization.registerClass(SinusoidalPositionalEncoding)
 
-class MultiHeadAttention extends tf.layers.Layer {
+export class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.supportsMasking = true
         this.numHeads = config.numHeads
         this.units = config.units
         this.depth = this.units / this.numHeads
+        this.supportsMasking = true
     }
 
     build(inputShape) {
@@ -159,11 +235,11 @@ tf.serialization.registerClass(MultiHeadAttention)
 export class TransformerBlock extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.supportsMasking = true
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
         this.innerDim = config?.innerDim || 1024
         this.activation = config?.activation || 'relu'
+        this.supportsMasking = true
     }
 
     build(inputShape) {
@@ -194,8 +270,8 @@ export class TransformerBlock extends tf.layers.Layer {
         this.ffnResidualConnection = new ResidualConnection()
 
         // Initialize layer normalizations
-        this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 })
-        this.layernorm2 = tf.layers.layerNormalization({ epsilon: 1e-6 })
+        this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        this.layernorm2 = tf.layers.layerNormalization({ epsilon: 1e-5 })
         this.layernorm1.build(inputShape)
         this.layernorm2.build(inputShape)
 
@@ -215,7 +291,6 @@ export class TransformerBlock extends tf.layers.Layer {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         // Calculate attention scores
         let attnOutput = this.multiHeadAttention.apply(inputs, kwargs)
-        // attnOutput.print()
         // Apply Residual Connection around Multi-Head Attention
         attnOutput = this.attentionResidualConnection.apply([
             inputs,

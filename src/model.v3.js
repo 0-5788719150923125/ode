@@ -1,5 +1,9 @@
 import ModelBase from './model.v0.js'
-import { SinusoidalPositionalEncoding, TransformerBlock } from './layers.js'
+import {
+    MultiHeadAttention,
+    SinusoidalPositionalEncoding,
+    TransformerBlock
+} from './layers.js'
 
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
@@ -33,6 +37,11 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         state = encoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
+            const attention = new MultiHeadAttention({
+                numHeads: this.numHeads,
+                units: this.units
+            })
+
             const decoder = new TransformerBlock({
                 units: this.units,
                 innerDim: this.innerDim,
