@@ -2,8 +2,10 @@ import * as tfjs from '@tensorflow/tfjs'
 
 let tf = tfjs
 
+let isBrowser = true
 ;(async function () {
     if (typeof window === 'undefined') {
+        let isBrowser = false
         tf = await import('@tensorflow/tfjs-node-gpu')
     }
 })()
@@ -273,7 +275,13 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
 
 async function predictionSampler(batch, dataGenerator, generateEvery) {
     if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
-        if (typeof window === 'undefined') {
+        let white = colors.WHITE
+        let color = colors.BLUE
+
+        if (isBrowser) {
+            white = ''
+            color = ''
+        } else {
             await this.save()
         }
 
@@ -289,10 +297,7 @@ async function predictionSampler(batch, dataGenerator, generateEvery) {
                 `TEMPERATURE: ${temp}, RATE: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
             )
             console.log(
-                colors.BLUE +
-                    prompt +
-                    colors.WHITE +
-                    output.slice(prompt.length, -1)
+                color + prompt + white + output.slice(prompt.length, -1)
             )
         }
     }
@@ -308,6 +313,7 @@ class Logger {
     log(batch, currentLoss) {
         const updatedEma = this.ema.next(currentLoss).value // Send new loss to generator and get updated EMA
 
+        let white = colors.WHITE
         let color = colors.BLUE
         if (currentLoss > 20.0) color = colors.RED
 
@@ -320,12 +326,18 @@ class Logger {
         let memory = tf.memory()
 
         if (memory.numBytesInGPU) {
-            memory = memory.numBytesInGPU / 1_000_000_000
+            memory = 'VRAM=' + (memory.numBytesInGPU / 1_000_000_000).toFixed(4)
         } else {
-            memory = memory.numBytes / 1_000_000_000
+            memory = 'MEM=' + (memory.numBytes / 1_000_000_000).toFixed(4)
         }
+
+        if (isBrowser) {
+            white = ''
+            color = ''
+        }
+
         console.log(
-            `STEP=${batch}, MEM=${memory.toFixed(4)}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${colors.WHITE}, ELAPSED=${this.timer.next().value / 1000}s`
+            `STEP=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, ELAPSED=${this.timer.next().value / 1000}s`
         )
     }
 }

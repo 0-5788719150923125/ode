@@ -14,14 +14,13 @@ import { trainModel } from './dev-train.js'
         })
     } else {
         // browser
-        const worker = new Worker(new URL('dev-worker.js', import.meta.url), {
+        new Worker(new URL('dev-worker.js', import.meta.url), {
             type: 'module'
-        })
-        worker.postMessage({
-            backend: 'webgl',
+        }).postMessage({
+            backend: 'cpu',
             batchSize: 1,
-            gradientAccumulationSteps: 128,
-            generateEvery: 0
+            gradientAccumulationSteps: 4,
+            generateEvery: 4
         })
     }
 })()
