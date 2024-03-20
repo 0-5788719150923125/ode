@@ -65,7 +65,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         this.model = this.tf.model({ inputs, outputs: state })
     }
 
-    compile() {
+    async compile() {
         this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
         this.model.compile({
             optimizer: this.tf.train.adam(

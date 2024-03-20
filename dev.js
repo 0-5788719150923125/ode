@@ -9,8 +9,6 @@ import { trainModel } from './dev-train.js'
             gradientAccumulationSteps: 256,
             generateEvery: 256,
             sampleLen: 128
-            // overfit: 100
-            // loadFromFile: 'data/models/ode'
         })
     }
     // using browser
