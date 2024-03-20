@@ -77,15 +77,15 @@ export class MultiHeadAttention extends tf.layers.Layer {
                 units: this.units,
                 kernelInitializer: 'glorotUniform'
             })
-            // this[type].build(inputShape)
-            // this._trainableWeights.push(...this[type].trainableWeights)
+            this[type].build(inputShape)
+            this._trainableWeights.push(...this[type].trainableWeights)
         })
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
         // Initialize layer normalizations
         this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
-        // this.layernorm.build(inputShape)
-        // this._trainableWeights.push(...this.layernorm.trainableWeights)
+        this.layernorm.build(inputShape)
+        this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         super.build(inputShape)
     }
@@ -179,26 +179,26 @@ export class TransformerBlock extends tf.layers.Layer {
         this.smallFeedforward = tf.layers.dense({ units: this.units })
 
         // Manually call build on dense layers to initialize weights
-        // this.largeFeedforward.build(inputShape)
-        // this.smallFeedforward.build([
-        //     inputShape[0],
-        //     inputShape[1],
-        //     this.innerDim
-        // ])
+        this.largeFeedforward.build(inputShape)
+        this.smallFeedforward.build([
+            inputShape[0],
+            inputShape[1],
+            this.innerDim
+        ])
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
 
         // Initialize layer normalization
         this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
-        // this.layernorm.build(inputShape)
+        this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
-        // this._trainableWeights = [
-        //     ...this.largeFeedforward.trainableWeights,
-        //     ...this.smallFeedforward.trainableWeights,
-        //     ...this.layernorm.trainableWeights
-        // ]
+        this._trainableWeights = [
+            ...this.largeFeedforward.trainableWeights,
+            ...this.smallFeedforward.trainableWeights,
+            ...this.layernorm.trainableWeights
+        ]
 
         super.build(inputShape)
     }

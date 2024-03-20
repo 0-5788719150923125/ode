@@ -11,7 +11,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         this.layers = 4
         this.numHeads = 8
         this.units = 256
-        this.innerDim = this.units * 3
+        this.innerDim = this.units * 4
     }
 
     build() {
@@ -73,6 +73,5 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             loss: this.lossFunctions
         })
         console.log(this.model.summary())
-        console.log(this.model.optimizer)
     }
 }

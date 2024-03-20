@@ -18,6 +18,7 @@ export async function trainModel(args) {
         epsilon: 1e-8,
         backend: trainArgs.backend,
         contextLength: trainArgs.sampleLen,
+        clipValue: 1.0,
         ...trainArgs
     })
 

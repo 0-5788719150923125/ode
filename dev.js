@@ -4,10 +4,10 @@ import { trainModel } from './dev-train.js'
         // node.js
         await trainModel({
             backend: 'tensorflow',
-            batchSize: 4,
-            gradientAccumulationSteps: 32,
-            generateEvery: 32,
-            sampleLen: 128
+            batchSize: 2,
+            gradientAccumulationSteps: 512,
+            generateEvery: 512,
+            sampleLen: 256
             // overfit: 100
             // loadFromFile: 'data/models/ode'
         })
