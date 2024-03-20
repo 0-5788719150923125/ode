@@ -1,5 +1,9 @@
 import ModelBase from './model.v0.js'
-import { SinusoidalPositionalEncoding } from './layers.js'
+import {
+    MultiHeadAttention,
+    SinusoidalPositionalEncoding,
+    TransformerBlock
+} from './layers.js'
 
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
@@ -33,26 +37,41 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         state = encoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
-            const layer = this.tf.layers.gru({
-                units: this.units,
-                activation: 'softsign',
-                kernelInitializer: 'glorotUniform',
-                recurrentActivation: 'sigmoid',
-                recurrentInitializer: 'orthogonal',
-                returnSequences: true
+            const attention = new MultiHeadAttention({
+                numHeads: this.numHeads,
+                units: this.units
             })
-            state = layer.apply(state)
+            state = attention.apply(state)
+            const decoder = new TransformerBlock({
+                units: this.units,
+                innerDim: this.innerDim,
+                numHeads: this.numHeads,
+                activation: 'swish'
+            })
+            state = decoder.apply(state)
         }
 
-        const head = this.tf.layers.timeDistributed({
-            layer: this.tf.layers.dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
-            })
+        const head = this.tf.layers.dense({
+            units: this.tokenizer.getLength(),
+            activation: 'linear'
         })
 
         const outputs = head.apply(state)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    postInit() {
+        this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
+        this.model.compile({
+            optimizer: this.tf.train.adam(
+                this.config.learningRate || 1e-3,
+                this.config.beta1 || 0.9,
+                this.config.beta2 || 0.999,
+                this.config.epsilon || 1e-8
+            ),
+            loss: this.lossFunctions
+        })
+        console.log(this.model.summary())
     }
 }

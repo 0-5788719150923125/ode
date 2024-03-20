@@ -1,4 +1,4 @@
-import ODE, { stringSampler } from './src/index.js'
+import ODE from './src/index.js'
 
 export async function trainModel(args) {
     const trainArgs = {
@@ -11,11 +11,12 @@ export async function trainModel(args) {
         ...args
     }
 
-    const net = new ODE({
+    const net = await ODE({
         // learningRate: 0.001,
         // decay: 0.9,
         // momentum: 0.01,
         // epsilon: 1e-8,
+        version: 3,
         backend: trainArgs.backend,
         contextLength: trainArgs.sampleLen,
         clipValue: 1.0,
@@ -24,7 +25,10 @@ export async function trainModel(args) {
 
     await net.init()
 
-    const dataset = stringSampler(trainArgs.sampleLen * 5, trainArgs?.overfit)
+    const dataset = net.sampler('string')(
+        trainArgs.sampleLen * 5,
+        trainArgs?.overfit
+    )
 
     await net.train(dataset, trainArgs)
 }

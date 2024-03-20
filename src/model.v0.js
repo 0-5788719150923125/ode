@@ -13,7 +13,7 @@ import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import Tokenizer from './tokenizer.js'
 import { startTraining } from './train.js'
-import { preprocessData } from './utils.js'
+import { preprocessData, stringSampler } from './utils.js'
 
 export default class ModelBase {
     constructor(config) {
@@ -80,6 +80,10 @@ export default class ModelBase {
     async load(path = `data/models/ode`) {
         this.model = await tf.loadLayersModel(`file://${path}/model.json`)
         console.log('successfully loaded model from disk')
+    }
+
+    sampler(type = 'string') {
+        return stringSampler
     }
 }
 
