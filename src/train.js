@@ -58,12 +58,11 @@ export async function startTraining(dataGenerator, args) {
         const batch = dataset.next().value
         await gradientAccumulator.compute(batch.xs, batch.ys)
         await gradientAccumulator.step()
-        tf.dispose([batch.xs, batch.ys])
 
         // Print logs
         logger.log(step, gradientAccumulator.getLoss())
 
-        // // Print sample text
+        // Print sample text
         await predictionSampler.call(
             this,
             step,
@@ -86,7 +85,7 @@ class GradientAccumulator {
     }
 
     async compute(currentXs, currentYs) {
-        const { value, grads, loss } = computeGradients(
+        const { grads, loss } = computeGradients(
             this.model,
             this.lossFunctions[0],
             currentXs,
@@ -96,7 +95,6 @@ class GradientAccumulator {
         this.gradients = grads
         this.loss = loss
 
-        tf.dispose([currentXs, currentYs])
         return this
     }
 
@@ -164,8 +162,8 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
             return lossValue
         })
     )
-    tf.dispose([value])
-    return { value, grads, loss }
+    tf.dispose([currentXs, currentYs, value])
+    return { grads, loss }
 }
 
 function clipGradients(grads, value) {
