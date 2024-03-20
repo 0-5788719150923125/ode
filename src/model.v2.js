@@ -5,7 +5,7 @@ import { CausalAttentionLayer, ResidualConnection } from './layers.js'
  * An attempt to implement causal attention in a GRU-based RNN. It didn't work very well.
  * @extends ModelBase
  */
-export default class OmniscientDeterministicEngine extends ModelBase {
+export default class OmnipresentDegenerateEntity extends ModelBase {
     build() {
         super.build()
 
