@@ -12,12 +12,11 @@ export async function trainModel(args) {
     }
 
     const net = await ODE({
+        version: 4,
         // learningRate: 0.001,
         // decay: 0.9,
         // momentum: 0.01,
         // epsilon: 1e-8,
-        version: 3,
-        backend: trainArgs.backend,
         contextLength: trainArgs.sampleLen,
         clipValue: 1.0,
         ...trainArgs

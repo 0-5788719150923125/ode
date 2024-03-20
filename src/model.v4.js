@@ -8,9 +8,9 @@ import {
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
         super(config)
-        this.layers = 3
+        this.layers = 4
         this.numHeads = 8
-        this.units = 128
+        this.units = 256
         this.innerDim = this.units * 4
     }
 
