@@ -15,6 +15,12 @@ import Tokenizer from './tokenizer.js'
 import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
 
+/**
+ * The base model class, which represents a syntax and structure that must
+ * be remain compatible across all model versions.
+ * @constructor
+ * @param {Object} config - The configuration settings for the model.
+ */
 export default class ModelBase {
     constructor(config) {
         this.tf = tf

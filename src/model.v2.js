@@ -1,6 +1,10 @@
 import ModelBase from './model.v0.js'
 import { CausalAttentionLayer, ResidualConnectionLayer } from './layers.js'
 
+/**
+ * An attempt to implement causal attention in a GRU-based RNN. It didn't work very well.
+ * @extends ModelBase
+ */
 export default class OmniscientDeterministicEngine extends ModelBase {
     build() {
         super.build()
@@ -46,13 +50,13 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             })
             recurrentOutput = norm.apply(recurrentOutput)
 
-            // if (notLastLayer) {
-            //     const attention = new CausalAttentionLayer({
-            //         units: size,
-            //         kernelInitializer: 'glorotUniform'
-            //     })
-            //     recurrentOutput = attention.apply(recurrentOutput)
-            // }
+            if (notLastLayer) {
+                const attention = new CausalAttentionLayer({
+                    units: size,
+                    kernelInitializer: 'glorotUniform'
+                })
+                recurrentOutput = attention.apply(recurrentOutput)
+            }
         })
 
         const outputs = this.tf.layers

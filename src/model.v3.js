@@ -1,13 +1,18 @@
 import ModelBase from './model.v0.js'
 import { SinusoidalPositionalEncoding } from './layers.js'
 
+/**
+ * A GRU-based RNN that uses positional encoding and a time-distributed output
+ * layer. This is quite different from common RNNs, in that it functions more
+ * like a sequence-to-sequence model. Rather than training on a single-label
+ * prediction, this model trains on an entire sequence, shifted-right by one.
+ * @extends ModelBase
+ */
 export default class OmniscientDeterministicEngine extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 3
-        this.numHeads = 8
         this.units = 128
-        this.innerDim = this.units * 4
     }
 
     build() {

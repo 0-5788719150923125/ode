@@ -1,5 +1,10 @@
 import ModelBase from './model.v0.js'
 
+/**
+ * An extremely simple text-generation RNN, used for next-token prediction. You
+ * will see versions of this model everywhere, in tutorials on the Internet.
+ * @extends ModelBase
+ */
 export default class ModelPrototype extends ModelBase {
     build() {
         super.build()
