@@ -23,7 +23,7 @@ export async function trainModel(args) {
 
     await net.init()
 
-    const dataset = stringSampler(trainArgs.sampleLen * 3, trainArgs?.overfit)
+    const dataset = stringSampler(trainArgs.sampleLen * 5, trainArgs?.overfit)
 
     await net.train(dataset, trainArgs)
 }

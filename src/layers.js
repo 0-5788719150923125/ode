@@ -1,5 +1,267 @@
 import * as tf from '@tensorflow/tfjs'
 
+export class SinusoidalPositionalEncoding extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.supportsMasking = true
+        this.maxSeqLength = config.maxSeqLength || 64
+        this.embeddingDim = config.embeddingDim || 256
+        // Pre-compute the positional encoding matrix for the maximum sequence length.
+        this.posEncoding = this.precomputePositionalEncoding(
+            this.maxSeqLength,
+            this.embeddingDim
+        )
+    }
+
+    precomputePositionalEncoding(seqLength, embeddingDim) {
+        return tf.tidy(() => {
+            const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+            const i = tf.range(0, embeddingDim / 2, 1, 'float32').expandDims(0) // Only need half as many i values
+            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim)) // Multiply i by 2 here
+
+            const angles = pos.div(angleRates)
+
+            const sines = angles.sin()
+            const cosines = angles.cos()
+
+            // Stack sines and cosines in depth (along last dimension) and then interleave them
+            const stacked = tf.stack([sines, cosines], 2) // Shape [seqLength, embeddingDim/2, 2]
+            const posEncoding = stacked.reshape([seqLength, embeddingDim])
+            return posEncoding.expandDims(0) // Add batch dimension
+        })
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+
+            // Dynamically adjust the positional encoding to match the input shape
+            const inputSeqLength = inputs.shape[1]
+
+            // Use slicing to adjust the positional encoding to the current input sequence length
+            const posEncodingSliced = tf.slice(
+                this.posEncoding,
+                [0, 0, 0],
+                [1, inputSeqLength, -1]
+            )
+            return tf.add(inputs, posEncodingSliced)
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    static get className() {
+        return 'SinusoidalPositionalEncoding'
+    }
+}
+
+tf.serialization.registerClass(SinusoidalPositionalEncoding)
+
+export class MultiHeadAttention extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.numHeads = config.numHeads
+        this.units = config.units
+        this.depth = this.units / this.numHeads
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        // Create dense layers for queries, keys, values and output
+        const layers = ['query', 'key', 'value', 'out']
+        layers.map((type, i) => {
+            this[type] = tf.layers.dense({
+                units: this.units,
+                kernelInitializer: 'glorotUniform'
+            })
+            // this[type].build(inputShape)
+            // this._trainableWeights.push(...this[type].trainableWeights)
+        })
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+        // Initialize layer normalizations
+        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        // this.layernorm.build(inputShape)
+        // this._trainableWeights.push(...this.layernorm.trainableWeights)
+
+        super.build(inputShape)
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+
+            const batchSize = inputs.shape[0]
+            const seqLength = inputs.shape[1]
+
+            let q = this.query.apply(inputs)
+            let k = this.key.apply(inputs)
+            let v = this.value.apply(inputs)
+
+            // Split the heads for multi-head attention
+            q = tf
+                .reshape(q, [batchSize, seqLength, this.numHeads, this.depth])
+                .transpose([0, 2, 1, 3])
+            k = tf
+                .reshape(k, [batchSize, seqLength, this.numHeads, this.depth])
+                .transpose([0, 2, 3, 1])
+            v = tf
+                .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
+                .transpose([0, 2, 1, 3])
+
+            // Compute raw attention scores
+            let attentionScores = tf
+                .matMul(q, k)
+                .div(tf.sqrt(tf.scalar(this.depth)))
+
+            if (kwargs?.mask) {
+                // Invert the mask: true for tokens (no padding) becomes false, false for padding becomes true
+                const maskInverted = kwargs.mask.logicalNot()
+                // Convert the inverted mask to float and apply penalty to positions now marked as true (previously padding)
+                const maskPenalty = tf.cast(maskInverted, 'float32').mul(-1e9)
+                // Expand dimensions to make the mask compatible with attention scores
+                const maskExpanded = maskPenalty.expandDims(1).expandDims(2)
+                // Apply the expanded mask to the attention scores
+                attentionScores = tf.add(attentionScores, maskExpanded)
+            }
+
+            const attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
+            let attentionOutput = tf
+                .matMul(attentionWeights, v)
+                .transpose([0, 2, 1, 3])
+                .reshape([batchSize, seqLength, this.units])
+
+            // Calculate attention scores
+            attentionOutput = this.out.apply(attentionOutput)
+            // Apply Residual Connection around Multi-Head Attention
+            attentionOutput = this.residual.apply([inputs, attentionOutput])
+            // Apply Layer Normalization
+            attentionOutput = this.layernorm.apply(attentionOutput)
+
+            return attentionOutput
+        })
+    }
+
+    getConfig() {
+        return {
+            numHeads: this.numHeads,
+            units: this.units
+        }
+    }
+
+    static get className() {
+        return 'MultiHeadAttention'
+    }
+}
+
+tf.serialization.registerClass(MultiHeadAttention)
+
+export class TransformerBlock extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config?.units || 256
+        this.numHeads = config?.numHeads || 8
+        this.innerDim = config?.innerDim || 1024
+        this.activation = config?.activation || 'relu'
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        // Initialize dense layers for projection
+        this.largeFeedforward = tf.layers.dense({
+            units: this.innerDim,
+            activation: this.activation
+        })
+        this.smallFeedforward = tf.layers.dense({ units: this.units })
+
+        // Manually call build on dense layers to initialize weights
+        // this.largeFeedforward.build(inputShape)
+        // this.smallFeedforward.build([
+        //     inputShape[0],
+        //     inputShape[1],
+        //     this.innerDim
+        // ])
+
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+
+        // Initialize layer normalization
+        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        // this.layernorm.build(inputShape)
+
+        // Collect all trainable weights from internal layers
+        // this._trainableWeights = [
+        //     ...this.largeFeedforward.trainableWeights,
+        //     ...this.smallFeedforward.trainableWeights,
+        //     ...this.layernorm.trainableWeights
+        // ]
+
+        super.build(inputShape)
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            // Feed-Forward Network block
+            let output = this.largeFeedforward.apply(inputs)
+            output = this.smallFeedforward.apply(output)
+            // Apply Residual Connection around Feed-Forward Network
+            output = this.residual.apply([inputs, output])
+            // Apply layer norm before return
+            return this.layernorm.apply(output)
+        })
+    }
+
+    getConfig() {
+        return {
+            units: this.units,
+            numHeads: this.numHeads,
+            innerDim: this.innerDim
+        }
+    }
+
+    static get className() {
+        return 'TransformerBlock'
+    }
+}
+
+tf.serialization.registerClass(TransformerBlock)
+
+export class ResidualConnection extends tf.layers.Layer {
+    constructor() {
+        super()
+    }
+
+    computeOutputShape(inputShape) {
+        // inputShape[0] and inputShape[1 should be identical
+        return inputShape[0]
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            this.invokeCallHook(inputs, kwargs)
+            // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
+            if (inputs.length !== 2) {
+                throw new Error('ResidualConnection expects 2 inputs.')
+            }
+
+            const [originalInput, blockOutput] = inputs
+            return tf.add(originalInput, blockOutput)
+        })
+    }
+
+    static get className() {
+        return 'ResidualConnection'
+    }
+}
+
+tf.serialization.registerClass(ResidualConnection)
+
 export class LearnedPositionalEmbeddings extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -87,275 +349,6 @@ export class LearnedPositionalEmbeddings extends tf.layers.Layer {
 }
 
 tf.serialization.registerClass(LearnedPositionalEmbeddings)
-
-export class SinusoidalPositionalEncoding extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.supportsMasking = true
-        this.maxSeqLength = config.maxSeqLength || 64
-        this.embeddingDim = config.embeddingDim || 256
-        // Pre-compute the positional encoding matrix for the maximum sequence length.
-        this.posEncoding = this.precomputePositionalEncoding(
-            this.maxSeqLength,
-            this.embeddingDim
-        )
-    }
-
-    precomputePositionalEncoding(seqLength, embeddingDim) {
-        return tf.tidy(() => {
-            const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
-            const i = tf.range(0, embeddingDim / 2, 1, 'float32').expandDims(0) // Only need half as many i values
-            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim)) // Multiply i by 2 here
-
-            const angles = pos.div(angleRates)
-
-            const sines = angles.sin()
-            const cosines = angles.cos()
-
-            // Stack sines and cosines in depth (along last dimension) and then interleave them
-            const stacked = tf.stack([sines, cosines], 2) // Shape [seqLength, embeddingDim/2, 2]
-            let posEncoding = stacked.reshape([seqLength, embeddingDim])
-            // posEncoding = tf.mul(posEncoding, tf.rsqrt(embeddingDim)) // Normalize by sqrt(embeddingDim)
-            return posEncoding.expandDims(0) // Add batch dimension
-        })
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
-
-            // Dynamically adjust the positional encoding to match the input shape
-            const inputSeqLength = inputs.shape[1]
-
-            // Use slicing to adjust the positional encoding to the current input sequence length
-            const posEncodingSliced = tf.slice(
-                this.posEncoding,
-                [0, 0, 0],
-                [1, inputSeqLength, -1]
-            )
-
-            return tf.add(inputs, posEncodingSliced)
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    static get className() {
-        return 'SinusoidalPositionalEncoding'
-    }
-}
-
-tf.serialization.registerClass(SinusoidalPositionalEncoding)
-
-export class MultiHeadAttention extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.numHeads = config.numHeads
-        this.units = config.units
-        this.depth = this.units / this.numHeads
-        this.supportsMasking = true
-    }
-
-    build(inputShape) {
-        // Create dense layers for queries, keys, values and output
-        const layers = ['query', 'key', 'value', 'out']
-        layers.map((type, i) => {
-            this[type] = tf.layers.dense({
-                units: this.units,
-                kernelInitializer: 'glorotUniform'
-            })
-            this[type].build(inputShape)
-            this._trainableWeights.push(...this[type].trainableWeights)
-        })
-        // Residual connections/skip connections are critical here
-        this.residual = new ResidualConnection()
-        // Initialize layer normalizations
-        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
-        this.layernorm.build(inputShape)
-        this._trainableWeights.push(...this.layernorm.trainableWeights)
-
-        super.build(inputShape)
-    }
-
-    call(inputs, kwargs, training = false) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
-
-            const batchSize = inputs.shape[0]
-            const seqLength = inputs.shape[1]
-
-            let q = this.query.apply(inputs)
-            let k = this.key.apply(inputs)
-            let v = this.value.apply(inputs)
-
-            // Split the heads for multi-head attention
-            q = tf
-                .reshape(q, [batchSize, seqLength, this.numHeads, this.depth])
-                .transpose([0, 2, 1, 3])
-            k = tf
-                .reshape(k, [batchSize, seqLength, this.numHeads, this.depth])
-                .transpose([0, 2, 3, 1])
-            v = tf
-                .reshape(v, [batchSize, seqLength, this.numHeads, this.depth])
-                .transpose([0, 2, 1, 3])
-
-            // Compute raw attention scores
-            let attentionScores = tf
-                .matMul(q, k)
-                .div(tf.sqrt(tf.scalar(this.depth)))
-
-            if (kwargs?.mask) {
-                // Invert the mask: true for tokens (no padding) becomes false, false for padding becomes true
-                const maskInverted = kwargs.mask.logicalNot()
-                // Convert the inverted mask to float and apply penalty to positions now marked as true (previously padding)
-                const maskPenalty = tf.cast(maskInverted, 'float32').mul(-1e9)
-                // Expand dimensions to make the mask compatible with attention scores
-                const maskExpanded = maskPenalty.expandDims(1).expandDims(2)
-                // Apply the expanded mask to the attention scores
-                attentionScores = tf.add(attentionScores, maskExpanded)
-            }
-
-            const attentionWeights = tf.softmax(attentionScores, -1) // Apply softmax with mask applied
-            let attentionOutput = tf
-                .matMul(attentionWeights, v)
-                .transpose([0, 2, 1, 3])
-            attentionOutput = tf.reshape(attentionOutput, [
-                batchSize,
-                seqLength,
-                this.units
-            ])
-
-            // Calculate attention scores
-            let attnOutput = this.out.apply(attentionOutput)
-
-            // Apply Residual Connection around Multi-Head Attention
-            attnOutput = this.residual.apply([inputs, attnOutput])
-            // Apply Layer Normalization
-            const normalized = this.layernorm.apply(attnOutput)
-
-            return normalized
-        })
-    }
-
-    getConfig() {
-        return {
-            numHeads: this.numHeads,
-            units: this.units
-        }
-    }
-
-    static get className() {
-        return 'MultiHeadAttention'
-    }
-}
-
-tf.serialization.registerClass(MultiHeadAttention)
-
-export class TransformerBlock extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.units = config?.units || 256
-        this.numHeads = config?.numHeads || 8
-        this.innerDim = config?.innerDim || 1024
-        this.activation = config?.activation || 'relu'
-        this.supportsMasking = true
-    }
-
-    build(inputShape) {
-        // Initialize dense layers for projection
-        this.largeFeedforward = tf.layers.dense({
-            units: this.innerDim,
-            activation: this.activation
-        })
-        this.smallFeedforward = tf.layers.dense({ units: this.units })
-
-        // Manually call build on dense layers to initialize weights
-        this.largeFeedforward.build(inputShape)
-        this.smallFeedforward.build([
-            inputShape[0],
-            inputShape[1],
-            this.innerDim
-        ])
-
-        // Residual connections/skip connections are critical here
-        this.residual = new ResidualConnection()
-
-        // Initialize layer normalization
-        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
-        this.layernorm.build(inputShape)
-
-        // Collect all trainable weights from internal layers
-        this._trainableWeights = [
-            ...this.largeFeedforward.trainableWeights,
-            ...this.smallFeedforward.trainableWeights,
-            ...this.layernorm.trainableWeights
-        ]
-
-        super.build(inputShape)
-    }
-
-    call(inputs, kwargs, training = false) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
-            // Feed-Forward Network block
-            let output = this.largeFeedforward.apply(inputs)
-            output = this.smallFeedforward.apply(output)
-            // Apply Residual Connection around Feed-Forward Network
-            output = this.residual.apply([inputs, output])
-            // Apply layer norm before return
-            return this.layernorm.apply(output)
-        })
-    }
-
-    getConfig() {
-        return {
-            units: this.units,
-            numHeads: this.numHeads,
-            innerDim: this.innerDim
-        }
-    }
-
-    static get className() {
-        return 'TransformerBlock'
-    }
-}
-
-tf.serialization.registerClass(TransformerBlock)
-
-export class ResidualConnection extends tf.layers.Layer {
-    constructor() {
-        super()
-    }
-
-    computeOutputShape(inputShape) {
-        // inputShape[0] and inputShape[1 should be identical
-        return inputShape[0]
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            this.invokeCallHook(inputs, kwargs)
-            // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
-            if (inputs.length !== 2) {
-                throw new Error('ResidualConnection expects 2 inputs.')
-            }
-
-            const [originalInput, blockOutput] = inputs
-            return tf.add(originalInput, blockOutput)
-        })
-    }
-
-    static get className() {
-        return 'ResidualConnection'
-    }
-}
-
-tf.serialization.registerClass(ResidualConnection)
 
 export class LastTokenSelectionLayer extends tf.layers.Layer {
     constructor(config) {
