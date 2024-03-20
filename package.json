@@ -4,7 +4,12 @@
     "description": "omniscient deterministic engine",
     "type": "module",
     "source": "src/index.js",
-    "main": "dist/main.js",
+    "targets": {
+        "main": false,
+        "default": {
+            "distDir": "./dist"
+        }
+    },
     "scripts": {
         "start": "npm run start:browser",
         "start:browser": "parcel dev.html --https",

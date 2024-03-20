@@ -1,4 +1,4 @@
-import ODE from './src/index.js'
+import ODE from './dist/index.js'
 
 export async function trainModel(args) {
     const trainArgs = {
