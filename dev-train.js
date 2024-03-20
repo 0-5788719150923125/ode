@@ -7,7 +7,7 @@ export async function trainModel(args) {
         gradientAccumulationSteps: 1,
         sampleLen: 64,
         generateEvery: 64,
-        predictLength: 32,
+        predictLength: 64,
         ...args
     }
 

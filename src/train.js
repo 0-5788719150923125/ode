@@ -273,7 +273,12 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
     }
 }
 
-async function predictionSampler(batch, dataGenerator, generateEvery) {
+async function predictionSampler(
+    batch,
+    dataGenerator,
+    generateEvery,
+    maxLength = 64
+) {
     if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
         let white = colors.WHITE
         let color = colors.BLUE
@@ -285,8 +290,7 @@ async function predictionSampler(batch, dataGenerator, generateEvery) {
             await this.save()
         }
 
-        const maxLength = 64
-        const seedLength = randomBetween(16, 48)
+        const seedLength = randomBetween(16, maxLength - 16)
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const temp of [0, 0.3, 0.7]) {
