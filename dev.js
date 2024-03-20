@@ -1,19 +1,20 @@
 import { trainModel } from './dev-train.js'
 ;(async function () {
+    // using node.js
     if (typeof window === 'undefined') {
-        // node.js
         await trainModel({
             version: 4,
             backend: 'tensorflow',
-            batchSize: 2,
-            gradientAccumulationSteps: 512,
-            generateEvery: 512,
-            sampleLen: 256
+            batchSize: 4,
+            gradientAccumulationSteps: 256,
+            generateEvery: 256,
+            sampleLen: 128
             // overfit: 100
             // loadFromFile: 'data/models/ode'
         })
-    } else {
-        // browser
+    }
+    // using browser
+    else {
         new Worker(new URL('dev-worker.js', import.meta.url), {
             type: 'module'
         }).postMessage({

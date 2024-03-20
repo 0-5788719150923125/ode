@@ -5,7 +5,6 @@
     "type": "module",
     "source": "src/index.js",
     "targets": {
-        "main": false,
         "default": {
             "distDir": "./dist"
         }

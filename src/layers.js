@@ -4,6 +4,7 @@ export class DebugLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.config = config
+        this.supportsMasking = true
     }
 
     computeOutputShape(inputShape) {
@@ -15,13 +16,8 @@ export class DebugLayer extends tf.layers.Layer {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(input, kwargs)
             console.log(inputs)
-            // const x = tf.util.flatten(input.arraySync())
-            // console.log(
-            //     this.config.name + '>',
-            //     input.shape,
-            //     x[0],
-            //     x[x.length - 1]
-            // )
+            inputs.print()
+            console.log(inputs.shape)
             return input
         })
     }
@@ -36,20 +32,18 @@ tf.serialization.registerClass(DebugLayer)
 export class ExpandDims extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        // The axis parameter determines where the new axis is added.
-        // -1 adds a new axis at the end, which is typical for adding a feature dimension.
-        this.axis = config.axis
+        this.axis = config?.axis || -1
+        this.supportsMasking = true
     }
 
-    // This method specifies the transformation applied by the layer.
     call(inputs, kwargs) {
         return tf.tidy(() => {
-            // Expands the dimensions of the inputs tensor according to the specified axis.
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
             return tf.expandDims(inputs, this.axis)
         })
     }
 
-    // The computeOutputShape method lets TensorFlow.js know how the shape of the input tensor changes.
     computeOutputShape(inputShape) {
         // This modifies the input shape by adding a 1 in the specified axis position.
         let outputShape = inputShape.slice()
@@ -66,7 +60,7 @@ export class ExpandDims extends tf.layers.Layer {
         return 'ExpandDims'
     }
 }
-// Make sure to register the custom layer so it can be used in models and identified by its class name.
+
 tf.serialization.registerClass(ExpandDims)
 
 export class SinusoidalPositionalEncoding extends tf.layers.Layer {
@@ -75,7 +69,7 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
         this.supportsMasking = true
         this.maxSeqLength = config.maxSeqLength || 64
         this.embeddingDim = config.embeddingDim || 256
-        // Pre-compute the positional encoding matrix for the maximum sequence length.
+        // Pre-compute the positional encoding matrix
         this.posEncoding = this.precomputePositionalEncoding(
             this.maxSeqLength,
             this.embeddingDim

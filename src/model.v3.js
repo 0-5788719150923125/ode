@@ -1,5 +1,4 @@
 import ModelBase from './model.v0.js'
-import { ExpandDims } from './layers.js'
 
 /**
  * A GRU-based RNN that uses a time-distributed, dense output

@@ -60,12 +60,12 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             activation: 'linear'
         })
 
-        const outputs = head.apply(state)
+        state = head.apply(state)
 
-        this.model = this.tf.model({ inputs, outputs })
+        this.model = this.tf.model({ inputs, outputs: state })
     }
 
-    postInit() {
+    compile() {
         this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
         this.model.compile({
             optimizer: this.tf.train.adam(
@@ -76,6 +76,5 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             ),
             loss: this.lossFunctions
         })
-        console.log(this.model.summary())
     }
 }

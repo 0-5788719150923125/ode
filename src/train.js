@@ -168,18 +168,6 @@ function clipGradients(grads, value) {
     return clippedGrads
 }
 
-function accumulateGradients(gradients, accumulatedGrads) {
-    Object.keys(gradients).forEach((key) => {
-        if (!accumulatedGrads[key]) {
-            accumulatedGrads[key] = tf.keep(tf.zerosLike(gradients[key]))
-        }
-        const tempGrad = tf.add(accumulatedGrads[key], gradients[key])
-        accumulatedGrads[key].dispose()
-        accumulatedGrads[key] = tf.keep(tempGrad)
-    })
-    return accumulatedGrads
-}
-
 function averageGradients(grads, accumulationSteps) {
     const divisor = tf.scalar(accumulationSteps) // Create the scalar outside the loop
     Object.keys(grads).forEach((key) => {
@@ -191,6 +179,18 @@ function averageGradients(grads, accumulationSteps) {
     divisor.dispose()
 
     return grads
+}
+
+function accumulateGradients(gradients, accumulatedGrads) {
+    Object.keys(gradients).forEach((key) => {
+        if (!accumulatedGrads[key]) {
+            accumulatedGrads[key] = tf.zerosLike(gradients[key])
+        }
+        const tempGrad = tf.add(accumulatedGrads[key], gradients[key])
+        accumulatedGrads[key].dispose()
+        accumulatedGrads[key] = tf.keep(tempGrad)
+    })
+    return accumulatedGrads
 }
 
 // function createDynamicLrScheduler(

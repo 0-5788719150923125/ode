@@ -45,7 +45,7 @@ export default class ModelBase {
         } else {
             this.build()
         }
-
+        this.compile()
         this.postInit()
         console.log(`Loaded model: v${this.config.version}`)
     }
@@ -54,7 +54,7 @@ export default class ModelBase {
         // pass
     }
 
-    postInit() {
+    compile() {
         // Compile the model
         this.lossFunctions = [tf.losses.softmaxCrossEntropy]
         this.model.compile({
@@ -67,6 +67,9 @@ export default class ModelBase {
             ),
             loss: this.lossFunctions
         })
+    }
+
+    postInit() {
         console.log(this.model.optimizer)
         console.log(this.model.summary())
     }
