@@ -150,7 +150,16 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
             const predictions = model.predict(currentXs)
-            const lossValue = lossFunction(currentYs, predictions)
+            const weights = null
+            const smoothing = 0.001
+            const reduction = tf.Reduction.MEAN
+            const lossValue = lossFunction(
+                currentYs,
+                predictions,
+                weights,
+                smoothing,
+                reduction
+            )
             loss = lossValue.dataSync()[0]
             return lossValue
         })
@@ -258,18 +267,17 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
 
         const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
-        const ysOneHot = tf.tidy(() => {
-            const ysTensor = tf.tensor2d(
-                ysArray,
-                [batchSize, inputLength],
-                'int32'
-            )
+        // use this format with sparse loss functions
+        // const ysTensor = tf.tensor2d(ysArray, [batchSize, inputLength], 'int32')
+
+        const ysTensor = tf.tidy(() => {
             return tf
-                .oneHot(ysTensor.flatten(), tokenizer.getLength())
+                .tensor2d(ysArray, [batchSize, inputLength], 'int32')
+                .oneHot(tokenizer.getLength())
                 .reshape([batchSize, inputLength, tokenizer.getLength()])
         })
 
-        yield { xs: xsTensor, ys: ysOneHot }
+        yield { xs: xsTensor, ys: ysTensor }
     }
 }
 
