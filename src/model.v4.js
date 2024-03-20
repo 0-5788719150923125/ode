@@ -6,7 +6,7 @@ import {
 } from './layers.js'
 
 /**
- * A simple transformer with multi-head attention and sinusoidal position embeddings.
+ * A small transformer with multi-head attention and sinusoidal position embeddings.
  * @extends ModelBase
  */
 export default class OmniscientDeterministicEngine extends ModelBase {
