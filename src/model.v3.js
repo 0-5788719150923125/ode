@@ -1,5 +1,4 @@
 import ModelBase from './model.v0.js'
-import { SinusoidalPositionalEncoding } from './layers.js'
 
 /**
  * A GRU-based RNN that uses positional encoding and a time-distributed output
@@ -29,13 +28,6 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         })
 
         state = embeddings.apply(inputs)
-
-        const encoder = new SinusoidalPositionalEncoding({
-            embeddingDim: this.units,
-            maxSeqLength: this.config.contextLength
-        })
-
-        state = encoder.apply(state)
 
         for (let i = 0; i < this.layers; i++) {
             const layer = this.tf.layers.gru({

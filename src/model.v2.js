@@ -1,5 +1,5 @@
 import ModelBase from './model.v0.js'
-import { CausalAttentionLayer, ResidualConnectionLayer } from './layers.js'
+import { CausalAttentionLayer, ResidualConnection } from './layers.js'
 
 /**
  * An attempt to implement causal attention in a GRU-based RNN. It didn't work very well.
@@ -36,7 +36,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
             const currentOutput = layer.apply(recurrentOutput)
 
             if (notFirstLayer && notLastLayer) {
-                const residual = new ResidualConnectionLayer()
+                const residual = new ResidualConnection()
                 recurrentOutput = residual.apply([
                     currentOutput,
                     recurrentOutput
