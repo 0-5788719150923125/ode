@@ -29,40 +29,6 @@ export class DebugLayer extends tf.layers.Layer {
 
 tf.serialization.registerClass(DebugLayer)
 
-export class ExpandDims extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.axis = config?.axis || -1
-        this.supportsMasking = true
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
-            return tf.expandDims(inputs, this.axis)
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        // This modifies the input shape by adding a 1 in the specified axis position.
-        let outputShape = inputShape.slice()
-        if (this.axis >= 0) {
-            outputShape.splice(this.axis, 0, 1)
-        } else {
-            // When axis is -1, the new axis is added at the end of the shape.
-            outputShape.push(1)
-        }
-        return outputShape
-    }
-
-    static get className() {
-        return 'ExpandDims'
-    }
-}
-
-tf.serialization.registerClass(ExpandDims)
-
 export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -79,18 +45,21 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     precomputePositionalEncoding(seqLength, embeddingDim) {
         return tf.tidy(() => {
             const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
-            const i = tf.range(0, embeddingDim / 2, 1, 'float32').expandDims(0) // Only need half as many i values
-            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim)) // Multiply i by 2 here
+            const i = tf.range(0, embeddingDim / 2, 1, 'float32').expandDims(0)
+            const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim))
 
             const angles = pos.div(angleRates)
-
-            const sines = angles.sin()
-            const cosines = angles.cos()
+            const sines = angles.sin() // Shape [seqLength, embeddingDim / 2]
+            const cosines = angles.cos() // Shape [seqLength, embeddingDim / 2]
 
             // Stack sines and cosines in depth (along last dimension) and then interleave them
-            const stacked = tf.stack([sines, cosines], 2) // Shape [seqLength, embeddingDim/2, 2]
-            const posEncoding = stacked.reshape([seqLength, embeddingDim])
-            return posEncoding.expandDims(0) // Add batch dimension
+            // The stacking creates a shape of [seqLength, embeddingDim/2, 2]
+            const posEncoding = tf.reshape(tf.stack([sines, cosines], 2), [
+                1,
+                seqLength,
+                embeddingDim
+            ])
+            return posEncoding // Shape [1, seqLength, embeddingDim]
         })
     }
 
@@ -99,16 +68,34 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
 
-            // Dynamically adjust the positional encoding to match the input shape
+            const batchSize = inputs.shape[0]
             const inputSeqLength = inputs.shape[1]
 
-            // Use slicing to adjust the positional encoding to the current input sequence length
-            const posEncodingSliced = tf.slice(
-                this.posEncoding,
+            // Check if we need to regenerate the positional encodings
+            if (this.posEncoding.shape[1] !== inputSeqLength) {
+                this.posEncoding = this.precomputePositionalEncoding(
+                    inputSeqLength,
+                    this.embeddingDim
+                )
+            }
+
+            // The positional encoding might have been computed for a different batch size, so we adjust it if necessary
+            const batchPosEncoding = this.posEncoding.slice(
                 [0, 0, 0],
-                [1, inputSeqLength, -1]
+                [-1, inputSeqLength, -1]
             )
-            return tf.add(inputs, posEncodingSliced)
+
+            // Broadcast the positional encoding to the batch size
+            const posEncodingTiled = tf.tile(batchPosEncoding, [
+                batchSize,
+                1,
+                1
+            ])
+
+            // Add the positional encoding to the input
+            const encodedInputs = tf.add(inputs, posEncodingTiled)
+
+            return encodedInputs
         })
     }
 
@@ -122,6 +109,66 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
 }
 
 tf.serialization.registerClass(SinusoidalPositionalEncoding)
+
+// export class SinusoidalPositionalEncoding extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.supportsMasking = true
+//         this.maxSeqLength = config.maxSeqLength || 64
+//         this.embeddingDim = config.embeddingDim || 256
+//         // Pre-compute the positional encoding matrix
+//         this.posEncoding = this.precomputePositionalEncoding(
+//             this.maxSeqLength,
+//             this.embeddingDim
+//         )
+//     }
+
+// precomputePositionalEncoding(seqLength, embeddingDim) {
+//     return tf.tidy(() => {
+//         const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+//         const i = tf.range(0, embeddingDim / 2, 1, 'float32').expandDims(0) // Only need half as many i values
+//         const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), embeddingDim)) // Multiply i by 2 here
+
+//         const angles = pos.div(angleRates)
+
+//         const sines = angles.sin()
+//         const cosines = angles.cos()
+
+//         // Stack sines and cosines in depth (along last dimension) and then interleave them
+//         const stacked = tf.stack([sines, cosines], 2) // Shape [seqLength, embeddingDim/2, 2]
+//         const posEncoding = stacked.reshape([seqLength, embeddingDim])
+//         return posEncoding.expandDims(0) // Add batch dimension
+//     })
+// }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             this.invokeCallHook(inputs, kwargs)
+
+//             // Dynamically adjust the positional encoding to match the input shape
+//             const inputSeqLength = inputs.shape[1]
+
+//             // Use slicing to adjust the positional encoding to the current input sequence length
+//             const posEncodingSliced = tf.slice(
+//                 this.posEncoding,
+//                 [0, 0, 0],
+//                 [1, inputSeqLength, -1]
+//             )
+//             return tf.add(inputs, posEncodingSliced)
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     static get className() {
+//         return 'SinusoidalPositionalEncoding'
+//     }
+// }
+
+// tf.serialization.registerClass(SinusoidalPositionalEncoding)
 
 export class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
@@ -324,6 +371,40 @@ export class ResidualConnection extends tf.layers.Layer {
 }
 
 tf.serialization.registerClass(ResidualConnection)
+
+export class ExpandDims extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.axis = config?.axis || -1
+        this.supportsMasking = true
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            return tf.expandDims(inputs, this.axis)
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        // This modifies the input shape by adding a 1 in the specified axis position.
+        let outputShape = inputShape.slice()
+        if (this.axis >= 0) {
+            outputShape.splice(this.axis, 0, 1)
+        } else {
+            // When axis is -1, the new axis is added at the end of the shape.
+            outputShape.push(1)
+        }
+        return outputShape
+    }
+
+    static get className() {
+        return 'ExpandDims'
+    }
+}
+
+tf.serialization.registerClass(ExpandDims)
 
 export class LearnedPositionalEmbeddings extends tf.layers.Layer {
     constructor(config) {

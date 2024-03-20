@@ -151,7 +151,7 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
         tf.variableGrads(() => {
             const predictions = model.predict(currentXs)
             const weights = null
-            const smoothing = 0.001
+            const smoothing = null
             const reduction = tf.Reduction.MEAN
             const lossValue = lossFunction(
                 currentYs,
