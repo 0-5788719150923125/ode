@@ -3,7 +3,7 @@ import { load_vocab } from '@lenml/llama2-tokenizer-vocab-llama2'
 import { shaks13 } from './data.js'
 
 export class BasicSubwordTokenizer {
-    constructor(corpus = shaks13, maxVocabSize = 6666) {
+    constructor(corpus = shaks13, maxVocabSize = 66666) {
         this.maxVocabSize = maxVocabSize
         const initialVocab =
             `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `.split(
@@ -14,53 +14,72 @@ export class BasicSubwordTokenizer {
         this.tokenFrequencies = new Map()
         this.spaceToken = 'τ'
         console.log('training a tokenizer')
-        this.train(corpus, 10_000_000, 1, 7)
+        this.train(corpus, 10_000_000, 100_000_000, 1, 7)
         console.log(Array.from(this.vocab).length)
         console.log(this.maxVocabSize)
     }
 
-    train(corpus, maxIterations = 10_000_000, minLength = 2, maxLength = 7) {
+    train(
+        corpus,
+        minIterations = 1_000_000,
+        maxIterations = 10_000_000,
+        minLength = 2,
+        maxLength = 7
+    ) {
         let vocabSize = this.vocab.size
-        let newTokensFound = true
-        let iterationCounter = 0 // Added counter to manage logging
+        let iterationCounter = 0 // Adjusted to count the total number of samples
 
-        while (vocabSize < this.maxVocabSize && newTokensFound) {
-            newTokensFound = false
-            for (let i = 0; i < corpus.length - maxLength; i++) {
-                for (let len = minLength; len <= maxLength; len++) {
-                    let token = corpus.substring(i, i + len).replace(/\s+/g, '')
-                    if (token && !this.vocab.has(token)) {
-                        this.tokenFrequencies.set(
-                            token,
-                            (this.tokenFrequencies.get(token) || 0) + 1
-                        )
-                        newTokensFound = true
-                    }
-                }
+        while (
+            vocabSize < this.maxVocabSize &&
+            iterationCounter < maxIterations
+        ) {
+            let start = Math.floor(Math.random() * (corpus.length - maxLength))
+            let len =
+                minLength +
+                Math.floor(Math.random() * (maxLength - minLength + 1))
+            let token = corpus.substring(start, start + len)
+
+            // Check if token contains space, and only process the part before the space
+            if (token.includes(' ')) {
+                token = token.substring(0, token.indexOf(' '))
             }
 
-            this.finalizeVocabulary()
-            console.log('boop')
-            if (this.vocab.size > vocabSize) {
-                vocabSize = this.vocab.size
-                // Logging after each vocabulary update
-                console.log(`Current vocab length is: ${vocabSize}`)
-                console.log(
-                    `Trained tokenizer in ${iterationCounter} iterations`
+            if (token && !this.vocab.has(token)) {
+                this.tokenFrequencies.set(
+                    token,
+                    (this.tokenFrequencies.get(token) || 0) + 1
                 )
-            } else {
-                // Break the loop if no new tokens were added in this iteration
-                break
             }
 
             iterationCounter++
-            // Additional logging condition, adjust as needed for frequency
-            if (iterationCounter % 10 === 0) {
+            if (iterationCounter % minIterations === 0) {
+                // Log every 100,000 iterations for progress tracking
                 console.log(
-                    `Iteration ${iterationCounter}: vocab size is ${vocabSize}`
+                    `Iteration ${iterationCounter}: Current vocab size is ${this.vocab.size}`
                 )
             }
+
+            // Only finalize and check vocab size after a significant number of samples
+            if (
+                iterationCounter % minIterations === 0 ||
+                iterationCounter === maxIterations
+            ) {
+                this.finalizeVocabulary()
+                if (this.vocab.size > vocabSize) {
+                    vocabSize = this.vocab.size
+                } else {
+                    // If no new tokens were added after a round of sampling, consider stopping early
+                    console.log(
+                        `No new tokens found. Stopping early after ${iterationCounter} iterations.`
+                    )
+                    break
+                }
+            }
         }
+
+        console.log(
+            `Final vocab size: ${this.vocab.size} after ${iterationCounter} iterations.`
+        )
     }
 
     finalizeVocabulary() {
