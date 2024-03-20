@@ -14,7 +14,7 @@ export default class OmniscientDeterministicEngine extends ModelBase {
         super(config)
         this.layers = 4
         this.numHeads = 8
-        this.units = 256
+        this.units = 512
         this.innerDim = this.units * 4
     }
 

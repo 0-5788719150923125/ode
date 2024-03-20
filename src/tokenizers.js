@@ -3,7 +3,7 @@ import { load_vocab } from '@lenml/llama2-tokenizer-vocab-llama2'
 import { shaks13 } from './data.js'
 
 export class BasicSubwordTokenizer {
-    constructor(corpus = shaks13, maxVocabSize = 66666) {
+    constructor(maxVocabSize = 32000, corpus = shaks13) {
         this.maxVocabSize = maxVocabSize
         const initialVocab =
             `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `.split(
@@ -106,7 +106,7 @@ export class BasicSubwordTokenizer {
     }
 
     getLength() {
-        return this.maxVocabSize
+        return this.vocab.size
     }
 
     decode(tokens) {
