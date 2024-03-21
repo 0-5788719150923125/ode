@@ -1,5 +1,6 @@
 import ModelBase from './model.v0.js'
 import {
+    CausalAttentionLayer,
     MultiHeadAttention,
     SinusoidalPositionalEncoding,
     TransformerBlock
@@ -39,8 +40,8 @@ export default class OmniscientDeterministicEnsemble extends ModelBase {
         outputs = encoder.apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            const attention = new MultiHeadAttention({
-                numHeads: this.numHeads,
+            const attention = new CausalAttentionLayer({
+                // numHeads: this.numHeads,
                 units: this.units
             })
             outputs = attention.apply(outputs)

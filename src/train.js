@@ -77,7 +77,7 @@ export async function startTraining(dataGenerator, args) {
             )
         }
     } catch (err) {
-        console.error('Oof!')
+        console.error(err, 'Oof!')
     }
 }
 

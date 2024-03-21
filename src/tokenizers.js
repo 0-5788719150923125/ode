@@ -95,13 +95,14 @@ export class BasicSubwordTokenizer {
         })
     }
 
-    async writeVocabularyToFile(filePath = './data/tokenizer.json') {
+    async writeVocabularyToFile(path = './data/models/ode/tokenizer.json') {
         if (typeof window === 'undefined') {
-            const fs = await import('fs')
             const vocabArray = Array.from(this.vocab.keys()) // Only need keys for the vocab file
             const vocabJson = JSON.stringify(vocabArray, null, 2)
-            fs.writeFileSync(filePath, vocabJson, 'utf8')
-            console.log(`Vocabulary written to ${filePath}`)
+            const fs = await import('fs')
+            fs.mkdirSync(path, { recursive: true })
+            fs.writeFileSync(path, vocabJson, 'utf8')
+            console.log(`Vocabulary written to ${path}`)
         }
     }
 
