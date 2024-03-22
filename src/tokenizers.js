@@ -48,7 +48,7 @@ export class BasicSubwordTokenizer {
             }
 
             if (iterationCounter === maxIterations) {
-                this.finalizeVocabulary()
+                this.mergeVocabulary()
                 if (this.vocab.size > vocabSize) {
                     vocabSize = this.vocab.size
                 } else {
@@ -65,7 +65,7 @@ export class BasicSubwordTokenizer {
         )
     }
 
-    finalizeVocabulary() {
+    mergeVocabulary() {
         const neededTokens = this.maxVocabSize - this.vocab.size
         const sortedTokens = Array.from(this.tokenFrequencies.entries())
             .sort((a, b) => b[1] - a[1])
@@ -80,8 +80,11 @@ export class BasicSubwordTokenizer {
 
     async writeVocabularyToFile(path = './data/models/ode') {
         if (typeof window === 'undefined') {
-            const vocabArray = Array.from(this.vocab.keys())
-            const vocabJson = JSON.stringify(vocabArray, null, 2)
+            const vocabJson = JSON.stringify(
+                Array.from(this.vocab.keys()),
+                null,
+                2
+            )
             const fs = await import('fs')
             fs.mkdirSync(path, { recursive: true })
             fs.writeFileSync(`${path}/tokenizer.json`, vocabJson, 'utf8')

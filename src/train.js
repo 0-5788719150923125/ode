@@ -65,7 +65,8 @@ export async function startTraining(dataGenerator, args) {
             await gradientAccumulator.step()
 
             // Print logs
-            logger.log(batch, step, gradientAccumulator.getLoss())
+            const loss = gradientAccumulator.getLoss()
+            logger.log(batch, step, loss)
 
             // Print sample text
             await predictionSampler.call(

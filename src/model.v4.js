@@ -92,11 +92,11 @@ export default class OriginalDecoderEngine extends ModelBase {
         this.model.compile({
             optimizer: getAdamW(
                 this.model,
-                this.config.learningRate || 1e-3,
+                this.config.learningRate || 1e-2,
                 this.config.beta1 || 0.9,
                 this.config.beta2 || 0.999,
                 this.config.epsilon || 1e-7,
-                this.config.decayRate || 1e-4
+                this.config.decayRate || 1e-1
             ),
             loss: this.lossFunctions
         })

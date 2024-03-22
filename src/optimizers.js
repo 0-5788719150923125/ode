@@ -55,22 +55,24 @@ class AdamW extends tf.AdamOptimizer {
         this.excludeFromWeightDecay = excludeFromWeightDecay
     }
     applyGradients(variableGradients) {
-        const varNames = Array.isArray(variableGradients)
-            ? variableGradients.map((v) => v.name)
-            : Object.keys(variableGradients)
+        tf.tidy(() => {
+            const varNames = Array.isArray(variableGradients)
+                ? variableGradients.map((v) => v.name)
+                : Object.keys(variableGradients)
 
-        // Apply weight decay
-        varNames.forEach((name, i) => {
-            if (this.includeInWeightDecay.includes(name)) {
-                const value = ENGINE.registeredVariables[name]
-                const newValue = tf.sub(
-                    value,
-                    tf.mul(this.learningRate, tf.mul(value, this.decayRate))
-                )
-                value.assign(newValue)
-            }
+            // Apply weight decay
+            varNames.forEach((name, i) => {
+                if (this.includeInWeightDecay.includes(name)) {
+                    const value = ENGINE.registeredVariables[name]
+                    const newValue = tf.sub(
+                        value,
+                        tf.mul(this.learningRate, tf.mul(value, this.decayRate))
+                    )
+                    value.assign(newValue)
+                }
+            })
+
+            super.applyGradients(variableGradients)
         })
-
-        super.applyGradients(variableGradients)
     }
 }
