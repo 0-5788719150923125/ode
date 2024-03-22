@@ -67,6 +67,7 @@ export async function startTraining(dataGenerator, args) {
             // Print logs
             const loss = gradientAccumulator.getLoss()
             logger.log(batch, step, loss)
+            // console.log(tf.memory())
 
             // Print sample text
             await predictionSampler.call(

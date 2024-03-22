@@ -14,11 +14,12 @@ export class DebugLayer extends tf.layers.Layer {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(input, kwargs)
+            this.invokeCallHook(inputs, kwargs)
             console.log(inputs)
             inputs.print()
+            console.log(inputs.dataSync())
             console.log(inputs.shape)
-            return input
+            return inputs
         })
     }
 
@@ -286,58 +287,48 @@ export function GPT2Block(conf) {
 }
 
 export class SinusoidalPositionalEncoding extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.supportsMasking = true
-        this.embeddingDim = config.embeddingDim || 256
+    constructor({ units, reverse = false }) {
+        super()
+        this.units = units // Dimensionality of the positional encoding
+        this.reverse = reverse // Flag to toggle the order of sine and cosine
     }
 
-    computePositionalEncoding(seqLength) {
-        return tf.tidy(() => {
-            const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
-            const i = tf
-                .range(0, this.embeddingDim / 2, 1, 'float32')
-                .expandDims(0)
-            const angleRates = tf.pow(
-                10000,
-                tf.div(tf.mul(i, 2), this.embeddingDim)
-            )
-
-            const angles = pos.div(angleRates)
-            const sines = angles.sin()
-            // Shape [seqLength, embeddingDim / 2]
-            const cosines = angles.cos()
-
-            // Interleave sines and cosines: [0, 1, 0... 1, 0, 1]
-            const posEncoding = tf.reshape(tf.stack([sines, cosines], 2), [
-                1,
-                seqLength,
-                this.embeddingDim
-            ])
-            return posEncoding // Shape [1, seqLength, embeddingDim]
-        })
+    computeOutputShape(inputShape) {
+        // Input shape is [batch_size, sequence_length]
+        // Output shape is [batch_size, sequence_length, this.units]
+        return [inputShape[0], inputShape[1], this.units]
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
 
-            const batchSize = inputs.shape[0]
-            const inputSeqLength = inputs.shape[1]
+            // Determine the sequence length from the input shape
+            const seqLength = inputs.shape[1]
 
-            let posEncoding = this.computePositionalEncoding(inputSeqLength)
-
-            // Broadcast the positional encoding to the batch size
-            posEncoding = tf.tile(posEncoding, [batchSize, 1, 1])
-
-            // Add the positional encoding to the input
-            return tf.add(inputs, posEncoding)
+            // Compute the positional encodings (2D tensor of shape [seqLength, this.units])
+            const positionalEncoding = tf.tensor2d(
+                Array.from({ length: seqLength }, (_, pos) => {
+                    return Array.from({ length: this.units }, (_, i) => {
+                        const divTerm = Math.pow(
+                            10000,
+                            (2 * (i / 2)) / this.units
+                        )
+                        // Switch between sine and cosine based on the flag
+                        if (this.reverse) {
+                            return i % 2 === 0
+                                ? Math.cos(pos / divTerm)
+                                : Math.sin(pos / divTerm)
+                        } else {
+                            return i % 2 === 0
+                                ? Math.sin(pos / divTerm)
+                                : Math.cos(pos / divTerm)
+                        }
+                    })
+                })
+            )
+            return positionalEncoding
         })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
     }
 
     static get className() {
@@ -346,6 +337,188 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
 }
 
 tf.serialization.registerClass(SinusoidalPositionalEncoding)
+
+// export class SinusoidalPositionalEncoding extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.supportsMasking = true
+//         this.units = config.units || 256
+//         this.sequenceLength = config.sequenceLength || 512
+//     }
+
+//     computePositionalEncoding(seqLength, units) {
+//         return tf.tidy(() => {
+//             const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+//             const i = tf.range(0, units / 2, 1, 'float32').expandDims(0)
+//             const angleRads = pos.div(tf.pow(10000, tf.mul(i, 2).div(units)))
+
+//             const sines = angleRads.sin()
+//             const cosines = angleRads.cos()
+
+//             // Interleave sines and cosines
+//             const posEncoding = tf.reshape(tf.concat([sines, cosines], 1), [
+//                 -1,
+//                 seqLength,
+//                 units
+//             ])
+//             return posEncoding
+//         })
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             const inputShape = inputs.shape
+//             console.log(inputShape)
+//             const batchSize = inputShape[0]
+//             const seqLength = inputShape[1]
+
+//             let posEncoding = this.computePositionalEncoding(
+//                 seqLength,
+//                 this.units
+//             )
+//             console.log(batchSize)
+
+//             posEncoding = tf.tile(posEncoding, [1, 1, 1])
+//             return tf.add(inputs, posEncoding)
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         // Return the input shape but ensure the embedding dimension is set correctly
+//         return [null, null, this.units]
+//     }
+
+//     static get className() {
+//         return 'SinusoidalPositionalEncoding'
+//     }
+// }
+
+// tf.serialization.registerClass(SinusoidalPositionalEncoding)
+
+// export class SinusoidalPositionalEncoding extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.supportsMasking = true
+//         this.units = config.units || 256
+//         this.sequenceLength = config.sequenceLength || 512
+//     }
+
+//     build(inputShape) {
+//         // Pre-compute the positional encodings once, up to this.sequenceLength
+//         this.posEncoding = this.computePositionalEncoding(
+//             this.sequenceLength,
+//             this.units
+//         )
+//         super.build(inputShape)
+//     }
+
+//     computePositionalEncoding(seqLength, units) {
+//         return tf.tidy(() => {
+//             const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+//             const i = tf.range(0, units / 2, 1, 'float32').expandDims(0)
+//             const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), units))
+
+//             const angles = pos.div(angleRates)
+//             const sines = angles.sin()
+//             const cosines = angles.cos()
+
+//             // Interleave sines and cosines
+//             const posEncoding = tf.reshape(tf.concat([sines, cosines], 1), [
+//                 1,
+//                 seqLength,
+//                 units
+//             ])
+//             return posEncoding // Shape [1, seqLength, units]
+//         })
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             this.invokeCallHook(inputs, kwargs)
+//             const batchSize = inputs.shape[0]
+//             let posEncoding = this.posEncoding.slice(
+//                 [0, 0, 0],
+//                 [-1, this.sequenceLength, -1]
+//             )
+
+//             // Broadcast the positional encoding to match the batch size of the inputs
+//             posEncoding = tf.tile(posEncoding, [batchSize, 1, 1])
+//             // Add the positional encoding to the input embeddings
+//             console.log(posEncoding)
+//             return tf.add(inputs, posEncoding)
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         // Return the input shape but ensure the embedding dimension is set correctly
+//         return [inputShape[0], this.sequenceLength, this.units]
+//     }
+
+//     static get className() {
+//         return 'SinusoidalPositionalEncoding'
+//     }
+// }
+
+// tf.serialization.registerClass(SinusoidalPositionalEncoding)
+
+// export class SinusoidalPositionalEncoding extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.supportsMasking = true
+//         this.units = config.units || 256
+//     }
+
+//     computePositionalEncoding(seqLength) {
+//         return tf.tidy(() => {
+//             const pos = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+//             const i = tf.range(0, this.units / 2, 1, 'float32').expandDims(0)
+//             const angleRates = tf.pow(10000, tf.div(tf.mul(i, 2), this.units))
+
+//             const angles = pos.div(angleRates)
+//             const sines = angles.sin()
+//             // Shape [seqLength, embeddingDim / 2]
+//             const cosines = angles.cos()
+
+//             // Interleave sines and cosines: [0, 1, 0... 1, 0, 1]
+//             const posEncoding = tf.reshape(tf.stack([sines, cosines], 2), [
+//                 1,
+//                 seqLength,
+//                 this.units
+//             ])
+//             return posEncoding // Shape [1, seqLength, embeddingDim]
+//         })
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             this.invokeCallHook(inputs, kwargs)
+
+//             const batchSize = inputs.shape[0]
+//             const inputSeqLength = inputs.shape[1]
+
+//             let posEncoding = this.computePositionalEncoding(inputSeqLength)
+
+//             // Broadcast the positional encoding to the batch size
+//             posEncoding = tf.tile(posEncoding, [batchSize, 1, 1])
+
+//             // Add the positional encoding to the input
+//             return tf.add(inputs, posEncoding)
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     static get className() {
+//         return 'SinusoidalPositionalEncoding'
+//     }
+// }
+
+// tf.serialization.registerClass(SinusoidalPositionalEncoding)
 
 export class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {

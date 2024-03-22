@@ -1,5 +1,10 @@
 import ModelBase from './model.v0.js'
-import { GPT2Block, Range, SinusoidalPositionalEncoding } from './layers.js'
+import {
+    DebugLayer,
+    GPT2Block,
+    Range,
+    SinusoidalPositionalEncoding
+} from './layers.js'
 import { getAdamW } from './optimizers.js'
 import PretrainedTokenizer from './tokenizers.js'
 
@@ -37,14 +42,19 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         const range = new Range().apply(inputs)
 
-        const positionalEmbeddings = this.tf.layers
-            .embedding({
-                name: 'wpe',
-                inputDim: this.config.contextLength,
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform'
-            })
-            .apply(range)
+        const positionalEmbeddings = new SinusoidalPositionalEncoding({
+            units: this.units,
+            sequenceLength: this.config.contextLength
+        }).apply(range)
+
+        // const positionalEmbeddings = this.tf.layers
+        //     .embedding({
+        //         name: 'wpe',
+        //         inputDim: this.config.contextLength,
+        //         outputDim: this.units,
+        //         embeddingsInitializer: 'glorotUniform'
+        //     })
+        //     .apply(debug)
 
         let x = this.tf.layers
             .add()
@@ -108,8 +118,7 @@ export default class OriginalDecoderEngine extends ModelBase {
 }
 
 async function generateText(prompt, temperature, maxNewTokens) {
-    let inputs = [this.tokenizer.encode(prompt)]
-    inputs = await prepareInputs.call(this, inputs)
+    let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
     for (let step = 0; step < maxNewTokens; step++) {
         const idxNext = generateOnce.call(this, inputs, temperature)
         const idxNew = inputs.concat(idxNext, 1)
