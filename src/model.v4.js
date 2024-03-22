@@ -139,11 +139,16 @@ function generateOnce(model, idx, temperature) {
                 : idx.slice([0, -block_size], [-1, -1])
         // Forward the model to get the logits for the index in the sequence
         const logits = model.predict(idxCond)
-        // pluck the logits at the final step and scale by desired temperature
-        const logitsScaled = logits
+        // pluck the logits at the final step
+        let logitsScaled = logits
             .slice([0, idx.shape[1] - 1, 0])
             .reshape([logits.shape[0], logits.shape[2]])
-            .div(tf.scalar(temperature))
+
+        if (temperature > 0) {
+            // scale by desired temperature
+            logitsScaled = logitsScaled.div(tf.scalar(temperature))
+        }
+
         // apply softmax to convert logits to (normalized) probabilities
         const probs = logitsScaled.softmax(-1)
         // either sample from the distribution or take the most likely element
