@@ -126,17 +126,8 @@ class GradientAccumulator {
             )
 
             // Clip gradients to prevent explosion
-            // const clippedGrads = clipGradients(
-            //     this.accumulatedGrads,
-            //     this.clipValue
-            // )
-
             const clippedGrads = tf.tidy(() => {
-                return clipByGlobalNormObj(
-                    this.accumulatedGrads,
-                    this.clipValue,
-                    true
-                )
+                return clipByGlobalNorm(this.accumulatedGrads, this.clipValue)
             })
 
             // Reset for the next accumulation cycle
@@ -183,7 +174,7 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
     return { grads, loss }
 }
 
-function clipGradients(grads, value) {
+function clipByValue(grads, value) {
     const clippedGrads = {}
     Object.keys(grads).forEach((key) => {
         clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
@@ -199,18 +190,18 @@ function l2Loss(tensor) {
 
 function globalNorm(tensors) {
     // https://github.com/tensorflow/tensorflow/blob/c256c071bb26e1e13b4666d1b3e229e110bc914a/tensorflow/python/ops/clip_ops.py#L242
-    var halfSquaredNorms = []
+    const halfSquaredNorms = []
     tensors.forEach((tensor, ti) => {
         halfSquaredNorms.push(l2Loss(tensor))
     })
-    var halfSquaredNorm = tf.sum(tf.stack(halfSquaredNorms))
-    var norm = tf.sqrt(
+    const halfSquaredNorm = tf.sum(tf.stack(halfSquaredNorms))
+    const norm = tf.sqrt(
         tf.mul(halfSquaredNorm, tf.scalar(2.0, halfSquaredNorm.dtype))
     )
     return norm
 }
 
-function clipByGlobalNorm(tensors, clipNorm, useNorm) {
+function clipByGlobalNorm(tensors, clipNorm) {
     // https://github.com/kamalkraj/minGPT-TF/blob/master/mingpt/optimization.py
     // https://github.com/tensorflow/tensorflow/blob/v2.7.0/tensorflow/python/ops/clip_ops.py#L291-L382
     /*
@@ -219,88 +210,26 @@ function clipByGlobalNorm(tensors, clipNorm, useNorm) {
     where:
         global_norm = sqrt(sum([l2norm(t)**2 for t in t_list]))
     */
-    // if (useNorm) {
-
-    // }
-    // var useNorm = useNorm || globalNorm(tensors)
-
-    var useNorm = globalNorm(tensors)
-    let dtype = useNorm.dtype
-    var scale = tf.mul(
+    const varNames = Object.keys(tensors)
+    const tensorsArr = varNames.map((n) => tensors[n])
+    const normalizedTensors = globalNorm(tensorsArr)
+    const scale = tf.mul(
         clipNorm,
         tf.minimum(
-            tf.div(tf.scalar(1.0), useNorm),
-            tf.div(tf.scalar(1.0, dtype), clipNorm)
+            tf.div(tf.scalar(1.0), normalizedTensors),
+            tf.div(tf.scalar(1.0, normalizedTensors.dtype), clipNorm)
         )
     )
-    var tensorsClipped = []
-    tensors.forEach((tensor, ti) => {
+    const tensorsClipped = []
+    tensorsArr.forEach((tensor, ti) => {
         tensorsClipped.push(tf.clone(tf.mul(tensor, scale)))
     })
-    return tensorsClipped
-}
-
-function clipByGlobalNormObj(tensorsObj, clipNorm, useNorm) {
-    const varNames = Object.keys(tensorsObj)
-    const tensorsArr = varNames.map((n) => tensorsObj[n])
-    const tensorsArrClipped = clipByGlobalNorm(tensorsArr, clipNorm, useNorm)
     const tensorsObjClipped = {}
-    tensorsArrClipped.forEach((t, ti) => {
+    tensorsClipped.forEach((t, ti) => {
         tensorsObjClipped[varNames[ti]] = t
     })
     return tensorsObjClipped
 }
-
-// function l2Loss(tensor) {
-//     return tensor.square().sum().div(2)
-// }
-
-// function calculateGlobalNorm(tensors) {
-//     let sum = tf.scalar(0)
-//     Object.values(tensors).forEach((tensor) => {
-//         sum = sum.add(l2Loss(tensor))
-//     })
-//     return sum.sqrt()
-// }
-
-// function clipByGlobalNorm(tensors, clipNorm) {
-//     const globalNorm = calculateGlobalNorm(tensors)
-//     const scale = clipNorm.div(globalNorm.maximum(clipNorm))
-//     const clippedGradients = {}
-
-//     Object.keys(tensors).forEach((key) => {
-//         clippedGradients[key] = tensors[key].mul(scale)
-//     })
-
-//     return clippedGradients
-// }
-
-// Use this modified clipByGlobalNorm function in the GradientAccumulator's step method.
-
-// async function clipGradientsByGlobalNorm(gradients, clipNorm) {
-//     // Calculate the global norm. Note: you'll need to adapt the square, sum, and sqrt operations
-//     let globalNorm = 0
-//     for (const tensor of Object.values(gradients)) {
-//         const squaredTensor = tensor.square()
-//         const sumOfSquares = await squaredTensor.sum().array() // use array() or dataSync() to get the value
-//         globalNorm += sumOfSquares
-//         squaredTensor.dispose() // Don't forget to dispose intermediate tensors to avoid memory leaks
-//     }
-//     globalNorm = Math.sqrt(globalNorm)
-
-//     // Calculate the scaling factor based on the global norm and the desired clipNorm
-//     const scale = globalNorm > clipNorm ? clipNorm / globalNorm : 1
-
-//     // Scale the gradients by the computed factor
-//     const clippedGradients = {}
-//     for (const [key, gradientTensor] of Object.entries(gradients)) {
-//         clippedGradients[key] = gradientTensor.mul(tf.scalar(scale))
-//         // Remember to dispose the old gradient tensors if you no longer need them
-//     }
-
-//     // Return the clipped gradients
-//     return clippedGradients
-// }
 
 function averageGradients(grads, accumulationSteps) {
     const divisor = tf.scalar(accumulationSteps) // Create the scalar outside the loop

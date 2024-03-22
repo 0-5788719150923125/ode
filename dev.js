@@ -8,8 +8,8 @@ import { trainModel } from './dev-train.js'
             batchSize: 2,
             gradientAccumulationSteps: 8,
             generateEvery: 256,
-            sampleLen: 256,
-            overfit: 300
+            sampleLen: 256
+            // overfit: 300
         })
     }
     // using browser

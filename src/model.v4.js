@@ -31,9 +31,7 @@ export default class OriginalDecoderEngine extends ModelBase {
                 name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform',
-                embeddingsRegularizer: null,
-                activityRegularizer: null
+                embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
@@ -150,19 +148,16 @@ function generateOnce(model, idx, temperature) {
             .slice([0, idx.shape[1] - 1, 0])
             .reshape([logits.shape[0], logits.shape[2]])
 
-        if (temperature > 0) {
+        if (temperature !== 1) {
             // scale by desired temperature
             logitsScaled = logitsScaled.div(tf.scalar(temperature))
         }
 
-        // apply softmax to convert logits to (normalized) probabilities
-        // const probs = logitsScaled.softmax(-1)
         // either sample from the distribution or take the most likely element
         if (temperature > 0) {
             idxNext = tf.multinomial(logitsScaled, 1)
         } else {
-            idxNext = logitsScaled.softmax(-1).argMax(-1)
-            idxNext = idxNext.expandDims(1)
+            idxNext = logitsScaled.softmax(-1).argMax(-1).expandDims(1)
         }
         tf.keep(idxNext)
     })
