@@ -7,7 +7,7 @@ import ModelBase from './model.v0.js'
  * prediction, this model trains on an entire sequence, shifted-right by one.
  * @extends ModelBase
  */
-export default class OmnipotentDegenerativeEngine extends ModelBase {
+export default class OmnipotentDiabolicalErudite extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 3
