@@ -309,7 +309,7 @@ async function predictionSampler(
 
         for (const temp of [0, 0.3, 0.7]) {
             const startTime = performance.now()
-            const output = await this.generate(prompt, temp, maxLength, false)
+            const output = await this.generate(prompt, temp, maxLength)
             const endTime = performance.now()
             console.log(
                 `TEMPERATURE: ${temp}, RATE: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
