@@ -1,22 +1,18 @@
 import ModelBase from './model.v0.js'
-import {
-    CausalAttentionLayer,
-    MultiHeadAttention,
-    SinusoidalPositionalEncoding,
-    TransformerBlock
-} from './layers.js'
+import { GPT2Block, Range } from './layers.js'
+import { getAdamW } from './optimizers.js'
 
 /**
- * A small transformer with causal attention and learned position embeddings.
+ * A GPT-2 clone with causal attention and learned position embeddings.
  * @extends ModelBase
  */
-export default class OriginalDecodingErudite extends ModelBase {
+export default class OriginalDecoderEngine extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 4
         this.numHeads = 8
         this.units = 512
-        this.innerDim = this.units * 4
+        this.dropout = 0.1
     }
 
     build() {
@@ -24,56 +20,63 @@ export default class OriginalDecodingErudite extends ModelBase {
 
         const inputs = this.tf.input({ shape: [null] })
 
-        const tokEmb = this.tf.layers
+        const tokenEmbeddings = this.tf.layers
             .embedding({
-                name: 'wte',
+                // name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
-                embeddingsInitializer: 'zeros',
+                embeddingsInitializer: 'glorotUniform',
                 embeddingsRegularizer: null,
                 activityRegularizer: null
             })
             .apply(inputs)
 
         const range = new Range().apply(inputs)
-        let posEmb = this.tf.layers
+
+        const positionalEmbeddings = this.tf.layers
             .embedding({
-                name: 'wpe',
+                // name: 'wpe',
                 inputDim: this.config.contextLength,
                 outputDim: this.units,
-                embeddingsInitializer: 'zeros'
+                embeddingsInitializer: 'glorotUniform'
             })
             .apply(range)
-        let x
-        x = this.tf.layers.add().apply([tokEmb, posEmb])
+
+        let x = this.tf.layers
+            .add()
+            .apply([tokenEmbeddings, positionalEmbeddings])
+
         x = this.tf.layers
             .dropout({
                 name: 'drop',
-                rate: 0.1
+                rate: this.dropout
             })
             .apply(x)
 
         for (let i = 0; i < this.layers; i++) {
-            x = Block({
+            x = GPT2Block({
                 name: 'block' + '/h/' + i,
                 nLayer: this.layers,
                 nHead: this.numHeads,
                 nEmbd: this.units,
                 blockSize: this.config.contextLength,
-                dropout: 0.1,
+                dropout: this.dropout,
                 bias: false
             }).apply(x)
         }
         x = this.tf.layers
-            .layerNormalization({ name: 'block' + '/ln_f', epsilon: 1e-5 })
+            .layerNormalization({
+                name: 'block' + '/ln_f',
+                epsilon: 1e-5
+            })
             .apply(x)
 
         x = this.tf.layers
             .dense({
-                name: 'lm_head',
+                // name: 'lm_head',
                 units: this.tokenizer.getLength(),
                 inputDim: this.units,
-                inputShape: [this.config.contextLength, this.units],
+                // inputShape: [this.config.contextLength, this.units],
                 useBias: false
             })
             .apply(x)
@@ -84,11 +87,13 @@ export default class OriginalDecodingErudite extends ModelBase {
     async compile() {
         this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
         this.model.compile({
-            optimizer: this.tf.train.adam(
+            optimizer: getAdamW(
+                this.model,
                 this.config.learningRate || 1e-3,
                 this.config.beta1 || 0.9,
                 this.config.beta2 || 0.999,
-                this.config.epsilon || 1e-7
+                this.config.epsilon || 1e-7,
+                this.config.decayRate || 1e-2
             ),
             loss: this.lossFunctions
         })
@@ -99,117 +104,88 @@ export default class OriginalDecodingErudite extends ModelBase {
         const idx = await generate(this.model, [inputs], {
             maxNewTokens: length,
             temperature: temperature
-        }) // Or gpt.generateSync(..., {...})
-        // console.log(idx.arraySync()[0].slice(6)) // [0, 1, 1, 2, 2, 2]
-        // console.log(idx)
-        // const sliced = idx[0].slice(length)
+        })
         return this.tokenizer.decode(idx[0])
-        // return await generateText.call(this, seed, temperature, length, greedy)
     }
 }
 
 import tf from '@tensorflow/tfjs'
-// const { train } = require('./train')
 
-// const Range = (config) => new Range_(config)
-class Range extends tf.layers.Layer {
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
+// class CausalSelfAttentionBase extends tf.layers.Layer {
+//     constructor(config, i) {
+//         super(config)
+//         this.config = config
+//         this.blockSize = config.blockSize
+//         this.nEmbd = config.nEmbd
+//         this.nHead = config.nHead
+//         this.dropout = config.dropout
+//         this.i = i
+//         this.mask = tf.linalg.bandPart(
+//             tf.ones([config.blockSize, config.blockSize]),
+//             -1,
+//             0
+//         )
+//     }
 
-    call(input, kwargs) {
-        return tf.tidy(() => {
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
-            const [B, T] = input.shape
-            const range = tf.reshape(tf.range(0, T, 1, 'int32'), [1, T]) // .tile([B, 1])
-            return range
-        })
-    }
+//     computeOutputShape(inputShape) {
+//         // Input here is already passed through a dense layer
+//         // It's shape is [B, T, 3 * nEmbd]
+//         // 3 there is for k, q, v (same as in MinGPT)
+//         // The output is [B, T, nEmbd]
+//         return [null, this.blockSize, this.nEmbd]
+//     }
 
-    static get className() {
-        return 'Range'
-    }
-}
-tf.serialization.registerClass(Range)
+//     getConfig() {
+//         const config = super.getConfig()
+//         return Object.assign({}, config, this.config)
+//     }
 
-class CausalSelfAttentionBase extends tf.layers.Layer {
-    constructor(config, i) {
-        super(config)
-        this.config = config
-        this.blockSize = config.blockSize
-        this.nEmbd = config.nEmbd
-        this.nHead = config.nHead
-        this.dropout = config.dropout
-        this.i = i
-        this.mask = tf.linalg.bandPart(
-            tf.ones([config.blockSize, config.blockSize]),
-            -1,
-            0
-        )
-    }
+//     call(input, kwargs) {
+//         return tf.tidy(() => {
+//             // Take into account that the input can be an array of tensors
+//             if (Array.isArray(input)) {
+//                 input = input[0]
+//             }
+//             this.invokeCallHook(input, kwargs)
 
-    computeOutputShape(inputShape) {
-        // Input here is already passed through a dense layer
-        // It's shape is [B, T, 3 * nEmbd]
-        // 3 there is for k, q, v (same as in MinGPT)
-        // The output is [B, T, nEmbd]
-        return [null, this.blockSize, this.nEmbd]
-    }
+//             // split() in TFJS requires a constant value for n splits
+//             // split() in Pytorch requires the size of each split
+//             let [q, k, v] = tf.split(input, 3, -1)
+//             const [B, T, C] = k.shape
+//             const splitHeads = (x) =>
+//                 tf.transpose(
+//                     tf.reshape(x, [B, T, this.nHead, C / this.nHead]),
+//                     [0, 2, 1, 3]
+//                 )
+//             q = splitHeads(q)
+//             k = splitHeads(k)
+//             v = splitHeads(v)
 
-    getConfig() {
-        const config = super.getConfig()
-        return Object.assign({}, config, this.config)
-    }
+//             // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+//             let att = tf.mul(
+//                 tf.matMul(q, k, false, true),
+//                 tf.div(
+//                     1,
+//                     tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
+//                 )
+//             )
+//             att = tf.add(att, tf.mul(tf.sub(1, this.mask), -1e9))
+//             att = tf.softmax(att, -1)
+//             att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
 
-    call(input, kwargs) {
-        return tf.tidy(() => {
-            // Take into account that the input can be an array of tensors
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
+//             let y = tf.matMul(att, v)
+//             y = tf.transpose(y, [0, 2, 1, 3])
+//             y = tf.reshape(y, [B, T, C])
 
-            // split() in TFJS requires a constant value for n splits
-            // split() in Pytorch requires the size of each split
-            let [q, k, v] = tf.split(input, 3, -1)
-            const [B, T, C] = k.shape
-            const splitHeads = (x) =>
-                tf.transpose(
-                    tf.reshape(x, [B, T, this.nHead, C / this.nHead]),
-                    [0, 2, 1, 3]
-                )
-            q = splitHeads(q)
-            k = splitHeads(k)
-            v = splitHeads(v)
+//             return y
+//         })
+//     }
 
-            // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-            let att = tf.mul(
-                tf.matMul(q, k, false, true),
-                tf.div(
-                    1,
-                    tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
-                )
-            )
-            att = tf.add(att, tf.mul(tf.sub(1, this.mask), -1e9))
-            att = tf.softmax(att, -1)
-            att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
-
-            let y = tf.matMul(att, v)
-            y = tf.transpose(y, [0, 2, 1, 3])
-            y = tf.reshape(y, [B, T, C])
-
-            return y
-        })
-    }
-
-    static get className() {
-        return 'CausalSelfAttentionBase'
-    }
-}
-tf.serialization.registerClass(CausalSelfAttentionBase)
+//     static get className() {
+//         return 'CausalSelfAttentionBase'
+//     }
+// }
+// tf.serialization.registerClass(CausalSelfAttentionBase)
 
 // function CausalSelfAttentionMixed(conf) {
 //     const config = Object.assign({ name: 'attn' }, conf)
@@ -243,265 +219,6 @@ tf.serialization.registerClass(CausalSelfAttentionBase)
 //         .apply(att)
 //     return tf.model({ inputs: inputs, outputs: att })
 // }
-
-class CausalSelfAttention extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.config = Object.assign({ name: 'attn' }, config)
-
-        // Config
-        this.blockSize = config.blockSize
-        this.nEmbd = config.nEmbd
-        this.nHead = config.nHead
-        this.dropout = config.dropout
-        this.bias = config.bias
-        // Causal mask
-        this.mask = tf.linalg.bandPart(
-            tf.ones([config.blockSize, config.blockSize]),
-            -1,
-            0
-        )
-    }
-
-    build(inputShape) {
-        this.cAttnKernel = this.addWeight(
-            'c_attn/kernel',
-            [this.nEmbd, 3 * this.nEmbd],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.cAttnBias = this.addWeight(
-            'c_attn/bias',
-            [3 * this.nEmbd],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.cProjKernel = this.addWeight(
-            'c_proj/kernel',
-            [this.nEmbd, this.nEmbd],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.cProjBias = this.addWeight(
-            'c_proj/bias',
-            [this.nEmbd],
-            'float32',
-            tf.initializers.zeros()
-        )
-    }
-
-    computeOutputShape(inputShape) {
-        // console.log('computeOutputShape', inputShape)
-        return inputShape
-        // return [null, this.blockSize, this.nEmbd]
-    }
-
-    getConfig() {
-        // This is neeed to save and load the model
-        // When the model is saved, the config is saved with it
-        // When the model is loaded, the config is used to create a new instance of the layer
-        const config = super.getConfig()
-        return Object.assign({}, config, this.config)
-    }
-
-    call(input, kwargs) {
-        return tf.tidy(() => {
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
-
-            // Direct application of matMul to x and kernel throws:
-            // > Error in gradient for op BatchMatMul.
-            // > The gradient of input 'b' has shape '16,48,48',
-            // > which does not match the shape of the input '48,48'
-            // Two solutions worked:
-            // 1. Use tf.layers.dense but reassign kernel and bias
-            // 2. Use tf.matMul but expandDims and tile kernel (current)
-            // Another option, of course, is to separate attention logic
-            // from trainable weights completely and use tf.layers.dense
-            // inside a model definition. I was not able to define fully
-            // function regular dense layers inside a custom layer.
-            // Something related to how weights are loaded with this.kernel
-            // and duplicating names
-
-            const dense = (x, kernel, bias) => {
-                const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-                const m = tf.matMul(x, k)
-                if (this.bias) {
-                    return tf.add(m, bias.read())
-                } else {
-                    return m
-                }
-            }
-
-            const cAttn = dense(input, this.cAttnKernel, this.cAttnBias)
-
-            // Make prder of qkv split to follow minGPT
-            let [q, k, v] = tf.split(cAttn, 3, -1)
-            const [B, T, C] = k.shape
-
-            if (this.config.debug) {
-                LogLayer({ name: 'att_x' }).call(input)
-                LogLayer({ name: 'att_c_attn' }).call(cAttn)
-                LogLayer({ name: 'att_q_before' }).call(q)
-                LogLayer({ name: 'att_k_before' }).call(k)
-                LogLayer({ name: 'att_v_before' }).call(v)
-            }
-
-            const splitHeads = (x) =>
-                tf.transpose(
-                    tf.reshape(x, [B, T, this.nHead, C / this.nHead]),
-                    [0, 2, 1, 3]
-                )
-
-            q = splitHeads(q)
-            k = splitHeads(k)
-            v = splitHeads(v)
-
-            if (this.config.debug) {
-                LogLayer({ name: 'att_q_after' }).call(q)
-                LogLayer({ name: 'att_k_after' }).call(k)
-                LogLayer({ name: 'att_v_after' }).call(v)
-            }
-
-            // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-            let att = tf.mul(
-                tf.matMul(q, k, false, true),
-                tf.div(
-                    1,
-                    tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
-                )
-            )
-
-            const mask = this.mask.slice([0, 0], [T, T])
-            att = tf.add(att, tf.mul(tf.sub(1, mask), -1e9))
-            att = tf.softmax(att, -1)
-            att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
-            if (this.config.debug) {
-                LogLayer({ name: '> att_softmax' }).call(att)
-            }
-
-            let y = tf.matMul(att, v)
-            if (this.config.debug) {
-                LogLayer({ name: 'att_yv' }).call(y)
-            }
-
-            y = tf.transpose(y, [0, 2, 1, 3])
-            y = tf.reshape(y, [B, T, C])
-            y = dense(y, this.cProjKernel, this.cProjBias)
-            y = kwargs['training'] ? tf.dropout(y, this.dropout) : y
-            if (this.config.debug) {
-                LogLayer({ name: 'att_y' }).call(y)
-            }
-
-            return y
-        })
-    }
-
-    static get className() {
-        return 'CausalSelfAttention'
-    }
-}
-tf.serialization.registerClass(CausalSelfAttention)
-
-class GELU extends tf.layers.Layer {
-    constructor() {
-        super({})
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    call(input, kwargs) {
-        return tf.tidy(() => {
-            // In functional API, input is an array of tensors
-            // So we need to get the first element (the actual input)
-            // Add a check as here:
-            // https://github.com/tensorflow/tfjs-examples/blob/master/custom-layer/custom_layer.js
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
-            const cdf = tf.mul(
-                0.5,
-                tf.add(
-                    1,
-                    tf.tanh(
-                        tf.mul(
-                            tf.sqrt(tf.div(2, Math.PI)),
-                            tf.add(input, tf.mul(0.044715, tf.pow(input, 3)))
-                        )
-                    )
-                )
-            )
-            return tf.mul(input, cdf)
-        })
-    }
-
-    static get className() {
-        return 'GELU'
-    }
-}
-tf.serialization.registerClass(GELU)
-
-function MLP(conf) {
-    const config = Object.assign({ name: 'mlp' }, conf)
-    const inputs = tf.input({ shape: [config.blockSize, config.nEmbd] })
-    let x
-    x = tf.layers
-        .dense({
-            name: config.name + '/c_fc',
-            units: 4 * config.nEmbd,
-            inputDim: config.nEmbd,
-            inputShape: [config.blockSize, config.nEmbd]
-        })
-        .apply(inputs)
-    x = new GELU().apply(x)
-    x = tf.layers
-        .dense({
-            name: config.name + '/c_proj',
-            units: config.nEmbd,
-            inputDim: 4 * config.nEmbd,
-            inputShape: [config.blockSize, 4 * config.nEmbd]
-        })
-        .apply(x)
-    x = tf.layers
-        .dropout({
-            name: config.name + '/drop',
-            rate: config.residDrop
-        })
-        .apply(x)
-    return tf.model({ inputs: inputs, outputs: x })
-}
-
-function Block(conf) {
-    const config = Object.assign({ name: 'h' }, conf)
-    const inputs = tf.input({ shape: [config.blockSize, config.nEmbd] })
-    let x1, x2
-    // Attention
-    // Setting epsilon to 1e-5 for LayerNorms to be consistent with PyTorch
-    x1 = tf.layers
-        .layerNormalization({ name: config.name + '/ln_1', epsilon: 1e-5 })
-        .apply(inputs)
-    if (config.debug) {
-        x1 = LogLayer({ name: config.name + '/ln_1_log' }).apply(x1)
-    }
-    x1 = new CausalSelfAttention(
-        Object.assign({}, config, { name: config.name + '/attn' })
-    ).apply(x1)
-    x1 = tf.layers.add().apply([inputs, x1])
-    // MLP
-    x2 = tf.layers
-        .layerNormalization({ name: config.name + '/ln_2', epsilon: 1e-5 })
-        .apply(x1)
-    x2 = MLP(Object.assign({}, config, { name: config.name + '/mlp' })).apply(
-        x2
-    )
-    x2 = tf.layers.add().apply([x1, x2])
-    return tf.model({ name: config.name, inputs: inputs, outputs: x2 })
-}
 
 // function GPT(conf) {
 //     const configDefaults = {
@@ -581,9 +298,6 @@ function Block(conf) {
 //             embeddingsInitializer: 'zeros'
 //         })
 //         .apply(range)
-//     if (config.debug) {
-//         posEmb = LogLayer({ name: 'posEmb' }).apply(posEmb)
-//     }
 
 //     let x
 //     x = tf.layers.add().apply([tokEmb, posEmb])
@@ -593,9 +307,6 @@ function Block(conf) {
 //             rate: config.embdDrop
 //         })
 //         .apply(x)
-//     if (config.debug) {
-//         x = LogLayer({ name: 'dropadd' }).apply(x)
-//     }
 
 //     for (let i = 0; i < config.nLayer; i++) {
 //         x = Block(
@@ -605,9 +316,6 @@ function Block(conf) {
 //     x = tf.layers
 //         .layerNormalization({ name: config.name + '/ln_f', epsilon: 1e-5 })
 //         .apply(x)
-//     if (config.debug) {
-//         x = LogLayer({ name: 'fin/ln' }).apply(x)
-//     }
 
 //     if (config.lmHead) {
 //         x = tf.layers
@@ -685,25 +393,6 @@ function generateOnce(model, idx, config) {
         idxNext,
         timePerToken
     }
-}
-
-function generateSync(model, idx, conf, callback) {
-    const config = Object.assign({}, defaultGenerateConfig, conf)
-    idx = prepareIdx(idx)
-    for (let step = 0; step < config.maxNewTokens; step++) {
-        const { idxNext, timePerToken } = generateOnce(model, idx, config)
-        const idxNew = idx.concat(idxNext, 1)
-        tf.dispose(idx)
-        idx = idxNew
-        const idxNextArr = idxNext.arraySync()
-        tf.dispose(idxNext)
-        if (callback) {
-            callback({ idxNext: idxNextArr, timePerToken: timePerToken })
-        }
-    }
-    const idxArr = idx.arraySync()
-    tf.dispose(idx)
-    return idxArr
 }
 
 async function generate(model, idx, conf, callback) {

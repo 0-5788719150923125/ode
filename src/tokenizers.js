@@ -12,18 +12,10 @@ export class BasicSubwordTokenizer {
         this.vocab = new Map(initialVocab.map((token, index) => [token, index]))
         this.tokenFrequencies = new Map()
         console.log('training a tokenizer')
-        this.train(corpus, 10_000_000, 100_000_000, 1, 7)
-        // console.log(Array.from(this.vocab).length)
-        console.log(this.maxVocabSize)
+        this.train(corpus, 50_000_000, 1, 7)
     }
 
-    train(
-        corpus,
-        minIterations = 1_000_000,
-        maxIterations = 10_000_000,
-        minLength = 2,
-        maxLength = 7
-    ) {
+    train(corpus, maxIterations = 10_000_000, minLength = 2, maxLength = 7) {
         let vocabSize = this.vocab.size
         let iterationCounter = 0
 
@@ -45,16 +37,13 @@ export class BasicSubwordTokenizer {
             }
 
             iterationCounter++
-            if (iterationCounter % minIterations === 0) {
+            if (iterationCounter % 10_000_000 === 0) {
                 console.log(
-                    `Iteration ${iterationCounter}: Current vocab size is ${this.vocab.size}`
+                    `Iteration ${iterationCounter}: Current vocab size is ${this.tokenFrequencies.size}`
                 )
             }
 
-            if (
-                iterationCounter % minIterations === 0 ||
-                iterationCounter === maxIterations
-            ) {
+            if (iterationCounter === maxIterations) {
                 this.finalizeVocabulary()
                 if (this.vocab.size > vocabSize) {
                     vocabSize = this.vocab.size
