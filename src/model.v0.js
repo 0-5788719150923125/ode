@@ -49,7 +49,6 @@ export default class ModelBase {
         }
         await this.compile()
         this.postInit()
-        console.log(`Loaded model: v${this.config.version}`)
     }
 
     build() {
@@ -74,6 +73,10 @@ export default class ModelBase {
     postInit() {
         console.log(this.model.optimizer)
         console.log(this.model.summary())
+        console.log(`Loaded model: v${this.config.version}`)
+        console.log(
+            `Tokenizer is ${this.tokenizer.getLength()} tokens in length.`
+        )
     }
 
     async generate(seed, temperature = 0.7, length = 20, greedy = false) {
@@ -170,7 +173,10 @@ export function greedySampling(probabilities) {
 
 export function temperatureSampling(logits, temperature) {
     return tf.tidy(() => {
-        const probabilities = tf.div(logits, Math.max(temperature, 1e-6))
+        const probabilities = tf.div(
+            tf.softmax(logits),
+            Math.max(temperature, 1e-6)
+        )
         const sampledIndex = tf.multinomial(probabilities, 1).dataSync()[0]
         return sampledIndex
     })

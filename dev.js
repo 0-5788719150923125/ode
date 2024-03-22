@@ -3,11 +3,11 @@ import { trainModel } from './dev-train.js'
     // using node.js
     if (typeof window === 'undefined') {
         await trainModel({
-            version: 4,
+            version: 5,
             backend: 'tensorflow',
-            batchSize: 4,
-            gradientAccumulationSteps: 256,
-            generateEvery: 256,
+            batchSize: 1,
+            gradientAccumulationSteps: 16,
+            generateEvery: 512,
             sampleLen: 256
         })
     }

@@ -28,7 +28,6 @@ export default class OmnipotentDegenerativeEngine extends ModelBase {
         })
 
         state = embeddings.apply(inputs)
-        // this.debug(state)
 
         for (let i = 0; i < this.layers; i++) {
             const layer = this.tf.layers.gru({
