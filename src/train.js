@@ -63,10 +63,10 @@ export async function startTraining(dataGenerator, args) {
             const tensors = dataset.next().value
             await gradientAccumulator.compute(tensors.xs, tensors.ys)
             await gradientAccumulator.step()
-            console.log(tf.memory())
 
             // Print logs
             const loss = gradientAccumulator.getLoss()
+            logger.log(batch, step, loss)
 
             // Print sample text
             await predictionSampler.call(
