@@ -199,7 +199,6 @@ function l2Loss(tensor) {
 
 function globalNorm(tensors) {
     // https://github.com/tensorflow/tensorflow/blob/c256c071bb26e1e13b4666d1b3e229e110bc914a/tensorflow/python/ops/clip_ops.py#L242
-    console.log('using global norm ish')
     var halfSquaredNorms = []
     tensors.forEach((tensor, ti) => {
         halfSquaredNorms.push(l2Loss(tensor))
