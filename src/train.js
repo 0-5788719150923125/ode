@@ -426,7 +426,7 @@ async function predictionSampler(
         const seedLength = randomBetween(16, maxLength - 16)
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
-        for (const temp of [0, 0.3, 0.7]) {
+        for (const temp of [0, 0.3, 1.1, 1.3]) {
             const startTime = performance.now()
             const output = await this.generate(prompt, temp, maxLength)
             const endTime = performance.now()

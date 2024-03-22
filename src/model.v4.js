@@ -156,12 +156,12 @@ function generateOnce(model, idx, temperature) {
         }
 
         // apply softmax to convert logits to (normalized) probabilities
-        const probs = logitsScaled.softmax(-1)
+        // const probs = logitsScaled.softmax(-1)
         // either sample from the distribution or take the most likely element
         if (temperature > 0) {
-            idxNext = tf.multinomial(probs, 1)
+            idxNext = tf.multinomial(logitsScaled, 1)
         } else {
-            idxNext = probs.argMax(-1)
+            idxNext = logitsScaled.softmax(-1).argMax(-1)
             idxNext = idxNext.expandDims(1)
         }
         tf.keep(idxNext)
