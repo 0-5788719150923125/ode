@@ -29,15 +29,15 @@ export function getAdamW(
                 includeInWeightDecay.push(v.name)
             }
         })
-        return new AdamW(
-            learningRate || 1e-3,
-            beta1 || 0.9,
-            beta2 || 0.999,
-            epsilon || 1e-7,
-            decayRate || 4e-1,
-            includeInWeightDecay,
-            excludeFromWeightDecay
-        )
+        return new AdamW({
+            learningRate: learningRate || 1e-3,
+            beta1: beta1 || 0.9,
+            beta2: beta2 || 0.999,
+            epsilon: epsilon || 1e-7,
+            decayRate: decayRate || 4e-1,
+            includeInWeightDecay: includeInWeightDecay,
+            excludeFromWeightDecay: excludeFromWeightDecay
+        })
     }
 }
 

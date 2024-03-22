@@ -73,10 +73,9 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         x = this.tf.layers
             .dense({
-                // name: 'lm_head',
+                name: 'head',
                 units: this.tokenizer.getLength(),
                 inputDim: this.units,
-                // inputShape: [this.config.contextLength, this.units],
                 useBias: false
             })
             .apply(x)
@@ -93,7 +92,7 @@ export default class OriginalDecoderEngine extends ModelBase {
                 this.config.beta1 || 0.9,
                 this.config.beta2 || 0.999,
                 this.config.epsilon || 1e-7,
-                this.config.decayRate || 1e-2
+                this.config.decayRate || 1e-4
             ),
             loss: this.lossFunctions
         })
