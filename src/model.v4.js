@@ -163,18 +163,14 @@ function generateOnce(model, idx, temperature) {
     return idxNext
 }
 
-async function generate(model, inputs, temperature, maxNewTokens, callback) {
+async function generate(model, inputs, temperature, maxNewTokens) {
     inputs = await prepareInputs(inputs)
     for (let step = 0; step < maxNewTokens; step++) {
         const idxNext = generateOnce(model, inputs, temperature)
         const idxNew = inputs.concat(idxNext, 1)
         tf.dispose(inputs)
         inputs = idxNew
-        const idxNextArr = await idxNext.array()
         tf.dispose(idxNext)
-        if (callback) {
-            await callback({ idxNext: idxNextArr })
-        }
     }
     const idxArr = await inputs.array()
     tf.dispose(inputs)

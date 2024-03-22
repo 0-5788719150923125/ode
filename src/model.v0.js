@@ -53,7 +53,7 @@ export default class ModelBase {
     }
 
     setupTokenizer() {
-        this.tokenizer = new BasicSubwordTokenizer(6666, 250_000_000)
+        this.tokenizer = new BasicSubwordTokenizer(6666, 500_000_000)
     }
 
     build() {
