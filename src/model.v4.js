@@ -144,15 +144,14 @@ function generateOnce(model, idx, temperature) {
             .slice([0, idx.shape[1] - 1, 0])
             .reshape([logits.shape[0], logits.shape[2]])
             .div(tf.scalar(temperature))
-        // TODO: topK sampling
         // apply softmax to convert logits to (normalized) probabilities
         const probs = logitsScaled.softmax(-1)
         // either sample from the distribution or take the most likely element
         if (temperature > 0) {
+            idxNext = tf.multinomial(probs, 1)
+        } else {
             idxNext = probs.argMax(-1)
             idxNext = idxNext.expandDims(1)
-        } else {
-            idxNext = tf.multinomial(probs, 1)
         }
         tf.keep(idxNext)
     })
