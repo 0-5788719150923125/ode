@@ -1,6 +1,7 @@
 import ModelBase from './model.v0.js'
 import { GPT2Block, Range } from './layers.js'
 import { getAdamW } from './optimizers.js'
+import PretrainedTokenizer from './tokenizers.js'
 
 /**
  * A GPT-2 clone with causal attention and learned position embeddings.
@@ -15,8 +16,9 @@ export default class OriginalDecoderEngine extends ModelBase {
         this.dropout = 0.1
     }
 
-    setupTokenizer(vocabSize = 6666, numIterations = 500_000_000) {
-        super.setupTokenizer(vocabSize, numIterations)
+    setupTokenizer(vocabSize = 16666, numIterations = 500_000_000) {
+        // super.setupTokenizer(vocabSize, numIterations)
+        this.tokenizer = new PretrainedTokenizer()
     }
 
     build() {
@@ -92,7 +94,7 @@ export default class OriginalDecoderEngine extends ModelBase {
         this.model.compile({
             optimizer: getAdamW(
                 this.model,
-                this.config.learningRate || 1e-2,
+                this.config.learningRate || 1e-3,
                 this.config.beta1 || 0.9,
                 this.config.beta2 || 0.999,
                 this.config.epsilon || 1e-7,

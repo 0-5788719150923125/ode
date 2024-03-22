@@ -276,7 +276,7 @@ export class BasicSubwordTokenizer {
 //     }
 // }
 
-export default class Tokenizer {
+export default class PretrainedTokenizer {
     constructor() {
         // this.padToken = '�'
         // this.vocab = Array.from(
@@ -299,5 +299,9 @@ export default class Tokenizer {
 
     decode(sequence) {
         return this.model.decode(sequence)
+    }
+
+    writeVocabularyToFile(path) {
+        // skip
     }
 }
