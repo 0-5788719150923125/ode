@@ -27,12 +27,10 @@ export default class ModelBase {
         this.tf = tf
         this.model
         this.config = config
-        this.tokenizer = new BasicSubwordTokenizer(6666, 250_000_000)
+        this.tokenizer
     }
 
     async init() {
-        await this.tokenizer.writeVocabularyToFile()
-
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
 
@@ -40,6 +38,9 @@ export default class ModelBase {
 
         console.log('Backend:', tf.backend())
         console.log(this.config)
+
+        this.setupTokenizer()
+        await this.tokenizer.writeVocabularyToFile()
 
         if (this.config.loadFromFile) {
             console.log('loading from file')
@@ -49,6 +50,10 @@ export default class ModelBase {
         }
         await this.compile()
         this.postInit()
+    }
+
+    setupTokenizer() {
+        this.tokenizer = new BasicSubwordTokenizer(6666, 250_000_000)
     }
 
     build() {

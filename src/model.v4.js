@@ -9,7 +9,7 @@ import { getAdamW } from './optimizers.js'
 export default class OriginalDecoderEngine extends ModelBase {
     constructor(config) {
         super(config)
-        this.layers = 4
+        this.layers = 3
         this.numHeads = 8
         this.units = 512
         this.dropout = 0.1
@@ -100,41 +100,37 @@ export default class OriginalDecoderEngine extends ModelBase {
 
     async generate(seed, temperature = 0.7, length = 20) {
         const inputs = this.tokenizer.encode(seed)
-        const idx = await generate(this.model, [inputs], {
-            maxNewTokens: length,
-            temperature: temperature
-        })
+        const idx = await generate(this.model, [inputs], temperature, length)
         return this.tokenizer.decode(idx[0])
     }
 }
 
 import tf from '@tensorflow/tfjs'
 
-function prepareIdx(idx) {
+function prepareInputs(inputs) {
     tf.tidy(() => {
         // Check if idx is a tensor or an array
-        if (idx instanceof tf.Tensor) {
-            idx = idx.clone()
+        if (inputs instanceof tf.Tensor) {
+            inputs = inputs.clone()
         } else {
-            idx = tf.tensor(idx)
+            inputs = tf.tensor(inputs)
         }
         // Check data type
-        if (idx.dtype !== 'int32') {
-            idx = idx.toInt()
+        if (inputs.dtype !== 'int32') {
+            inputs = inputs.toInt()
         }
         // If the shape of idx is 1D, we need to add a dimension
-        if (idx.shape.length === 1) {
-            idx = idx.expandDims(0)
+        if (inputs.shape.length === 1) {
+            inputs = inputs.expandDims(0)
         }
-        tf.keep(idx)
+        tf.keep(inputs)
         // keep idx from deletion
     })
-    return idx
+    return inputs
 }
 
-function generateOnce(model, idx, config) {
+function generateOnce(model, idx, temperature) {
     let idxNext
-    let timePerToken = performance.now()
     tf.tidy(() => {
         const block_size = model.inputs[0].shape[1]
         const idxCond =
@@ -143,54 +139,40 @@ function generateOnce(model, idx, config) {
                 : idx.slice([0, -block_size], [-1, -1])
         // Forward the model to get the logits for the index in the sequence
         const logits = model.predict(idxCond)
-        timePerToken = performance.now() - timePerToken
         // pluck the logits at the final step and scale by desired temperature
         const logitsScaled = logits
             .slice([0, idx.shape[1] - 1, 0])
             .reshape([logits.shape[0], logits.shape[2]])
-            .div(tf.scalar(config.temperature))
+            .div(tf.scalar(temperature))
         // TODO: topK sampling
         // apply softmax to convert logits to (normalized) probabilities
         const probs = logitsScaled.softmax(-1)
         // either sample from the distribution or take the most likely element
-        if (config.doSample) {
-            idxNext = tf.multinomial(probs, 1)
-        } else {
+        if (temperature > 0) {
             idxNext = probs.argMax(-1)
             idxNext = idxNext.expandDims(1)
+        } else {
+            idxNext = tf.multinomial(probs, 1)
         }
         tf.keep(idxNext)
     })
-    return {
-        idxNext,
-        timePerToken
-    }
+    return idxNext
 }
 
-async function generate(model, idx, conf, callback) {
-    const defaultGenerateConfig = {
-        maxNewTokens: 20,
-        temperature: 0,
-        doSample: false,
-        topK: null
-    }
-    const config = Object.assign({}, defaultGenerateConfig, conf)
-    if (config.temperature > 0) {
-        config.doSample = true
-    }
-    idx = await prepareIdx(idx)
-    for (let step = 0; step < config.maxNewTokens; step++) {
-        const { idxNext, timePerToken } = generateOnce(model, idx, config)
-        const idxNew = idx.concat(idxNext, 1)
-        tf.dispose(idx)
-        idx = idxNew
+async function generate(model, inputs, temperature, maxNewTokens, callback) {
+    inputs = await prepareInputs(inputs)
+    for (let step = 0; step < maxNewTokens; step++) {
+        const idxNext = generateOnce(model, inputs, temperature)
+        const idxNew = inputs.concat(idxNext, 1)
+        tf.dispose(inputs)
+        inputs = idxNew
         const idxNextArr = await idxNext.array()
         tf.dispose(idxNext)
         if (callback) {
-            await callback({ idxNext: idxNextArr, timePerToken: timePerToken })
+            await callback({ idxNext: idxNextArr })
         }
     }
-    const idxArr = await idx.array()
-    tf.dispose(idx)
+    const idxArr = await inputs.array()
+    tf.dispose(inputs)
     return idxArr
 }
