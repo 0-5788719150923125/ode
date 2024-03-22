@@ -372,6 +372,8 @@ async function predictionSampler(
 class Logger {
     constructor() {
         this.timer = elapsedTimeGenerator()
+        this.startTime = Date.now()
+        this.totalElapsed = 0
         this.ema = emaGenerator()
         this.ema.next()
         this.previousLoss = 0
@@ -402,8 +404,10 @@ class Logger {
             color = ''
         }
 
+        const elapsed = this.timer.next().value
+        this.totalElapsed += elapsed
         console.log(
-            `STEP=${step}, BATCH=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, ELAPSED=${this.timer.next().value / 1000}s`
+            `STEP=${step}, BATCH=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, ELAPSED=${elapsed / 1000}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
         )
     }
 }
