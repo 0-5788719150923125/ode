@@ -3,7 +3,11 @@ import { load_vocab } from '@lenml/llama2-tokenizer-vocab-llama2'
 import { shaks13 } from './data.js'
 
 export class BasicSubwordTokenizer {
-    constructor(maxVocabSize = 32000, corpus = shaks13) {
+    constructor(
+        maxVocabSize = 32000,
+        trainIterations = 50_000_000,
+        corpus = shaks13
+    ) {
         this.maxVocabSize = maxVocabSize
         const initialVocab =
             `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `.split(
@@ -12,7 +16,7 @@ export class BasicSubwordTokenizer {
         this.vocab = new Map(initialVocab.map((token, index) => [token, index]))
         this.tokenFrequencies = new Map()
         console.log('training a tokenizer')
-        this.train(corpus, 50_000_000, 1, 7)
+        this.train(corpus, trainIterations, 1, 7)
     }
 
     train(corpus, maxIterations = 10_000_000, minLength = 2, maxLength = 7) {

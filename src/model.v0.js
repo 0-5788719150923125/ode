@@ -27,7 +27,7 @@ export default class ModelBase {
         this.tf = tf
         this.model
         this.config = config
-        this.tokenizer = new BasicSubwordTokenizer(6666)
+        this.tokenizer = new BasicSubwordTokenizer(6666, 250_000_000)
     }
 
     async init() {

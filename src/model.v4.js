@@ -22,7 +22,7 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         const tokenEmbeddings = this.tf.layers
             .embedding({
-                // name: 'wte',
+                name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform',
@@ -35,7 +35,7 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         const positionalEmbeddings = this.tf.layers
             .embedding({
-                // name: 'wpe',
+                name: 'wpe',
                 inputDim: this.config.contextLength,
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
