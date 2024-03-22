@@ -122,8 +122,7 @@ class Range extends tf.layers.Layer {
 }
 tf.serialization.registerClass(Range)
 
-const CausalSelfAttentionBase = (config) => new CausalSelfAttentionBase_(config)
-class CausalSelfAttentionBase_ extends tf.layers.Layer {
+class CausalSelfAttentionBase extends tf.layers.Layer {
     constructor(config, i) {
         super(config)
         this.config = config
@@ -197,43 +196,42 @@ class CausalSelfAttentionBase_ extends tf.layers.Layer {
         return 'CausalSelfAttentionBase'
     }
 }
-tf.serialization.registerClass(CausalSelfAttentionBase_)
+tf.serialization.registerClass(CausalSelfAttentionBase)
 
-function CausalSelfAttentionMixed(conf) {
-    const config = Object.assign({ name: 'attn' }, conf)
-    const csa = CausalSelfAttentionBase(config)
-    const inputs = tf.input({ shape: [config.blockSize, config.nEmbd] })
-    let att
-    att = tf.layers
-        .dense({
-            name: config.name + '/c_attn',
-            units: 3 * config.nEmbd,
-            inputDim: config.nEmbd,
-            inputShape: [config.blockSize, config.nEmbd],
-            useBias: config.bias
-        })
-        .apply(inputs)
-    att = csa.apply(att)
-    att = tf.layers
-        .dense({
-            name: config.name + '/proj',
-            units: config.nEmbd,
-            inputDim: config.nEmbd,
-            inputShape: [config.blockSize, config.nEmbd],
-            useBias: config.bias
-        })
-        .apply(att)
-    att = tf.layers
-        .dropout({
-            name: config.name + '/drop',
-            rate: config.dropout
-        })
-        .apply(att)
-    return tf.model({ inputs: inputs, outputs: att })
-}
+// function CausalSelfAttentionMixed(conf) {
+//     const config = Object.assign({ name: 'attn' }, conf)
+//     const csa = new CausalSelfAttentionBase(config)
+//     const inputs = tf.input({ shape: [config.blockSize, config.nEmbd] })
+//     let att
+//     att = tf.layers
+//         .dense({
+//             name: config.name + '/c_attn',
+//             units: 3 * config.nEmbd,
+//             inputDim: config.nEmbd,
+//             inputShape: [config.blockSize, config.nEmbd],
+//             useBias: config.bias
+//         })
+//         .apply(inputs)
+//     att = csa.apply(att)
+//     att = tf.layers
+//         .dense({
+//             name: config.name + '/proj',
+//             units: config.nEmbd,
+//             inputDim: config.nEmbd,
+//             inputShape: [config.blockSize, config.nEmbd],
+//             useBias: config.bias
+//         })
+//         .apply(att)
+//     att = tf.layers
+//         .dropout({
+//             name: config.name + '/drop',
+//             rate: config.dropout
+//         })
+//         .apply(att)
+//     return tf.model({ inputs: inputs, outputs: att })
+// }
 
-const CausalSelfAttention = (config) => new CausalSelfAttention_(config)
-class CausalSelfAttention_ extends tf.layers.Layer {
+class CausalSelfAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.config = Object.assign({ name: 'attn' }, config)
@@ -392,10 +390,9 @@ class CausalSelfAttention_ extends tf.layers.Layer {
         return 'CausalSelfAttention'
     }
 }
-tf.serialization.registerClass(CausalSelfAttention_)
+tf.serialization.registerClass(CausalSelfAttention)
 
-const GELU = () => new GELU_()
-class GELU_ extends tf.layers.Layer {
+class GELU extends tf.layers.Layer {
     constructor() {
         super({})
     }
@@ -434,7 +431,7 @@ class GELU_ extends tf.layers.Layer {
         return 'GELU'
     }
 }
-tf.serialization.registerClass(GELU_)
+tf.serialization.registerClass(GELU)
 
 function MLP(conf) {
     const config = Object.assign({ name: 'mlp' }, conf)
@@ -448,7 +445,7 @@ function MLP(conf) {
             inputShape: [config.blockSize, config.nEmbd]
         })
         .apply(inputs)
-    x = GELU().apply(x)
+    x = new GELU().apply(x)
     x = tf.layers
         .dense({
             name: config.name + '/c_proj',
@@ -478,7 +475,7 @@ function Block(conf) {
     if (config.debug) {
         x1 = LogLayer({ name: config.name + '/ln_1_log' }).apply(x1)
     }
-    x1 = CausalSelfAttention(
+    x1 = new CausalSelfAttention(
         Object.assign({}, config, { name: config.name + '/attn' })
     ).apply(x1)
     x1 = tf.layers.add().apply([inputs, x1])
@@ -493,132 +490,132 @@ function Block(conf) {
     return tf.model({ name: config.name, inputs: inputs, outputs: x2 })
 }
 
-function GPT(conf) {
-    const configDefaults = {
-        name: 'transformer',
-        bias: true,
-        debug: false,
-        tokEmb: true,
-        lmHead: true
-    }
-    const configModels = {
-        gpt2: {
-            nLayer: 12,
-            nHead: 12,
-            nEmbd: 768,
-            vocabSize: 50257,
-            blockSize: 1024
-        },
-        'gpt2-medium': {
-            nLayer: 24,
-            nHead: 16,
-            nEmbd: 1024,
-            vocabSize: 50257,
-            blockSize: 1024
-        },
-        'gpt2-large': {
-            nLayer: 36,
-            nHead: 20,
-            nEmbd: 1280,
-            vocabSize: 50257,
-            blockSize: 1024
-        },
-        'gpt2-xl': {
-            nLayer: 48,
-            nHead: 25,
-            nEmbd: 1600,
-            vocabSize: 50257,
-            blockSize: 1024
-        },
-        'gpt-mini': { nLayer: 6, nHead: 6, nEmbd: 192 },
-        'gpt-micro': { nLayer: 4, nHead: 4, nEmbd: 128 },
-        'gpt-nano': { nLayer: 3, nHead: 3, nEmbd: 48 }
-    }
-    // Check if modelType is present in conf
-    if (conf.modelType) {
-        // If so, check if it's valid
-        if (!Object.keys(configModels).includes(conf.modelType)) {
-            throw new Error(`Invalid modelType: ${conf.modelType}`)
-        }
-        // If valid, merge modelConfig with configDefaults
-        const modelConfig = configModels[conf.modelType]
-        Object.assign(configDefaults, modelConfig)
-    }
+// function GPT(conf) {
+//     const configDefaults = {
+//         name: 'transformer',
+//         bias: true,
+//         debug: false,
+//         tokEmb: true,
+//         lmHead: true
+//     }
+//     const configModels = {
+//         gpt2: {
+//             nLayer: 12,
+//             nHead: 12,
+//             nEmbd: 768,
+//             vocabSize: 50257,
+//             blockSize: 1024
+//         },
+//         'gpt2-medium': {
+//             nLayer: 24,
+//             nHead: 16,
+//             nEmbd: 1024,
+//             vocabSize: 50257,
+//             blockSize: 1024
+//         },
+//         'gpt2-large': {
+//             nLayer: 36,
+//             nHead: 20,
+//             nEmbd: 1280,
+//             vocabSize: 50257,
+//             blockSize: 1024
+//         },
+//         'gpt2-xl': {
+//             nLayer: 48,
+//             nHead: 25,
+//             nEmbd: 1600,
+//             vocabSize: 50257,
+//             blockSize: 1024
+//         },
+//         'gpt-mini': { nLayer: 6, nHead: 6, nEmbd: 192 },
+//         'gpt-micro': { nLayer: 4, nHead: 4, nEmbd: 128 },
+//         'gpt-nano': { nLayer: 3, nHead: 3, nEmbd: 48 }
+//     }
+//     // Check if modelType is present in conf
+//     if (conf.modelType) {
+//         // If so, check if it's valid
+//         if (!Object.keys(configModels).includes(conf.modelType)) {
+//             throw new Error(`Invalid modelType: ${conf.modelType}`)
+//         }
+//         // If valid, merge modelConfig with configDefaults
+//         const modelConfig = configModels[conf.modelType]
+//         Object.assign(configDefaults, modelConfig)
+//     }
 
-    const config = Object.assign({}, configDefaults, conf)
+//     const config = Object.assign({}, configDefaults, conf)
 
-    const inputs = tf.input({ shape: [null] })
+//     const inputs = tf.input({ shape: [null] })
 
-    const tokEmb = config.tokEmb
-        ? tf.layers
-              .embedding({
-                  name: config.name + '/wte',
-                  inputDim: config.vocabSize,
-                  outputDim: config.nEmbd,
-                  embeddingsInitializer: 'zeros',
-                  embeddingsRegularizer: null,
-                  activityRegularizer: null
-              })
-              .apply(inputs)
-        : inputs
+//     const tokEmb = config.tokEmb
+//         ? tf.layers
+//               .embedding({
+//                   name: config.name + '/wte',
+//                   inputDim: config.vocabSize,
+//                   outputDim: config.nEmbd,
+//                   embeddingsInitializer: 'zeros',
+//                   embeddingsRegularizer: null,
+//                   activityRegularizer: null
+//               })
+//               .apply(inputs)
+//         : inputs
 
-    const range = Range().apply(inputs)
-    let posEmb = tf.layers
-        .embedding({
-            name: config.name + '/wpe',
-            inputDim: config.blockSize,
-            outputDim: config.nEmbd,
-            embeddingsInitializer: 'zeros'
-        })
-        .apply(range)
-    if (config.debug) {
-        posEmb = LogLayer({ name: 'posEmb' }).apply(posEmb)
-    }
+//     const range = Range().apply(inputs)
+//     let posEmb = tf.layers
+//         .embedding({
+//             name: config.name + '/wpe',
+//             inputDim: config.blockSize,
+//             outputDim: config.nEmbd,
+//             embeddingsInitializer: 'zeros'
+//         })
+//         .apply(range)
+//     if (config.debug) {
+//         posEmb = LogLayer({ name: 'posEmb' }).apply(posEmb)
+//     }
 
-    let x
-    x = tf.layers.add().apply([tokEmb, posEmb])
-    x = tf.layers
-        .dropout({
-            name: 'drop',
-            rate: config.embdDrop
-        })
-        .apply(x)
-    if (config.debug) {
-        x = LogLayer({ name: 'dropadd' }).apply(x)
-    }
+//     let x
+//     x = tf.layers.add().apply([tokEmb, posEmb])
+//     x = tf.layers
+//         .dropout({
+//             name: 'drop',
+//             rate: config.embdDrop
+//         })
+//         .apply(x)
+//     if (config.debug) {
+//         x = LogLayer({ name: 'dropadd' }).apply(x)
+//     }
 
-    for (let i = 0; i < config.nLayer; i++) {
-        x = Block(
-            Object.assign({}, config, { name: config.name + '/h/' + i })
-        ).apply(x)
-    }
-    x = tf.layers
-        .layerNormalization({ name: config.name + '/ln_f', epsilon: 1e-5 })
-        .apply(x)
-    if (config.debug) {
-        x = LogLayer({ name: 'fin/ln' }).apply(x)
-    }
+//     for (let i = 0; i < config.nLayer; i++) {
+//         x = Block(
+//             Object.assign({}, config, { name: config.name + '/h/' + i })
+//         ).apply(x)
+//     }
+//     x = tf.layers
+//         .layerNormalization({ name: config.name + '/ln_f', epsilon: 1e-5 })
+//         .apply(x)
+//     if (config.debug) {
+//         x = LogLayer({ name: 'fin/ln' }).apply(x)
+//     }
 
-    if (config.lmHead) {
-        x = tf.layers
-            .dense({
-                name: 'lm_head',
-                units: config.vocabSize,
-                inputDim: config.nEmbd,
-                inputShape: [config.blockSize, config.nEmbd],
-                useBias: false
-            })
-            .apply(x)
-    }
-    return tf.model({ inputs: inputs, outputs: x })
-}
+//     if (config.lmHead) {
+//         x = tf.layers
+//             .dense({
+//                 name: 'lm_head',
+//                 units: config.vocabSize,
+//                 inputDim: config.nEmbd,
+//                 inputShape: [config.blockSize, config.nEmbd],
+//                 useBias: false
+//             })
+//             .apply(x)
+//     }
+//     return tf.model({ inputs: inputs, outputs: x })
+// }
 
-const defaultGenerateConfig = {
-    maxNewTokens: 20,
-    temperature: 1.0,
-    doSample: false,
-    topK: null
-}
+// const defaultGenerateConfig = {
+//     maxNewTokens: 20,
+//     temperature: 1.0,
+//     doSample: false,
+//     topK: null
+// }
 
 function prepareIdx(idx) {
     tf.tidy(() => {
@@ -715,48 +712,48 @@ async function generate(model, idx, conf, callback) {
     return idxArr
 }
 
-const GPTModel = (config) => new GPTModel_(config)
-class GPTModel_ {
-    constructor(config) {
-        this.config = config
-        this.model = GPT(config)
-    }
+// const GPTModel = (config) => new GPTModel_(config)
+// class GPTModel_ {
+//     constructor(config) {
+//         this.config = config
+//         this.model = GPT(config)
+//     }
 
-    async load(modelPath) {
-        await this.model.loadWeights(modelPath)
-    }
+//     async load(modelPath) {
+//         await this.model.loadWeights(modelPath)
+//     }
 
-    async save(modelPath) {
-        await this.model.save(modelPath)
-    }
+//     async save(modelPath) {
+//         await this.model.save(modelPath)
+//     }
 
-    apply(inputs) {
-        return this.model.apply(inputs)
-    }
+//     apply(inputs) {
+//         return this.model.apply(inputs)
+//     }
 
-    predict(inputs) {
-        return this.model.predict(inputs)
-    }
-}
+//     predict(inputs) {
+//         return this.model.predict(inputs)
+//     }
+// }
 
-const GPTLMHeadModel = (config) => new GPTLMHeadModel_(config)
-class GPTLMHeadModel_ extends GPTModel_ {
-    constructor(config) {
-        super(config)
-    }
+// const GPTLMHeadModel = (config) => new GPTLMHeadModel_(config)
+// class GPTLMHeadModel_ extends GPTModel_ {
+//     constructor(config) {
+//         super(config)
+//     }
 
-    async train(dataset, config) {
-        await train(this.model, dataset, config)
-    }
+//     async train(dataset, config) {
+//         await train(this.model, dataset, config)
+//     }
 
-    async generate() {
-        return await generate(this.model, ...arguments)
-    }
+//     async generate() {
+//         return await generate(this.model, ...arguments)
+//     }
 
-    generateSync() {
-        return generateSync(this.model, ...arguments)
-    }
-}
+//     generateSync() {
+//         return generateSync(this.model, ...arguments)
+//     }
+// }
 
 // module.exports = {
 //     GELU,
