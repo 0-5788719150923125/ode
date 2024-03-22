@@ -52,8 +52,8 @@ export default class ModelBase {
         this.postInit()
     }
 
-    setupTokenizer() {
-        this.tokenizer = new BasicSubwordTokenizer(6666, 500_000_000)
+    setupTokenizer(vocabSize = 6666, numIterations = 50_000_000) {
+        this.tokenizer = new BasicSubwordTokenizer(vocabSize, numIterations)
     }
 
     build() {

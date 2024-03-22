@@ -5,10 +5,10 @@ import { trainModel } from './dev-train.js'
         await trainModel({
             version: 4,
             backend: 'tensorflow',
-            batchSize: 1,
-            gradientAccumulationSteps: 128,
-            generateEvery: 128,
-            sampleLen: 512
+            batchSize: 4,
+            gradientAccumulationSteps: 256,
+            generateEvery: 256,
+            sampleLen: 256
         })
     }
     // using browser
@@ -16,10 +16,12 @@ import { trainModel } from './dev-train.js'
         new Worker(new URL('dev-worker.js', import.meta.url), {
             type: 'module'
         }).postMessage({
-            backend: 'cpu',
+            backend: 'webgl',
+            version: 4,
             batchSize: 1,
-            gradientAccumulationSteps: 4,
-            generateEvery: 4
+            gradientAccumulationSteps: 512,
+            generateEvery: 512,
+            sampleLen: 256
         })
     }
 })()

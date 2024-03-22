@@ -9,10 +9,14 @@ import { getAdamW } from './optimizers.js'
 export default class OriginalDecoderEngine extends ModelBase {
     constructor(config) {
         super(config)
-        this.layers = 3
+        this.layers = 4
         this.numHeads = 8
-        this.units = 512
+        this.units = 256
         this.dropout = 0.1
+    }
+
+    setupTokenizer(vocabSize = 6666, numIterations = 500_000_000) {
+        super.setupTokenizer(vocabSize, numIterations)
     }
 
     build() {
@@ -55,7 +59,7 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         for (let i = 0; i < this.layers; i++) {
             x = GPT2Block({
-                name: 'block' + '/h/' + i,
+                name: 'gpt' + '/h/' + i,
                 nLayer: this.layers,
                 nHead: this.numHeads,
                 nEmbd: this.units,
@@ -66,7 +70,7 @@ export default class OriginalDecoderEngine extends ModelBase {
         }
         x = this.tf.layers
             .layerNormalization({
-                name: 'block' + '/ln_f',
+                name: 'gpt' + '/ln_f',
                 epsilon: 1e-5
             })
             .apply(x)
