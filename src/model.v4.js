@@ -1,5 +1,5 @@
 import ModelBase from './model.v0.js'
-import { GPT2Block, Range } from './layers.js'
+import { GPT2Block, Range, SinusoidalPositionalEncoding } from './layers.js'
 import { getAdamW } from './optimizers.js'
 import PretrainedTokenizer from './tokenizers.js'
 
@@ -102,22 +102,33 @@ export default class OriginalDecoderEngine extends ModelBase {
         })
     }
 
-    async generate(seed, temperature = 0.7, length = 20) {
-        const inputs = this.tokenizer.encode(seed)
-        const idx = await generate(this.model, [inputs], temperature, length)
-        return this.tokenizer.decode(idx[0])
+    async generate(prompt, temperature = 0.7, length = 20) {
+        return await generateText.call(this, prompt, temperature, length)
     }
 }
 
-import tf from '@tensorflow/tfjs'
+async function generateText(prompt, temperature, maxNewTokens) {
+    let inputs = [this.tokenizer.encode(prompt)]
+    inputs = await prepareInputs.call(this, inputs)
+    for (let step = 0; step < maxNewTokens; step++) {
+        const idxNext = generateOnce.call(this, inputs, temperature)
+        const idxNew = inputs.concat(idxNext, 1)
+        this.tf.dispose(inputs)
+        inputs = idxNew
+        this.tf.dispose(idxNext)
+    }
+    const idxArr = await inputs.array()
+    this.tf.dispose(inputs)
+    return this.tokenizer.decode(idxArr[0])
+}
 
 function prepareInputs(inputs) {
-    tf.tidy(() => {
+    this.tf.tidy(() => {
         // Check if idx is a tensor or an array
-        if (inputs instanceof tf.Tensor) {
+        if (inputs instanceof this.tf.Tensor) {
             inputs = inputs.clone()
         } else {
-            inputs = tf.tensor(inputs)
+            inputs = this.tf.tensor(inputs)
         }
         // Check data type
         if (inputs.dtype !== 'int32') {
@@ -127,22 +138,22 @@ function prepareInputs(inputs) {
         if (inputs.shape.length === 1) {
             inputs = inputs.expandDims(0)
         }
-        tf.keep(inputs)
+        this.tf.keep(inputs)
         // keep idx from deletion
     })
     return inputs
 }
 
-function generateOnce(model, idx, temperature) {
+function generateOnce(idx, temperature) {
     let idxNext
-    tf.tidy(() => {
-        const block_size = model.inputs[0].shape[1]
+    this.tf.tidy(() => {
+        const block_size = this.model.inputs[0].shape[1]
         const idxCond =
             idx.shape[1] <= block_size
                 ? idx
                 : idx.slice([0, -block_size], [-1, -1])
         // Forward the model to get the logits for the index in the sequence
-        const logits = model.predict(idxCond)
+        const logits = this.model.predict(idxCond)
         // pluck the logits at the final step
         let logitsScaled = logits
             .slice([0, idx.shape[1] - 1, 0])
@@ -150,30 +161,16 @@ function generateOnce(model, idx, temperature) {
 
         if (temperature !== 1) {
             // scale by desired temperature
-            logitsScaled = logitsScaled.div(tf.scalar(temperature))
+            logitsScaled = logitsScaled.div(this.tf.scalar(temperature))
         }
 
         // either sample from the distribution or take the most likely element
         if (temperature > 0) {
-            idxNext = tf.multinomial(logitsScaled, 1)
+            idxNext = this.tf.multinomial(logitsScaled, 1)
         } else {
             idxNext = logitsScaled.softmax(-1).argMax(-1).expandDims(1)
         }
-        tf.keep(idxNext)
+        this.tf.keep(idxNext)
     })
     return idxNext
-}
-
-async function generate(model, inputs, temperature, maxNewTokens) {
-    inputs = await prepareInputs(inputs)
-    for (let step = 0; step < maxNewTokens; step++) {
-        const idxNext = generateOnce(model, inputs, temperature)
-        const idxNew = inputs.concat(idxNext, 1)
-        tf.dispose(inputs)
-        inputs = idxNew
-        tf.dispose(idxNext)
-    }
-    const idxArr = await inputs.array()
-    tf.dispose(inputs)
-    return idxArr
 }

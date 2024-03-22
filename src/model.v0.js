@@ -84,8 +84,8 @@ export default class ModelBase {
         )
     }
 
-    async generate(seed, temperature = 0.7, length = 20, greedy) {
-        return await generateText.call(this, seed, temperature, length)
+    async generate(prompt, temperature = 0.7, length = 20, greedy) {
+        return await generateText.call(this, prompt, temperature, length)
     }
 
     async train(dataGenerator, args) {
