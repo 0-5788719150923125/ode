@@ -13,8 +13,6 @@ export default class ModelPrototype extends ModelBase {
     }
 
     build() {
-        super.build()
-
         this.model = this.tf.sequential()
 
         this.model.add(

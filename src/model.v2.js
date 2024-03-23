@@ -7,8 +7,6 @@ import { CausalAttentionLayer, ResidualConnection } from './layers.js'
  */
 export default class OmnipresentDegenerateEntity extends ModelBase {
     build() {
-        super.build()
-
         const inputs = this.tf.input({ shape: [null] })
         const embeddings = this.tf.layers
             .embedding({

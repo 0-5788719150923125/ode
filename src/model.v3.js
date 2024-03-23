@@ -15,8 +15,6 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
     }
 
     build() {
-        super.build()
-
         let state
 
         const inputs = this.tf.input({ shape: [null] })

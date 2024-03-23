@@ -21,11 +21,9 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     }
 
     build() {
-        super.build()
-
         const inputs = this.tf.input({ shape: [null] })
 
-        const tokenEmbeddings = this.tf.layers
+        const embeddings = this.tf.layers
             .embedding({
                 name: 'wte',
                 inputDim: this.tokenizer.getLength(),
@@ -36,7 +34,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         const range = new Range().apply(inputs)
 
-        const positionalEmbeddings = this.tf.layers
+        const encoding = this.tf.layers
             .embedding({
                 name: 'wpe',
                 inputDim: this.config.contextLength,
@@ -45,14 +43,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(range)
 
-        // const positionalEmbeddings = new SinusoidalPositionalEncoding({
+        // const encoding = new SinusoidalPositionalEncoding({
         //     embeddingDim: this.units,
         //     reverse: false
         // }).apply(range)
 
-        let outputs = this.tf.layers
-            .add()
-            .apply([tokenEmbeddings, positionalEmbeddings])
+        let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
             const attention = new MultiHeadAttention({
@@ -70,7 +66,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         }
 
         const head = this.tf.layers.dense({
-            inputDim: this.units,
             units: this.tokenizer.getLength(),
             activation: 'linear'
         })
@@ -79,17 +74,4 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         this.model = this.tf.model({ inputs, outputs })
     }
-
-    // async compile() {
-    //     this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
-    //     this.model.compile({
-    //         optimizer: this.tf.train.adam(
-    //             this.config.learningRate || 1e-3,
-    //             this.config.beta1 || 0.9,
-    //             this.config.beta2 || 0.999,
-    //             this.config.epsilon || 1e-7
-    //         ),
-    //         loss: this.lossFunctions
-    //     })
-    // }
 }

@@ -22,8 +22,6 @@ export default class OriginalDecoderEngine extends ModelBase {
     }
 
     build() {
-        super.build()
-
         const inputs = this.tf.input({ shape: [null] })
 
         const tokenEmbeddings = this.tf.layers

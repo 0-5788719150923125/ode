@@ -57,7 +57,7 @@ export default class ModelBase {
     }
 
     build() {
-        // pass
+        throw 'Your model is missing the build() method. Did you forget to define it?'
     }
 
     async compile() {
