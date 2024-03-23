@@ -78,9 +78,9 @@ export default class OriginalDecoderEngine extends ModelBase {
         x = this.tf.layers
             .dense({
                 name: 'head',
-                units: this.tokenizer.getLength(),
-                inputDim: this.units,
-                useBias: false
+                units: this.tokenizer.getLength()
+                // inputDim: this.units,
+                // useBias: false
             })
             .apply(x)
 

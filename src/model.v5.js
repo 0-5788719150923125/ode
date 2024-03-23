@@ -16,35 +16,43 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         super(config)
         this.layers = 4
         this.numHeads = 8
-        this.units = 512
+        this.units = 256
         this.innerDim = this.units * 4
-    }
-
-    setupTokenizer(vocabSize = 16666, numIterations = 500_000_000) {
-        this.tokenizer = new PretrainedTokenizer()
     }
 
     build() {
         super.build()
 
         const inputs = this.tf.input({ shape: [null] })
-        const embeddings = this.tf.layers
+
+        const tokenEmbeddings = this.tf.layers
             .embedding({
+                name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform',
-                maskZero: true
+                embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
         const range = new Range().apply(inputs)
 
-        const encoding = new SinusoidalPositionalEncoding({
-            embeddingDim: this.units,
-            maxSeqLength: this.config.contextLength
-        }).apply(range)
+        const positionalEmbeddings = this.tf.layers
+            .embedding({
+                name: 'wpe',
+                inputDim: this.config.contextLength,
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform'
+            })
+            .apply(range)
 
-        let outputs = this.tf.layers.add().apply([embeddings, encoding])
+        // const positionalEmbeddings = new SinusoidalPositionalEncoding({
+        //     embeddingDim: this.units,
+        //     reverse: false
+        // }).apply(range)
+
+        let outputs = this.tf.layers
+            .add()
+            .apply([tokenEmbeddings, positionalEmbeddings])
 
         for (let i = 0; i < this.layers; i++) {
             const attention = new MultiHeadAttention({
@@ -72,16 +80,16 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    async compile() {
-        this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
-        this.model.compile({
-            optimizer: this.tf.train.adam(
-                this.config.learningRate || 1e-3,
-                this.config.beta1 || 0.9,
-                this.config.beta2 || 0.999,
-                this.config.epsilon || 1e-7
-            ),
-            loss: this.lossFunctions
-        })
-    }
+    // async compile() {
+    //     this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
+    //     this.model.compile({
+    //         optimizer: this.tf.train.adam(
+    //             this.config.learningRate || 1e-3,
+    //             this.config.beta1 || 0.9,
+    //             this.config.beta2 || 0.999,
+    //             this.config.epsilon || 1e-7
+    //         ),
+    //         loss: this.lossFunctions
+    //     })
+    // }
 }
