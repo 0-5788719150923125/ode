@@ -3,8 +3,8 @@ import ModelBase from './model.v0.js'
 /**
  * A GRU-based RNN that uses a time-distributed, dense output
  * layer. This is quite different from common RNNs, in that it functions more
- * like a sequence-to-sequence model. Rather than training on a single-label
- * prediction, this model trains on an entire sequence, shifted-right by one.
+ * like a sequence-to-sequence model. Rather than training on single-label
+ * predictions, this model trains on entire sequences, shifted-right by one.
  * @extends ModelBase
  */
 export default class OmnipotentDiabolicalErudite extends ModelBase {

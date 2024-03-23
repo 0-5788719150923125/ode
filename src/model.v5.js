@@ -10,7 +10,7 @@ import {
  * A small transformer with multi-head attention and sinusoidal position embeddings.
  * @extends ModelBase
  */
-export default class OmniscientDeterministicEnsemble extends ModelBase {
+export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
         this.layers = 4

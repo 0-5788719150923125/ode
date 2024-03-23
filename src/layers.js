@@ -293,12 +293,6 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
         this.reverse = reverse // Flag to toggle the order of sine and cosine
     }
 
-    computeOutputShape(inputShape) {
-        // Input shape is [batch_size, sequence_length]
-        // Output shape is [batch_size, sequence_length, this.units]
-        return [inputShape[0], inputShape[1], this.units]
-    }
-
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
@@ -329,6 +323,12 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
             )
             return positionalEncoding
         })
+    }
+
+    computeOutputShape(inputShape) {
+        // Input shape is [batch_size, sequence_length]
+        // Output shape is [batch_size, sequence_length, this.units]
+        return [inputShape[0], inputShape[1], this.units]
     }
 
     static get className() {
