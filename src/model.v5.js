@@ -1,10 +1,11 @@
-import ModelBase from './model.v0.js'
+import OriginalDecoderEngine from './model.v4.js'
 import {
-    CausalAttentionLayer,
     MultiHeadAttention,
+    Range,
     SinusoidalPositionalEncoding,
     TransformerBlock
 } from './layers.js'
+import PretrainedTokenizer from './tokenizers.js'
 
 /**
  * A small transformer with multi-head attention and sinusoidal position embeddings.
@@ -19,29 +20,35 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.innerDim = this.units * 4
     }
 
+    setupTokenizer(vocabSize = 16666, numIterations = 500_000_000) {
+        this.tokenizer = new PretrainedTokenizer()
+    }
+
     build() {
         super.build()
 
         const inputs = this.tf.input({ shape: [null] })
-        const embeddings = this.tf.layers.embedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
-            embeddingsInitializer: 'glorotUniform',
-            maskZero: true
-        })
+        const embeddings = this.tf.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform',
+                maskZero: true
+            })
+            .apply(inputs)
 
-        let outputs = embeddings.apply(inputs)
+        const range = new Range().apply(inputs)
 
-        const encoder = new SinusoidalPositionalEncoding({
+        const encoding = new SinusoidalPositionalEncoding({
             embeddingDim: this.units,
             maxSeqLength: this.config.contextLength
-        })
+        }).apply(range)
 
-        outputs = encoder.apply(outputs)
+        let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            const attention = new CausalAttentionLayer({
-                // numHeads: this.numHeads,
+            const attention = new MultiHeadAttention({
+                numHeads: this.numHeads,
                 units: this.units
             })
             outputs = attention.apply(outputs)
@@ -55,6 +62,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         }
 
         const head = this.tf.layers.dense({
+            inputDim: this.units,
             units: this.tokenizer.getLength(),
             activation: 'linear'
         })

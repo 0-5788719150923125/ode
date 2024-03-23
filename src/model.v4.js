@@ -1,5 +1,5 @@
 import ModelBase from './model.v0.js'
-import { GPT2Block, Range, SinusoidalPositionalEncoding } from './layers.js'
+import { GPT2Block, Range } from './layers.js'
 import { getAdamW } from './optimizers.js'
 import PretrainedTokenizer from './tokenizers.js'
 
@@ -37,19 +37,14 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         const range = new Range().apply(inputs)
 
-        const positionalEmbeddings = new SinusoidalPositionalEncoding({
-            units: this.units,
-            reverse: false
-        }).apply(range)
-
-        // const positionalEmbeddings = this.tf.layers
-        //     .embedding({
-        //         name: 'wpe',
-        //         inputDim: this.config.contextLength,
-        //         outputDim: this.units,
-        //         embeddingsInitializer: 'glorotUniform'
-        //     })
-        //     .apply(debug)
+        const positionalEmbeddings = this.tf.layers
+            .embedding({
+                name: 'wpe',
+                inputDim: this.config.contextLength,
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform'
+            })
+            .apply(range)
 
         let x = this.tf.layers
             .add()
