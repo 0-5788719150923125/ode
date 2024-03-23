@@ -37,16 +37,9 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         const range = new Range().apply(inputs)
 
-        const positionalEmbeddings1 = new SinusoidalPositionalEncoding({
+        const positionalEmbeddings = new SinusoidalPositionalEncoding({
             units: this.units,
-            sequenceLength: this.config.contextLength,
             reverse: false
-        }).apply(range)
-
-        const positionalEmbeddings2 = new SinusoidalPositionalEncoding({
-            units: this.units,
-            sequenceLength: this.config.contextLength,
-            reverse: true
         }).apply(range)
 
         // const positionalEmbeddings = this.tf.layers
@@ -60,11 +53,7 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         let x = this.tf.layers
             .add()
-            .apply([
-                tokenEmbeddings,
-                positionalEmbeddings1,
-                positionalEmbeddings2
-            ])
+            .apply([tokenEmbeddings, positionalEmbeddings])
 
         x = this.tf.layers
             .dropout({
@@ -174,17 +163,15 @@ function generateOnce(idx, temperature) {
             .slice([0, idx.shape[1] - 1, 0])
             .reshape([logits.shape[0], logits.shape[2]])
 
+        // either sample from the distribution or take the most likely element
         if (temperature !== 1) {
             // scale by desired temperature
             logitsScaled = logitsScaled.div(this.tf.scalar(temperature))
-        }
-
-        // either sample from the distribution or take the most likely element
-        if (temperature > 0) {
             idxNext = this.tf.multinomial(logitsScaled, 1)
         } else {
             idxNext = logitsScaled.softmax(-1).argMax(-1).expandDims(1)
         }
+
         this.tf.keep(idxNext)
     })
     return idxNext
