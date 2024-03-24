@@ -53,6 +53,13 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             })
             .apply(outputs)
 
+        outputs = this.tf.layers
+            .layerNormalization({
+                name: 'attn/ln',
+                epsilon: this.epsilon
+            })
+            .apply(outputs)
+
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .CausalSelfAttention({
@@ -78,13 +85,6 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
         }
 
         outputs = this.tf.layers
-            .layerNormalization({
-                name: 'head/ln',
-                epsilon: this.epsilon
-            })
-            .apply(outputs)
-
-        outputs = this.tf.layers
             .dense({
                 name: 'head',
                 units: this.tokenizer.getLength()
@@ -92,9 +92,5 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
-    }
-
-    async generate(prompt, temperature = 0.7, length = 20) {
-        return await generateText.call(this, prompt, temperature, length)
     }
 }

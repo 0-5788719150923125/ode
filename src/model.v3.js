@@ -94,16 +94,58 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
 
 async function generateText(prompt, temperature, maxNewTokens) {
     let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
+    // Adjust this part of your generateText function
     for (let step = 0; step < maxNewTokens; step++) {
         const idxNext = generateOnce.call(this, inputs, temperature)
-        const idxNew = inputs.concat(idxNext, 1)
+        // Ensure idxNext has a shape of [1, 1] to match the rank of inputs
+        const idxNextExpanded = idxNext.expandDims(1) // Adjusting idxNext shape for concatenation
+        const idxNew = this.tf.concat([inputs, idxNextExpanded], 1) // Adjusting the axis to 1 for correct concatenation
         this.tf.dispose(inputs)
         inputs = idxNew
         this.tf.dispose(idxNext)
     }
+
     const idxArr = await inputs.array()
     this.tf.dispose(inputs)
     return this.tokenizer.decode(idxArr[0])
+}
+
+function generateOnce(idx, temperature) {
+    let idxNext
+    this.tf.tidy(() => {
+        const block_size = this.model.inputs[0].shape[1]
+        const idxCond =
+            idx.shape[1] <= block_size
+                ? idx
+                : idx.slice([0, -block_size], [-1, -1])
+        // Forward the model to get the logits for the index in the sequence
+        const logits = this.model.predict(idxCond)
+
+        let logitsScaled
+        if (logits.shape.length === 3) {
+            // Assuming timeDistributed mode if logits shape is 3D
+            // pluck the logits at the final step for timeDistributed
+            logitsScaled = logits
+                .slice([0, idx.shape[1] - 1, 0], [1, 1, logits.shape[2]])
+                .reshape([logits.shape[2]])
+        } else {
+            // singleLabel mode
+            // For singleLabel mode, logits is already in the expected shape
+            logitsScaled = logits
+        }
+
+        // either sample from the distribution or take the most likely element
+        if (temperature !== 1) {
+            // scale by desired temperature
+            logitsScaled = logitsScaled.div(this.tf.scalar(temperature))
+            idxNext = this.tf.multinomial(logitsScaled, 1).reshape([-1])
+        } else {
+            idxNext = logitsScaled.argMax(-1).expandDims(-1)
+        }
+
+        this.tf.keep(idxNext)
+    })
+    return idxNext
 }
 
 function prepareInputs(inputs) {
@@ -126,33 +168,4 @@ function prepareInputs(inputs) {
         // keep idx from deletion
     })
     return inputs
-}
-
-function generateOnce(idx, temperature) {
-    let idxNext
-    this.tf.tidy(() => {
-        const block_size = this.model.inputs[0].shape[1]
-        const idxCond =
-            idx.shape[1] <= block_size
-                ? idx
-                : idx.slice([0, -block_size], [-1, -1])
-        // Forward the model to get the logits for the index in the sequence
-        const logits = this.model.predict(idxCond)
-        // pluck the logits at the final step
-        let logitsScaled = logits
-            .slice([0, idx.shape[1] - 1, 0])
-            .reshape([logits.shape[0], logits.shape[2]])
-
-        // either sample from the distribution or take the most likely element
-        if (temperature !== 1) {
-            // scale by desired temperature
-            logitsScaled = logitsScaled.div(this.tf.scalar(temperature))
-            idxNext = this.tf.multinomial(logitsScaled, 1)
-        } else {
-            idxNext = logitsScaled.softmax(-1).argMax(-1).expandDims(1)
-        }
-
-        this.tf.keep(idxNext)
-    })
-    return idxNext
 }
