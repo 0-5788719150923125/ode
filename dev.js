@@ -5,10 +5,10 @@ import { trainModel } from './dev-train.js'
         await trainModel({
             version: 3,
             backend: 'tensorflow',
-            batchSize: 1,
-            gradientAccumulationSteps: 16,
-            generateEvery: 256,
-            sampleLen: 256
+            batchSize: 8,
+            gradientAccumulationSteps: 4,
+            generateEvery: 128,
+            sampleLength: 128
             // overfit: 300
         })
     }
@@ -22,7 +22,7 @@ import { trainModel } from './dev-train.js'
             batchSize: 1,
             gradientAccumulationSteps: 512,
             generateEvery: 512,
-            sampleLen: 256
+            sampleLength: 256
         })
     }
 })()

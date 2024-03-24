@@ -3,7 +3,7 @@ import PretrainedTokenizer from './tokenizers.js'
 
 /**
  * A GPT-2 clone with causal attention and learned position embeddings.
- * @extends ModelBase
+ * @extends OmnipotentDiabolicalErudite
  */
 export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
     constructor(config) {
@@ -12,6 +12,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
         this.numHeads = 8
         this.units = 256
         this.dropout = 0.1
+        this.epsilon = 1e-5
     }
 
     trainTokenizer() {
@@ -59,6 +60,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
                     units: this.units,
                     numHeads: this.numHeads,
                     dropout: this.dropout,
+                    epsilon: this.epsilon,
                     bias: false
                 })
                 .apply(outputs)
@@ -69,6 +71,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
                     innerDim: this.innerDim,
                     numHeads: this.numHeads,
                     dropout: this.dropout,
+                    epsilon: this.epsilon,
                     activation: 'gelu'
                 })
                 .apply(outputs)
@@ -77,7 +80,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
         outputs = this.tf.layers
             .layerNormalization({
                 name: 'head/ln',
-                epsilon: 1e-5
+                epsilon: this.epsilon
             })
             .apply(outputs)
 

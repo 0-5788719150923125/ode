@@ -5,7 +5,7 @@ export async function trainModel(args) {
         backend: 'cpu',
         batchSize: 32,
         gradientAccumulationSteps: 1,
-        sampleLen: 64,
+        sampleLength: 64,
         generateEvery: 64,
         predictLength: 64,
         ...args
@@ -17,7 +17,7 @@ export async function trainModel(args) {
         // decay: 0.9,
         // momentum: 0.01,
         // epsilon: 1e-8,
-        contextLength: trainArgs.sampleLen,
+        contextLength: trainArgs.sampleLength,
         clipValue: 1.0,
         ...trainArgs
     })
@@ -27,7 +27,7 @@ export async function trainModel(args) {
     await net.tokenizer.writeVocabularyToFile()
 
     const dataset = net.sampler('string')(
-        trainArgs.sampleLen * 5,
+        trainArgs.sampleLength * 5,
         trainArgs?.overfit
     )
 

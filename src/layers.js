@@ -60,11 +60,12 @@ class CausalSelfAttention extends tf.layers.Layer {
         this.config = Object.assign({ name: 'attn' }, config)
 
         // Config
-        this.blockSize = config.blockSize
-        this.units = config.units
-        this.numHeads = config.numHeads
-        this.dropout = config.dropout
-        this.bias = config.bias
+        this.blockSize = config.blockSize || 256
+        this.units = config.units || 256
+        this.numHeads = config.numHeads || 4
+        this.dropout = config.dropout || 0
+        this.bias = config.bias || false
+        this.epsilon = config.epsilon || 1e-5
         // Causal mask
         this.mask = tf.linalg.bandPart(
             tf.ones([config.blockSize, config.blockSize]),
@@ -98,7 +99,7 @@ class CausalSelfAttention extends tf.layers.Layer {
             'float32',
             tf.initializers.zeros()
         )
-        this.layerNorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
     }
 
     computeOutputShape(inputShape) {
@@ -361,6 +362,7 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
+        this.epsilon = config.epsilon || 1e-5
         if (config?.activation === 'gelu') {
             this.customActivation = new GELU()
             this.activation = 'linear'

@@ -17,8 +17,8 @@ import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
 
 /**
- * The base model class, which represents a syntax and structure that must
- * be remain compatible across all model versions.
+ * The base model class, which represents a syntax and structure that
+ * must remain compatible across all future model versions.
  * @constructor
  * @param {Object} config - The configuration settings for the model.
  */

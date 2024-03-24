@@ -2,7 +2,7 @@ import OriginalDecoderEngine from './model.v4.js'
 
 /**
  * A small transformer with multi-head attention and sinusoidal position embeddings.
- * @extends ModelBase
+ * @extends OriginalDecoderEngine
  */
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
@@ -12,6 +12,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.units = 256
         this.innerDim = this.units * 4
         this.dropout = 0
+        this.epsilon = 1e-6
     }
 
     build() {
@@ -38,19 +39,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            // outputs = this.ode.layers.CausalSelfAttention({
-            //     blockSize: this.config.contextLength,
-            //     units: this.units,
-            //     numHeads: this.numHeads,
-            //     dropout: this.dropout,
-            //     bias: false
-            // }).apply(outputs)
-
             outputs = this.ode.layers
-                .MultiHeadAttention({
+                .CausalSelfAttention({
+                    blockSize: this.config.contextLength,
                     units: this.units,
                     numHeads: this.numHeads,
-                    dropout: this.dropout
+                    dropout: this.dropout,
+                    bias: false,
+                    epsilon: this.epsilon
                 })
                 .apply(outputs)
 
@@ -60,6 +56,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                     innerDim: this.innerDim,
                     numHeads: this.numHeads,
                     dropout: this.dropout,
+                    epsilon: this.epsilon,
                     activation: 'swish'
                 })
                 .apply(outputs)
@@ -67,7 +64,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         outputs = this.tf.layers
             .layerNormalization({
-                epsilon: 1e-5
+                epsilon: this.epsilon
             })
             .apply(outputs)
 

@@ -26,7 +26,7 @@ export async function startTraining(dataGenerator, args) {
     const trainArgs = {
         batchSize: 32,
         gradientAccumulationSteps: 1,
-        sampleLen: 64,
+        sampleLength: 64,
         generateEvery: 64,
         predictLength: 50,
         clipValue: 1.0,
@@ -48,7 +48,7 @@ export async function startTraining(dataGenerator, args) {
         dataGenerator,
         this.tokenizer,
         trainArgs.batchSize,
-        trainArgs.sampleLen,
+        trainArgs.sampleLength,
         trainArgs.predictLength
     )
 
