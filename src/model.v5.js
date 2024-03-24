@@ -1,13 +1,11 @@
 import OriginalDecoderEngine from './model.v4.js'
 import {
     CausalSelfAttention,
-    CausalAttentionLayer,
     MultiHeadAttention,
     Range,
     SinusoidalPositionalEncoding,
     MultiLayerPerceptron
 } from './layers.js'
-import PretrainedTokenizer from './tokenizers.js'
 
 /**
  * A small transformer with multi-head attention and sinusoidal position embeddings.
@@ -20,6 +18,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.numHeads = 8
         this.units = 256
         this.innerDim = this.units * 4
+        this.dropout = 0
     }
 
     build() {
@@ -36,19 +35,10 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         const range = new Range().apply(inputs)
 
-        const encoding = this.tf.layers
-            .embedding({
-                name: 'wpe',
-                inputDim: this.config.contextLength,
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform'
-            })
-            .apply(range)
-
-        // const encoding = new SinusoidalPositionalEncoding({
-        //     embeddingDim: this.units,
-        //     reverse: false
-        // }).apply(range)
+        const encoding = new SinusoidalPositionalEncoding({
+            units: this.units,
+            reverse: false
+        }).apply(range)
 
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
@@ -65,6 +55,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 units: this.units,
                 innerDim: this.innerDim,
                 numHeads: this.numHeads,
+                dropout: this.dropout,
                 activation: 'swish'
             }).apply(outputs)
         }
@@ -75,12 +66,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        const head = this.tf.layers.dense({
-            units: this.tokenizer.getLength(),
-            activation: 'linear'
-        })
-
-        outputs = head.apply(outputs)
+        outputs = this.tf.layers
+            .dense({
+                units: this.tokenizer.getLength(),
+                activation: 'linear'
+            })
+            .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

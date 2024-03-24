@@ -16,8 +16,7 @@ export default class OriginalDecoderEngine extends ModelBase {
         this.dropout = 0.1
     }
 
-    setupTokenizer(vocabSize = 16666, numIterations = 500_000_000) {
-        // super.setupTokenizer(vocabSize, numIterations)
+    setupTokenizer() {
         this.tokenizer = new PretrainedTokenizer()
     }
 
@@ -50,7 +49,7 @@ export default class OriginalDecoderEngine extends ModelBase {
 
         outputs = this.tf.layers
             .dropout({
-                name: 'drop',
+                name: 'dropout',
                 rate: this.dropout
             })
             .apply(outputs)

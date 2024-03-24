@@ -102,9 +102,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
     }
 
     computeOutputShape(inputShape) {
-        // console.log('computeOutputShape', inputShape)
         return inputShape
-        // return [null, this.blockSize, this.nEmbd]
     }
 
     getConfig() {
@@ -370,18 +368,18 @@ export class MultiLayerPerceptron extends tf.layers.Layer {
         this.in_proj = tf.layers.dense({
             units: this.innerDim,
             inputDim: this.units,
-            activation: this.activation,
-            inputShape: [inputShape[1], inputShape[2]]
+            activation: this.activation
+            // inputShape: [null, null, null]
         })
         this.out_proj = tf.layers.dense({
             units: this.units,
-            inputDim: this.innerDim,
-            inputShape: [inputShape[1], this.innerDim]
+            inputDim: this.innerDim
+            // inputShape: [null, null, null]
         })
 
         // Manually call build on dense layers to initialize weights
         this.in_proj.build(inputShape)
-        this.out_proj.build([inputShape[0], inputShape[1], this.innerDim])
+        this.out_proj.build([inputShape[1], this.innerDim])
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
@@ -419,6 +417,10 @@ export class MultiLayerPerceptron extends tf.layers.Layer {
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
     }
 
     getConfig() {
@@ -468,86 +470,86 @@ tf.serialization.registerClass(ResidualConnection)
 
 // Originally adapted from:
 // https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
-export class CausalAttentionLayer extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.units = config.units || 256
-    }
+// export class CausalAttentionLayer extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.units = config.units || 256
+//     }
 
-    build(inputShape) {
-        // Initialize the necessary dense layers for internal transformations
-        const layers = ['query', 'key', 'value']
-        layers.map((type, i) => {
-            this[type] = tf.layers.dense({
-                units: this.units,
-                kernelInitializer: 'glorotUniform'
-            })
-            this[type].build(inputShape)
-            this._trainableWeights.push(...this[type].trainableWeights)
-        })
+//     build(inputShape) {
+//         // Initialize the necessary dense layers for internal transformations
+//         const layers = ['query', 'key', 'value']
+//         layers.map((type, i) => {
+//             this[type] = tf.layers.dense({
+//                 units: this.units,
+//                 kernelInitializer: 'glorotUniform'
+//             })
+//             this[type].build(inputShape)
+//             this._trainableWeights.push(...this[type].trainableWeights)
+//         })
 
-        super.build(inputShape)
-    }
+//         super.build(inputShape)
+//     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             this.invokeCallHook(inputs, kwargs)
 
-            const queries = this.query.apply(inputs)
-            const keys = this.key.apply(inputs).transpose([0, 2, 1])
-            const values = this.value.apply(inputs)
+//             const queries = this.query.apply(inputs)
+//             const keys = this.key.apply(inputs).transpose([0, 2, 1])
+//             const values = this.value.apply(inputs)
 
-            let scores = tf.matMul(queries, keys)
-            scores = tf.div(scores, tf.sqrt(tf.scalar(this.units)))
+//             let scores = tf.matMul(queries, keys)
+//             scores = tf.div(scores, tf.sqrt(tf.scalar(this.units)))
 
-            // // Integrate the padding mask if provided
-            if (kwargs?.mask) {
-                // Flip the mask: True for non-padding becomes False, False for padding becomes True
-                const maskInverted = kwargs.mask.logicalNot()
-                // Convert the inverted mask to float and apply a penalty to positions now marked as True (previously padding)
-                const maskPenalty = maskInverted.cast('float32').mul(-1e9)
-                // Expand dimensions to make the mask compatible with attention scores
-                const maskExpanded = maskPenalty.expandDims(1)
-                // Apply the expanded mask to the attention scores
-                scores = tf.add(scores, maskExpanded)
-            }
+//             // // Integrate the padding mask if provided
+//             if (kwargs?.mask) {
+//                 // Flip the mask: True for non-padding becomes False, False for padding becomes True
+//                 const maskInverted = kwargs.mask.logicalNot()
+//                 // Convert the inverted mask to float and apply a penalty to positions now marked as True (previously padding)
+//                 const maskPenalty = maskInverted.cast('float32').mul(-1e9)
+//                 // Expand dimensions to make the mask compatible with attention scores
+//                 const maskExpanded = maskPenalty.expandDims(1)
+//                 // Apply the expanded mask to the attention scores
+//                 scores = tf.add(scores, maskExpanded)
+//             }
 
-            // Manually creating a causal mask
-            const seqLen = queries.shape[1]
-            const onesUpperTriangle = tf
-                .ones([seqLen, seqLen])
-                .cumsum(0)
-                .cumsum(1)
-                .greaterEqual(1)
-            const mask = onesUpperTriangle
-                .logicalNot()
-                .cast('float32')
-                .mul(-1e9)
-            const maskExpanded = mask
-                .expandDims(0)
-                .tile([queries.shape[0], 1, 1])
+//             // Manually creating a causal mask
+//             const seqLen = queries.shape[1]
+//             const onesUpperTriangle = tf
+//                 .ones([seqLen, seqLen])
+//                 .cumsum(0)
+//                 .cumsum(1)
+//                 .greaterEqual(1)
+//             const mask = onesUpperTriangle
+//                 .logicalNot()
+//                 .cast('float32')
+//                 .mul(-1e9)
+//             const maskExpanded = mask
+//                 .expandDims(0)
+//                 .tile([queries.shape[0], 1, 1])
 
-            scores = tf.add(scores, maskExpanded)
+//             scores = tf.add(scores, maskExpanded)
 
-            // compute the scaled dot product
-            const attentionWeights = tf.softmax(scores, -1)
-            const contextVector = tf.matMul(attentionWeights, values)
+//             // compute the scaled dot product
+//             const attentionWeights = tf.softmax(scores, -1)
+//             const contextVector = tf.matMul(attentionWeights, values)
 
-            return contextVector
-        })
-    }
+//             return contextVector
+//         })
+//     }
 
-    static get className() {
-        return 'CausalAttentionLayer'
-    }
-}
+//     static get className() {
+//         return 'CausalAttentionLayer'
+//     }
+// }
 
-tf.serialization.registerClass(CausalAttentionLayer)
+// tf.serialization.registerClass(CausalAttentionLayer)
 
 export class ExpandDims extends tf.layers.Layer {
     constructor(config) {
