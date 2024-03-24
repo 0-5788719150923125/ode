@@ -58,7 +58,7 @@ export default class OriginalDecoderEngine extends ModelBase {
             outputs = new CausalSelfAttention({
                 blockSize: this.config.contextLength,
                 units: this.units,
-                nHead: this.numHeads,
+                numHeads: this.numHeads,
                 dropout: this.dropout,
                 bias: false
             }).apply(outputs)

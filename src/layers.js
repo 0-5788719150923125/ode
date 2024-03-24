@@ -62,7 +62,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
         // Config
         this.blockSize = config.blockSize
         this.units = config.units
-        this.nHead = config.nHead
+        this.numHeads = config.numHeads
         this.dropout = config.dropout
         this.bias = config.bias
         // Causal mask
@@ -154,7 +154,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
 
             const splitHeads = (x) =>
                 tf.transpose(
-                    tf.reshape(x, [B, T, this.nHead, C / this.nHead]),
+                    tf.reshape(x, [B, T, this.numHeads, C / this.numHeads]),
                     [0, 2, 1, 3]
                 )
 

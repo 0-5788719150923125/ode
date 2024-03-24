@@ -43,12 +43,17 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            outputs = new CausalSelfAttention({
-                blockSize: this.config.contextLength,
+            // outputs = new CausalSelfAttention({
+            //     blockSize: this.config.contextLength,
+            //     units: this.units,
+            //     numHeads: this.numHeads,
+            //     dropout: this.dropout,
+            //     bias: false
+            // }).apply(outputs)
+
+            outputs = new MultiHeadAttention({
                 units: this.units,
-                nHead: this.numHeads,
-                dropout: this.dropout,
-                bias: false
+                numHeads: this.numHeads
             }).apply(outputs)
 
             outputs = new MultiLayerPerceptron({
