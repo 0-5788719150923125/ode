@@ -561,6 +561,80 @@ function logGmmPosterior(z, expertCentroids, temperature) {
     return similarity.mul(temperature)
 }
 
+class GatedLinearUnit extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+        this.linearKernel = this.addWeight(
+            'linearKernel',
+            [inputDim, inputDim],
+            'float32',
+            tf.initializers.glorotUniform({})
+        )
+        this.gateKernel = this.addWeight(
+            'gateKernel',
+            [inputDim, inputDim],
+            'float32',
+            tf.initializers.glorotUniform({})
+        )
+        this.linearBias = this.addWeight(
+            'linearBias',
+            [inputDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.gateBias = this.addWeight(
+            'gateBias',
+            [inputDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+        super.build(inputShape)
+    }
+
+    call(inputs, kwargs) {
+        let input = inputs
+        if (Array.isArray(input)) {
+            input = input[0]
+        }
+
+        this.invokeCallHook(inputs, kwargs)
+
+        // Use tf.tidy for better memory management
+        return tf.tidy(() => {
+            const linearPart = tf
+                .matMul(input, this.linearKernel.read())
+                .add(this.linearBias.read())
+
+            const gatePart = tf
+                .matMul(input, this.gateKernel.read())
+                .add(this.gateBias.read())
+                .sigmoid()
+
+            return linearPart.mul(gatePart)
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        const baseConfig = super.getConfig()
+        return {
+            ...baseConfig
+        }
+    }
+
+    static get className() {
+        return 'GatedLinearUnit'
+    }
+}
+
 // Originally adapted from:
 // https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
 class LambdaLayer extends tf.layers.Layer {
@@ -604,6 +678,7 @@ class LambdaLayer extends tf.layers.Layer {
 const exportedLayers = [
     CausalSelfAttention,
     DebugLayer,
+    GatedLinearUnit,
     GaussianMixtureModel,
     LambdaLayer,
     MultiHeadAttention,

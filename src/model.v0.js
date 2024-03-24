@@ -83,7 +83,7 @@ export default class ModelBase {
         console.log(
             `Tokenizer is ${this.tokenizer.getLength()} tokens in length.`
         )
-        console.log('Backend:', tf.backend().tensorMap.dataMover.backendName)
+        // console.log('Backend:', tf.backend())
         console.log(this.config)
     }
 
