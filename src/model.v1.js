@@ -14,7 +14,7 @@ export default class ModelPrototype extends ModelBase {
     }
 
     trainTokenizer() {
-        super.trainTokenizer(2222, 10_000_000)
+        super.trainTokenizer(2222, 500_000_000)
     }
 
     build() {
