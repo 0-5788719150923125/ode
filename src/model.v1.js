@@ -9,7 +9,7 @@ export default class ModelPrototype extends ModelBase {
     constructor(config) {
         super(config)
         this.layout = [128, 128]
-        this.embeddingDimensions = 256
+        this.units = 256
     }
 
     build() {
@@ -18,16 +18,16 @@ export default class ModelPrototype extends ModelBase {
         this.model.add(
             this.tf.layers.embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.embeddingDimensions,
+                outputDim: this.units,
                 maskZero: true
             })
         )
 
-        this.layout.forEach((layer, i) => {
+        this.layout.forEach((units, i) => {
             this.model.add(
                 this.tf.layers.bidirectional({
                     layer: this.tf.layers.gru({
-                        units: layer,
+                        units,
                         activation: 'tanh',
                         recurrentActivation: 'sigmoid',
                         returnSequences: i < this.layout.length - 1 // False for the last GRU layer

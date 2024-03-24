@@ -19,11 +19,11 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
         let recurrentOutput = embeddings
 
         const layers = new Array(5).fill(128)
-        layers.forEach((size, i) => {
+        layers.forEach((units, i) => {
             const notFirstLayer = i !== 0
             const notLastLayer = i !== layers.length - 1
             const layer = this.tf.layers.gru({
-                units: size,
+                units,
                 activation: 'softsign',
                 kernelInitializer: 'glorotUniform',
                 recurrentActivation: 'sigmoid',
@@ -49,7 +49,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
 
             if (notLastLayer) {
                 const attention = this.ode.layers.CausalAttentionLayer({
-                    units: size,
+                    units,
                     kernelInitializer: 'glorotUniform'
                 })
                 recurrentOutput = attention.apply(recurrentOutput)

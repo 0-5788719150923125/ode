@@ -58,18 +58,20 @@ export default class ModelBase {
     }
 
     defineOptimizers() {
-        this.optimizer = tf.train.rmsprop(
-            this.config.learningRate || 1e-2,
-            this.config.decay || 0.9,
-            this.config.momentum || 0.01,
-            this.config.epsilon || 1e-8,
-            false
-        )
+        this.optimizers = [
+            tf.train.rmsprop(
+                this.config.learningRate || 1e-2,
+                this.config.decay || 0.9,
+                this.config.momentum || 0.01,
+                this.config.epsilon || 1e-8,
+                this.config.centered || false
+            )
+        ]
     }
 
     compile() {
         this.model.compile({
-            optimizer: this.optimizer,
+            optimizer: this.optimizers,
             loss: this.lossFunctions
         })
     }

@@ -68,19 +68,21 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
     }
 
     defineOptimizers() {
-        this.optimizer = getAdamW(
-            this.model,
-            this.config.learningRate || 1e-3,
-            this.config.beta1 || 0.9,
-            this.config.beta2 || 0.999,
-            this.config.epsilon || 1e-7,
-            this.config.decayRate || 1e-1
-        )
+        this.optimizers = [
+            getAdamW(
+                this.model,
+                this.config.learningRate || 1e-3,
+                this.config.beta1 || 0.9,
+                this.config.beta2 || 0.999,
+                this.config.epsilon || 1e-7,
+                this.config.decayRate || 1e-1
+            )
+        ]
     }
 
     async compile() {
         this.model.compile({
-            optimizer: this.optimizer,
+            optimizer: this.optimizers,
             loss: this.lossFunctions
         })
     }
