@@ -26,9 +26,9 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(inputs)
 
-        const range = this.customLayers.Range().apply(inputs)
+        const range = this.ode.layers.Range().apply(inputs)
 
-        const encoding = this.customLayers
+        const encoding = this.ode.layers
             .SinusoidalPositionalEncoding({
                 units: this.units,
                 reverse: false
@@ -38,7 +38,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            // outputs = this.customLayers.CausalSelfAttention({
+            // outputs = this.ode.layers.CausalSelfAttention({
             //     blockSize: this.config.contextLength,
             //     units: this.units,
             //     numHeads: this.numHeads,
@@ -46,7 +46,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             //     bias: false
             // }).apply(outputs)
 
-            outputs = this.customLayers
+            outputs = this.ode.layers
                 .MultiHeadAttention({
                     units: this.units,
                     numHeads: this.numHeads,
@@ -54,7 +54,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
 
-            outputs = this.customLayers
+            outputs = this.ode.layers
                 .MultiLayerPerceptron({
                     units: this.units,
                     innerDim: this.innerDim,

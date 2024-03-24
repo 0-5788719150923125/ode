@@ -28,7 +28,9 @@ export default class ModelBase {
         this.model
         this.config = config
         this.tokenizer
-        this.customLayers = customLayers
+        this.ode = {
+            layers: customLayers
+        }
     }
 
     async init() {

@@ -31,8 +31,6 @@ class DebugLayer extends tf.layers.Layer {
         return 'DebugLayer'
     }
 }
-tf.serialization.registerClass(DebugLayer)
-customLayers.DebugLayer = (config) => new DebugLayer(config)
 
 class Range extends tf.layers.Layer {
     computeOutputShape(inputShape) {
@@ -55,8 +53,6 @@ class Range extends tf.layers.Layer {
         return 'Range'
     }
 }
-tf.serialization.registerClass(Range)
-customLayers.Range = (config) => new Range(config)
 
 class CausalSelfAttention extends tf.layers.Layer {
     constructor(config) {
@@ -197,8 +193,6 @@ class CausalSelfAttention extends tf.layers.Layer {
         return 'CausalSelfAttention'
     }
 }
-tf.serialization.registerClass(CausalSelfAttention)
-customLayers.CausalSelfAttention = (config) => new CausalSelfAttention(config)
 
 class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor({ units, reverse = false }) {
@@ -249,9 +243,6 @@ class SinusoidalPositionalEncoding extends tf.layers.Layer {
         return 'SinusoidalPositionalEncoding'
     }
 }
-tf.serialization.registerClass(SinusoidalPositionalEncoding)
-customLayers.SinusoidalPositionalEncoding = (config) =>
-    new SinusoidalPositionalEncoding(config)
 
 class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
@@ -363,8 +354,6 @@ class MultiHeadAttention extends tf.layers.Layer {
         return 'MultiHeadAttention'
     }
 }
-tf.serialization.registerClass(MultiHeadAttention)
-customLayers.MultiHeadAttention = (config) => new MultiHeadAttention(config)
 
 class MultiLayerPerceptron extends tf.layers.Layer {
     constructor(config) {
@@ -451,8 +440,6 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         return 'MultiLayerPerceptron'
     }
 }
-tf.serialization.registerClass(MultiLayerPerceptron)
-customLayers.MultiLayerPerceptron = (config) => new MultiLayerPerceptron(config)
 
 class ResidualConnection extends tf.layers.Layer {
     constructor() {
@@ -481,8 +468,6 @@ class ResidualConnection extends tf.layers.Layer {
         return 'ResidualConnection'
     }
 }
-tf.serialization.registerClass(ResidualConnection)
-customLayers.ResidualConnection = (config) => new ResidualConnection(config)
 
 class GaussianMixtureModel extends tf.layers.Layer {
     constructor(config) {
@@ -558,8 +543,6 @@ class GaussianMixtureModel extends tf.layers.Layer {
         return 'GaussianMixtureModel'
     }
 }
-tf.serialization.registerClass(GaussianMixtureModel)
-customLayers.GaussianMixtureModel = (config) => new GaussianMixtureModel(config)
 
 // Originally adapted from:
 // https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
@@ -600,8 +583,24 @@ class LambdaLayer extends tf.layers.Layer {
         return 'LambdaLayer'
     }
 }
-tf.serialization.registerClass(LambdaLayer)
-customLayers.LambdaLayer = (config) => new LambdaLayer(config)
+
+const exportedLayers = [
+    CausalSelfAttention,
+    DebugLayer,
+    GaussianMixtureModel,
+    LambdaLayer,
+    MultiHeadAttention,
+    MultiLayerPerceptron,
+    Range,
+    ResidualConnection,
+    SinusoidalPositionalEncoding
+]
+
+exportedLayers.forEach((LayerClass) => {
+    tf.serialization.registerClass(LayerClass)
+    const className = LayerClass.className || LayerClass.name
+    customLayers[className] = (config) => new LayerClass(config)
+})
 
 // export class LearnedPositionalEmbeddings extends tf.layers.Layer {
 //     constructor(config) {

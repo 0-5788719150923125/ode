@@ -30,7 +30,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             })
             .apply(inputs)
 
-        const range = this.customLayers.Range().apply(inputs)
+        const range = this.ode.layers.Range().apply(inputs)
 
         const positionalEmbeddings = this.tf.layers
             .embedding({
@@ -53,7 +53,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            outputs = this.customLayers
+            outputs = this.ode.layers
                 .CausalSelfAttention({
                     blockSize: this.config.contextLength,
                     units: this.units,
@@ -63,7 +63,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
                 })
                 .apply(outputs)
 
-            outputs = this.customLayers
+            outputs = this.ode.layers
                 .MultiLayerPerceptron({
                     units: this.units,
                     innerDim: this.innerDim,

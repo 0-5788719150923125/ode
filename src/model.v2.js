@@ -33,7 +33,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
             const currentOutput = layer.apply(recurrentOutput)
 
             if (notFirstLayer && notLastLayer) {
-                const residual = this.customLayers.ResidualConnection()
+                const residual = this.ode.layers.ResidualConnection()
                 recurrentOutput = residual.apply([
                     currentOutput,
                     recurrentOutput
@@ -48,7 +48,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
             recurrentOutput = norm.apply(recurrentOutput)
 
             if (notLastLayer) {
-                const attention = this.customLayers.CausalAttentionLayer({
+                const attention = this.ode.layers.CausalAttentionLayer({
                     units: size,
                     kernelInitializer: 'glorotUniform'
                 })
