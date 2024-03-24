@@ -55,7 +55,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         for (let i = 0; i < this.layers; i++) {
             outputs = new CausalSelfAttention({
                 blockSize: this.config.contextLength,
-                nEmbd: this.units,
+                units: this.units,
                 nHead: this.numHeads,
                 dropout: this.dropout,
                 bias: false

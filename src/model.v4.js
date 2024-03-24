@@ -58,7 +58,7 @@ export default class OriginalDecoderEngine extends ModelBase {
         for (let i = 0; i < this.layers; i++) {
             outputs = new CausalSelfAttention({
                 blockSize: this.config.contextLength,
-                nEmbd: this.units,
+                units: this.units,
                 nHead: this.numHeads,
                 dropout: this.dropout,
                 bias: false
@@ -68,13 +68,14 @@ export default class OriginalDecoderEngine extends ModelBase {
                 units: this.units,
                 innerDim: this.innerDim,
                 numHeads: this.numHeads,
-                activation: 'swish'
+                dropout: this.dropout,
+                activation: 'gelu'
             }).apply(outputs)
         }
 
         outputs = this.tf.layers
             .layerNormalization({
-                name: 'gpt' + '/ln_f',
+                name: 'head/ln',
                 epsilon: 1e-5
             })
             .apply(outputs)

@@ -61,7 +61,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
 
         // Config
         this.blockSize = config.blockSize
-        this.nEmbd = config.nEmbd
+        this.units = config.units
         this.nHead = config.nHead
         this.dropout = config.dropout
         this.bias = config.bias
@@ -76,25 +76,25 @@ export class CausalSelfAttention extends tf.layers.Layer {
     build(inputShape) {
         this.cAttnKernel = this.addWeight(
             'c_attn/kernel',
-            [this.nEmbd, 3 * this.nEmbd],
+            [this.units, 3 * this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.cAttnBias = this.addWeight(
             'c_attn/bias',
-            [3 * this.nEmbd],
+            [3 * this.units],
             'float32',
             tf.initializers.zeros()
         )
         this.cProjKernel = this.addWeight(
             'c_proj/kernel',
-            [this.nEmbd, this.nEmbd],
+            [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.cProjBias = this.addWeight(
             'c_proj/bias',
-            [this.nEmbd],
+            [this.units],
             'float32',
             tf.initializers.zeros()
         )
@@ -115,7 +115,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
         return Object.assign({}, config, this.config)
     }
 
-    call(inputs, kwargs) {
+    call(inputs, kwargs, training) {
         return tf.tidy(() => {
             if (Array.isArray(inputs)) {
                 inputs = inputs[0]
@@ -196,60 +196,6 @@ export class CausalSelfAttention extends tf.layers.Layer {
     }
 }
 tf.serialization.registerClass(CausalSelfAttention)
-
-function MLP(conf) {
-    const config = Object.assign({ name: 'mlp' }, conf)
-    const inputs = tf.input({ shape: [config.blockSize, config.nEmbd] })
-    let x
-    x = tf.layers
-        .dense({
-            name: config.name + '/c_fc',
-            units: 4 * config.nEmbd,
-            inputDim: config.nEmbd,
-            inputShape: [config.blockSize, config.nEmbd]
-        })
-        .apply(inputs)
-    x = new GELU().apply(x)
-    x = tf.layers
-        .dense({
-            name: config.name + '/c_proj',
-            units: config.nEmbd,
-            inputDim: 4 * config.nEmbd,
-            inputShape: [config.blockSize, 4 * config.nEmbd]
-        })
-        .apply(x)
-    x = tf.layers
-        .dropout({
-            name: config.name + '/drop',
-            rate: config.residDrop
-        })
-        .apply(x)
-    return tf.model({ inputs: inputs, outputs: x })
-}
-
-export function GPT2Block(conf) {
-    const config = Object.assign({ name: 'h' }, conf)
-    const inputs = tf.input({ shape: [config.blockSize, config.nEmbd] })
-    let x1, x2
-    // Attention
-    // Setting epsilon to 1e-5 for LayerNorms to be consistent with PyTorch
-    // x1 = tf.layers
-    //     .layerNormalization({ name: config.name + '/ln_1', epsilon: 1e-5 })
-    //     .apply(inputs)
-    x1 = new CausalSelfAttention(
-        Object.assign({}, config, { name: config.name + '/attn' })
-    ).apply(inputs)
-    // x1 = tf.layers.add().apply([inputs, x1])
-    // MLP
-    x2 = tf.layers
-        .layerNormalization({ name: config.name + '/ln_2', epsilon: 1e-5 })
-        .apply(x1)
-    x2 = MLP(Object.assign({}, config, { name: config.name + '/mlp' })).apply(
-        x2
-    )
-    x2 = tf.layers.add().apply([x1, x2])
-    return tf.model({ name: config.name, inputs: inputs, outputs: x2 })
-}
 
 export class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor({ units, reverse = false }) {
@@ -415,7 +361,7 @@ export class MultiLayerPerceptron extends tf.layers.Layer {
         } else {
             this.activation = config?.activation || 'relu'
         }
-
+        this.dropout = config?.dropout || 0
         this.supportsMasking = true
     }
 
@@ -466,16 +412,14 @@ export class MultiLayerPerceptron extends tf.layers.Layer {
                 outputs = this.customActivation.apply(outputs)
             }
             outputs = this.out_proj.apply(outputs)
+            // If training, apply residual dropout
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
     }
-
-    // computeOutputShape(inputShape) {
-    //     // Input shape is [batch_size, sequence_length]
-    //     // Output shape is [batch_size, sequence_length, this.units]
-    //     return [inputShape[0], inputShape[1], this.units]
-    // }
 
     getConfig() {
         return {
