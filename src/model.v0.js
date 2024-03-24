@@ -12,7 +12,7 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import { BasicSubwordTokenizer } from './tokenizers.js'
-import { DebugLayer } from './layers.js'
+import customLayers from './layers.js'
 import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
 
@@ -28,6 +28,7 @@ export default class ModelBase {
         this.model
         this.config = config
         this.tokenizer
+        this.customLayers = customLayers
     }
 
     async init() {
@@ -101,10 +102,10 @@ export default class ModelBase {
         console.log('successfully loaded model from disk')
     }
 
-    debug(inputs) {
-        const layer = new DebugLayer()
-        console.log(layer.apply(inputs))
-    }
+    // debug(inputs) {
+    //     const layer = new DebugLayer()
+    //     console.log(layer.apply(inputs))
+    // }
 
     sampler(type = 'string') {
         return stringSampler

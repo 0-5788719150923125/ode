@@ -1,5 +1,4 @@
 import ModelBase from './model.v0.js'
-import { CausalAttentionLayer, ResidualConnection } from './layers.js'
 
 /**
  * An attempt to implement causal attention in a GRU-based RNN. It didn't work very well.
@@ -34,7 +33,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
             const currentOutput = layer.apply(recurrentOutput)
 
             if (notFirstLayer && notLastLayer) {
-                const residual = new ResidualConnection()
+                const residual = this.customLayers.ResidualConnection()
                 recurrentOutput = residual.apply([
                     currentOutput,
                     recurrentOutput
@@ -49,7 +48,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
             recurrentOutput = norm.apply(recurrentOutput)
 
             if (notLastLayer) {
-                const attention = new CausalAttentionLayer({
+                const attention = this.customLayers.CausalAttentionLayer({
                     units: size,
                     kernelInitializer: 'glorotUniform'
                 })

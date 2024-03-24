@@ -30,6 +30,10 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
             })
             .apply(inputs)
 
+        outputs = this.tf.layers
+            .layerNormalization({ epsilon: 1e-5 })
+            .apply(outputs)
+
         for (let i = 0; i < this.layers; i++) {
             outputs = this.tf.layers
                 .gru({

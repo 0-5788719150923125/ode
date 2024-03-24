@@ -1,5 +1,4 @@
 import OmnipotentDiabolicalErudite from './model.v3.js'
-import { CausalSelfAttention, MultiLayerPerceptron, Range } from './layers.js'
 import PretrainedTokenizer from './tokenizers.js'
 
 /**
@@ -31,7 +30,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             })
             .apply(inputs)
 
-        const range = new Range().apply(inputs)
+        const range = this.customLayers.Range().apply(inputs)
 
         const positionalEmbeddings = this.tf.layers
             .embedding({
@@ -54,21 +53,25 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            outputs = new CausalSelfAttention({
-                blockSize: this.config.contextLength,
-                units: this.units,
-                numHeads: this.numHeads,
-                dropout: this.dropout,
-                bias: false
-            }).apply(outputs)
+            outputs = this.customLayers
+                .CausalSelfAttention({
+                    blockSize: this.config.contextLength,
+                    units: this.units,
+                    numHeads: this.numHeads,
+                    dropout: this.dropout,
+                    bias: false
+                })
+                .apply(outputs)
 
-            outputs = new MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim,
-                numHeads: this.numHeads,
-                dropout: this.dropout,
-                activation: 'gelu'
-            }).apply(outputs)
+            outputs = this.customLayers
+                .MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    numHeads: this.numHeads,
+                    dropout: this.dropout,
+                    activation: 'gelu'
+                })
+                .apply(outputs)
         }
 
         outputs = this.tf.layers

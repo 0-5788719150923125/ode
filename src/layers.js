@@ -1,7 +1,10 @@
 import * as tf from '@tensorflow/tfjs'
 import { GELU } from './activations.js'
 
-export class DebugLayer extends tf.layers.Layer {
+const customLayers = {}
+export default customLayers
+
+class DebugLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.config = config
@@ -28,10 +31,10 @@ export class DebugLayer extends tf.layers.Layer {
         return 'DebugLayer'
     }
 }
-
 tf.serialization.registerClass(DebugLayer)
+customLayers.DebugLayer = (config) => new DebugLayer(config)
 
-export class Range extends tf.layers.Layer {
+class Range extends tf.layers.Layer {
     computeOutputShape(inputShape) {
         return inputShape
     }
@@ -53,8 +56,9 @@ export class Range extends tf.layers.Layer {
     }
 }
 tf.serialization.registerClass(Range)
+customLayers.Range = (config) => new Range(config)
 
-export class CausalSelfAttention extends tf.layers.Layer {
+class CausalSelfAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.config = Object.assign({ name: 'attn' }, config)
@@ -193,10 +197,10 @@ export class CausalSelfAttention extends tf.layers.Layer {
         return 'CausalSelfAttention'
     }
 }
-
 tf.serialization.registerClass(CausalSelfAttention)
+customLayers.CausalSelfAttention = (config) => new CausalSelfAttention(config)
 
-export class SinusoidalPositionalEncoding extends tf.layers.Layer {
+class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor({ units, reverse = false }) {
         super()
         this.units = units // Dimensionality of the positional encoding
@@ -245,10 +249,11 @@ export class SinusoidalPositionalEncoding extends tf.layers.Layer {
         return 'SinusoidalPositionalEncoding'
     }
 }
-
 tf.serialization.registerClass(SinusoidalPositionalEncoding)
+customLayers.SinusoidalPositionalEncoding = (config) =>
+    new SinusoidalPositionalEncoding(config)
 
-export class MultiHeadAttention extends tf.layers.Layer {
+class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.numHeads = config.numHeads
@@ -358,10 +363,10 @@ export class MultiHeadAttention extends tf.layers.Layer {
         return 'MultiHeadAttention'
     }
 }
-
 tf.serialization.registerClass(MultiHeadAttention)
+customLayers.MultiHeadAttention = (config) => new MultiHeadAttention(config)
 
-export class MultiLayerPerceptron extends tf.layers.Layer {
+class MultiLayerPerceptron extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.units = config?.units || 256
@@ -446,10 +451,10 @@ export class MultiLayerPerceptron extends tf.layers.Layer {
         return 'MultiLayerPerceptron'
     }
 }
-
 tf.serialization.registerClass(MultiLayerPerceptron)
+customLayers.MultiLayerPerceptron = (config) => new MultiLayerPerceptron(config)
 
-export class ResidualConnection extends tf.layers.Layer {
+class ResidualConnection extends tf.layers.Layer {
     constructor() {
         super()
     }
@@ -476,8 +481,85 @@ export class ResidualConnection extends tf.layers.Layer {
         return 'ResidualConnection'
     }
 }
-
 tf.serialization.registerClass(ResidualConnection)
+customLayers.ResidualConnection = (config) => new ResidualConnection(config)
+
+class GaussianMixtureModel extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units || 256
+        this.innerDim = config.innerDim || 1024 // Hidden size
+        this.temperatureInitializer = tf.initializers.zeros()
+        this.centroidInitializer = tf.initializers.randomNormal({ stddev: 1 })
+        this.useBias = config?.useBias || false
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+
+        // Weight for the linear transformation (W_gate in Python code)
+        this.w_gate = this.addWeight(
+            'w_gate',
+            [inputDim, this.innerDim],
+            'float32',
+            tf.initializers.glorotUniform(),
+            null,
+            this.useBias
+        )
+
+        // Expert centroids
+        this.expert_centroids = this.addWeight(
+            'expert_centroids',
+            [this.units, this.innerDim],
+            'float32',
+            this.centroidInitializer
+        )
+
+        // Temperature parameter
+        this.temperature = this.addWeight(
+            'temperature',
+            [1],
+            'float32',
+            this.temperatureInitializer
+        )
+
+        super.build(inputShape)
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            const z = tf.matMul(inputs, this.w_gate.read()) // Linear transformation
+            const normalizedZ = tf.linalg.normalize(z, null, 2)
+            const normalizedCentroids = tf.linalg.normalize(
+                this.expert_centroids.read(),
+                null,
+                2
+            )
+            const logits = tf
+                .matMul(normalizedZ, normalizedCentroids, false, true)
+                .mul(this.temperature.read().exp()) // Compute log posterior probabilities and scale by temperature
+
+            return logits
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.units]
+    }
+
+    getConfig() {
+        return {
+            units: this.units,
+            innerDim: this.innerDim
+        }
+    }
+
+    static get className() {
+        return 'GaussianMixtureModel'
+    }
+}
+tf.serialization.registerClass(GaussianMixtureModel)
+customLayers.GaussianMixtureModel = (config) => new GaussianMixtureModel(config)
 
 // Originally adapted from:
 // https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
@@ -518,165 +600,96 @@ class LambdaLayer extends tf.layers.Layer {
         return 'LambdaLayer'
     }
 }
-
 tf.serialization.registerClass(LambdaLayer)
+customLayers.LambdaLayer = (config) => new LambdaLayer(config)
 
-export class ExpandDims extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.axis = config?.axis || -1
-        this.supportsMasking = true
-    }
+// export class LearnedPositionalEmbeddings extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.vocabSize = config.vocabSize
+//         this.maxSeqLength = config.maxSeqLength
+//         this.units = config.units
+//     }
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
-            return tf.expandDims(inputs, this.axis)
-        })
-    }
+//     build(inputShape) {
+//         // Since this is a layer initialization method, weights are typically initialized here
+//         this.tokenEmbeddings = this.addWeight(
+//             'token_embeddings',
+//             [this.vocabSize, this.units],
+//             null,
+//             tf.initializers.glorotUniform()
+//         )
+//         this.positionalEmbeddings = this.addWeight(
+//             'positional_embeddings',
+//             [this.maxSeqLength, this.units],
+//             null,
+//             tf.initializers.glorotUniform()
+//         )
+//     }
 
-    computeOutputShape(inputShape) {
-        // This modifies the input shape by adding a 1 in the specified axis position.
-        let outputShape = inputShape.slice()
-        if (this.axis >= 0) {
-            outputShape.splice(this.axis, 0, 1)
-        } else {
-            // When axis is -1, the new axis is added at the end of the shape.
-            outputShape.push(1)
-        }
-        return outputShape
-    }
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             // Ensure inputs is not an array and is cast to int32 if it's used as indices
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             this.invokeCallHook(inputs, kwargs)
 
-    static get className() {
-        return 'ExpandDims'
-    }
-}
+//             // Ensure token indices are integers
+//             inputs = tf.cast(inputs, 'int32')
 
-tf.serialization.registerClass(ExpandDims)
+//             const tokenIndices = inputs
+//             const batchSize = inputs.shape[0]
+//             const sequenceLength = inputs.shape[1]
 
-export class LearnedPositionalEmbeddings extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.vocabSize = config.vocabSize
-        this.maxSeqLength = config.maxSeqLength
-        this.units = config.units
-    }
+//             // Gather token embeddings, ensuring indices are int32
+//             const tokenEmbeddings = tf.gather(
+//                 this.tokenEmbeddings.read(),
+//                 tokenIndices.flatten()
+//             )
 
-    build(inputShape) {
-        // Since this is a layer initialization method, weights are typically initialized here
-        this.tokenEmbeddings = this.addWeight(
-            'token_embeddings',
-            [this.vocabSize, this.units],
-            null,
-            tf.initializers.glorotUniform()
-        )
-        this.positionalEmbeddings = this.addWeight(
-            'positional_embeddings',
-            [this.maxSeqLength, this.units],
-            null,
-            tf.initializers.glorotUniform()
-        )
-    }
+//             // The reshape here assumes the flattening and gathering does not change the overall expected shape
+//             const reshapedTokenEmbeddings = tokenEmbeddings.reshape([
+//                 batchSize,
+//                 sequenceLength,
+//                 this.units
+//             ])
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            // Ensure inputs is not an array and is cast to int32 if it's used as indices
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+//             // Create a range tensor for positional indices and ensure it's int32
+//             const positions = tf.range(0, sequenceLength, 1, 'int32')
+//             const positionalEmbeddings = tf.gather(
+//                 this.positionalEmbeddings.read(),
+//                 positions
+//             )
 
-            // Ensure token indices are integers
-            inputs = tf.cast(inputs, 'int32')
+//             // Expanding and tiling the positional embeddings to match the batch size
+//             const reshapedPositionalEmbeddings = positionalEmbeddings
+//                 .expandDims(0)
+//                 .tile([batchSize, 1, 1])
 
-            const tokenIndices = inputs
-            const batchSize = inputs.shape[0]
-            const sequenceLength = inputs.shape[1]
+//             // Combine the embeddings
+//             return tf.add(reshapedTokenEmbeddings, reshapedPositionalEmbeddings)
+//         })
+//     }
 
-            // Gather token embeddings, ensuring indices are int32
-            const tokenEmbeddings = tf.gather(
-                this.tokenEmbeddings.read(),
-                tokenIndices.flatten()
-            )
+//     computeOutputShape(inputShape) {
+//         return [inputShape[0], inputShape[1], this.units]
+//     }
 
-            // The reshape here assumes the flattening and gathering does not change the overall expected shape
-            const reshapedTokenEmbeddings = tokenEmbeddings.reshape([
-                batchSize,
-                sequenceLength,
-                this.units
-            ])
+//     getConfig() {
+//         const config = super.getConfig()
+//         Object.assign(config, {
+//             vocabSize: this.vocabSize,
+//             maxSeqLength: this.maxSeqLength,
+//             units: this.units
+//         })
+//         return config
+//     }
 
-            // Create a range tensor for positional indices and ensure it's int32
-            const positions = tf.range(0, sequenceLength, 1, 'int32')
-            const positionalEmbeddings = tf.gather(
-                this.positionalEmbeddings.read(),
-                positions
-            )
+//     static get className() {
+//         return 'LearnedPositionalEmbeddings'
+//     }
+// }
 
-            // Expanding and tiling the positional embeddings to match the batch size
-            const reshapedPositionalEmbeddings = positionalEmbeddings
-                .expandDims(0)
-                .tile([batchSize, 1, 1])
-
-            // Combine the embeddings
-            return tf.add(reshapedTokenEmbeddings, reshapedPositionalEmbeddings)
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        return [inputShape[0], inputShape[1], this.units]
-    }
-
-    getConfig() {
-        const config = super.getConfig()
-        Object.assign(config, {
-            vocabSize: this.vocabSize,
-            maxSeqLength: this.maxSeqLength,
-            units: this.units
-        })
-        return config
-    }
-
-    static get className() {
-        return 'LearnedPositionalEmbeddings'
-    }
-}
-
-tf.serialization.registerClass(LearnedPositionalEmbeddings)
-
-export class LastTokenSelectionLayer extends tf.layers.Layer {
-    constructor(config) {
-        super(config)
-        this.supportsMasking = true
-    }
-
-    computeOutputShape(inputShape) {
-        // Transform input shape of [batchSize, sequenceLength, vocabSize]
-        // to an output shape of [batchSize, vocabSize], removing
-        // all predicted tokens except for the last
-        return [inputShape[0], inputShape[2]]
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            const sequenceLength = inputs.shape[1]
-            const lastTokenIndex = sequenceLength - 1
-
-            const lastTokenSlice = inputs
-                .slice([0, lastTokenIndex, 0], [-1, 1, -1])
-                .squeeze([1])
-
-            return lastTokenSlice
-        })
-    }
-
-    static get className() {
-        return 'LastTokenSelectionLayer'
-    }
-}
-
-tf.serialization.registerClass(LastTokenSelectionLayer)
+// tf.serialization.registerClass(LearnedPositionalEmbeddings)
 
 // class MixtureOfExpertsLayer extends tf.layers.Layer {
 //     constructor(config) {

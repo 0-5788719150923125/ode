@@ -1,11 +1,4 @@
 import OriginalDecoderEngine from './model.v4.js'
-import {
-    CausalSelfAttention,
-    MultiHeadAttention,
-    Range,
-    SinusoidalPositionalEncoding,
-    MultiLayerPerceptron
-} from './layers.js'
 
 /**
  * A small transformer with multi-head attention and sinusoidal position embeddings.
@@ -33,17 +26,19 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(inputs)
 
-        const range = new Range().apply(inputs)
+        const range = this.customLayers.Range().apply(inputs)
 
-        const encoding = new SinusoidalPositionalEncoding({
-            units: this.units,
-            reverse: false
-        }).apply(range)
+        const encoding = this.customLayers
+            .SinusoidalPositionalEncoding({
+                units: this.units,
+                reverse: false
+            })
+            .apply(range)
 
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            // outputs = new CausalSelfAttention({
+            // outputs = this.customLayers.CausalSelfAttention({
             //     blockSize: this.config.contextLength,
             //     units: this.units,
             //     numHeads: this.numHeads,
@@ -51,19 +46,23 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             //     bias: false
             // }).apply(outputs)
 
-            outputs = new MultiHeadAttention({
-                units: this.units,
-                numHeads: this.numHeads,
-                dropout: this.dropout
-            }).apply(outputs)
+            outputs = this.customLayers
+                .MultiHeadAttention({
+                    units: this.units,
+                    numHeads: this.numHeads,
+                    dropout: this.dropout
+                })
+                .apply(outputs)
 
-            outputs = new MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim,
-                numHeads: this.numHeads,
-                dropout: this.dropout,
-                activation: 'swish'
-            }).apply(outputs)
+            outputs = this.customLayers
+                .MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    numHeads: this.numHeads,
+                    dropout: this.dropout,
+                    activation: 'swish'
+                })
+                .apply(outputs)
         }
 
         outputs = this.tf.layers
