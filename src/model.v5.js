@@ -52,14 +52,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
-        for (let i = 0; i < this.layers; i++) {
-            outputs = this.tf.layers
-                .layerNormalization({
-                    // name: config.name + '/ln_1',
-                    epsilon: 1e-5
-                })
-                .apply(outputs)
+        outputs = this.tf.layers
+            .layerNormalization({
+                // name: config.name + '/ln_1',
+                epsilon: 1e-5
+            })
+            .apply(outputs)
 
+        for (let i = 0; i < this.layers; i++) {
             const attention = new CausalSelfAttention({
                 blockSize: this.config.contextLength,
                 nEmbd: this.units,
@@ -90,12 +90,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             outputs = decoder.apply(outputs)
         }
 
-        outputs = this.tf.layers
-            .layerNormalization({
-                // name: 'gpt' + '/ln_f',
-                epsilon: 1e-5
-            })
-            .apply(outputs)
+        // outputs = this.tf.layers
+        //     .layerNormalization({
+        //         // name: 'gpt' + '/ln_f',
+        //         epsilon: 1e-5
+        //     })
+        //     .apply(outputs)
 
         const head = this.tf.layers.dense({
             units: this.tokenizer.getLength(),

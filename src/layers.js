@@ -453,7 +453,7 @@ export class TransformerBlock extends tf.layers.Layer {
         this.in_proj = tf.layers.dense({
             units: this.innerDim,
             inputDim: this.units,
-            activation: this.activation,
+            // activation: this.activation,
             inputShape: [inputShape[1], inputShape[2]]
         })
         this.out_proj = tf.layers.dense({
@@ -489,6 +489,7 @@ export class TransformerBlock extends tf.layers.Layer {
             this.invokeCallHook(inputs, kwargs)
             // Feed-Forward Network block
             let output = this.in_proj.apply(inputs)
+            output = new GELU().apply(output)
             output = this.out_proj.apply(output)
             // Apply Residual Connection around Feed-Forward Network
             output = this.residual.apply([inputs, output])
