@@ -47,16 +47,16 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             .apply([tokenEmbeddings, positionalEmbeddings])
 
         outputs = this.tf.layers
-            .dropout({
-                name: 'dropout',
-                rate: this.dropout
+            .layerNormalization({
+                name: 'attn/ln',
+                epsilon: this.epsilon
             })
             .apply(outputs)
 
         outputs = this.tf.layers
-            .layerNormalization({
-                name: 'attn/ln',
-                epsilon: this.epsilon
+            .dropout({
+                name: 'dropout',
+                rate: this.dropout
             })
             .apply(outputs)
 

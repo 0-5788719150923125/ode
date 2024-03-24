@@ -5,7 +5,7 @@ import { getAdamW } from './optimizers.js'
  * A GRU-based RNN that uses a time-distributed, dense output
  * layer. This is quite different from common RNNs, in that it functions more
  * like a sequence-to-sequence model. Rather than training on a single label,
- * this model trains on a vectors of them, shifted by one.
+ * this model trains on vectors of them, shifted by one to the right.
  * @extends ModelBase
  */
 export default class OmnipotentDiabolicalErudite extends ModelBase {

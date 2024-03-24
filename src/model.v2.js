@@ -5,63 +5,68 @@ import ModelBase from './model.v0.js'
  * @extends ModelBase
  */
 export default class OmnipresentDegenerateEntity extends ModelBase {
+    constructor(config) {
+        super(config)
+        this.units = 128
+        this.layers = new Array(5).fill(this.units)
+        this.epsilon = 1e-3
+    }
+
     build() {
         const inputs = this.tf.input({ shape: [null] })
-        const embeddings = this.tf.layers
+        let outputs = this.tf.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: 256,
+                outputDim: this.units * 2,
                 embeddingsInitializer: 'glorotUniform',
                 maskZero: true
             })
             .apply(inputs)
 
-        let recurrentOutput = embeddings
-
-        const layers = new Array(5).fill(128)
-        layers.forEach((units, i) => {
+        this.layers.forEach((units, i) => {
             const notFirstLayer = i !== 0
             const notLastLayer = i !== layers.length - 1
-            const layer = this.tf.layers.gru({
-                units,
-                activation: 'softsign',
-                kernelInitializer: 'glorotUniform',
-                recurrentActivation: 'sigmoid',
-                recurrentInitializer: 'orthogonal',
-                returnSequences: notLastLayer
-            })
-            const currentOutput = layer.apply(recurrentOutput)
+            const recurrent = this.tf.layers
+                .gru({
+                    units,
+                    activation: 'softsign',
+                    kernelInitializer: 'glorotUniform',
+                    recurrentActivation: 'sigmoid',
+                    recurrentInitializer: 'orthogonal',
+                    returnSequences: notLastLayer
+                })
+                .apply(outputs)
 
             if (notFirstLayer && notLastLayer) {
-                const residual = this.ode.layers.ResidualConnection()
-                recurrentOutput = residual.apply([
-                    currentOutput,
-                    recurrentOutput
-                ])
+                outputs = this.ode.layers
+                    .ResidualConnection()
+                    .apply([outputs, recurrent])
             } else {
-                recurrentOutput = currentOutput
+                outputs = recurrent
             }
 
-            const norm = this.tf.layers.layerNormalization({
-                epsilon: 1e-3
-            })
-            recurrentOutput = norm.apply(recurrentOutput)
+            outputs = this.tf.layers
+                .layerNormalization({
+                    epsilon: this.epsilon
+                })
+                .apply(outputs)
 
             if (notLastLayer) {
-                const attention = this.ode.layers.CausalAttentionLayer({
-                    units,
-                    kernelInitializer: 'glorotUniform'
-                })
-                recurrentOutput = attention.apply(recurrentOutput)
+                outputs = this.ode.layers
+                    .CausalAttentionLayer({
+                        units,
+                        kernelInitializer: 'glorotUniform'
+                    })
+                    .apply(outputs)
             }
         })
 
-        const outputs = this.tf.layers
+        outputs = this.tf.layers
             .dense({
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
-            .apply(recurrentOutput)
+            .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

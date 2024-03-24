@@ -36,7 +36,6 @@ export default class ModelBase {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-
         this.trainTokenizer()
         this.build()
         this.defineLossFunctions()

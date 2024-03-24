@@ -30,14 +30,11 @@ export default class ModelPrototype extends ModelBase {
 
         this.layout.forEach((units, i) => {
             this.model.add(
-                this.tf.layers.bidirectional({
-                    layer: this.tf.layers.gru({
-                        units,
-                        activation: 'tanh',
-                        recurrentActivation: 'sigmoid',
-                        returnSequences: i < this.layout.length - 1 // False for the last GRU layer
-                    }),
-                    mergeMode: 'concat'
+                this.tf.layers.lstm({
+                    units,
+                    activation: 'tanh',
+                    recurrentActivation: 'sigmoid',
+                    returnSequences: i < this.layout.length - 1 // False for the last GRU layer
                 })
             )
         })
