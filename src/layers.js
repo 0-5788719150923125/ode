@@ -1,4 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
+import { GELU } from './activations.js'
 
 export class DebugLayer extends tf.layers.Layer {
     constructor(config) {
@@ -97,6 +98,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
             'float32',
             tf.initializers.zeros()
         )
+        this.layerNorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
     }
 
     computeOutputShape(inputShape) {
@@ -113,12 +115,14 @@ export class CausalSelfAttention extends tf.layers.Layer {
         return Object.assign({}, config, this.config)
     }
 
-    call(input, kwargs) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
-            if (Array.isArray(input)) {
-                input = input[0]
+            if (Array.isArray(inputs)) {
+                inputs = inputs[0]
             }
-            this.invokeCallHook(input, kwargs)
+            this.invokeCallHook(inputs, kwargs)
+
+            let x = this.layerNorm.apply(inputs)
 
             // Direct application of matMul to x and kernel throws:
             // > Error in gradient for op BatchMatMul.
@@ -144,7 +148,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
                 }
             }
 
-            const cAttn = dense(input, this.cAttnKernel, this.cAttnBias)
+            const cAttn = dense(x, this.cAttnKernel, this.cAttnBias)
 
             // Make order of qkv split to follow minGPT
             let [q, k, v] = tf.split(cAttn, 3, -1)
@@ -181,6 +185,8 @@ export class CausalSelfAttention extends tf.layers.Layer {
             y = dense(y, this.cProjKernel, this.cProjBias)
             y = kwargs['training'] ? tf.dropout(y, this.dropout) : y
 
+            y = tf.layers.add().apply([inputs, x])
+
             return y
         })
     }
@@ -190,47 +196,6 @@ export class CausalSelfAttention extends tf.layers.Layer {
     }
 }
 tf.serialization.registerClass(CausalSelfAttention)
-
-class GELU extends tf.layers.Layer {
-    constructor() {
-        super({})
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    call(input, kwargs) {
-        return tf.tidy(() => {
-            // In functional API, input is an array of tensors
-            // So we need to get the first element (the actual input)
-            // Add a check as here:
-            // https://github.com/tensorflow/tfjs-examples/blob/master/custom-layer/custom_layer.js
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
-            const cdf = tf.mul(
-                0.5,
-                tf.add(
-                    1,
-                    tf.tanh(
-                        tf.mul(
-                            tf.sqrt(tf.div(2, Math.PI)),
-                            tf.add(input, tf.mul(0.044715, tf.pow(input, 3)))
-                        )
-                    )
-                )
-            )
-            return tf.mul(input, cdf)
-        })
-    }
-
-    static get className() {
-        return 'GELU'
-    }
-}
-tf.serialization.registerClass(GELU)
 
 function MLP(conf) {
     const config = Object.assign({ name: 'mlp' }, conf)
@@ -268,13 +233,13 @@ export function GPT2Block(conf) {
     let x1, x2
     // Attention
     // Setting epsilon to 1e-5 for LayerNorms to be consistent with PyTorch
-    x1 = tf.layers
-        .layerNormalization({ name: config.name + '/ln_1', epsilon: 1e-5 })
-        .apply(inputs)
+    // x1 = tf.layers
+    //     .layerNormalization({ name: config.name + '/ln_1', epsilon: 1e-5 })
+    //     .apply(inputs)
     x1 = new CausalSelfAttention(
         Object.assign({}, config, { name: config.name + '/attn' })
-    ).apply(x1)
-    x1 = tf.layers.add().apply([inputs, x1])
+    ).apply(inputs)
+    // x1 = tf.layers.add().apply([inputs, x1])
     // MLP
     x2 = tf.layers
         .layerNormalization({ name: config.name + '/ln_2', epsilon: 1e-5 })
@@ -438,13 +403,19 @@ export class MultiHeadAttention extends tf.layers.Layer {
 
 tf.serialization.registerClass(MultiHeadAttention)
 
-export class TransformerBlock extends tf.layers.Layer {
+export class MultiLayerPerceptron extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.units = config?.units || 256
         this.numHeads = config?.numHeads || 8
         this.innerDim = config?.innerDim || 1024
-        this.activation = config?.activation || 'relu'
+        if (config?.activation === 'gelu') {
+            this.customActivation = new GELU()
+            this.activation = 'linear'
+        } else {
+            this.activation = config?.activation || 'relu'
+        }
+
         this.supportsMasking = true
     }
 
@@ -453,7 +424,7 @@ export class TransformerBlock extends tf.layers.Layer {
         this.in_proj = tf.layers.dense({
             units: this.innerDim,
             inputDim: this.units,
-            // activation: this.activation,
+            activation: this.activation,
             inputShape: [inputShape[1], inputShape[2]]
         })
         this.out_proj = tf.layers.dense({
@@ -487,14 +458,16 @@ export class TransformerBlock extends tf.layers.Layer {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
-            // Feed-Forward Network block
-            let output = this.in_proj.apply(inputs)
-            output = new GELU().apply(output)
-            output = this.out_proj.apply(output)
-            // Apply Residual Connection around Feed-Forward Network
-            output = this.residual.apply([inputs, output])
-            // Apply layer norm before return
-            return this.layernorm.apply(output)
+            // Apply layer norm to inputs
+            let outputs = this.layernorm.apply(inputs)
+            // Expand and contract projection via feedfoward layers
+            outputs = this.in_proj.apply(outputs)
+            if (this.customActivation) {
+                outputs = this.customActivation.apply(outputs)
+            }
+            outputs = this.out_proj.apply(outputs)
+            // Apply skip connection
+            return this.residual.apply([inputs, outputs])
         })
     }
 
@@ -513,11 +486,11 @@ export class TransformerBlock extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'TransformerBlock'
+        return 'MultiLayerPerceptron'
     }
 }
 
-tf.serialization.registerClass(TransformerBlock)
+tf.serialization.registerClass(MultiLayerPerceptron)
 
 export class ResidualConnection extends tf.layers.Layer {
     constructor() {

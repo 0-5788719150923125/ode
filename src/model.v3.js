@@ -15,8 +15,6 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
     }
 
     build() {
-        let state
-
         const inputs = this.tf.input({ shape: [null] })
         const embeddings = this.tf.layers.embedding({
             inputDim: this.tokenizer.getLength(),
@@ -25,7 +23,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
             maskZero: true
         })
 
-        state = embeddings.apply(inputs)
+        let outputs = embeddings.apply(inputs)
 
         for (let i = 0; i < this.layers; i++) {
             const layer = this.tf.layers.gru({
@@ -36,7 +34,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
                 recurrentInitializer: 'orthogonal',
                 returnSequences: true
             })
-            state = layer.apply(state)
+            outputs = layer.apply(outputs)
         }
 
         const head = this.tf.layers.timeDistributed({
@@ -46,7 +44,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
             })
         })
 
-        const outputs = head.apply(state)
+        outputs = head.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

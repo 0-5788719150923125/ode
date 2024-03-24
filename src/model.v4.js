@@ -1,5 +1,5 @@
 import ModelBase from './model.v0.js'
-import { GPT2Block, Range } from './layers.js'
+import { CausalSelfAttention, MultiLayerPerceptron, Range } from './layers.js'
 import { getAdamW } from './optimizers.js'
 import PretrainedTokenizer from './tokenizers.js'
 
@@ -44,45 +44,49 @@ export default class OriginalDecoderEngine extends ModelBase {
             })
             .apply(range)
 
-        let x = this.tf.layers
+        let outputs = this.tf.layers
             .add()
             .apply([tokenEmbeddings, positionalEmbeddings])
 
-        x = this.tf.layers
+        outputs = this.tf.layers
             .dropout({
                 name: 'drop',
                 rate: this.dropout
             })
-            .apply(x)
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            x = GPT2Block({
-                name: 'gpt' + '/h/' + i,
-                nLayer: this.layers,
-                nHead: this.numHeads,
-                nEmbd: this.units,
+            outputs = new CausalSelfAttention({
                 blockSize: this.config.contextLength,
+                nEmbd: this.units,
+                nHead: this.numHeads,
                 dropout: this.dropout,
                 bias: false
-            }).apply(x)
+            }).apply(outputs)
+
+            outputs = new MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.innerDim,
+                numHeads: this.numHeads,
+                activation: 'swish'
+            }).apply(outputs)
         }
-        x = this.tf.layers
+
+        outputs = this.tf.layers
             .layerNormalization({
                 name: 'gpt' + '/ln_f',
                 epsilon: 1e-5
             })
-            .apply(x)
+            .apply(outputs)
 
-        x = this.tf.layers
+        outputs = this.tf.layers
             .dense({
                 name: 'head',
                 units: this.tokenizer.getLength()
-                // inputDim: this.units,
-                // useBias: false
             })
-            .apply(x)
+            .apply(outputs)
 
-        this.model = this.tf.model({ inputs: inputs, outputs: x })
+        this.model = this.tf.model({ inputs, outputs })
     }
 
     async compile() {

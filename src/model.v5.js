@@ -5,7 +5,7 @@ import {
     MultiHeadAttention,
     Range,
     SinusoidalPositionalEncoding,
-    TransformerBlock
+    MultiLayerPerceptron
 } from './layers.js'
 import PretrainedTokenizer from './tokenizers.js'
 
@@ -52,50 +52,28 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
-        outputs = this.tf.layers
-            .layerNormalization({
-                // name: config.name + '/ln_1',
-                epsilon: 1e-5
-            })
-            .apply(outputs)
-
         for (let i = 0; i < this.layers; i++) {
-            const attention = new CausalSelfAttention({
+            outputs = new CausalSelfAttention({
                 blockSize: this.config.contextLength,
                 nEmbd: this.units,
                 nHead: this.numHeads,
                 dropout: this.dropout,
                 bias: false
             }).apply(outputs)
-            // const attention = new CausalAttentionLayer({
-            //     // numHeads: this.numHeads,
-            //     units: this.units
-            // })
 
-            outputs = this.tf.layers.add().apply([outputs, attention])
-
-            outputs = this.tf.layers
-                .layerNormalization({
-                    // name: config.name + '/ln_1',
-                    epsilon: 1e-5
-                })
-                .apply(outputs)
-
-            const decoder = new TransformerBlock({
+            outputs = new MultiLayerPerceptron({
                 units: this.units,
                 innerDim: this.innerDim,
                 numHeads: this.numHeads,
                 activation: 'swish'
-            })
-            outputs = decoder.apply(outputs)
+            }).apply(outputs)
         }
 
-        // outputs = this.tf.layers
-        //     .layerNormalization({
-        //         // name: 'gpt' + '/ln_f',
-        //         epsilon: 1e-5
-        //     })
-        //     .apply(outputs)
+        outputs = this.tf.layers
+            .layerNormalization({
+                epsilon: 1e-5
+            })
+            .apply(outputs)
 
         const head = this.tf.layers.dense({
             units: this.tokenizer.getLength(),
