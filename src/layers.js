@@ -474,76 +474,91 @@ class ResidualConnection extends tf.layers.Layer {
 class GaussianMixtureModel extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.units = config.units || 256
-        this.innerDim = config.innerDim || 1024 // Hidden size
-        this.temperatureInitializer = tf.initializers.zeros()
-        this.centroidInitializer = tf.initializers.randomNormal({ stddev: 1 })
-        this.useBias = config?.useBias || false
-    }
+        this.numExperts = 4
+        this.hiddenSize = 256 // Assuming this is the desired hidden layer size.
+        this.temperature = config.temperature || 1.0
 
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-
-        // Weight for the linear transformation (W_gate in Python code)
-        this.w_gate = this.addWeight(
-            'w_gate',
-            [inputDim, this.innerDim],
-            'float32',
-            tf.initializers.glorotUniform(),
-            null,
-            this.useBias
+        // Initialize weights
+        this.wGate = tf.variable(
+            tf.randomNormal([this.hiddenSize, this.numExperts])
         )
-
-        // Expert centroids
-        this.expert_centroids = this.addWeight(
-            'expert_centroids',
-            [this.units, this.innerDim],
-            'float32',
-            this.centroidInitializer
+        this.expertCentroids = tf.variable(
+            tf.randomNormal([this.numExperts, this.hiddenSize])
         )
-
-        // Temperature parameter
-        this.temperature = this.addWeight(
-            'temperature',
-            [1],
-            'float32',
-            this.temperatureInitializer
-        )
-
-        super.build(inputShape)
     }
 
     call(inputs) {
-        return tf.tidy(() => {
-            const z = tf.matMul(inputs, this.w_gate.read()) // Linear transformation
-            const normalizedZ = tf.linalg.normalize(z, null, 2)
-            const normalizedCentroids = tf.linalg.normalize(
-                this.expert_centroids.read(),
-                null,
-                2
-            )
-            const logits = tf
-                .matMul(normalizedZ, normalizedCentroids, false, true)
-                .mul(this.temperature.read().exp()) // Compute log posterior probabilities and scale by temperature
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        const batchSize = inputs.shape[0]
+        const flattenedInput = inputs.reshape([batchSize, -1])
 
-            return logits
-        })
+        console.log(`flattenedInput shape: ${flattenedInput.shape}`)
+
+        // Dynamically calculate input dimension
+        const inputDim = flattenedInput.shape[1]
+
+        // Assuming the input needs to be projected to match the hiddenSize
+        const projectionMatrix = tf.variable(
+            tf.randomNormal([inputDim, this.hiddenSize])
+        )
+        const projectedInput = flattenedInput.matMul(projectionMatrix)
+
+        console.log(`projectedInput shape: ${projectedInput.shape}`)
+
+        // Linear transformation with wGate
+        const z = projectedInput.matMul(this.wGate)
+
+        console.log(`z shape: ${z.shape}`)
+
+        // Calculate log posterior probabilities
+        const logits = logGmmPosterior(
+            z,
+            this.expertCentroids,
+            this.temperature
+        )
+
+        // Example adjustment at the end of the GMM layer's call method
+        return logits.reshape([batchSize, -1]) // Adjust this line based on the actual expected shape
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], this.units]
+        // Output shape: batch_size x num_experts
+        return [inputShape[0], this.numExperts]
     }
 
     getConfig() {
         return {
-            units: this.units,
-            innerDim: this.innerDim
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            hiddenSize: this.hiddenSize,
+            temperature: this.temperature
         }
     }
 
     static get className() {
         return 'GaussianMixtureModel'
     }
+}
+
+function logGmmPosterior(z, expertCentroids, temperature) {
+    // Assuming the need to compare z (shape: [2, 4]) with centroids ([4, 256]) requires adjustment.
+    // This example will adjust the operation to a more plausible comparison, given the shapes:
+    // Direct multiplication isn't compatible due to the shape mismatch, suggesting a different approach is needed.
+
+    // If expertCentroids were intended to be [numExperts, hiddenSize] = [4, 256],
+    // and we need to operate on z ([batchSize, numExperts] = [2, 4]),
+    // a valid operation might be to reshape or align dimensions for comparison differently.
+
+    // Here's a placeholder operation for demonstration, adjust according to your specific logic:
+    const reshapedCentroids = expertCentroids.reshape([1, 4, 256]) // Example reshape, adjust as needed.
+    const expandedZ = z.expandDims(2) // Expanding z for broadcasting, adjust logic as needed.
+    // Placeholder for intended comparison logic, e.g., calculating distances or similarities.
+
+    // Assuming a simpler operation for demonstration:
+    const similarity = expandedZ.mul(reshapedCentroids) // Example, adjust to match your intended logic.
+
+    // Apply temperature scaling to the result of your actual comparison logic
+    return similarity.mul(temperature)
 }
 
 // Originally adapted from:
