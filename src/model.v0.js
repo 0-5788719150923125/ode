@@ -34,43 +34,39 @@ export default class ModelBase {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
 
-        tf.enableProdMode()
-
-        console.log('Backend:', tf.backend())
-        console.log(this.config)
-
-        this.setupTokenizer()
-        await this.tokenizer.writeVocabularyToFile()
-
-        if (this.config.loadFromFile) {
-            console.log('loading from file')
-            await this.load()
-        } else {
-            this.build()
-        }
-        await this.compile()
+        this.trainTokenizer()
+        this.build()
+        this.defineLossFunctions()
+        this.defineOptimizers()
+        this.compile()
         this.postInit()
     }
 
-    setupTokenizer(vocabSize = 6666, numIterations = 50_000_000) {
+    trainTokenizer(vocabSize = 6666, numIterations = 50_000_000) {
         this.tokenizer = new BasicSubwordTokenizer(vocabSize, numIterations)
     }
 
     build() {
-        throw 'Your model is missing the build() method. Did you forget to define it?'
+        throw 'Your model is missing a build() method. Did you forget to define it?'
     }
 
-    async compile() {
-        // Compile the model
+    defineLossFunctions() {
         this.lossFunctions = [tf.losses.softmaxCrossEntropy]
+    }
+
+    defineOptimizers() {
+        this.optimizer = tf.train.rmsprop(
+            this.config.learningRate || 1e-2,
+            this.config.decay || 0.9,
+            this.config.momentum || 0.01,
+            this.config.epsilon || 1e-8,
+            false
+        )
+    }
+
+    compile() {
         this.model.compile({
-            optimizer: tf.train.rmsprop(
-                this.config.learningRate || 1e-2,
-                this.config.decay || 0.9,
-                this.config.momentum || 0.01,
-                this.config.epsilon || 1e-8,
-                false
-            ),
+            optimizer: this.optimizer,
             loss: this.lossFunctions
         })
     }
@@ -82,9 +78,11 @@ export default class ModelBase {
         console.log(
             `Tokenizer is ${this.tokenizer.getLength()} tokens in length.`
         )
+        console.log('Backend:', tf.backend().tensorMap.dataMover.backendName)
+        console.log(this.config)
     }
 
-    async generate(prompt, temperature = 0.7, length = 20, greedy) {
+    async generate(prompt, temperature = 0.7, length = 20) {
         return await generateText.call(this, prompt, temperature, length)
     }
 

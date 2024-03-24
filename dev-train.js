@@ -23,6 +23,8 @@ export async function trainModel(args) {
     })
 
     await net.init()
+    // await net.load()
+    await net.tokenizer.writeVocabularyToFile()
 
     const dataset = net.sampler('string')(
         trainArgs.sampleLen * 5,

@@ -15,20 +15,20 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
         this.units = 128
     }
 
-    setupTokenizer() {
-        super.setupTokenizer(6666, 500_000_000)
+    trainTokenizer() {
+        super.trainTokenizer(2222, 500_000_000)
     }
 
     build() {
         const inputs = this.tf.input({ shape: [null] })
-        const embeddings = this.tf.layers.embedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
-            embeddingsInitializer: 'glorotUniform',
-            maskZero: true
-        })
-
-        let outputs = embeddings.apply(inputs)
+        let outputs = this.tf.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform',
+                maskZero: true
+            })
+            .apply(inputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.tf.layers
@@ -47,29 +47,36 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
                 .apply(outputs)
         }
 
-        const head = this.tf.layers.timeDistributed({
-            layer: this.tf.layers.dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
+        outputs = this.tf.layers
+            .timeDistributed({
+                layer: this.tf.layers.dense({
+                    units: this.tokenizer.getLength(),
+                    activation: 'linear'
+                })
             })
-        })
-
-        outputs = head.apply(outputs)
+            .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    async compile() {
+    defineLossFunctions() {
         this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
+    }
+
+    defineOptimizers() {
+        this.optimizer = getAdamW(
+            this.model,
+            this.config.learningRate || 1e-3,
+            this.config.beta1 || 0.9,
+            this.config.beta2 || 0.999,
+            this.config.epsilon || 1e-7,
+            this.config.decayRate || 1e-1
+        )
+    }
+
+    async compile() {
         this.model.compile({
-            optimizer: getAdamW(
-                this.model,
-                this.config.learningRate || 1e-3,
-                this.config.beta1 || 0.9,
-                this.config.beta2 || 0.999,
-                this.config.epsilon || 1e-7,
-                this.config.decayRate || 1e-1
-            ),
+            optimizer: this.optimizer,
             loss: this.lossFunctions
         })
     }
