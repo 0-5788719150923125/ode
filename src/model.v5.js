@@ -12,7 +12,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.units = 256
         this.innerDim = this.units * 4
         this.dropout = 0
-        this.epsilon = 1e-6
+        this.epsilon = 1e-5
     }
 
     build() {
@@ -48,6 +48,17 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                     epsilon: this.epsilon
                 })
                 .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .SynthesizerAttention({
+            //         blockSize: this.config.contextLength,
+            //         units: this.units,
+            //         numHeads: this.numHeads,
+            //         dropout: this.dropout,
+            //         bias: false,
+            //         epsilon: this.epsilon
+            //     })
+            //     .apply(outputs)
 
             // outputs = this.ode.layers
             //     .GaussianMixtureModel({
