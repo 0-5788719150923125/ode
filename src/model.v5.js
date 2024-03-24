@@ -53,7 +53,8 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
             outputs = new MultiHeadAttention({
                 units: this.units,
-                numHeads: this.numHeads
+                numHeads: this.numHeads,
+                dropout: this.dropout
             }).apply(outputs)
 
             outputs = new MultiLayerPerceptron({
