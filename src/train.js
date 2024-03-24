@@ -30,6 +30,7 @@ export async function startTraining(dataGenerator, args) {
         generateEvery: 64,
         predictLength: 50,
         clipValue: 1.0,
+        mode: this.config.mode || 'timeDistributed',
         ...args
     }
 
@@ -49,7 +50,7 @@ export async function startTraining(dataGenerator, args) {
         this.tokenizer,
         trainArgs.batchSize,
         trainArgs.sampleLength,
-        trainArgs.predictLength
+        trainArgs.mode
     )
 
     // a custom train loop
@@ -295,7 +296,13 @@ function accumulateGradients(gradients, accumulatedGrads) {
 //     postWarmupLearningRate
 // )
 
-function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
+function* batchGenerator(
+    dataGenerator,
+    tokenizer,
+    batchSize,
+    inputLength,
+    mode = 'timeDistributed'
+) {
     while (true) {
         let xsArray = []
         let ysArray = []
@@ -313,8 +320,17 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
             // Input sequence (excluding the last token for prediction)
             const xs = textIndices.slice(0, inputLength)
 
-            // Output sequence (the entire sequence shifted by one position to the left)
-            const ys = textIndices.slice(1)
+            // Determine output sequence based on the mode
+            let ys
+
+            // Output sequence for singleLabel (just the next token)
+            if (mode === 'oneLabel') {
+                ys = [textIndices[inputLength]]
+            }
+            // Output sequence for timeDistributed (the entire sequence shifted by one position to the left)
+            else {
+                ys = textIndices.slice(1)
+            }
 
             xsArray.push(xs)
             ysArray.push(ys)
@@ -322,14 +338,21 @@ function* batchGenerator(dataGenerator, tokenizer, batchSize, inputLength) {
 
         const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
-        // use this format with sparse loss functions
-        // const ysTensor = tf.tensor2d(ysArray, [batchSize, inputLength], 'int32')
-
         const ysTensor = tf.tidy(() => {
-            return tf
-                .tensor2d(ysArray, [batchSize, inputLength], 'int32')
-                .oneHot(tokenizer.getLength())
-                .reshape([batchSize, inputLength, tokenizer.getLength()])
+            // Output labels should have a sequence length of just 1
+            if (mode === 'oneLabel') {
+                return tf.oneHot(
+                    tf.tensor1d(ysArray.flat(), 'int32'),
+                    tokenizer.getLength()
+                )
+            }
+            // Output labels should match the length of xs sequences
+            else {
+                return tf
+                    .tensor2d(ysArray, [batchSize, inputLength], 'int32')
+                    .oneHot(tokenizer.getLength())
+                    .reshape([batchSize, inputLength, tokenizer.getLength()])
+            }
         })
 
         yield { xs: xsTensor, ys: ysTensor }

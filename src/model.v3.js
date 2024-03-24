@@ -13,6 +13,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
         super(config)
         this.layers = 3
         this.units = 128
+        this.epsilon = 1e-5
     }
 
     trainTokenizer() {
@@ -25,13 +26,12 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform',
-                maskZero: true
+                embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
         outputs = this.tf.layers
-            .layerNormalization({ epsilon: 1e-5 })
+            .layerNormalization({ epsilon: this.epsilon })
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
@@ -47,7 +47,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
                 .apply(outputs)
 
             outputs = this.tf.layers
-                .layerNormalization({ epsilon: 1e-5 })
+                .layerNormalization({ epsilon: this.epsilon })
                 .apply(outputs)
         }
 
