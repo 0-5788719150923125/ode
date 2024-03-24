@@ -82,7 +82,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
 
     async compile() {
         this.model.compile({
-            optimizer: this.optimizers,
+            optimizer: this.optimizers[0],
             loss: this.lossFunctions
         })
     }

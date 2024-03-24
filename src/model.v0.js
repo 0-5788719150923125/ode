@@ -71,7 +71,7 @@ export default class ModelBase {
 
     compile() {
         this.model.compile({
-            optimizer: this.optimizers,
+            optimizer: this.optimizers[0],
             loss: this.lossFunctions
         })
     }
