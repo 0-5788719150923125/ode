@@ -1,5 +1,7 @@
 import OriginalDecoderEngine from './model.v4.js'
 import {
+    CausalSelfAttention,
+    CausalAttentionLayer,
     MultiHeadAttention,
     Range,
     SinusoidalPositionalEncoding,
@@ -51,11 +53,34 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            const attention = new MultiHeadAttention({
-                numHeads: this.numHeads,
-                units: this.units
-            })
-            outputs = attention.apply(outputs)
+            outputs = this.tf.layers
+                .layerNormalization({
+                    // name: config.name + '/ln_1',
+                    epsilon: 1e-5
+                })
+                .apply(outputs)
+
+            const attention = new CausalSelfAttention({
+                blockSize: this.config.contextLength,
+                nEmbd: this.units,
+                nHead: this.numHeads,
+                dropout: this.dropout,
+                bias: false
+            }).apply(outputs)
+            // const attention = new CausalAttentionLayer({
+            //     // numHeads: this.numHeads,
+            //     units: this.units
+            // })
+
+            outputs = this.tf.layers.add().apply([outputs, attention])
+
+            outputs = this.tf.layers
+                .layerNormalization({
+                    // name: config.name + '/ln_1',
+                    epsilon: 1e-5
+                })
+                .apply(outputs)
+
             const decoder = new TransformerBlock({
                 units: this.units,
                 innerDim: this.innerDim,
@@ -64,6 +89,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             outputs = decoder.apply(outputs)
         }
+
+        outputs = this.tf.layers
+            .layerNormalization({
+                // name: 'gpt' + '/ln_f',
+                epsilon: 1e-5
+            })
+            .apply(outputs)
 
         const head = this.tf.layers.dense({
             units: this.tokenizer.getLength(),

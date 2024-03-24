@@ -106,7 +106,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
     }
 
     getConfig() {
-        // This is neeed to save and load the model
+        // This is needed to save and load the model
         // When the model is saved, the config is saved with it
         // When the model is loaded, the config is used to create a new instance of the layer
         const config = super.getConfig()
@@ -146,7 +146,7 @@ export class CausalSelfAttention extends tf.layers.Layer {
 
             const cAttn = dense(input, this.cAttnKernel, this.cAttnBias)
 
-            // Make prder of qkv split to follow minGPT
+            // Make order of qkv split to follow minGPT
             let [q, k, v] = tf.split(cAttn, 3, -1)
             const [B, T, C] = k.shape
 
@@ -450,19 +450,21 @@ export class TransformerBlock extends tf.layers.Layer {
 
     build(inputShape) {
         // Initialize dense layers for projection
-        this.largeFeedforward = tf.layers.dense({
+        this.in_proj = tf.layers.dense({
             units: this.innerDim,
-            activation: this.activation
+            inputDim: this.units,
+            activation: this.activation,
+            inputShape: [inputShape[1], inputShape[2]]
         })
-        this.smallFeedforward = tf.layers.dense({ units: this.units })
+        this.out_proj = tf.layers.dense({
+            units: this.units,
+            inputDim: this.innerDim,
+            inputShape: [inputShape[1], this.innerDim]
+        })
 
         // Manually call build on dense layers to initialize weights
-        this.largeFeedforward.build(inputShape)
-        this.smallFeedforward.build([
-            inputShape[0],
-            inputShape[1],
-            this.innerDim
-        ])
+        this.in_proj.build(inputShape)
+        this.out_proj.build([inputShape[0], inputShape[1], this.innerDim])
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
@@ -473,8 +475,8 @@ export class TransformerBlock extends tf.layers.Layer {
 
         // Collect all trainable weights from internal layers
         this._trainableWeights = [
-            ...this.largeFeedforward.trainableWeights,
-            ...this.smallFeedforward.trainableWeights,
+            ...this.in_proj.trainableWeights,
+            ...this.out_proj.trainableWeights,
             ...this.layernorm.trainableWeights
         ]
 
@@ -486,8 +488,8 @@ export class TransformerBlock extends tf.layers.Layer {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
             // Feed-Forward Network block
-            let output = this.largeFeedforward.apply(inputs)
-            output = this.smallFeedforward.apply(output)
+            let output = this.in_proj.apply(inputs)
+            output = this.out_proj.apply(output)
             // Apply Residual Connection around Feed-Forward Network
             output = this.residual.apply([inputs, output])
             // Apply layer norm before return
