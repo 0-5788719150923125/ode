@@ -15,11 +15,12 @@ export class BasicSubwordTokenizer {
             )
         this.vocab = new Map(initialVocab.map((token, index) => [token, index]))
         this.tokenFrequencies = new Map()
-        console.log('training a tokenizer')
         this.train(corpus, trainIterations, 1, 7)
     }
 
     train(corpus, maxIterations = 10_000_000, minLength = 2, maxLength = 7) {
+        console.log('training a tokenizer')
+
         let vocabSize = this.vocab.size
         let iterationCounter = 0
 
