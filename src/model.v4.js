@@ -56,39 +56,39 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            outputs = Block({
-                name: 'gpt/h/' + i,
-                blockSize: this.config.contextLength,
-                nEmbd: this.units,
-                nHead: 4,
-                residDrop: this.dropout,
-                dropout: this.dropout,
-                bias: false,
-                debug: false,
-                tokEmb: true,
-                lmHead: true
-            }).apply(outputs)
-            // outputs = this.ode.layers
-            //     .CausalSelfAttention({
-            //         blockSize: this.config.contextLength,
-            //         units: this.units,
-            //         numHeads: this.numHeads,
-            //         dropout: this.dropout,
-            //         epsilon: this.epsilon,
-            //         bias: false
-            //     })
-            //     .apply(outputs)
+            // outputs = Block({
+            //     name: 'gpt/h/' + i,
+            //     blockSize: this.config.contextLength,
+            //     nEmbd: this.units,
+            //     nHead: 4,
+            //     residDrop: this.dropout,
+            //     dropout: this.dropout,
+            //     bias: false,
+            //     debug: false,
+            //     tokEmb: true,
+            //     lmHead: true
+            // }).apply(outputs)
+            outputs = this.ode.layers
+                .CausalSelfAttention({
+                    blockSize: this.config.contextLength,
+                    units: this.units,
+                    numHeads: this.numHeads,
+                    dropout: this.dropout,
+                    epsilon: this.epsilon,
+                    bias: false
+                })
+                .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .MultiLayerPerceptron({
-            //         units: this.units,
-            //         innerDim: this.innerDim,
-            //         numHeads: this.numHeads,
-            //         dropout: this.dropout,
-            //         epsilon: this.epsilon,
-            //         activation: 'gelu'
-            //     })
-            //     .apply(outputs)
+            outputs = this.ode.layers
+                .MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    numHeads: this.numHeads,
+                    dropout: this.dropout,
+                    epsilon: this.epsilon,
+                    activation: 'gelu'
+                })
+                .apply(outputs)
         }
 
         outputs = this.tf.layers
@@ -108,75 +108,75 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    async generate(prompt, temperature = 0.7, length = 20) {
-        return await generateText.call(this, prompt, temperature, length)
-    }
+    // async generate(prompt, temperature = 0.7, length = 20) {
+    //     return await generateText.call(this, prompt, temperature, length)
+    // }
 }
 
-async function generateText(prompt, temperature, maxNewTokens) {
-    let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
-    for (let step = 0; step < maxNewTokens; step++) {
-        const idxNext = generateOnce.call(this, inputs, temperature)
-        const idxNew = inputs.concat(idxNext, 1)
-        this.tf.dispose(inputs)
-        inputs = idxNew
-        this.tf.dispose(idxNext)
-    }
-    const idxArr = await inputs.array()
-    this.tf.dispose(inputs)
-    return this.tokenizer.decode(idxArr[0])
-}
+// async function generateText(prompt, temperature, maxNewTokens) {
+//     let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
+//     for (let step = 0; step < maxNewTokens; step++) {
+//         const idxNext = generateOnce.call(this, inputs, temperature)
+//         const idxNew = inputs.concat(idxNext, 1)
+//         this.tf.dispose(inputs)
+//         inputs = idxNew
+//         this.tf.dispose(idxNext)
+//     }
+//     const idxArr = await inputs.array()
+//     this.tf.dispose(inputs)
+//     return this.tokenizer.decode(idxArr[0])
+// }
 
-function prepareInputs(inputs) {
-    this.tf.tidy(() => {
-        // Check if idx is a tensor or an array
-        if (inputs instanceof this.tf.Tensor) {
-            inputs = inputs.clone()
-        } else {
-            inputs = this.tf.tensor(inputs)
-        }
-        // Check data type
-        if (inputs.dtype !== 'int32') {
-            inputs = inputs.toInt()
-        }
-        // If the shape of idx is 1D, we need to add a dimension
-        if (inputs.shape.length === 1) {
-            inputs = inputs.expandDims(0)
-        }
-        this.tf.keep(inputs)
-        // keep idx from deletion
-    })
-    return inputs
-}
+// function prepareInputs(inputs) {
+//     this.tf.tidy(() => {
+//         // Check if idx is a tensor or an array
+//         if (inputs instanceof this.tf.Tensor) {
+//             inputs = inputs.clone()
+//         } else {
+//             inputs = this.tf.tensor(inputs)
+//         }
+//         // Check data type
+//         if (inputs.dtype !== 'int32') {
+//             inputs = inputs.toInt()
+//         }
+//         // If the shape of idx is 1D, we need to add a dimension
+//         if (inputs.shape.length === 1) {
+//             inputs = inputs.expandDims(0)
+//         }
+//         this.tf.keep(inputs)
+//         // keep idx from deletion
+//     })
+//     return inputs
+// }
 
-function generateOnce(idx, temperature) {
-    let idxNext
-    this.tf.tidy(() => {
-        const block_size = this.model.inputs[0].shape[1]
-        const idxCond =
-            idx.shape[1] <= block_size
-                ? idx
-                : idx.slice([0, -block_size], [-1, -1])
-        // Forward the model to get the logits for the index in the sequence
-        const logits = this.model.predict(idxCond)
-        // pluck the logits at the final step
-        let logitsScaled = logits
-            .slice([0, idx.shape[1] - 1, 0])
-            .reshape([logits.shape[0], logits.shape[2]])
+// function generateOnce(idx, temperature) {
+//     let idxNext
+//     this.tf.tidy(() => {
+//         const block_size = this.model.inputs[0].shape[1]
+//         const idxCond =
+//             idx.shape[1] <= block_size
+//                 ? idx
+//                 : idx.slice([0, -block_size], [-1, -1])
+//         // Forward the model to get the logits for the index in the sequence
+//         const logits = this.model.predict(idxCond)
+//         // pluck the logits at the final step
+//         let logitsScaled = logits
+//             .slice([0, idx.shape[1] - 1, 0])
+//             .reshape([logits.shape[0], logits.shape[2]])
 
-        // either sample from the distribution or take the most likely element
-        if (temperature !== 1) {
-            // scale by desired temperature
-            logitsScaled = logitsScaled.div(this.tf.scalar(temperature))
-            idxNext = this.tf.multinomial(logitsScaled, 1)
-        } else {
-            idxNext = logitsScaled.softmax(-1).argMax(-1).expandDims(1)
-        }
+//         // either sample from the distribution or take the most likely element
+//         if (temperature !== 1) {
+//             // scale by desired temperature
+//             logitsScaled = logitsScaled.div(this.tf.scalar(temperature))
+//             idxNext = this.tf.multinomial(logitsScaled, 1)
+//         } else {
+//             idxNext = logitsScaled.softmax(-1).argMax(-1).expandDims(1)
+//         }
 
-        this.tf.keep(idxNext)
-    })
-    return idxNext
-}
+//         this.tf.keep(idxNext)
+//     })
+//     return idxNext
+// }
 
 class CausalSelfAttention extends tf.layers.Layer {
     constructor(config) {
