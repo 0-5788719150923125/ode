@@ -250,6 +250,7 @@ class MultiHeadAttention extends tf.layers.Layer {
         super(config)
         this.heads = config.heads
         this.units = config.units
+        this.epsilon = config.epsilon || 1e-5
         this.depth = this.units / this.heads
         this.useCausalMask = config.useCausalMask || true
     }
@@ -283,7 +284,7 @@ class MultiHeadAttention extends tf.layers.Layer {
         this.outputDense.build(inputShape)
         this._trainableWeights.push(...this.outputDense.trainableWeights)
 
-        this.layerNorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
         this.layerNorm.build(inputShape)
         this._trainableWeights.push(...this.layerNorm.trainableWeights)
 
