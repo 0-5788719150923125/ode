@@ -62,7 +62,7 @@ class CausalSelfAttention extends tf.layers.Layer {
         // Config
         this.blockSize = config.blockSize || 256
         this.units = config.units || 256
-        this.numHeads = config.numHeads || 4
+        this.heads = config.heads || 4
         this.dropout = config.dropout || 0
         this.bias = config.bias || false
         this.epsilon = config.epsilon || 1e-5
@@ -155,7 +155,7 @@ class CausalSelfAttention extends tf.layers.Layer {
 
             const splitHeads = (x) =>
                 tf.transpose(
-                    tf.reshape(x, [B, T, this.numHeads, C / this.numHeads]),
+                    tf.reshape(x, [B, T, this.heads, C / this.heads]),
                     [0, 2, 1, 3]
                 )
 
@@ -248,9 +248,9 @@ class SinusoidalPositionalEncoding extends tf.layers.Layer {
 class MultiHeadAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.numHeads = config.numHeads
+        this.heads = config.heads
         this.units = config.units
-        this.depth = this.units / this.numHeads
+        this.depth = this.units / this.heads
         this.useCausalMask = config.useCausalMask || true
     }
 
@@ -301,13 +301,13 @@ class MultiHeadAttention extends tf.layers.Layer {
             let batchSize = inputs.shape[0]
             let seqLength = inputs.shape[1]
             q = tf
-                .reshape(q, [batchSize, -1, this.numHeads, this.depth])
+                .reshape(q, [batchSize, -1, this.heads, this.depth])
                 .transpose([0, 2, 1, 3])
             k = tf
-                .reshape(k, [batchSize, -1, this.numHeads, this.depth])
+                .reshape(k, [batchSize, -1, this.heads, this.depth])
                 .transpose([0, 2, 3, 1])
             v = tf
-                .reshape(v, [batchSize, -1, this.numHeads, this.depth])
+                .reshape(v, [batchSize, -1, this.heads, this.depth])
                 .transpose([0, 2, 1, 3])
 
             let attentionScores = tf
@@ -345,7 +345,7 @@ class MultiHeadAttention extends tf.layers.Layer {
     getConfig() {
         return {
             ...super.getConfig(),
-            numHeads: this.numHeads,
+            heads: this.heads,
             units: this.units,
             useCausalMask: this.useCausalMask
         }
@@ -680,11 +680,11 @@ class SynthesizerAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.units = config.units // Embedding size (n_embd)
-        this.numHeads = config.numHeads // Number of attention heads (n_head)
+        this.heads = config.heads // Number of attention heads (n_head)
         this.blockSize = config.blockSize // Sequence length (block_size)
         this.attnDropoutRate = config.dropout // Attention dropout rate (attn_pdrop)
         this.residDropoutRate = config.dropout // Residual dropout rate (resid_pdrop)
-        this.d_k = this.units / this.numHeads // Dimensionality of each head
+        this.d_k = this.units / this.heads // Dimensionality of each head
 
         // Initialize layers and variables
         this.w1 = tf.layers.dense({
@@ -726,13 +726,13 @@ class SynthesizerAttention extends tf.layers.Layer {
         // Step 1: Apply w1 with ReLU activation and prepare for multi-head attention
         let reluOut = this.w1
             .apply(x)
-            .reshape([B, T, this.numHeads, this.d_k])
+            .reshape([B, T, this.heads, this.d_k])
             .transpose([0, 2, 1, 3])
 
         // Step 2: Value projection
         let v = this.value
             .apply(x)
-            .reshape([B, T, this.numHeads, this.d_k])
+            .reshape([B, T, this.heads, this.d_k])
             .transpose([0, 2, 1, 3])
 
         // Step 3: Compute scores with synthesizer mechanism
@@ -747,7 +747,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         // Step 5: Apply attention to values and reshape
         // Assuming probAttn has shape [1, 8, 256, 255] and we want to multiply it by v
         // First, ensure v is prepared with the correct shape. It should be compatible for matMul operation
-        // Let's say v needs to be [1, 8, 255, units/numHeads] for the multiplication to be valid
+        // Let's say v needs to be [1, 8, 255, units/heads] for the multiplication to be valid
 
         // Assuming the reshaping and preparation of v has been correctly done before this step:
         let y = tf.matMul(probAttn, v) // Now, this should work as expected, given v is correctly shaped
@@ -768,7 +768,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         return {
             ...super.getConfig(),
             units: this.units,
-            numHeads: this.numHeads,
+            heads: this.heads,
             blockSize: this.blockSize,
             attnDropoutRate: this.attnDropoutRate,
             residDropoutRate: this.residDropoutRate
