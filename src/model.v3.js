@@ -94,22 +94,20 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
 
 async function generateText(prompt, temperature, maxNewTokens) {
     let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
-    // Adjust this part of your generateText function
-    for (let step = 0; step < maxNewTokens; step++) {
-        const idxNext = generateOnce.call(this, inputs, temperature)
-        // Ensure idxNext has a shape of [1, 1] to match the rank of inputs
-        const idxNextExpanded = idxNext.expandDims(1) // Adjusting idxNext shape for concatenation
-        const idxNew = this.tf.concat([inputs, idxNextExpanded], 1) // Adjusting the axis to 1 for correct concatenation
-        this.tf.dispose(inputs)
-        inputs = idxNew
-        this.tf.dispose(idxNext)
-    }
-
+    this.tf.tidy(() => {
+        for (let step = 0; step < maxNewTokens; step++) {
+            const idxNext = generateOnce.call(this, inputs, temperature)
+            // Ensure idxNext has a shape of [1, 1] to match the rank of inputs
+            const idxNextExpanded = idxNext.expandDims(1) // Adjusting idxNext shape for concatenation
+            const idxNew = this.tf.concat([inputs, idxNextExpanded], 1) // Adjusting the axis to 1 for correct concatenation
+            this.tf.dispose([inputs, idxNext])
+            inputs = this.tf.keep(idxNew)
+        }
+    })
     const idxArr = await inputs.array()
     this.tf.dispose(inputs)
     return this.tokenizer.decode(idxArr[0])
 }
-
 function generateOnce(idx, temperature) {
     let idxNext
     this.tf.tidy(() => {
