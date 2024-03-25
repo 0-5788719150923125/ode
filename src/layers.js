@@ -121,6 +121,8 @@ class CausalSelfAttention extends tf.layers.Layer {
             }
             this.invokeCallHook(inputs, kwargs)
 
+            let outputs = this.layerNorm.apply(inputs)
+
             // Direct application of matMul to x and kernel throws:
             // > Error in gradient for op BatchMatMul.
             // > The gradient of input 'b' has shape '16,48,48',
@@ -145,7 +147,7 @@ class CausalSelfAttention extends tf.layers.Layer {
                 }
             }
 
-            const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
+            const cAttn = dense(outputs, this.cAttnKernel, this.cAttnBias)
 
             // Make order of qkv split to follow minGPT
             let [q, k, v] = tf.split(cAttn, 3, -1)
@@ -175,7 +177,7 @@ class CausalSelfAttention extends tf.layers.Layer {
             att = tf.softmax(att, -1)
             att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
 
-            let outputs = tf.matMul(att, v)
+            outputs = tf.matMul(att, v)
 
             outputs = tf.transpose(outputs, [0, 2, 1, 3])
             outputs = tf.reshape(outputs, [B, T, C])
@@ -184,9 +186,7 @@ class CausalSelfAttention extends tf.layers.Layer {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
 
-            outputs = tf.layers.add().apply([inputs, outputs])
-
-            return this.layerNorm.apply(outputs)
+            return tf.layers.add().apply([inputs, outputs])
         })
     }
 
@@ -409,8 +409,10 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
+            // Apply layer norm
+            let outputs = this.layernorm.apply(inputs)
             // Expand and contract projection via feedfoward layers
-            let outputs = this.in_proj.apply(inputs)
+            outputs = this.in_proj.apply(outputs)
             if (this.customActivation) {
                 outputs = this.customActivation.apply(outputs)
             }
@@ -420,9 +422,7 @@ class MultiLayerPerceptron extends tf.layers.Layer {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
             // Apply skip connection
-            outputs = this.residual.apply([inputs, outputs])
-            // Apply layer norm
-            return this.layernorm.apply(outputs)
+            return this.residual.apply([inputs, outputs])
         })
     }
 
