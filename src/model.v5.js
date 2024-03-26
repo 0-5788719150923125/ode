@@ -11,7 +11,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.heads = 8
         this.units = 256
         this.innerDim = this.units * 4
-        this.dropout = 0
         this.epsilon = 1e-5
     }
 
@@ -38,12 +37,21 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
+            // outputs = this.ode.layers
+            //     .CausalSelfAttention({
+            //         blockSize: this.config.contextLength,
+            //         units: this.units,
+            //         heads: this.heads,
+            //         bias: false,
+            //         epsilon: this.epsilon
+            //     })
+            //     .apply(outputs)
+
             outputs = this.ode.layers
-                .CausalSelfAttention({
+                .SynthesizerAttention({
                     blockSize: this.config.contextLength,
                     units: this.units,
                     heads: this.heads,
-                    dropout: this.dropout,
                     bias: false,
                     epsilon: this.epsilon
                 })
@@ -54,18 +62,11 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                     units: this.units,
                     innerDim: this.innerDim,
                     heads: this.heads,
-                    dropout: this.dropout,
                     epsilon: this.epsilon,
                     activation: 'swish'
                 })
                 .apply(outputs)
         }
-
-        // outputs = this.tf.layers
-        //     .layerNormalization({
-        //         epsilon: this.epsilon
-        //     })
-        //     .apply(outputs)
 
         outputs = this.tf.layers
             .dense({

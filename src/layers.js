@@ -121,8 +121,6 @@ class CausalSelfAttention extends tf.layers.Layer {
             }
             this.invokeCallHook(inputs, kwargs)
 
-            let outputs = this.layerNorm.apply(inputs)
-
             // Direct application of matMul to x and kernel throws:
             // > Error in gradient for op BatchMatMul.
             // > The gradient of input 'b' has shape '16,48,48',
@@ -147,7 +145,7 @@ class CausalSelfAttention extends tf.layers.Layer {
                 }
             }
 
-            const cAttn = dense(outputs, this.cAttnKernel, this.cAttnBias)
+            const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
 
             // Make order of qkv split to follow minGPT
             let [q, k, v] = tf.split(cAttn, 3, -1)
@@ -177,7 +175,7 @@ class CausalSelfAttention extends tf.layers.Layer {
             att = tf.softmax(att, -1)
             att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
 
-            outputs = tf.matMul(att, v)
+            let outputs = tf.matMul(att, v)
 
             outputs = tf.transpose(outputs, [0, 2, 1, 3])
             outputs = tf.reshape(outputs, [B, T, C])
@@ -186,7 +184,8 @@ class CausalSelfAttention extends tf.layers.Layer {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
 
-            return tf.layers.add().apply([inputs, outputs])
+            outputs = tf.layers.add().apply([inputs, outputs])
+            return this.layerNorm.apply(outputs)
         })
     }
 
@@ -410,10 +409,8 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
-            // Apply layer norm
-            let outputs = this.layernorm.apply(inputs)
             // Expand and contract projection via feedfoward layers
-            outputs = this.in_proj.apply(outputs)
+            let outputs = this.in_proj.apply(inputs)
             if (this.customActivation) {
                 outputs = this.customActivation.apply(outputs)
             }
@@ -423,7 +420,9 @@ class MultiLayerPerceptron extends tf.layers.Layer {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
             // Apply skip connection
-            return this.residual.apply([inputs, outputs])
+            outputs = this.residual.apply([inputs, outputs])
+            // Apply layer norm
+            return this.layernorm.apply(outputs)
         })
     }
 
@@ -680,83 +679,92 @@ class LambdaLayer extends tf.layers.Layer {
 class SynthesizerAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.units = config.units // Embedding size (n_embd)
-        this.heads = config.heads // Number of attention heads (n_head)
-        this.blockSize = config.blockSize // Sequence length (block_size)
-        this.attnDropoutRate = config.dropout // Attention dropout rate (attn_pdrop)
-        this.residDropoutRate = config.dropout // Residual dropout rate (resid_pdrop)
-        this.d_k = this.units / this.heads // Dimensionality of each head
+        this.supportsMasking = true
+        this.units = config.units
+        this.heads = config.heads
+        this.blockSize = config.blockSize
+        this.attnPdrop = config.dropout || 0
+        this.residPdrop = config.dropout || 0
 
-        // Initialize layers and variables
+        if (this.units % this.heads !== 0) {
+            throw new Error(
+                'Embedding dimension must be divisible by number of heads.'
+            )
+        }
+
         this.w1 = tf.layers.dense({
             units: this.units,
             activation: 'relu',
             useBias: true
         })
-        this.w2 = null // Initialized in build to use dynamic shapes
-        this.b2 = null // Initialized in build
-        this.value = tf.layers.dense({ units: this.units, useBias: false })
-        this.proj = tf.layers.dense({ units: this.units })
-        this.attnDrop = tf.layers.dropout({ rate: this.attnDropoutRate })
-        this.residDrop = tf.layers.dropout({ rate: this.residDropoutRate })
+        this.w2 = tf.variable(
+            tf.randomUniform(
+                [this.units / this.heads, this.blockSize - 1],
+                -0.001,
+                0.001
+            )
+        )
+        this.b2 = tf.variable(tf.zeros([this.blockSize - 1]))
+
+        this.value = tf.layers.dense({ units: this.units, useBias: true })
+        this.proj = tf.layers.dense({ units: this.units, useBias: true })
+
+        this.attnDrop = tf.layers.dropout({ rate: this.attnPdrop })
+        this.residDrop = tf.layers.dropout({ rate: this.residPdrop })
+
+        // Creating a causal mask similar to PyTorch's 'register_buffer'
+        this.mask = tf.cast(
+            tf.linalg.bandPart(
+                tf.ones([this.blockSize, this.blockSize]),
+                -1,
+                0
+            ),
+            'bool'
+        )
     }
 
-    build(inputShape) {
-        // Dynamic weight initialization
-        this.w2 = this.addWeight(
-            'w2',
-            [this.d_k, this.blockSize - 1],
-            'float32',
-            tf.initializers.randomUniform({ minVal: -0.001, maxVal: 0.001 })
-        )
-        this.b2 = this.addWeight(
-            'b2',
-            [this.blockSize - 1],
-            'float32',
-            tf.initializers.zeros()
-        )
-        super.build(inputShape) // Call the super method at the end
-    }
-
-    call(inputs, { training = false } = {}) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs // Handle both single inputs and arrays
-
+    call(inputs, training = false) {
         const x = inputs
-        const [B, T, _] = x.shape
+        const B = x.shape[0]
+        const T = x.shape[1]
+        const C = this.units
+        const dK = C / this.heads
 
-        // Step 1: Apply w1 with ReLU activation and prepare for multi-head attention
-        let reluOut = this.w1
-            .apply(x)
-            .reshape([B, T, this.heads, this.d_k])
-            .transpose([0, 2, 1, 3])
+        const reluOut = tf.tidy(() => {
+            const w1Out = this.w1.apply(x)
+            return tf
+                .reshape(w1Out, [B, T, this.heads, dK])
+                .transpose([0, 2, 1, 3])
+        })
 
-        // Step 2: Value projection
-        let v = this.value
-            .apply(x)
-            .reshape([B, T, this.heads, this.d_k])
-            .transpose([0, 2, 1, 3])
+        const v = tf.tidy(() => {
+            const valueOut = this.value.apply(x)
+            return tf
+                .reshape(valueOut, [B, T, this.heads, dK])
+                .transpose([0, 2, 1, 3])
+        })
 
-        // Step 3: Compute scores with synthesizer mechanism
-        let scores = tf.matMul(reluOut, this.w2.read()).add(this.b2.read())
+        let scores = tf.tidy(() => {
+            return tf.add(tf.matMul(reluOut, this.w2), this.b2)
+        })
 
-        // Apply causal mask (if necessary, based on your application's needs)
-        // Note: Skipping mask application in this code for simplicity as it's not detailed in your request
+        // Apply causal mask
+        scores = tf.tidy(() => {
+            return tf.where(
+                this.mask.slice([0, 0], [T, T]),
+                scores,
+                tf.fill([B, this.heads, T, T], -1e10)
+            )
+        })
 
-        // Step 4: Apply softmax to scores
         let probAttn = tf.softmax(scores, -1)
+        if (training) {
+            probAttn = this.attnDrop.apply(probAttn)
+        }
 
-        // Step 5: Apply attention to values and reshape
-        // Assuming probAttn has shape [1, 8, 256, 255] and we want to multiply it by v
-        // First, ensure v is prepared with the correct shape. It should be compatible for matMul operation
-        // Let's say v needs to be [1, 8, 255, units/heads] for the multiplication to be valid
+        let y = tf.matMul(probAttn, v)
+        y = tf.reshape(y.transpose([0, 2, 1, 3]), [B, T, C])
 
-        // Assuming the reshaping and preparation of v has been correctly done before this step:
-        let y = tf.matMul(probAttn, v) // Now, this should work as expected, given v is correctly shaped
-
-        // After matMul, reshape y to match the expected output dimensions
-        y = y.transpose([0, 2, 1, 3]).reshape([B, T, this.units])
-
-        // Step 6: Apply final projection and dropout (if training)
         y = this.proj.apply(y)
         if (training) {
             y = this.residDrop.apply(y)
@@ -765,19 +773,20 @@ class SynthesizerAttention extends tf.layers.Layer {
         return y
     }
 
+    static get className() {
+        return 'SynthesizerAttention'
+    }
+
     getConfig() {
-        return {
-            ...super.getConfig(),
+        const config = super.getConfig()
+        Object.assign(config, {
             units: this.units,
             heads: this.heads,
             blockSize: this.blockSize,
-            attnDropoutRate: this.attnDropoutRate,
-            residDropoutRate: this.residDropoutRate
-        }
-    }
-
-    static get className() {
-        return 'SynthesizerAttention'
+            attnPdrop: this.attnPdrop,
+            residPdrop: this.residPdrop
+        })
+        return config
     }
 }
 

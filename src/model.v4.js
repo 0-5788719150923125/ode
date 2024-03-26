@@ -31,7 +31,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             })
             .apply(inputs)
 
-        const range = new Range().apply(inputs)
+        const range = this.ode.layers.Range().apply(inputs)
 
         const positionalEmbeddings = this.tf.layers
             .embedding({
@@ -52,6 +52,13 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
                 rate: this.dropout
             })
             .apply(outputs)
+
+        // outputs = this.tf.layers
+        //     .layerNormalization({
+        //         name: 'emb/ln',
+        //         epsilon: this.epsilon
+        //     })
+        //     .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -76,13 +83,6 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
                 })
                 .apply(outputs)
         }
-
-        outputs = this.tf.layers
-            .layerNormalization({
-                name: 'head/ln',
-                epsilon: this.epsilon
-            })
-            .apply(outputs)
 
         outputs = this.tf.layers
             .dense({
