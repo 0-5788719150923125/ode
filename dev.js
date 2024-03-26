@@ -6,10 +6,10 @@ import { trainModel } from './dev-train.js'
             version: 4,
             backend: 'tensorflow',
             batchSize: 2,
-            gradientAccumulationSteps: 16,
+            gradientAccumulationSteps: 2,
             generateEvery: 128,
-            sampleLength: 256,
-            learningRate: 0.0022
+            sampleLength: 256
+            // learningRate: 0.0022
         })
     }
     // using browser
