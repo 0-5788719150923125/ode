@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 
-export function categoricalCrossentropy(target, output, fromLogits = false) {
+function categoricalCrossentropy(target, output, fromLogits = false) {
     return tf.tidy(() => {
         if (fromLogits) {
             output = tf.softmax(output)
@@ -20,11 +20,7 @@ export function categoricalCrossentropy(target, output, fromLogits = false) {
     })
 }
 
-export function sparseCategoricalCrossentropy(
-    target,
-    output,
-    fromLogits = false
-) {
+function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
     return tf.tidy(() => {
         // Ensure the target is a flat array of integers
         const flatTarget = target.flatten().toInt()
@@ -53,7 +49,7 @@ export function sparseCategoricalCrossentropy(
     })
 }
 
-export function categoricalFocalLoss(gamma = 2.0, alpha = 1.0) {
+function categoricalFocalLoss(gamma = 2.0, alpha = 1.0) {
     return function (yTrue, yPred) {
         return tf.tidy(() => {
             // Ensure predictions are probabilities
@@ -86,7 +82,7 @@ export function categoricalFocalLoss(gamma = 2.0, alpha = 1.0) {
     }
 }
 
-export function sparseCategoricalFocalLoss(gamma, fromLogits = false) {
+function sparseCategoricalFocalLoss(gamma, fromLogits = false) {
     return (yTrue, yPred) => {
         return tf.tidy(() => {
             // Ensure yPred is probabilities (not logits) if fromLogits is false
@@ -124,3 +120,15 @@ export function sparseCategoricalFocalLoss(gamma, fromLogits = false) {
         })
     }
 }
+
+const customLosses = {
+    categoricalCrossentropy: (target, output, fromLogits) =>
+        categoricalCrossentropy(target, output, fromLogits),
+    sparseCategoricalCrossentropy: (target, output, fromLogits) =>
+        sparseCategoricalCrossentropy(target, output, fromLogits),
+    categoricalFocalLoss: (gamma, alpha) => categoricalFocalLoss(gamma, alpha),
+    sparseCategoricalFocalLoss: (gamma, fromLogits) =>
+        sparseCategoricalFocalLoss(gamma, fromLogits)
+}
+
+export default customLosses

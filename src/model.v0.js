@@ -13,6 +13,7 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
 import customLayers from './layers.js'
+import customLosses from './losses.js'
 import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
 import customSchedulers from './schedulers.js'
@@ -32,6 +33,7 @@ export default class ModelBase {
         this.isBrowser = isBrowser
         this.ode = {
             layers: customLayers,
+            losses: customLosses,
             optimizers: customOptimizers,
             tokenizers: customTokenizers,
             schedulers: customSchedulers,
