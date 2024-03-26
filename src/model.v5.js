@@ -69,12 +69,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         }
 
         outputs = this.tf.layers
-            .layerNormalization({
-                epsilon: this.epsilon
-            })
-            .apply(outputs)
-
-        outputs = this.tf.layers
             .dense({
                 units: this.tokenizer.getLength(),
                 activation: 'linear'

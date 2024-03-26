@@ -54,146 +54,6 @@ class Range extends tf.layers.Layer {
     }
 }
 
-// class CausalSelfAttention extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.config = Object.assign({ name: 'attn' }, config)
-
-//         // Config
-//         this.blockSize = config.blockSize || 256
-//         this.units = config.units || 256
-//         this.heads = config.heads || 4
-//         this.dropout = config.dropout || 0
-//         this.bias = config.bias || false
-//         this.epsilon = config.epsilon || 1e-5
-//         // Causal mask
-//         this.mask = tf.linalg.bandPart(
-//             tf.ones([config.blockSize, config.blockSize]),
-//             -1,
-//             0
-//         )
-//     }
-
-//     build(inputShape) {
-//         this.cAttnKernel = this.addWeight(
-//             'c_attn/kernel',
-//             [this.units, 3 * this.units],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.cAttnBias = this.addWeight(
-//             'c_attn/bias',
-//             [3 * this.units],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//         this.cProjKernel = this.addWeight(
-//             'c_proj/kernel',
-//             [this.units, this.units],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.cProjBias = this.addWeight(
-//             'c_proj/bias',
-//             [this.units],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//         this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     getConfig() {
-//         // This is needed to save and load the model
-//         // When the model is saved, the config is saved with it
-//         // When the model is loaded, the config is used to create a new instance of the layer
-//         const config = super.getConfig()
-//         return Object.assign({}, config, this.config)
-//     }
-
-//     call(inputs, kwargs, training) {
-//         return tf.tidy(() => {
-//             if (Array.isArray(inputs)) {
-//                 inputs = inputs[0]
-//             }
-//             this.invokeCallHook(inputs, kwargs)
-
-//             // Direct application of matMul to x and kernel throws:
-//             // > Error in gradient for op BatchMatMul.
-//             // > The gradient of input 'b' has shape '16,48,48',
-//             // > which does not match the shape of the input '48,48'
-//             // Two solutions worked:
-//             // 1. Use tf.layers.dense but reassign kernel and bias
-//             // 2. Use tf.matMul but expandDims and tile kernel (current)
-//             // Another option, of course, is to separate attention logic
-//             // from trainable weights completely and use tf.layers.dense
-//             // inside a model definition. I was not able to define fully
-//             // function regular dense layers inside a custom layer.
-//             // Something related to how weights are loaded with this.kernel
-//             // and duplicating names
-
-//             const dense = (x, kernel, bias) => {
-//                 const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-//                 const m = tf.matMul(x, k)
-//                 if (this.bias) {
-//                     return tf.add(m, bias.read())
-//                 } else {
-//                     return m
-//                 }
-//             }
-
-//             const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
-
-//             // Make order of qkv split to follow minGPT
-//             let [q, k, v] = tf.split(cAttn, 3, -1)
-//             const [B, T, C] = k.shape
-
-//             const splitHeads = (x) =>
-//                 tf.transpose(
-//                     tf.reshape(x, [B, T, this.heads, C / this.heads]),
-//                     [0, 2, 1, 3]
-//                 )
-
-//             q = splitHeads(q)
-//             k = splitHeads(k)
-//             v = splitHeads(v)
-
-//             // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-//             let att = tf.mul(
-//                 tf.matMul(q, k, false, true),
-//                 tf.div(
-//                     1,
-//                     tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
-//                 )
-//             )
-
-//             const mask = this.mask.slice([0, 0], [T, T])
-//             att = tf.add(att, tf.mul(tf.sub(1, mask), -1e9))
-//             att = tf.softmax(att, -1)
-//             att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
-
-//             let outputs = tf.matMul(att, v)
-
-//             outputs = tf.transpose(outputs, [0, 2, 1, 3])
-//             outputs = tf.reshape(outputs, [B, T, C])
-//             outputs = dense(outputs, this.cProjKernel, this.cProjBias)
-//             outputs = kwargs['training']
-//                 ? tf.dropout(outputs, this.dropout)
-//                 : outputs
-
-//             outputs = tf.layers.add().apply([inputs, outputs])
-//             return this.layerNorm.apply(outputs)
-//         })
-//     }
-
-//     static get className() {
-//         return 'CausalSelfAttention'
-//     }
-// }
-
 class CausalSelfAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -261,8 +121,6 @@ class CausalSelfAttention extends tf.layers.Layer {
             }
             this.invokeCallHook(inputs, kwargs)
 
-            let outputs = this.layerNorm.apply(inputs)
-
             // Direct application of matMul to x and kernel throws:
             // > Error in gradient for op BatchMatMul.
             // > The gradient of input 'b' has shape '16,48,48',
@@ -287,7 +145,7 @@ class CausalSelfAttention extends tf.layers.Layer {
                 }
             }
 
-            const cAttn = dense(outputs, this.cAttnKernel, this.cAttnBias)
+            const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
 
             // Make order of qkv split to follow minGPT
             let [q, k, v] = tf.split(cAttn, 3, -1)
@@ -317,7 +175,7 @@ class CausalSelfAttention extends tf.layers.Layer {
             att = tf.softmax(att, -1)
             att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
 
-            outputs = tf.matMul(att, v)
+            let outputs = tf.matMul(att, v)
 
             outputs = tf.transpose(outputs, [0, 2, 1, 3])
             outputs = tf.reshape(outputs, [B, T, C])
@@ -326,6 +184,7 @@ class CausalSelfAttention extends tf.layers.Layer {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
 
+            outputs = this.layerNorm.apply(outputs)
             return tf.layers.add().apply([inputs, outputs])
         })
     }
@@ -497,93 +356,6 @@ class MultiHeadAttention extends tf.layers.Layer {
     }
 }
 
-// class MultiLayerPerceptron extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.units = config?.units || 256
-//         this.innerDim = config?.innerDim || 1024
-//         this.dropout = config?.dropout || 0
-//         this.epsilon = config.epsilon || 1e-5
-//         if (config?.activation === 'gelu') {
-//             this.customActivation = new GELU()
-//             this.activation = 'linear'
-//         } else {
-//             this.activation = config?.activation || 'relu'
-//         }
-//         this.supportsMasking = true
-//     }
-
-//     build(inputShape) {
-//         // Initialize dense layers for projection
-//         this.in_proj = tf.layers.dense({
-//             units: this.innerDim,
-//             inputDim: this.units,
-//             activation: this.activation
-//         })
-//         this.out_proj = tf.layers.dense({
-//             units: this.units,
-//             inputDim: this.innerDim
-//         })
-
-//         // Manually call build on dense layers to initialize weights
-//         this.in_proj.build(inputShape)
-//         this.out_proj.build([inputShape[1], this.innerDim])
-
-//         // Residual connections/skip connections are critical here
-//         this.residual = new ResidualConnection()
-
-//         // Initialize layer normalization
-//         this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
-//         this.layernorm.build(inputShape)
-
-//         // Collect all trainable weights from internal layers
-//         this._trainableWeights = [
-//             ...this.in_proj.trainableWeights,
-//             ...this.out_proj.trainableWeights,
-//             ...this.layernorm.trainableWeights
-//         ]
-
-//         super.build(inputShape)
-//     }
-
-//     call(inputs, kwargs, training = false) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//             this.invokeCallHook(inputs, kwargs)
-//             // Expand and contract projection via feedfoward layers
-//             let outputs = this.in_proj.apply(inputs)
-//             if (this.customActivation) {
-//                 outputs = this.customActivation.apply(outputs)
-//             }
-//             outputs = this.out_proj.apply(outputs)
-//             // If training, apply residual dropout
-//             outputs = kwargs['training']
-//                 ? tf.dropout(outputs, this.dropout)
-//                 : outputs
-//             // Apply skip connection
-//             outputs = this.residual.apply([inputs, outputs])
-//             // Apply layer norm
-//             return this.layernorm.apply(outputs)
-//         })
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     getConfig() {
-//         return {
-//             units: this.units,
-//             innerDim: this.innerDim,
-//             dropout: this.dropout
-//         }
-//     }
-
-//     static get className() {
-//         return 'MultiLayerPerceptron'
-//     }
-// }
-
 class MultiLayerPerceptron extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -637,10 +409,8 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
-            // Apply layer norm
-            let outputs = this.layernorm.apply(inputs)
             // Expand and contract projection via feedfoward layers
-            outputs = this.in_proj.apply(outputs)
+            let outputs = this.in_proj.apply(inputs)
             if (this.customActivation) {
                 outputs = this.customActivation.apply(outputs)
             }
@@ -649,6 +419,8 @@ class MultiLayerPerceptron extends tf.layers.Layer {
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
+            // Apply layer norm
+            outputs = this.layernorm.apply(outputs)
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
@@ -908,116 +680,209 @@ class SynthesizerAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.supportsMasking = true
-        this.units = config.units
-        this.heads = config.heads
+        this.nEmb = config.nEmb
+        this.nHead = config.nHead
         this.blockSize = config.blockSize
-        this.attnPdrop = config.dropout || 0
-        this.residPdrop = config.dropout || 0
+        this.attnPDrop = config.attnPDrop
+        this.residPDrop = config.residPDrop
 
-        if (this.units % this.heads !== 0) {
+        if (this.nEmb % this.nHead !== 0) {
             throw new Error(
-                'Embedding dimension must be divisible by number of heads.'
+                'Embedding size must be divisible by number of heads.'
             )
         }
 
         this.w1 = tf.layers.dense({
-            units: this.units,
+            units: this.nEmb,
             activation: 'relu',
             useBias: true
         })
         this.w2 = tf.variable(
             tf.randomUniform(
-                [this.units / this.heads, this.blockSize - 1],
+                [this.nEmb / this.nHead, this.blockSize - 1],
                 -0.001,
                 0.001
             )
         )
         this.b2 = tf.variable(tf.zeros([this.blockSize - 1]))
 
-        this.value = tf.layers.dense({ units: this.units, useBias: true })
-        this.proj = tf.layers.dense({ units: this.units, useBias: true })
+        this.value = tf.layers.dense({ units: this.nEmb })
+        this.proj = tf.layers.dense({ units: this.nEmb })
+        this.attnDrop = tf.layers.dropout({ rate: this.attnPDrop })
+        this.residDrop = tf.layers.dropout({ rate: this.residPDrop })
 
-        this.attnDrop = tf.layers.dropout({ rate: this.attnPdrop })
-        this.residDrop = tf.layers.dropout({ rate: this.residPdrop })
-
-        // Creating a causal mask similar to PyTorch's 'register_buffer'
-        this.mask = tf.cast(
-            tf.linalg.bandPart(
-                tf.ones([this.blockSize, this.blockSize]),
-                -1,
-                0
-            ),
-            'bool'
-        )
+        // Masking is handled differently in TensorFlow.js and might need adjustment based on your sequence handling.
     }
 
-    call(inputs, training = false) {
+    call(inputs) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         const x = inputs
-        const B = x.shape[0]
-        const T = x.shape[1]
-        const C = this.units
-        const dK = C / this.heads
+        const batchSize = x.shape[0]
+        const seqLen = x.shape[1]
+        const dK = this.nEmb / this.nHead
 
-        const reluOut = tf.tidy(() => {
-            const w1Out = this.w1.apply(x)
-            return tf
-                .reshape(w1Out, [B, T, this.heads, dK])
-                .transpose([0, 2, 1, 3])
-        })
+        // Compute ReLU activation
+        const reluOut = this.w1
+            .apply(x)
+            .reshape([batchSize, seqLen, this.nHead, dK])
+            .transpose([0, 2, 1, 3])
 
-        const v = tf.tidy(() => {
-            const valueOut = this.value.apply(x)
-            return tf
-                .reshape(valueOut, [B, T, this.heads, dK])
-                .transpose([0, 2, 1, 3])
-        })
+        const v = this.value
+            .apply(x)
+            .reshape([batchSize, seqLen, this.nHead, dK])
+            .transpose([0, 2, 1, 3])
 
-        let scores = tf.tidy(() => {
-            return tf.add(tf.matMul(reluOut, this.w2), this.b2)
-        })
+        // Apply w2 and add bias
+        let scores = tf.matMul(reluOut, this.w2).add(this.b2)
 
-        // Apply causal mask
-        scores = tf.tidy(() => {
-            return tf.where(
-                this.mask.slice([0, 0], [T, T]),
-                scores,
-                tf.fill([B, this.heads, T, T], -1e10)
-            )
-        })
+        // Attention mask logic needs to be adapted based on how you handle masks in TensorFlow.js.
+        // Apply softmax and dropout on scores
+        let probAttn = scores.softmax().mul(this.attnDrop.apply(scores))
 
-        let probAttn = tf.softmax(scores, -1)
-        if (training) {
-            probAttn = this.attnDrop.apply(probAttn)
-        }
-
-        let y = tf.matMul(probAttn, v)
-        y = tf.reshape(y.transpose([0, 2, 1, 3]), [B, T, C])
-
-        y = this.proj.apply(y)
-        if (training) {
-            y = this.residDrop.apply(y)
-        }
+        let y = tf
+            .matMul(probAttn, v)
+            .transpose([0, 2, 1, 3])
+            .reshape([batchSize, seqLen, this.nEmb])
+        y = this.residDrop.apply(this.proj.apply(y))
 
         return y
     }
 
-    static get className() {
-        return 'SynthesizerAttention'
+    computeOutputShape(inputShape) {
+        return inputShape
     }
 
     getConfig() {
         const config = super.getConfig()
         Object.assign(config, {
-            units: this.units,
-            heads: this.heads,
+            nEmb: this.nEmb,
+            nHead: this.nHead,
             blockSize: this.blockSize,
-            attnPdrop: this.attnPdrop,
-            residPdrop: this.residPdrop
+            attnPDrop: this.attnPDrop,
+            residPDrop: this.residPDrop
         })
         return config
     }
+
+    static get className() {
+        return 'SynthesizerAttention'
+    }
 }
+
+// class SynthesizerAttention extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.supportsMasking = true
+//         this.units = config.units
+//         this.heads = config.heads
+//         this.blockSize = config.blockSize
+//         this.attnPdrop = config.dropout || 0
+//         this.residPdrop = config.dropout || 0
+
+//         if (this.units % this.heads !== 0) {
+//             throw new Error(
+//                 'Embedding dimension must be divisible by number of heads.'
+//             )
+//         }
+
+//         this.w1 = tf.layers.dense({
+//             units: this.units,
+//             activation: 'relu',
+//             useBias: true
+//         })
+//         this.w2 = tf.variable(
+//             tf.randomUniform(
+//                 [this.units / this.heads, this.blockSize - 1],
+//                 -0.001,
+//                 0.001
+//             )
+//         )
+//         this.b2 = tf.variable(tf.zeros([this.blockSize - 1]))
+
+//         this.value = tf.layers.dense({ units: this.units, useBias: true })
+//         this.proj = tf.layers.dense({ units: this.units, useBias: true })
+
+//         this.attnDrop = tf.layers.dropout({ rate: this.attnPdrop })
+//         this.residDrop = tf.layers.dropout({ rate: this.residPdrop })
+
+//         // Creating a causal mask similar to PyTorch's 'register_buffer'
+//         this.mask = tf.cast(
+//             tf.linalg.bandPart(
+//                 tf.ones([this.blockSize, this.blockSize]),
+//                 -1,
+//                 0
+//             ),
+//             'bool'
+//         )
+//     }
+
+//     call(inputs, training = false) {
+//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//         const x = inputs
+//         const B = x.shape[0]
+//         const T = x.shape[1]
+//         const C = this.units
+//         const dK = C / this.heads
+
+//         const reluOut = tf.tidy(() => {
+//             const w1Out = this.w1.apply(x)
+//             return tf
+//                 .reshape(w1Out, [B, T, this.heads, dK])
+//                 .transpose([0, 2, 1, 3])
+//         })
+
+//         const v = tf.tidy(() => {
+//             const valueOut = this.value.apply(x)
+//             return tf
+//                 .reshape(valueOut, [B, T, this.heads, dK])
+//                 .transpose([0, 2, 1, 3])
+//         })
+
+//         let scores = tf.tidy(() => {
+//             return tf.add(tf.matMul(reluOut, this.w2), this.b2)
+//         })
+
+//         // Apply causal mask
+//         scores = tf.tidy(() => {
+//             return tf.where(
+//                 this.mask.slice([0, 0], [T, T]),
+//                 scores,
+//                 tf.fill([B, this.heads, T, T], -1e10)
+//             )
+//         })
+
+//         let probAttn = tf.softmax(scores, -1)
+//         if (training) {
+//             probAttn = this.attnDrop.apply(probAttn)
+//         }
+
+//         let y = tf.matMul(probAttn, v)
+//         y = tf.reshape(y.transpose([0, 2, 1, 3]), [B, T, C])
+
+//         y = this.proj.apply(y)
+//         if (training) {
+//             y = this.residDrop.apply(y)
+//         }
+
+//         return y
+//     }
+
+//     static get className() {
+//         return 'SynthesizerAttention'
+//     }
+
+//     getConfig() {
+//         const config = super.getConfig()
+//         Object.assign(config, {
+//             units: this.units,
+//             heads: this.heads,
+//             blockSize: this.blockSize,
+//             attnPdrop: this.attnPdrop,
+//             residPdrop: this.residPdrop
+//         })
+//         return config
+//     }
+// }
 
 // class SynthesizerAttention extends tf.layers.Layer {
 //     constructor(config) {
@@ -1111,7 +976,66 @@ class SynthesizerAttention extends tf.layers.Layer {
 //     return mask.toTensor()
 // }
 
+class Antirectifier extends tf.layers.Layer {
+    constructor() {
+        super({})
+        // TODO(bileschi): Can we point to documentation on masking here?
+        this.supportsMasking = true
+    }
+
+    /**
+     * This layer only works on 4D Tensors [batch, height, width, channels],
+     * and produces output with twice as many channels.
+     *
+     * layer.computeOutputShapes must be overridden in the case that the output
+     * shape is not the same as the input shape.
+     * @param {*} inputShapes
+     */
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], inputShape[2], 2 * inputShape[3]]
+    }
+
+    /**
+     * Centers the input and applies the following function to every element of
+     * the input.
+     *
+     *     x => [max(x, 0), max(-x, 0)]
+     *
+     * The theory being that there may be signal in the both negative and positive
+     * portions of the input.  Note that this will double the number of channels.
+     * @param inputs Tensor to be treated.
+     * @param kwargs Only used as a pass through to call hooks.  Unused in this
+     *   example code.
+     */
+    call(inputs, kwargs) {
+        let input = inputs
+        if (Array.isArray(input)) {
+            input = input[0]
+        }
+        this.invokeCallHook(inputs, kwargs)
+        const origShape = input.shape
+        const flatShape = [
+            origShape[0],
+            origShape[1] * origShape[2] * origShape[3]
+        ]
+        const flattened = input.reshape(flatShape)
+        const centered = tf.sub(flattened, flattened.mean(1).expandDims(1))
+        const pos = centered.relu().reshape(origShape)
+        const neg = centered.neg().relu().reshape(origShape)
+        return tf.concat([pos, neg], 3)
+    }
+
+    /**
+     * If a custom layer class is to support serialization, it must implement
+     * the `className` static getter.
+     */
+    static get className() {
+        return 'Antirectifier'
+    }
+}
+
 const exportedLayers = [
+    Antirectifier,
     CausalSelfAttention,
     DebugLayer,
     GatedLinearUnit,
