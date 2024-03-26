@@ -53,12 +53,12 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
             })
             .apply(outputs)
 
-        // outputs = this.tf.layers
-        //     .layerNormalization({
-        //         name: 'emb/ln',
-        //         epsilon: this.epsilon
-        //     })
-        //     .apply(outputs)
+        outputs = this.tf.layers
+            .layerNormalization({
+                name: 'emb/ln',
+                epsilon: this.epsilon
+            })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

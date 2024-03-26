@@ -194,6 +194,147 @@ class CausalSelfAttention extends tf.layers.Layer {
     }
 }
 
+// class CausalSelfAttention extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.config = Object.assign({ name: 'attn' }, config)
+
+//         // Config
+//         this.blockSize = config.blockSize || 256
+//         this.units = config.units || 256
+//         this.heads = config.heads || 4
+//         this.dropout = config.dropout || 0
+//         this.bias = config.bias || false
+//         this.epsilon = config.epsilon || 1e-5
+//         // Causal mask
+//         this.mask = tf.linalg.bandPart(
+//             tf.ones([config.blockSize, config.blockSize]),
+//             -1,
+//             0
+//         )
+//     }
+
+//     build(inputShape) {
+//         this.cAttnKernel = this.addWeight(
+//             'c_attn/kernel',
+//             [this.units, 3 * this.units],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.cAttnBias = this.addWeight(
+//             'c_attn/bias',
+//             [3 * this.units],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.cProjKernel = this.addWeight(
+//             'c_proj/kernel',
+//             [this.units, this.units],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.cProjBias = this.addWeight(
+//             'c_proj/bias',
+//             [this.units],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getConfig() {
+//         // This is needed to save and load the model
+//         // When the model is saved, the config is saved with it
+//         // When the model is loaded, the config is used to create a new instance of the layer
+//         const config = super.getConfig()
+//         return Object.assign({}, config, this.config)
+//     }
+
+//     call(inputs, kwargs, training) {
+//         return tf.tidy(() => {
+//             if (Array.isArray(inputs)) {
+//                 inputs = inputs[0]
+//             }
+//             this.invokeCallHook(inputs, kwargs)
+
+//             let outputs = this.layerNorm.apply(inputs)
+
+//             // Direct application of matMul to x and kernel throws:
+//             // > Error in gradient for op BatchMatMul.
+//             // > The gradient of input 'b' has shape '16,48,48',
+//             // > which does not match the shape of the input '48,48'
+//             // Two solutions worked:
+//             // 1. Use tf.layers.dense but reassign kernel and bias
+//             // 2. Use tf.matMul but expandDims and tile kernel (current)
+//             // Another option, of course, is to separate attention logic
+//             // from trainable weights completely and use tf.layers.dense
+//             // inside a model definition. I was not able to define fully
+//             // function regular dense layers inside a custom layer.
+//             // Something related to how weights are loaded with this.kernel
+//             // and duplicating names
+
+//             const dense = (x, kernel, bias) => {
+//                 const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+//                 const m = tf.matMul(x, k)
+//                 if (this.bias) {
+//                     return tf.add(m, bias.read())
+//                 } else {
+//                     return m
+//                 }
+//             }
+
+//             const cAttn = dense(outputs, this.cAttnKernel, this.cAttnBias)
+
+//             // Make order of qkv split to follow minGPT
+//             let [q, k, v] = tf.split(cAttn, 3, -1)
+//             const [B, T, C] = k.shape
+
+//             const splitHeads = (x) =>
+//                 tf.transpose(
+//                     tf.reshape(x, [B, T, this.heads, C / this.heads]),
+//                     [0, 2, 1, 3]
+//                 )
+
+//             q = splitHeads(q)
+//             k = splitHeads(k)
+//             v = splitHeads(v)
+
+//             // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+//             let att = tf.mul(
+//                 tf.matMul(q, k, false, true),
+//                 tf.div(
+//                     1,
+//                     tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
+//                 )
+//             )
+
+//             const mask = this.mask.slice([0, 0], [T, T])
+//             att = tf.add(att, tf.mul(tf.sub(1, mask), -1e9))
+//             att = tf.softmax(att, -1)
+//             att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
+
+//             outputs = tf.matMul(att, v)
+
+//             outputs = tf.transpose(outputs, [0, 2, 1, 3])
+//             outputs = tf.reshape(outputs, [B, T, C])
+//             outputs = dense(outputs, this.cProjKernel, this.cProjBias)
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
+
+//             return tf.layers.add().apply([inputs, outputs])
+//         })
+//     }
+
+//     static get className() {
+//         return 'CausalSelfAttention'
+//     }
+// }
+
 class SinusoidalPositionalEncoding extends tf.layers.Layer {
     constructor({ units, reverse = false }) {
         super()
@@ -442,6 +583,93 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         return 'MultiLayerPerceptron'
     }
 }
+
+// class MultiLayerPerceptron extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.units = config?.units || 256
+//         this.innerDim = config?.innerDim || 1024
+//         this.dropout = config?.dropout || 0
+//         this.epsilon = config.epsilon || 1e-5
+//         if (config?.activation === 'gelu') {
+//             this.customActivation = new GELU()
+//             this.activation = 'linear'
+//         } else {
+//             this.activation = config?.activation || 'relu'
+//         }
+//         this.supportsMasking = true
+//     }
+
+//     build(inputShape) {
+//         // Initialize dense layers for projection
+//         this.in_proj = tf.layers.dense({
+//             units: this.innerDim,
+//             inputDim: this.units,
+//             activation: this.activation
+//         })
+//         this.out_proj = tf.layers.dense({
+//             units: this.units,
+//             inputDim: this.innerDim
+//         })
+
+//         // Manually call build on dense layers to initialize weights
+//         this.in_proj.build(inputShape)
+//         this.out_proj.build([inputShape[1], this.innerDim])
+
+//         // Residual connections/skip connections are critical here
+//         this.residual = new ResidualConnection()
+
+//         // Initialize layer normalization
+//         this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+//         this.layernorm.build(inputShape)
+
+//         // Collect all trainable weights from internal layers
+//         this._trainableWeights = [
+//             ...this.in_proj.trainableWeights,
+//             ...this.out_proj.trainableWeights,
+//             ...this.layernorm.trainableWeights
+//         ]
+
+//         super.build(inputShape)
+//     }
+
+//     call(inputs, kwargs, training = false) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             this.invokeCallHook(inputs, kwargs)
+//             // Apply layer norm
+//             let outputs = this.layernorm.apply(inputs)
+//             // Expand and contract projection via feedfoward layers
+//             outputs = this.in_proj.apply(outputs)
+//             if (this.customActivation) {
+//                 outputs = this.customActivation.apply(outputs)
+//             }
+//             outputs = this.out_proj.apply(outputs)
+//             // If training, apply residual dropout
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
+//             // Apply skip connection
+//             return this.residual.apply([inputs, outputs])
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getConfig() {
+//         return {
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             dropout: this.dropout
+//         }
+//     }
+
+//     static get className() {
+//         return 'MultiLayerPerceptron'
+//     }
+// }
 
 class ResidualConnection extends tf.layers.Layer {
     constructor() {
