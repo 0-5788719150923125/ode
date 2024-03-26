@@ -683,11 +683,14 @@ class SynthesizerAttention extends tf.layers.Layer {
         this.units = config.units
         this.heads = config.heads
         this.blockSize = config.blockSize
-        this.attnPdrop = config.dropout
-        this.residPdrop = config.dropout
+        this.attnPdrop = config.attnPdrop || 0.0
+        this.residPdrop = config.residPdrop || 0.0
         this.activation = config.activation || tf.relu
         this.epsilon = config.epsilon || 1e-5
+        this.depth = this.units / this.heads
+    }
 
+    build(inputShape) {
         this.w1 = tf.variable(tf.randomNormal([this.units, this.units]))
         this.w2 = tf.variable(
             tf.zeros([this.units / this.heads, this.blockSize])
@@ -702,28 +705,33 @@ class SynthesizerAttention extends tf.layers.Layer {
 
         this.residual = new ResidualConnection()
 
+        this.attnDropout = tf.layers.dropout({ rate: this.attnPdrop })
+        this.residDropout = tf.layers.dropout({ rate: this.residPdrop })
+
         const mask = tf.linalg.bandPart(
             tf.ones([this.blockSize, this.blockSize]),
             -1,
             0
         )
         this.mask = tf.expandDims(tf.expandDims(mask, 0), 0)
-
-        this.depth = this.units / this.heads
     }
 
     call(inputs, kwargs) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        const x = inputs
-        const [batchSize, seqLen, embedSize] = x.shape
+        const [batchSize, seqLen, embedSize] = inputs.shape
 
-        const reluOut = this.activation(this.synthesize(x, this.w1))
-        const reluOutReshaped = tf.transpose(
-            tf.reshape(reluOut, [batchSize, seqLen, this.heads, this.depth]),
+        const nonlinearOut = this.activation(this.synthesize(inputs, this.w1))
+        const nonlinearReshaped = tf.transpose(
+            tf.reshape(nonlinearOut, [
+                batchSize,
+                seqLen,
+                this.heads,
+                this.depth
+            ]),
             [0, 2, 1, 3]
         )
 
-        const v = this.synthesize(x, this.value)
+        const v = this.synthesize(inputs, this.value)
         const vReshaped = tf.transpose(
             tf.reshape(v, [batchSize, seqLen, this.heads, this.depth]),
             [0, 2, 1, 3]
@@ -735,7 +743,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         let scores = tf.add(
             tf.reshape(
                 tf.matMul(
-                    tf.reshape(reluOutReshaped, [
+                    tf.reshape(nonlinearReshaped, [
                         batchSize * this.heads,
                         seqLen,
                         this.depth
@@ -757,7 +765,8 @@ class SynthesizerAttention extends tf.layers.Layer {
         )
 
         const probAttn = tf.softmax(scores, -1)
-        const y = tf.matMul(probAttn, vReshaped)
+        const attnOutput = this.attnDropout.apply(probAttn)
+        const y = tf.matMul(attnOutput, vReshaped)
 
         const yTransposed = tf.transpose(y, [0, 2, 1, 3])
         const yReshaped = tf.reshape(yTransposed, [
@@ -768,7 +777,8 @@ class SynthesizerAttention extends tf.layers.Layer {
 
         const output = this.synthesize(yReshaped, this.proj)
 
-        const normalized = this.layernorm.apply(output)
+        const residOutput = this.residDropout.apply(output)
+        const normalized = this.layernorm.apply(residOutput)
 
         return this.residual.apply([inputs, normalized])
     }
@@ -788,8 +798,8 @@ class SynthesizerAttention extends tf.layers.Layer {
             units: this.units,
             heads: this.heads,
             blockSize: this.blockSize,
-            attnPdrop: this.dropout,
-            residPdrop: this.dropout
+            attnPdrop: this.attnPdrop,
+            residPdrop: this.residPdrop
         })
         return config
     }
