@@ -383,7 +383,7 @@ async function predictionSampler(
             const output = await this.generate(prompt, temp, maxLength)
             const endTime = performance.now()
             console.log(
-                `TEMPERATURE: ${temp}, RATE: ${(endTime - startTime) / (maxLength - seedLength)} ms/token`
+                `TEMPERATURE: ${temp}, RATE: ${((endTime - startTime) / (maxLength - seedLength)).toFixed(2)} ms/token`
             )
             console.log(
                 color + prompt + white + output.slice(prompt.length, -1)
