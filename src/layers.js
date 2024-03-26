@@ -675,121 +675,8 @@ class LambdaLayer extends tf.layers.Layer {
     }
 }
 
+// https://arxiv.org/abs/2005.00743
 // https://github.com/iafarhan/causal-synthesizer-multihead-attention/blob/main/synthesizer.py
-// class SynthesizerAttention extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.units = config.units
-//         this.heads = config.heads
-//         this.blockSize = config.blockSize
-//         this.attnPdrop = config.dropout
-//         this.residPdrop = config.dropout
-
-//         this.w1 = tf.variable(tf.randomNormal([this.units, this.units]))
-//         this.w2 = tf.variable(
-//             tf.zeros([this.units / this.heads, this.blockSize])
-//         )
-//         this.b2 = tf.variable(tf.zeros([this.blockSize]))
-//         this.value = tf.variable(tf.randomNormal([this.units, this.units]))
-//         this.proj = tf.variable(tf.randomNormal([this.units, this.units]))
-
-//         const mask = tf.linalg.bandPart(
-//             tf.ones([this.blockSize, this.blockSize]),
-//             -1,
-//             0
-//         )
-//         this.mask = tf.expandDims(tf.expandDims(mask, 0), 0)
-
-//         this.dK = this.units / this.heads
-//     }
-
-//     call(inputs, kwargs) {
-//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//         const x = inputs
-//         const [batchSize, seqLen, embedSize] = x.shape
-
-//         const reluOut = this.dense(x, this.w1)
-//         const reluOutReshaped = tf.transpose(
-//             tf.reshape(reluOut, [batchSize, seqLen, this.heads, this.dK]),
-//             [0, 2, 1, 3]
-//         )
-
-//         const v = this.dense(x, this.value)
-//         const vReshaped = tf.transpose(
-//             tf.reshape(v, [batchSize, seqLen, this.heads, this.dK]),
-//             [0, 2, 1, 3]
-//         )
-
-//         const w2Tiled = this.w2
-//             .expandDims(0)
-//             .tile([batchSize * this.heads, 1, 1])
-//         let scores = tf.add(
-//             tf.reshape(
-//                 tf.matMul(
-//                     tf.reshape(reluOutReshaped, [
-//                         batchSize * this.heads,
-//                         seqLen,
-//                         this.dK
-//                     ]),
-//                     w2Tiled
-//                 ),
-//                 [batchSize, this.heads, seqLen, this.blockSize]
-//             ),
-//             this.b2
-//         )
-//         scores = tf.where(
-//             tf.equal(this.mask.slice([0, 0, 0, 0], [1, 1, seqLen, seqLen]), 0),
-//             tf.fill([batchSize, this.heads, seqLen, seqLen], -1e10),
-//             scores
-//         )
-
-//         const probAttn = tf.softmax(scores, -1)
-//         const y = tf.matMul(
-//             probAttn.slice(
-//                 [0, 0, 0, 0],
-//                 [batchSize, this.heads, seqLen, seqLen]
-//             ),
-//             vReshaped
-//         )
-
-//         const yTransposed = tf.transpose(y, [0, 2, 1, 3])
-//         const yReshaped = tf.reshape(yTransposed, [
-//             batchSize,
-//             seqLen,
-//             embedSize
-//         ])
-
-//         const output = this.dense(yReshaped, this.proj)
-
-//         return output
-//     }
-
-//     dense(x, kernel) {
-//         const k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
-//         return tf.matMul(x, k)
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     static get className() {
-//         return 'SynthesizerAttention'
-//     }
-
-//     getConfig() {
-//         const config = super.getConfig()
-//         Object.assign(config, {
-//             units: this.units,
-//             heads: this.heads,
-//             blockSize: this.blockSize,
-//             attnPdrop: this.dropout,
-//             residPdrop: this.dropout
-//         })
-//         return config
-//     }
-// }
-
 class SynthesizerAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -798,6 +685,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         this.blockSize = config.blockSize
         this.attnPdrop = config.dropout
         this.residPdrop = config.dropout
+        this.activation = config.activation || tf.relu
 
         this.w1 = tf.variable(tf.randomNormal([this.units, this.units]))
         this.w2 = tf.variable(
@@ -814,7 +702,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         )
         this.mask = tf.expandDims(tf.expandDims(mask, 0), 0)
 
-        this.dK = this.units / this.heads
+        this.depth = this.units / this.heads
     }
 
     call(inputs, kwargs) {
@@ -822,15 +710,15 @@ class SynthesizerAttention extends tf.layers.Layer {
         const x = inputs
         const [batchSize, seqLen, embedSize] = x.shape
 
-        const reluOut = this.dense(x, this.w1)
+        const reluOut = this.activation(this.synthesize(x, this.w1))
         const reluOutReshaped = tf.transpose(
-            tf.reshape(reluOut, [batchSize, seqLen, this.heads, this.dK]),
+            tf.reshape(reluOut, [batchSize, seqLen, this.heads, this.depth]),
             [0, 2, 1, 3]
         )
 
-        const v = this.dense(x, this.value)
+        const v = this.synthesize(x, this.value)
         const vReshaped = tf.transpose(
-            tf.reshape(v, [batchSize, seqLen, this.heads, this.dK]),
+            tf.reshape(v, [batchSize, seqLen, this.heads, this.depth]),
             [0, 2, 1, 3]
         )
 
@@ -843,7 +731,7 @@ class SynthesizerAttention extends tf.layers.Layer {
                     tf.reshape(reluOutReshaped, [
                         batchSize * this.heads,
                         seqLen,
-                        this.dK
+                        this.depth
                     ]),
                     w2Tiled
                 ),
@@ -871,12 +759,12 @@ class SynthesizerAttention extends tf.layers.Layer {
             embedSize
         ])
 
-        const output = this.dense(yReshaped, this.proj)
+        const output = this.synthesize(yReshaped, this.proj)
 
         return output
     }
 
-    dense(x, kernel) {
+    synthesize(x, kernel) {
         const k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
         return tf.matMul(x, k)
     }
