@@ -1,11 +1,12 @@
 import { trainModel } from './dev-train.js'
 
 const testArgs = {
-    version: 5,
-    batchSize: 2,
-    gradientAccumulationSteps: 16,
+    version: 4,
+    batchSize: 1,
+    gradientAccumulationSteps: 32,
     generateEvery: 128,
-    sampleLength: 256
+    sampleLength: 512,
+    predictLength: 128
 }
 
 ;(async function () {

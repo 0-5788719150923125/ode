@@ -109,3 +109,51 @@ export function* sequentialStringSampler(sampleLen, str) {
         index++ // Make 1 time step over the str
     }
 }
+
+import fs from 'fs'
+import path from 'path'
+
+export function* directorySampler(
+    sampleLen,
+    overfit = 0,
+    dir = './',
+    delimiter = '\n\n'
+) {
+    let allText = ''
+
+    const readDirSync = (currentPath) => {
+        fs.readdirSync(currentPath, { withFileTypes: true }).forEach(
+            (entry) => {
+                const entryPath = path.join(currentPath, entry.name)
+                if (entry.isDirectory()) {
+                    readDirSync(entryPath)
+                } else {
+                    allText += `${fs.readFileSync(entryPath, 'utf8')}${delimiter}`
+                }
+            }
+        )
+    }
+
+    readDirSync(dir)
+
+    if (overfit > 0) {
+        allText = splitLines(allText, overfit)
+    }
+    while (true) {
+        // Generate a random start index within the string's bounds
+        const startIndex = Math.floor(
+            Math.random() * (allText.length - sampleLen)
+        )
+        // Yield a ${sampleLen} substring
+        yield allText.substring(startIndex, startIndex + sampleLen)
+    }
+}
+
+export const samplers = {
+    stringSampler: (sampleLen, overfit, str) =>
+        stringSampler(sampleLen, overfit, str),
+    sequentialStringSampler: (sampleLen, str) =>
+        sequentialStringSampler(sampleLen, str),
+    directorySampler: (sampleLen, overfit, dir, delimiter) =>
+        directorySampler(sampleLen, overfit, dir, delimiter)
+}

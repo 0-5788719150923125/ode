@@ -14,6 +14,7 @@ import '@tensorflow/tfjs-backend-webgl'
 import customLayers from './layers.js'
 import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
+import { samplers } from './utils.js'
 import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
 
@@ -29,7 +30,8 @@ export default class ModelBase {
         this.ode = {
             layers: customLayers,
             optimizers: customOptimizers,
-            tokenizers: customTokenizers
+            tokenizers: customTokenizers,
+            samplers: samplers
         }
         this.model
         this.config = config
@@ -115,10 +117,6 @@ export default class ModelBase {
     //     const layer = new DebugLayer()
     //     console.log(layer.apply(inputs))
     // }
-
-    sampler(type = 'string') {
-        return stringSampler
-    }
 }
 
 async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {

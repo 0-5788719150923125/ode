@@ -1,4 +1,5 @@
 import ODE from './src/index.js'
+import { directorySampler } from './src/utils.js'
 
 export async function trainModel(args) {
     const trainArgs = {
@@ -13,10 +14,6 @@ export async function trainModel(args) {
 
     const net = await ODE({
         version: 4,
-        // learningRate: 0.001,
-        // decay: 0.9,
-        // momentum: 0.01,
-        // epsilon: 1e-8,
         contextLength: trainArgs.sampleLength,
         clipValue: 1.0,
         ...trainArgs
@@ -26,9 +23,15 @@ export async function trainModel(args) {
     // await net.load()
     await net.tokenizer.writeVocabularyToFile()
 
-    const dataset = net.sampler('string')(
+    // const dataset = net.ode.samplers.stringSampler(
+    //     trainArgs.sampleLength * 5,
+    //     trainArgs?.overfit
+    // )
+    const dataset = net.ode.samplers.directorySampler(
         trainArgs.sampleLength * 5,
-        trainArgs?.overfit
+        trainArgs?.overfit,
+        '/home/crow/Repos/vtx/lab/phi/train',
+        '\n\n\n'
     )
 
     await net.train(dataset, trainArgs)

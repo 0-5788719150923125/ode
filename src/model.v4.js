@@ -1,10 +1,10 @@
-import OmnipotentDiabolicalErudite from './model.v2.js'
+import OriginalDecoderEngine from './model.v3.js'
 
 /**
  * A small transformer with synthetic attention weights and sinusoidal position embeddings.
- * @extends OmnipotentDiabolicalErudite
+ * @extends OriginalDecoderEngine
  */
-export default class OmniscientDeterministicEnsemble extends OmnipotentDiabolicalErudite {
+export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
         this.layers = 4
