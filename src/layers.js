@@ -695,41 +695,41 @@ class SynthesizerAttention extends tf.layers.Layer {
             'w1',
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal(),
-            true,
-            false
+            tf.initializers.glorotNormal()
+            // true
+            // false
         )
         this.w2 = this.addWeight(
             'w2',
             [this.units / this.heads, this.blockSize],
             'float32',
-            tf.initializers.zeros(),
-            true,
-            false
+            tf.initializers.zeros()
+            // true
+            // false
         )
         this.b2 = this.addWeight(
             'b2',
             [this.blockSize],
             'float32',
-            tf.initializers.zeros(),
-            true,
-            false
+            tf.initializers.zeros()
+            // true
+            // false
         )
         this.value = this.addWeight(
             'value',
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal(),
-            true,
-            false
+            tf.initializers.glorotNormal()
+            // true
+            // false
         )
         this.proj = this.addWeight(
             'proj',
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal(),
-            true,
-            false
+            tf.initializers.glorotNormal()
+            // true
+            // false
         )
 
         this.layernorm = tf.layers.layerNormalization({
@@ -847,6 +847,177 @@ class SynthesizerAttention extends tf.layers.Layer {
     }
 }
 
+class TransformerXLAttention extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units
+        this.heads = config.heads
+        this.dropout = config.dropout || 0.0
+        this.epsilon = config.epsilon || 1e-6
+        this.queryDim = this.units / this.heads
+        this.memoryLength = config.memoryLength || 0
+    }
+
+    build(inputShape) {
+        const queryDim = this.units / this.heads
+        const valueDim = queryDim
+
+        this.queryDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal'
+        })
+        this.keyDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal'
+        })
+        this.valueDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal'
+        })
+        this.relativePositionEmbedding = this.addWeight(
+            'relativePositionEmbedding',
+            [this.heads, this.memoryLength + inputShape[1], queryDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+
+        this.dropout = tf.layers.dropout({ rate: this.dropout })
+        this.outputDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal'
+        })
+
+        this.layerNormalization = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
+        this.layerNormalization.build(inputShape)
+    }
+
+    splitHeads(x, batchSize, numHeads, seqLength, depth) {
+        const reshaped = tf.reshape(x, [batchSize, seqLength, numHeads, depth])
+        return tf.transpose(reshaped, [0, 2, 1, 3])
+    }
+
+    relativePositionalEncoding(x) {
+        const [batchSize, numHeads, seqLength, depth] = x.shape
+        const positionEncodings = this.relativePositionEmbedding.read()
+        const slicedPositionEncodings = positionEncodings.slice(
+            [0, tf.backend().read(this.memoryLength), 0],
+            [numHeads, seqLength, depth]
+        )
+        return slicedPositionEncodings
+    }
+
+    call(inputs, kwargs) {
+        const x = inputs
+        const [batchSize, seqLength, depth] = x.shape
+        const recentMemory = kwargs['recentMemory'] || null
+
+        const q = this.queryDense.apply(x)
+        const k = this.keyDense.apply(x)
+        const v = this.valueDense.apply(x)
+
+        const queryHeads = this.splitHeads(
+            q,
+            batchSize,
+            this.heads,
+            seqLength,
+            this.queryDim
+        )
+        const keyHeads = this.splitHeads(
+            k,
+            batchSize,
+            this.heads,
+            seqLength,
+            this.queryDim
+        )
+        const valueHeads = this.splitHeads(
+            v,
+            batchSize,
+            this.heads,
+            seqLength,
+            this.queryDim
+        )
+
+        let attention
+        if (recentMemory === null) {
+            const relativePositionEncodings =
+                this.relativePositionalEncoding(queryHeads)
+            const positionWeights = tf.einsum(
+                'bhqd,bhkd->bhqk',
+                queryHeads,
+                relativePositionEncodings
+            )
+            const contentWeights = tf.einsum(
+                'bhqd,bhkd->bhqk',
+                queryHeads,
+                keyHeads
+            )
+            const weights = tf.add(contentWeights, positionWeights)
+            attention = tf.softmax(weights, -1)
+        } else {
+            const combinedKeys = tf.concat([recentMemory.keys, keyHeads], 2)
+            const combinedValues = tf.concat(
+                [recentMemory.values, valueHeads],
+                2
+            )
+            const relativePositionEncodings =
+                this.relativePositionalEncoding(queryHeads)
+            const positionWeights = tf.einsum(
+                'bhqd,bhkd->bhqk',
+                queryHeads,
+                relativePositionEncodings
+            )
+            const contentWeights = tf.einsum(
+                'bhqd,bhkd->bhqk',
+                queryHeads,
+                combinedKeys
+            )
+            const weights = tf.add(contentWeights, positionWeights)
+            attention = tf.softmax(weights, -1)
+        }
+
+        attention = this.dropout.apply(attention)
+        let attended
+        if (recentMemory === null) {
+            attended = tf.einsum('bhqk,bhkd->bhqd', attention, valueHeads)
+        } else {
+            attended = tf.einsum('bhqk,bhkd->bhqd', attention, combinedValues)
+        }
+        attended = tf.transpose(attended, [0, 2, 1, 3])
+        attended = tf.reshape(attended, [batchSize, seqLength, this.units])
+
+        const output = this.outputDense.apply(attended)
+        const normalizedOutput = this.layerNormalization.apply(output)
+
+        return normalizedOutput
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.units]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            units: this.units,
+            heads: this.heads,
+            dropout: this.dropout,
+            epsilon: this.epsilon,
+            memoryLength: this.memoryLength
+        })
+        return config
+    }
+
+    static get className() {
+        return 'TransformerXLAttention'
+    }
+}
+
 class Antirectifier extends tf.layers.Layer {
     constructor() {
         super({})
@@ -917,7 +1088,8 @@ const exportedLayers = [
     Range,
     ResidualConnection,
     SinusoidalPositionalEncoding,
-    SynthesizerAttention
+    SynthesizerAttention,
+    TransformerXLAttention
 ]
 
 exportedLayers.forEach((LayerClass) => {
