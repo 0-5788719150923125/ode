@@ -87,7 +87,7 @@ export function preprocessData(
     }
 }
 
-export function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
+function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
     if (overfit > 0) {
         str = splitLines(str, overfit)
     }
@@ -99,7 +99,7 @@ export function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
     }
 }
 
-export function* sequentialStringSampler(sampleLen, str) {
+function* sequentialStringSampler(sampleLen, str) {
     let index = 0
     while (true) {
         if (index + sampleLen > str.length) {
@@ -113,7 +113,7 @@ export function* sequentialStringSampler(sampleLen, str) {
 import fs from 'fs'
 import path from 'path'
 
-export function* directorySampler(
+function directorySampler(
     sampleLen,
     overfit = 0,
     dir = './',
@@ -136,17 +136,7 @@ export function* directorySampler(
 
     readDirSync(dir)
 
-    if (overfit > 0) {
-        allText = splitLines(allText, overfit)
-    }
-    while (true) {
-        // Generate a random start index within the string's bounds
-        const startIndex = Math.floor(
-            Math.random() * (allText.length - sampleLen)
-        )
-        // Yield a ${sampleLen} substring
-        yield allText.substring(startIndex, startIndex + sampleLen)
-    }
+    return stringSampler(sampleLen, overfit, allText)
 }
 
 export const samplers = {

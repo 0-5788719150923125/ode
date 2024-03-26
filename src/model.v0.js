@@ -1,9 +1,10 @@
 import * as tfjs from '@tensorflow/tfjs'
 
 let tf = tfjs
-
+let isBrowser = true
 ;(async function () {
     if (typeof window === 'undefined') {
+        isBrowser = false
         tf = await import('@tensorflow/tfjs-node-gpu')
     }
 })()
@@ -28,6 +29,7 @@ import { preprocessData } from './utils.js'
 export default class ModelBase {
     constructor(config) {
         this.tf = tf
+        this.isBrowser = isBrowser
         this.ode = {
             layers: customLayers,
             optimizers: customOptimizers,
@@ -115,10 +117,9 @@ export default class ModelBase {
         console.log('successfully loaded model from disk')
     }
 
-    // debug(inputs) {
-    //     const layer = new DebugLayer()
-    //     console.log(layer.apply(inputs))
-    // }
+    debug(inputs) {
+        console.log(new this.ode.layers.DebugLayer().apply(inputs))
+    }
 }
 
 async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {

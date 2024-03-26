@@ -1,18 +1,3 @@
-import * as tfjs from '@tensorflow/tfjs'
-
-let tf = tfjs
-
-let isBrowser = true
-;(async function () {
-    if (typeof window === 'undefined') {
-        isBrowser = false
-        tf = await import('@tensorflow/tfjs-node-gpu')
-    }
-})()
-
-import '@tensorflow/tfjs-backend-wasm'
-import '@tensorflow/tfjs-backend-webgpu'
-import '@tensorflow/tfjs-backend-webgl'
 import {
     colors,
     elapsedTimeGenerator,
@@ -22,7 +7,12 @@ import {
     randomBetween
 } from './utils.js'
 
+let tf
+let isBrowser = true
+
 export async function startTraining(dataGenerator, args) {
+    tf = this.tf
+    isBrowser = this.isBrowser
     const trainArgs = {
         batchSize: 32,
         gradientAccumulationSteps: 1,

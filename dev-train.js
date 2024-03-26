@@ -26,6 +26,7 @@ export async function trainModel(args) {
     //     trainArgs.sampleLength * 5,
     //     trainArgs?.overfit
     // )
+
     const dataset = net.ode.samplers.directorySampler(
         trainArgs.sampleLength * 5,
         trainArgs?.overfit,
