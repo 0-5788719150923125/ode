@@ -9,7 +9,7 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
     constructor(config) {
         super(config)
         this.layers = 4
-        this.heads = 8
+        this.heads = 4
         this.units = 256
         this.dropout = 0.1
         this.epsilon = 1e-5
