@@ -1,13 +1,14 @@
 import { trainModel } from './dev-train.js'
+
+const testArgs = {
+    version: 5,
+    batchSize: 2,
+    gradientAccumulationSteps: 16,
+    generateEvery: 128,
+    sampleLength: 256
+}
+
 ;(async function () {
-    const testArgs = {
-        version: 5,
-        batchSize: 2,
-        gradientAccumulationSteps: 16,
-        generateEvery: 128,
-        sampleLength: 256
-        // learningRate: 0.0022
-    }
     // using node.js
     if (typeof window === 'undefined') {
         await trainModel({

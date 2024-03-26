@@ -679,302 +679,114 @@ class LambdaLayer extends tf.layers.Layer {
 class SynthesizerAttention extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.supportsMasking = true
-        this.nEmb = config.nEmb
-        this.nHead = config.nHead
+        this.units = config.units
+        this.heads = config.heads
         this.blockSize = config.blockSize
-        this.attnPDrop = config.attnPDrop
-        this.residPDrop = config.residPDrop
+        this.attnPdrop = config.dropout
+        this.residPdrop = config.dropout
 
-        if (this.nEmb % this.nHead !== 0) {
-            throw new Error(
-                'Embedding size must be divisible by number of heads.'
-            )
-        }
-
-        this.w1 = tf.layers.dense({
-            units: this.nEmb,
-            activation: 'relu',
-            useBias: true
-        })
+        this.w1 = tf.variable(tf.randomNormal([this.units, this.units]))
         this.w2 = tf.variable(
-            tf.randomUniform(
-                [this.nEmb / this.nHead, this.blockSize - 1],
-                -0.001,
-                0.001
-            )
+            tf.zeros([this.units / this.heads, this.blockSize])
         )
-        this.b2 = tf.variable(tf.zeros([this.blockSize - 1]))
+        this.b2 = tf.variable(tf.zeros([this.blockSize]))
+        this.value = tf.variable(tf.randomNormal([this.units, this.units]))
+        this.proj = tf.variable(tf.randomNormal([this.units, this.units]))
 
-        this.value = tf.layers.dense({ units: this.nEmb })
-        this.proj = tf.layers.dense({ units: this.nEmb })
-        this.attnDrop = tf.layers.dropout({ rate: this.attnPDrop })
-        this.residDrop = tf.layers.dropout({ rate: this.residPDrop })
+        const mask = tf.linalg.bandPart(
+            tf.ones([this.blockSize, this.blockSize]),
+            -1,
+            0
+        )
+        this.mask = tf.expandDims(tf.expandDims(mask, 0), 0)
 
-        // Masking is handled differently in TensorFlow.js and might need adjustment based on your sequence handling.
+        this.dK = this.units / this.heads
     }
 
-    call(inputs) {
+    call(inputs, kwargs) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         const x = inputs
-        const batchSize = x.shape[0]
-        const seqLen = x.shape[1]
-        const dK = this.nEmb / this.nHead
+        const [batchSize, seqLen, embedSize] = x.shape
 
-        // Compute ReLU activation
-        const reluOut = this.w1
-            .apply(x)
-            .reshape([batchSize, seqLen, this.nHead, dK])
-            .transpose([0, 2, 1, 3])
+        const reluOut = this.dense(x, this.w1)
+        const reluOutReshaped = tf.transpose(
+            tf.reshape(reluOut, [batchSize, seqLen, this.heads, this.dK]),
+            [0, 2, 1, 3]
+        )
 
-        const v = this.value
-            .apply(x)
-            .reshape([batchSize, seqLen, this.nHead, dK])
-            .transpose([0, 2, 1, 3])
+        const v = this.dense(x, this.value)
+        const vReshaped = tf.transpose(
+            tf.reshape(v, [batchSize, seqLen, this.heads, this.dK]),
+            [0, 2, 1, 3]
+        )
 
-        // Apply w2 and add bias
-        let scores = tf.matMul(reluOut, this.w2).add(this.b2)
+        const w2Tiled = this.w2
+            .expandDims(0)
+            .tile([batchSize * this.heads, 1, 1])
+        let scores = tf.add(
+            tf.reshape(
+                tf.matMul(
+                    tf.reshape(reluOutReshaped, [
+                        batchSize * this.heads,
+                        seqLen,
+                        this.dK
+                    ]),
+                    w2Tiled
+                ),
+                [batchSize, this.heads, seqLen, this.blockSize]
+            ),
+            this.b2
+        )
+        scores = scores.slice(
+            [0, 0, 0, 0],
+            [batchSize, this.heads, seqLen, seqLen]
+        )
+        scores = tf.where(
+            tf.equal(this.mask.slice([0, 0, 0, 0], [1, 1, seqLen, seqLen]), 0),
+            tf.fill([batchSize, this.heads, seqLen, seqLen], -1e10),
+            scores
+        )
 
-        // Attention mask logic needs to be adapted based on how you handle masks in TensorFlow.js.
-        // Apply softmax and dropout on scores
-        let probAttn = scores.softmax().mul(this.attnDrop.apply(scores))
+        const probAttn = tf.softmax(scores, -1)
+        const y = tf.matMul(probAttn, vReshaped)
 
-        let y = tf
-            .matMul(probAttn, v)
-            .transpose([0, 2, 1, 3])
-            .reshape([batchSize, seqLen, this.nEmb])
-        y = this.residDrop.apply(this.proj.apply(y))
+        const yTransposed = tf.transpose(y, [0, 2, 1, 3])
+        const yReshaped = tf.reshape(yTransposed, [
+            batchSize,
+            seqLen,
+            embedSize
+        ])
 
-        return y
+        const output = this.dense(yReshaped, this.proj)
+
+        return output
+    }
+
+    dense(x, kernel) {
+        const k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
     }
 
     computeOutputShape(inputShape) {
         return inputShape
     }
 
-    getConfig() {
-        const config = super.getConfig()
-        Object.assign(config, {
-            nEmb: this.nEmb,
-            nHead: this.nHead,
-            blockSize: this.blockSize,
-            attnPDrop: this.attnPDrop,
-            residPDrop: this.residPDrop
-        })
-        return config
-    }
-
     static get className() {
         return 'SynthesizerAttention'
     }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            units: this.units,
+            heads: this.heads,
+            blockSize: this.blockSize,
+            attnPdrop: this.dropout,
+            residPdrop: this.dropout
+        })
+        return config
+    }
 }
-
-// class SynthesizerAttention extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.supportsMasking = true
-//         this.units = config.units
-//         this.heads = config.heads
-//         this.blockSize = config.blockSize
-//         this.attnPdrop = config.dropout || 0
-//         this.residPdrop = config.dropout || 0
-
-//         if (this.units % this.heads !== 0) {
-//             throw new Error(
-//                 'Embedding dimension must be divisible by number of heads.'
-//             )
-//         }
-
-//         this.w1 = tf.layers.dense({
-//             units: this.units,
-//             activation: 'relu',
-//             useBias: true
-//         })
-//         this.w2 = tf.variable(
-//             tf.randomUniform(
-//                 [this.units / this.heads, this.blockSize - 1],
-//                 -0.001,
-//                 0.001
-//             )
-//         )
-//         this.b2 = tf.variable(tf.zeros([this.blockSize - 1]))
-
-//         this.value = tf.layers.dense({ units: this.units, useBias: true })
-//         this.proj = tf.layers.dense({ units: this.units, useBias: true })
-
-//         this.attnDrop = tf.layers.dropout({ rate: this.attnPdrop })
-//         this.residDrop = tf.layers.dropout({ rate: this.residPdrop })
-
-//         // Creating a causal mask similar to PyTorch's 'register_buffer'
-//         this.mask = tf.cast(
-//             tf.linalg.bandPart(
-//                 tf.ones([this.blockSize, this.blockSize]),
-//                 -1,
-//                 0
-//             ),
-//             'bool'
-//         )
-//     }
-
-//     call(inputs, training = false) {
-//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//         const x = inputs
-//         const B = x.shape[0]
-//         const T = x.shape[1]
-//         const C = this.units
-//         const dK = C / this.heads
-
-//         const reluOut = tf.tidy(() => {
-//             const w1Out = this.w1.apply(x)
-//             return tf
-//                 .reshape(w1Out, [B, T, this.heads, dK])
-//                 .transpose([0, 2, 1, 3])
-//         })
-
-//         const v = tf.tidy(() => {
-//             const valueOut = this.value.apply(x)
-//             return tf
-//                 .reshape(valueOut, [B, T, this.heads, dK])
-//                 .transpose([0, 2, 1, 3])
-//         })
-
-//         let scores = tf.tidy(() => {
-//             return tf.add(tf.matMul(reluOut, this.w2), this.b2)
-//         })
-
-//         // Apply causal mask
-//         scores = tf.tidy(() => {
-//             return tf.where(
-//                 this.mask.slice([0, 0], [T, T]),
-//                 scores,
-//                 tf.fill([B, this.heads, T, T], -1e10)
-//             )
-//         })
-
-//         let probAttn = tf.softmax(scores, -1)
-//         if (training) {
-//             probAttn = this.attnDrop.apply(probAttn)
-//         }
-
-//         let y = tf.matMul(probAttn, v)
-//         y = tf.reshape(y.transpose([0, 2, 1, 3]), [B, T, C])
-
-//         y = this.proj.apply(y)
-//         if (training) {
-//             y = this.residDrop.apply(y)
-//         }
-
-//         return y
-//     }
-
-//     static get className() {
-//         return 'SynthesizerAttention'
-//     }
-
-//     getConfig() {
-//         const config = super.getConfig()
-//         Object.assign(config, {
-//             units: this.units,
-//             heads: this.heads,
-//             blockSize: this.blockSize,
-//             attnPdrop: this.attnPdrop,
-//             residPdrop: this.residPdrop
-//         })
-//         return config
-//     }
-// }
-
-// class SynthesizerAttention extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.units = config.units
-//         this.heads = config.heads
-//         this.blockSize = config.blockSize
-//         this.attnPdrop = config.dropout
-//         this.residPdrop = config.dropout
-
-//         this.w1 = tf.layers.dense({ units: this.units, useBias: false })
-//         this.dK = this.units / this.heads
-
-//         this.w2 = tf.variable(
-//             tf.randomUniform([this.dK, this.blockSize - 1], -0.001, 0.001)
-//         )
-//         this.b2 = tf.variable(tf.zeros([this.blockSize - 1]))
-
-//         this.value = tf.layers.dense({ units: this.units, useBias: false })
-
-//         this.attnDrop = tf.layers.dropout({ rate: this.attnPdrop })
-//         this.residDrop = tf.layers.dropout({ rate: this.residPdrop })
-
-//         this.proj = tf.layers.dense({ units: this.units, useBias: false })
-
-//         this.mask = tril(this.blockSize, this.blockSize).reshape([
-//             1,
-//             1,
-//             this.blockSize,
-//             this.blockSize
-//         ])
-//     }
-
-//     call(inputs, layerPast = null) {
-//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//         const x = inputs
-//         const B = x.shape[0]
-//         const T = x.shape[1]
-//         const C = x.shape[2]
-
-//         const reluOut = tf
-//             .relu(this.w1.apply(x))
-//             .reshape([B, T, this.heads, this.dK])
-//             .transpose([0, 2, 1, 3])
-
-//         const v = this.value
-//             .apply(x)
-//             .reshape([B, T, this.heads, this.dK])
-//             .transpose([0, 2, 1, 3])
-
-//         const scores = tf.matMul(reluOut, this.w2).add(this.b2)
-//         const reshapedScores = scores.reshape([B, this.heads, T, T])
-
-//         const maskSliced = this.mask.slice([0, 0, 0, 0], [1, 1, T, T])
-//         const maskedScores = tf.where(
-//             maskSliced,
-//             reshapedScores,
-//             tf.fill(reshapedScores.shape, -1e10)
-//         )
-//         const probAttn = tf.softmax(maskedScores, -1)
-//         const y = tf.matMul(probAttn, v)
-
-//         let output = y.transpose([0, 2, 1, 3]).reshape([B, T, C])
-//         output = this.residDrop.apply(this.proj.apply(output))
-
-//         return output
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig()
-//         }
-//     }
-
-//     static get className() {
-//         return 'SynthesizerAttention'
-//     }
-// }
-
-// function tril(rows, cols, k = 0) {
-//     const mask = tf.buffer([rows, cols], 'bool')
-//     for (let i = 0; i < rows; i++) {
-//         for (let j = 0; j < cols; j++) {
-//             mask.set(i >= j + k, i, j)
-//         }
-//     }
-//     return mask.toTensor()
-// }
 
 class Antirectifier extends tf.layers.Layer {
     constructor() {

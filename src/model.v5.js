@@ -37,18 +37,8 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            outputs = this.ode.layers
-                .CausalSelfAttention({
-                    blockSize: this.config.contextLength,
-                    units: this.units,
-                    heads: this.heads,
-                    bias: false,
-                    epsilon: this.epsilon
-                })
-                .apply(outputs)
-
             // outputs = this.ode.layers
-            //     .SynthesizerAttention({
+            //     .CausalSelfAttention({
             //         blockSize: this.config.contextLength,
             //         units: this.units,
             //         heads: this.heads,
@@ -56,6 +46,16 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             //         epsilon: this.epsilon
             //     })
             //     .apply(outputs)
+
+            outputs = this.ode.layers
+                .SynthesizerAttention({
+                    blockSize: this.config.contextLength,
+                    units: this.units,
+                    heads: this.heads,
+                    bias: false,
+                    epsilon: this.epsilon
+                })
+                .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
