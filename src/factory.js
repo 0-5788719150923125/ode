@@ -1,3 +1,10 @@
+import './model.v0.js'
+import './model.v1.js'
+import './model.v2.js'
+import './model.v3.js'
+import './model.v4.js'
+import './model.v5.js'
+
 export default async function loadModelVersion(args) {
     const defaults = {
         version: 4,

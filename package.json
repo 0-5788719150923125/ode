@@ -4,6 +4,7 @@
     "description": "omniscient deterministic engine",
     "type": "module",
     "source": "src/index.js",
+    "main": "dist/main.js",
     "targets": {
         "default": {
             "distDir": "./dist"
@@ -11,7 +12,7 @@
     },
     "scripts": {
         "start": "npm run start:browser",
-        "start:browser": "parcel dev.html --https",
+        "start:browser": "parcel dev.html",
         "start:node": "node dev.js",
         "build": "parcel build",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests"
