@@ -1,19 +1,4 @@
-function* cosineScheduler(max, min, totalIterations, modulation = 1) {
-    let i = 0
-    const range = max - min
-    while (true) {
-        let adjustedI = i / modulation
-
-        let cosValue = Math.cos(
-            (2 * Math.PI * adjustedI) / totalIterations + Math.PI
-        )
-        let currentValue = min + (range * (1 - cosValue)) / 2
-
-        yield currentValue
-
-        i = (i + 1) % (totalIterations * modulation)
-    }
-}
+import schedulers from '../src/schedulers.js'
 
 function initializePlot(width, height) {
     return new Array(height).fill('').map(() => new Array(width).fill(' '))
@@ -47,7 +32,7 @@ function plotCosineSchedulerRealTime(
     height = 30,
     rate = 100
 ) {
-    const generator = cosineScheduler(min, max, iterations)
+    const generator = schedulers.cosineScheduler(min, max, iterations)
     let plot = initializePlot(width, height)
 
     function plotNext() {

@@ -1,5 +1,4 @@
 import ODE from './src/index.js'
-import { directorySampler } from './src/utils.js'
 
 export async function trainModel(args) {
     const trainArgs = {

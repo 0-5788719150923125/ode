@@ -14,9 +14,10 @@ import '@tensorflow/tfjs-backend-webgl'
 import customLayers from './layers.js'
 import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
+import customSchedulers from './schedulers.js'
 import { samplers } from './utils.js'
 import { startTraining } from './train.js'
-import { preprocessData, stringSampler } from './utils.js'
+import { preprocessData } from './utils.js'
 
 /**
  * The base model class, which provides a structure that
@@ -31,6 +32,7 @@ export default class ModelBase {
             layers: customLayers,
             optimizers: customOptimizers,
             tokenizers: customTokenizers,
+            schedulers: customSchedulers,
             samplers: samplers
         }
         this.model
