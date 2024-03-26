@@ -17,7 +17,7 @@ export default class ModelPrototype extends ModelBase {
         super.trainTokenizer(2222, 500_000_000)
     }
 
-    build() {
+    defineBuild() {
         this.model = this.tf.sequential()
 
         this.model.add(

@@ -76,3 +76,10 @@ class AdamW extends tf.AdamOptimizer {
         })
     }
 }
+
+const customOptimizers = {
+    AdamW: (model, learningRate, beta1, beta2, epsilon, decayRate) =>
+        getAdamW(model, learningRate, beta1, beta2, epsilon, decayRate)
+}
+
+export default customOptimizers

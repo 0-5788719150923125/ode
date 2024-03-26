@@ -11,13 +11,14 @@ let tf = tfjs
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
-import { BasicSubwordTokenizer } from './tokenizers.js'
 import customLayers from './layers.js'
+import customOptimizers from './optimizers.js'
+import customTokenizers from './tokenizers.js'
 import { startTraining } from './train.js'
 import { preprocessData, stringSampler } from './utils.js'
 
 /**
- * The base model class, which represents a syntax and structure that
+ * The base model class, which provides a structure that
  * must remain compatible across all future model versions.
  * @constructor
  * @param {Object} config - The configuration settings for the model.
@@ -29,31 +30,36 @@ export default class ModelBase {
         this.config = config
         this.tokenizer
         this.ode = {
-            layers: customLayers
+            layers: customLayers,
+            optimizers: customOptimizers,
+            tokenizers: customTokenizers
         }
     }
 
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-        this.trainTokenizer()
-        this.build()
+        this.defineTokenizer()
         this.defineLossFunctions()
+        this.defineBuild()
         this.defineOptimizers()
         this.compile()
         this.postInit()
     }
 
-    trainTokenizer(vocabSize = 6666, numIterations = 50_000_000) {
-        this.tokenizer = new BasicSubwordTokenizer(vocabSize, numIterations)
-    }
-
-    build() {
-        throw 'Your model is missing a build() method. Did you forget to define it?'
+    defineTokenizer(vocabSize = 6666, numIterations = 50_000_000) {
+        this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
+            vocabSize,
+            numIterations
+        )
     }
 
     defineLossFunctions() {
         this.lossFunctions = [tf.losses.softmaxCrossEntropy]
+    }
+
+    defineBuild() {
+        throw 'Your model is missing a build() method. Did you forget to define it?'
     }
 
     defineOptimizers() {

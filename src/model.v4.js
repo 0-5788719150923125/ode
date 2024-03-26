@@ -1,5 +1,4 @@
 import OmnipotentDiabolicalErudite from './model.v3.js'
-import PretrainedTokenizer from './tokenizers.js'
 
 /**
  * A GPT-2 clone with causal attention and learned position embeddings.
@@ -9,17 +8,17 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
     constructor(config) {
         super(config)
         this.layers = 4
-        this.heads = 4
+        this.heads = 8
         this.units = 256
         this.dropout = 0.1
         this.epsilon = 1e-5
     }
 
-    trainTokenizer() {
-        this.tokenizer = new PretrainedTokenizer()
+    defineTokenizer() {
+        this.tokenizer = this.ode.tokenizers.PretrainedTokenizer()
     }
 
-    build() {
+    defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
 
         const tokenEmbeddings = this.tf.layers

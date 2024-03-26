@@ -12,7 +12,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
         this.epsilon = 1e-3
     }
 
-    build() {
+    defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
         let outputs = this.tf.layers
             .embedding({

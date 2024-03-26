@@ -1,5 +1,4 @@
 import ModelBase from './model.v0.js'
-import { getAdamW } from './optimizers.js'
 
 /**
  * A GRU-based RNN that uses a time-distributed, dense output
@@ -16,11 +15,11 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
         this.epsilon = 1e-5
     }
 
-    trainTokenizer() {
-        super.trainTokenizer(2222, 500_000_000)
+    defineTokenizer() {
+        super.defineTokenizer(2222, 500_000_000)
     }
 
-    build() {
+    defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
         let outputs = this.tf.layers
             .embedding({
@@ -69,7 +68,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
 
     defineOptimizers() {
         this.optimizers = [
-            getAdamW(
+            this.ode.optimizers.AdamW(
                 this.model,
                 this.config.learningRate || 1e-3,
                 this.config.beta1 || 0.9,

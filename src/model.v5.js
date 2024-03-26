@@ -1,20 +1,20 @@
 import OriginalDecoderEngine from './model.v4.js'
 
 /**
- * A small transformer with multi-head attention and sinusoidal position embeddings.
+ * A small transformer with synthetic attention weights and sinusoidal position embeddings.
  * @extends OriginalDecoderEngine
  */
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
         this.layers = 4
-        this.heads = 4
+        this.heads = 8
         this.units = 256
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
     }
 
-    build() {
+    defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
 
         const embeddings = this.tf.layers
