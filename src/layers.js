@@ -686,6 +686,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         this.attnPdrop = config.dropout
         this.residPdrop = config.dropout
         this.activation = config.activation || tf.relu
+        this.epsilon = config.epsilon || 1e-5
 
         this.w1 = tf.variable(tf.randomNormal([this.units, this.units]))
         this.w2 = tf.variable(
@@ -694,6 +695,12 @@ class SynthesizerAttention extends tf.layers.Layer {
         this.b2 = tf.variable(tf.zeros([this.blockSize]))
         this.value = tf.variable(tf.randomNormal([this.units, this.units]))
         this.proj = tf.variable(tf.randomNormal([this.units, this.units]))
+
+        this.layernorm = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
+
+        this.residual = new ResidualConnection()
 
         const mask = tf.linalg.bandPart(
             tf.ones([this.blockSize, this.blockSize]),
@@ -761,7 +768,9 @@ class SynthesizerAttention extends tf.layers.Layer {
 
         const output = this.synthesize(yReshaped, this.proj)
 
-        return output
+        const normalized = this.layernorm.apply(output)
+
+        return this.residual.apply([inputs, normalized])
     }
 
     synthesize(x, kernel) {

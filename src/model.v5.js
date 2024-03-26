@@ -37,35 +37,16 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
-            // outputs = this.ode.layers
-            //     .CausalSelfAttention({
-            //         blockSize: this.config.contextLength,
-            //         units: this.units,
-            //         heads: this.heads,
-            //         bias: false,
-            //         epsilon: this.epsilon
-            //     })
-            //     .apply(outputs)
-            const beforeAttn = outputs
             outputs = this.ode.layers
                 .SynthesizerAttention({
                     blockSize: this.config.contextLength,
                     units: this.units,
                     heads: this.heads,
                     bias: false,
-                    epsilon: this.epsilon
+                    epsilon: this.epsilon,
+                    activation: this.tf.leakyRelu
                 })
                 .apply(outputs)
-
-            outputs = this.tf.layers
-                .layerNormalization({
-                    epsilon: this.epsilon
-                })
-                .apply(outputs)
-
-            outputs = this.ode.layers
-                .ResidualConnection()
-                .apply([beforeAttn, outputs])
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
