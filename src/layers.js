@@ -1101,15 +1101,15 @@ class SynthesizerAttention extends tf.layers.Layer {
 //     }
 // }
 
-function tril(rows, cols, k = 0) {
-    const mask = tf.buffer([rows, cols], 'bool')
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            mask.set(i >= j + k, i, j)
-        }
-    }
-    return mask.toTensor()
-}
+// function tril(rows, cols, k = 0) {
+//     const mask = tf.buffer([rows, cols], 'bool')
+//     for (let i = 0; i < rows; i++) {
+//         for (let j = 0; j < cols; j++) {
+//             mask.set(i >= j + k, i, j)
+//         }
+//     }
+//     return mask.toTensor()
+// }
 
 const exportedLayers = [
     CausalSelfAttention,
