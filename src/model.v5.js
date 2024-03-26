@@ -57,6 +57,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
 
+            outputs = this.tf.layers
+                .layerNormalization({
+                    epsilon: this.epsilon
+                })
+                .apply(outputs)
+
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
                     units: this.units,
