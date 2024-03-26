@@ -691,17 +691,52 @@ class SynthesizerAttention extends tf.layers.Layer {
     }
 
     build(inputShape) {
-        this.w1 = tf.variable(tf.randomNormal([this.units, this.units]))
-        this.w2 = tf.variable(
-            tf.zeros([this.units / this.heads, this.blockSize])
+        this.w1 = this.addWeight(
+            'w1',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotNormal(),
+            true,
+            false
         )
-        this.b2 = tf.variable(tf.zeros([this.blockSize]))
-        this.value = tf.variable(tf.randomNormal([this.units, this.units]))
-        this.proj = tf.variable(tf.randomNormal([this.units, this.units]))
+        this.w2 = this.addWeight(
+            'w2',
+            [this.units / this.heads, this.blockSize],
+            'float32',
+            tf.initializers.zeros(),
+            true,
+            false
+        )
+        this.b2 = this.addWeight(
+            'b2',
+            [this.blockSize],
+            'float32',
+            tf.initializers.zeros(),
+            true,
+            false
+        )
+        this.value = this.addWeight(
+            'value',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotNormal(),
+            true,
+            false
+        )
+        this.proj = this.addWeight(
+            'proj',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotNormal(),
+            true,
+            false
+        )
 
         this.layernorm = tf.layers.layerNormalization({
             epsilon: this.epsilon
         })
+        this.layernorm.build(inputShape)
+        this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
 
@@ -720,7 +755,9 @@ class SynthesizerAttention extends tf.layers.Layer {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         const [batchSize, seqLen, embedSize] = inputs.shape
 
-        const nonlinearOut = this.activation(this.synthesize(inputs, this.w1))
+        const nonlinearOut = this.activation(
+            this.synthesize(inputs, this.w1.read())
+        )
         const nonlinearReshaped = tf.transpose(
             tf.reshape(nonlinearOut, [
                 batchSize,
@@ -731,13 +768,14 @@ class SynthesizerAttention extends tf.layers.Layer {
             [0, 2, 1, 3]
         )
 
-        const v = this.synthesize(inputs, this.value)
+        const v = this.synthesize(inputs, this.value.read())
         const vReshaped = tf.transpose(
             tf.reshape(v, [batchSize, seqLen, this.heads, this.depth]),
             [0, 2, 1, 3]
         )
 
         const w2Tiled = this.w2
+            .read()
             .expandDims(0)
             .tile([batchSize * this.heads, 1, 1])
         let scores = tf.add(
@@ -752,7 +790,7 @@ class SynthesizerAttention extends tf.layers.Layer {
                 ),
                 [batchSize, this.heads, seqLen, this.blockSize]
             ),
-            this.b2
+            this.b2.read()
         )
         scores = scores.slice(
             [0, 0, 0, 0],
@@ -775,7 +813,7 @@ class SynthesizerAttention extends tf.layers.Layer {
             embedSize
         ])
 
-        const output = this.synthesize(yReshaped, this.proj)
+        const output = this.synthesize(yReshaped, this.proj.read())
 
         const residOutput = this.residDropout.apply(output)
         const normalized = this.layernorm.apply(residOutput)
