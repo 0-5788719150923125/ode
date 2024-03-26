@@ -46,7 +46,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             //         epsilon: this.epsilon
             //     })
             //     .apply(outputs)
-
+            const beforeAttn = outputs
             outputs = this.ode.layers
                 .SynthesizerAttention({
                     blockSize: this.config.contextLength,
@@ -62,6 +62,10 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                     epsilon: this.epsilon
                 })
                 .apply(outputs)
+
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([beforeAttn, outputs])
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({

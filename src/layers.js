@@ -444,8 +444,8 @@ class MultiLayerPerceptron extends tf.layers.Layer {
 }
 
 class ResidualConnection extends tf.layers.Layer {
-    constructor() {
-        super()
+    constructor(config) {
+        super(config)
     }
 
     computeOutputShape(inputShape) {
