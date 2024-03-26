@@ -26,14 +26,14 @@ import { preprocessData, stringSampler } from './utils.js'
 export default class ModelBase {
     constructor(config) {
         this.tf = tf
-        this.model
-        this.config = config
-        this.tokenizer
         this.ode = {
             layers: customLayers,
             optimizers: customOptimizers,
             tokenizers: customTokenizers
         }
+        this.model
+        this.config = config
+        this.tokenizer
     }
 
     async init() {

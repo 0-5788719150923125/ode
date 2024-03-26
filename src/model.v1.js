@@ -5,11 +5,11 @@ import ModelBase from './model.v0.js'
  * will see versions of this model everywhere, in tutorials on the Internet.
  * @extends ModelBase
  */
-export default class ModelPrototype extends ModelBase {
+export default class OmnipresentDegenerateEntity extends ModelBase {
     constructor(config) {
         super(config)
-        this.layout = [128, 128, 128]
-        this.units = 256
+        this.layers = 3
+        this.units = 128
         this.config.mode = 'oneLabel'
     }
 
@@ -28,16 +28,15 @@ export default class ModelPrototype extends ModelBase {
             })
         )
 
-        this.layout.forEach((units, i) => {
+        for (let i = 0; i < this.layers; i++)
             this.model.add(
                 this.tf.layers.lstm({
                     units,
                     activation: 'tanh',
                     recurrentActivation: 'sigmoid',
-                    returnSequences: i < this.layout.length - 1 // False for the last GRU layer
+                    returnSequences: i < this.layers - 1 // False for the last GRU layer
                 })
             )
-        })
 
         this.model.add(
             this.tf.layers.dense({

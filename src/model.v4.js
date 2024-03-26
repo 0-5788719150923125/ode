@@ -1,29 +1,24 @@
-import OmnipotentDiabolicalErudite from './model.v3.js'
+import OmnipotentDiabolicalErudite from './model.v2.js'
 
 /**
- * A GPT-2 clone with causal attention and learned position embeddings.
+ * A small transformer with synthetic attention weights and sinusoidal position embeddings.
  * @extends OmnipotentDiabolicalErudite
  */
-export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
+export default class OmniscientDeterministicEnsemble extends OmnipotentDiabolicalErudite {
     constructor(config) {
         super(config)
         this.layers = 4
         this.heads = 8
         this.units = 256
-        this.dropout = 0.1
+        this.innerDim = this.units * 4
         this.epsilon = 1e-5
-    }
-
-    defineTokenizer() {
-        this.tokenizer = this.ode.tokenizers.PretrainedTokenizer()
     }
 
     defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
 
-        const tokenEmbeddings = this.tf.layers
+        const embeddings = this.tf.layers
             .embedding({
-                name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -32,42 +27,24 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
 
         const range = this.ode.layers.Range().apply(inputs)
 
-        const positionalEmbeddings = this.tf.layers
-            .embedding({
-                name: 'wpe',
-                inputDim: this.config.contextLength,
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform'
+        const encoding = this.ode.layers
+            .SinusoidalPositionalEncoding({
+                units: this.units,
+                reverse: false
             })
             .apply(range)
 
-        let outputs = this.tf.layers
-            .add()
-            .apply([tokenEmbeddings, positionalEmbeddings])
-
-        outputs = this.tf.layers
-            .dropout({
-                name: 'dropout',
-                rate: this.dropout
-            })
-            .apply(outputs)
-
-        outputs = this.tf.layers
-            .layerNormalization({
-                name: 'emb/ln',
-                epsilon: this.epsilon
-            })
-            .apply(outputs)
+        let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .CausalSelfAttention({
+                .SynthesizerAttention({
                     blockSize: this.config.contextLength,
                     units: this.units,
                     heads: this.heads,
-                    dropout: this.dropout,
+                    bias: false,
                     epsilon: this.epsilon,
-                    bias: false
+                    activation: this.tf.leakyRelu
                 })
                 .apply(outputs)
 
@@ -76,17 +53,16 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
                     units: this.units,
                     innerDim: this.innerDim,
                     heads: this.heads,
-                    dropout: this.dropout,
                     epsilon: this.epsilon,
-                    activation: 'gelu'
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }
 
         outputs = this.tf.layers
             .dense({
-                name: 'head',
-                units: this.tokenizer.getLength()
+                units: this.tokenizer.getLength(),
+                activation: 'linear'
             })
             .apply(outputs)
 
