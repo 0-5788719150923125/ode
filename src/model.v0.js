@@ -55,7 +55,7 @@ export default class ModelBase {
         this.postInit()
     }
 
-    defineTokenizer(vocabSize = 6666, numIterations = 50_000_000) {
+    defineTokenizer(vocabSize = 6666, numIterations = 10_000_000) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
             vocabSize,
             numIterations
@@ -90,18 +90,20 @@ export default class ModelBase {
     }
 
     postInit() {
+        console.log('Backend:', tf.backend())
         console.log(this.model.optimizer)
         console.log(this.model.summary())
         console.log(`Loaded model: v${this.config.version}`)
         console.log(
             `Tokenizer is ${this.tokenizer.getLength()} tokens in length.`
         )
-        // console.log('Backend:', tf.backend())
         console.log(this.config)
     }
 
     async generate(prompt, temperature = 0.7, length = 20) {
-        return await generateText.call(this, prompt, temperature, length)
+        if (this.config.mode === 'oneLabel') {
+            return await oldGenerateText.call(this, prompt, temperature, length)
+        } else return await generateText.call(this, prompt, temperature, length)
     }
 
     async train(dataGenerator, args) {
@@ -124,7 +126,24 @@ export default class ModelBase {
     }
 }
 
-async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
+async function generateText(prompt, temperature, maxNewTokens) {
+    let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
+    this.tf.tidy(() => {
+        for (let step = 0; step < maxNewTokens; step++) {
+            const idxNext = generateOnce.call(this, inputs, temperature)
+            // Ensure idxNext has a shape of [1, 1] to match the rank of inputs
+            const idxNextExpanded = idxNext.expandDims(1) // Adjusting idxNext shape for concatenation
+            const idxNew = this.tf.concat([inputs, idxNextExpanded], 1) // Adjusting the axis to 1 for correct concatenation
+            this.tf.dispose([inputs, idxNext])
+            inputs = this.tf.keep(idxNew)
+        }
+    })
+    const idxArr = await inputs.array()
+    this.tf.dispose(inputs)
+    return this.tokenizer.decode(idxArr[0])
+}
+
+async function oldGenerateText(prompt, temperature = 0.7, maxNewChars = 20) {
     const fixedLength = this.config.contextLength
 
     // Assuming preprocessData returns an array of token indices
@@ -154,9 +173,12 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
 
             let winnerIndex
             if (temperature === 0) {
-                winnerIndex = greedySampling(output)
+                winnerIndex = greedySampling(output).dataSync()[0]
             } else {
-                winnerIndex = temperatureSampling(output, temperature)
+                winnerIndex = temperatureSampling(
+                    output,
+                    temperature
+                ).dataSync()[0]
             }
 
             if (winnerIndex < 0 || winnerIndex >= this.tokenizer.getLength()) {
@@ -179,26 +201,82 @@ async function generateText(prompt, temperature = 0.7, maxNewChars = 20) {
     return generated
 }
 
-export function greedySampling(probabilities) {
+function generateOnce(idx, temperature) {
+    let idxNext
+    tf.tidy(() => {
+        const block_size = this.model.inputs[0].shape[1]
+        const idxCond =
+            idx.shape[1] <= block_size
+                ? idx
+                : idx.slice([0, -block_size], [-1, -1])
+        // Forward the model to get the logits for the index in the sequence
+        const logits = this.model.predict(idxCond)
+
+        let logitsScaled
+        if (logits.shape.length === 3) {
+            // pluck the logits at the final step for timeDistributed
+            logitsScaled = logits
+                .slice([0, idx.shape[1] - 1, 0], [1, 1, logits.shape[2]])
+                .reshape([logits.shape[2]])
+        } else {
+            // For oneLabel mode, logits is already in the expected shape
+            logitsScaled = logits
+        }
+
+        // either sample from a scaled distribution or take the most likely element
+        if (temperature !== 1) {
+            idxNext = temperatureSampling(logitsScaled, temperature)
+        } else {
+            idxNext = greedySampling(logitsScaled)
+        }
+
+        tf.keep(idxNext)
+    })
+    return idxNext
+}
+
+function greedySampling(probabilities) {
     const index = tf.tidy(() => {
         const predictedIndex = tf.argMax(probabilities)
-        return predictedIndex.dataSync()[0]
+        return predictedIndex.reshape([-1])
     })
     return index
 }
 
-export function temperatureSampling(logits, temperature) {
+function temperatureSampling(logits, temperature) {
     return tf.tidy(() => {
         const probabilities = tf.div(
-            tf.softmax(logits),
-            Math.max(temperature, 1e-6)
+            logits,
+            tf.scalar(Math.max(temperature, 1e-6))
         )
-        const sampledIndex = tf.multinomial(probabilities, 1).dataSync()[0]
+        const sampledIndex = tf.multinomial(probabilities, 1).reshape([-1])
         return sampledIndex
     })
 }
 
-export function topKSampling(logits, k) {
+function prepareInputs(inputs) {
+    tf.tidy(() => {
+        // Check if idx is a tensor or an array
+        if (inputs instanceof tf.Tensor) {
+            inputs = inputs.clone()
+        } else {
+            inputs = tf.tensor(inputs)
+        }
+        // Check data type
+        if (inputs.dtype !== 'int32') {
+            inputs = inputs.toInt()
+        }
+        // If the shape of idx is 1D, we need to add a dimension
+        if (inputs.shape.length === 1) {
+            inputs = inputs.expandDims(0)
+        }
+        tf.keep(inputs)
+        // keep idx from deletion
+    })
+    return inputs
+}
+
+function topKSampling(logits, k) {
     return tf.tidy(() => {
         // Step 1: Use tf.topk to find the top k logits and their indices
         const topk = tf.topk(logits, k)
