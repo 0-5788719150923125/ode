@@ -1125,37 +1125,37 @@ class RotaryPositionalEmbedding extends tf.layers.Layer {
         const angleRads = tf.mul(pos, tf.div(1, angleRates))
         const sin = tf.sin(angleRads)
         const cos = tf.cos(angleRads)
-        const posEncoding = tf.concat([sin, cos], -1)
+
+        // Interleave sin and cos values
+        const sinExpanded = sin.expandDims(2) // Expanding dimension to enable interleaving
+        const cosExpanded = cos.expandDims(2)
+        const concatenated = tf.concat([sinExpanded, cosExpanded], 2) // Concatenate along the new axis
+        const posEncoding = concatenated.reshape([seqLen, embeddingDim])
         return posEncoding
     }
 
     applyRotaryPositionalEmbedding(x, posEncoding) {
-        const xShape = x.shape
+        const [batchSize, seqLen, embeddingDim] = x.shape
         const xDtype = x.dtype
-        const [batchSize, seqLen, embeddingDim] = xShape
 
+        // Split the embedding dimension into two halves for sin and cos applications
         const rotaryDim = embeddingDim / 2
         const xRot = x.slice([0, 0, 0], [batchSize, seqLen, rotaryDim])
-        const xPass = x.slice([0, 0, rotaryDim], [batchSize, seqLen, rotaryDim])
+        const xPass = x.slice([0, 0, rotaryDim], [batchSize, seqLen, -1])
 
-        const rotatedX = tf.sub(
-            tf.mul(xRot, posEncoding.slice([0, 0], [seqLen, rotaryDim])),
-            tf.mul(
-                tf.reverse(xRot, -1),
-                posEncoding.slice([0, rotaryDim], [seqLen, rotaryDim])
-            )
-        )
+        // Apply sin to the first half and cos to the second half of posEncoding
+        const sinEncoding = posEncoding.slice([0, 0], [-1, rotaryDim])
+        const cosEncoding = posEncoding.slice([0, rotaryDim], [-1, -1])
 
-        const rotatedX2 = tf.add(
-            tf.mul(xRot, posEncoding.slice([0, 0], [seqLen, rotaryDim])),
-            tf.mul(
-                tf.reverse(xRot, -1),
-                posEncoding.slice([0, rotaryDim], [seqLen, rotaryDim])
-            )
-        )
+        // Apply the encodings
+        const xRotSin = tf.mul(xRot, sinEncoding)
+        const xRotCos = tf.mul(xRot, cosEncoding)
 
-        const rotatedX3 = tf.concat([rotatedX, rotatedX2], -1)
-        const output = tf.concat([rotatedX3, xPass], -1)
+        // Reconstruct the rotated embeddings
+        const rotatedX = tf.concat([xRotSin, xRotCos], -1)
+
+        // Concatenate the rotated part with the part that does not get rotated
+        const output = tf.concat([rotatedX, xPass], -1)
 
         return output.asType(xDtype)
     }
@@ -1178,9 +1178,71 @@ class RotaryPositionalEmbedding extends tf.layers.Layer {
     }
 }
 
+class CompressedEmbeddings extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.compressionFactor = config.compressionFactor
+        this.poolingType = config.poolingType || 'avg'
+    }
+
+    call(inputs) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        const [batchSize, seqLen, embedDim] = inputs.shape
+
+        if (seqLen % this.compressionFactor !== 0) {
+            throw new Error(
+                `Sequence length (${seqLen}) must be divisible by the compression factor (${this.compressionFactor}).`
+            )
+        }
+
+        const compressedSeqLen = seqLen / this.compressionFactor
+
+        let pooledEmbeddings
+        if (this.poolingType === 'avg') {
+            pooledEmbeddings = tf.avgPool(
+                inputs,
+                [this.compressionFactor, 1],
+                [this.compressionFactor, 1],
+                'valid'
+            )
+        } else if (this.poolingType === 'max') {
+            pooledEmbeddings = tf.maxPool(
+                inputs,
+                [this.compressionFactor, 1],
+                [this.compressionFactor, 1],
+                'valid'
+            )
+        } else {
+            throw new Error(`Unsupported pooling type: ${this.poolingType}`)
+        }
+
+        return pooledEmbeddings.reshape([batchSize, compressedSeqLen, embedDim])
+    }
+
+    computeOutputShape(inputShape) {
+        const [batchSize, seqLen, embedDim] = inputShape
+        const compressedSeqLen = seqLen / this.compressionFactor
+        return [batchSize, compressedSeqLen, embedDim]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            compressionFactor: this.compressionFactor,
+            poolingType: this.poolingType
+        })
+        return config
+    }
+
+    static get className() {
+        return 'CompressedEmbeddings'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
+    CompressedEmbeddings,
     DebugLayer,
     GatedLinearUnit,
     GaussianMixtureModel,

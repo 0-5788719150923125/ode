@@ -25,21 +25,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(inputs)
 
-        let outputs = this.ode.layers
-            .RotaryPositionalEmbedding({
-                seqLen: this.config.contextLength,
-                units: this.units
-            })
-            .apply(embeddings)
-
-        // const embeddings = this.tf.layers
-        //     .embedding({
-        //         inputDim: this.tokenizer.getLength(),
-        //         outputDim: this.units,
-        //         embeddingsInitializer: 'glorotUniform'
-        //     })
-        //     .apply(inputs)
-
         // const range = this.ode.layers.Range().apply(inputs)
 
         // const encoding = this.ode.layers
@@ -50,6 +35,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         //     .apply(range)
 
         // let outputs = this.tf.layers.add().apply([embeddings, encoding])
+
+        let outputs = this.ode.layers
+            .RotaryPositionalEmbedding({
+                seqLen: this.config.contextLength,
+                units: this.units
+            })
+            .apply(embeddings)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
