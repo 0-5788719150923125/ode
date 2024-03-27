@@ -1244,16 +1244,18 @@ class ConvolutionalExpansionLayer extends tf.layers.Layer {
     }
 
     build(inputShape) {
+        const adjustedShape = [1, inputShape[1], inputShape[2]]
         // Define a 2D transposed convolution layer to simulate 1D sequence expansion
         this.conv2dTransposeLayer = tf.layers.conv2dTranspose({
             filters: this.units,
             kernelSize: [1, this.kernelSize], // Faux height of 1, actual kernel size for width
             strides: [1, 2], // Stride 2 for expansion, faux height stride of 1
             padding: 'same',
-            activation: 'linear', // Consider the appropriate activation for your task
-            inputShape: [1, inputShape[1], inputShape[2]] // Adjusted for conv2d input
+            activation: 'linear' // Consider the appropriate activation for your task
+            // inputShape: [1, inputShape[1], inputShape[2]] // Adjusted for conv2d input
         })
-        // this.conv2dTransposeLayer.build([1, inputShape[1], inputShape[2]])
+        // this.conv2dTransposeLayer.build([null, 1, inputShape[1], inputShape[2]])
+        this.conv2dTransposeLayer.build([null, ...adjustedShape])
         // this._trainableWeights.push(...this.conv2dTransposeLayer)
 
         super.build(inputShape) // Ensure the layer is marked as built
@@ -1359,6 +1361,130 @@ class SequenceExpansionLayer extends tf.layers.Layer {
     }
 }
 
+class NearestNeighborUpsampling extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.upsamplingFactor = config.upsamplingFactor
+    }
+
+    call(inputs) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        const [batchSize, seqLen, embedDim] = inputs.shape
+
+        const upsampledSeqLen = seqLen * this.upsamplingFactor
+
+        const reshapedInputs = inputs.reshape([batchSize, seqLen, 1, embedDim])
+
+        const upsampledInputs = tf.tile(reshapedInputs, [
+            1,
+            1,
+            this.upsamplingFactor,
+            1
+        ])
+
+        const outputShape = [batchSize, upsampledSeqLen, embedDim]
+        const output = upsampledInputs.reshape(outputShape)
+
+        return output
+    }
+
+    computeOutputShape(inputShape) {
+        const [batchSize, seqLen, embedDim] = inputShape
+        const upsampledSeqLen = seqLen * this.upsamplingFactor
+        return [batchSize, upsampledSeqLen, embedDim]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            upsamplingFactor: this.upsamplingFactor
+        })
+        return config
+    }
+
+    static get className() {
+        return 'NearestNeighborUpsampling'
+    }
+}
+
+class LearnedUpsampling extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.upsamplingFactor = config.upsamplingFactor
+        this.filters = config.filters || config.units
+        this.kernelSize = config.kernelSize || 3
+        this.strides = config.strides || this.upsamplingFactor
+        this.padding = config.padding || 'same'
+        this.activation = config.activation || 'linear'
+    }
+
+    build(inputShape) {
+        const [batchSize, seqLen, embedDim] = inputShape
+        const kernelShape = [this.kernelSize, 1, this.filters, embedDim]
+        this.kernel = this.addWeight(
+            'kernel',
+            kernelShape,
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        const biasShape = [this.filters]
+        this.bias = this.addWeight(
+            'bias',
+            biasShape,
+            'float32',
+            tf.initializers.zeros()
+        )
+    }
+
+    call(inputs) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        const inputShape = inputs.shape
+        const [batchSize, seqLen, embedDim] = inputShape
+        const reshapedInputs = inputs.reshape([batchSize, seqLen, 1, embedDim])
+        const upsampledInputs = tf.conv2dTranspose(
+            reshapedInputs,
+            this.kernel.read(),
+            [batchSize, seqLen * this.upsamplingFactor, 1, this.filters],
+            [this.strides, 1],
+            this.padding
+        )
+        const biasedOutput = tf.add(upsampledInputs, this.bias.read())
+        const activatedOutput = tf.layers
+            .activation({ activation: this.activation })
+            .apply(biasedOutput)
+        const outputShape = [
+            batchSize,
+            seqLen * this.upsamplingFactor,
+            this.filters
+        ]
+        const output = activatedOutput.reshape(outputShape)
+        return output
+    }
+
+    computeOutputShape(inputShape) {
+        const [batchSize, seqLen, embedDim] = inputShape
+        const outputSeqLen = seqLen * this.upsamplingFactor
+        return [batchSize, outputSeqLen, this.filters]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            upsamplingFactor: this.upsamplingFactor,
+            filters: this.filters,
+            kernelSize: this.kernelSize,
+            strides: this.strides,
+            padding: this.padding,
+            activation: this.activation
+        })
+        return config
+    }
+
+    static get className() {
+        return 'LearnedUpsampling'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -1368,8 +1494,10 @@ const exportedLayers = [
     GatedLinearUnit,
     GaussianMixtureModel,
     LambdaLayer,
+    LearnedUpsampling,
     MultiHeadAttention,
     MultiLayerPerceptron,
+    NearestNeighborUpsampling,
     Range,
     ResidualConnection,
     RotaryPositionalEmbedding,

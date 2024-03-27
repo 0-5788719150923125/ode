@@ -7,12 +7,12 @@ import OriginalDecoderEngine from './model.v3.js'
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
-        this.layers = 4
+        this.layers = 6
         this.heads = 8
         this.units = 256
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
-        this.compressionFactor = 2
+        this.compressionFactor = 4
     }
 
     defineBuild() {
@@ -65,11 +65,18 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         }
 
         outputs = this.ode.layers
-            .ConvolutionalExpansionLayer({
-                seqLen: this.config.contextLength,
+            .LearnedUpsampling({
+                upsamplingFactor: this.compressionFactor,
                 units: this.units
             })
             .apply(outputs)
+
+        // outputs = this.ode.layers
+        //     .ConvolutionalExpansionLayer({
+        //         seqLen: this.config.contextLength,
+        //         units: this.units
+        //     })
+        //     .apply(outputs)
 
         outputs = this.tf.layers
             .dense({
