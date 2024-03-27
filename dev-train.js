@@ -27,7 +27,7 @@ export async function trainModel(args) {
     //     trainArgs?.overfit
     // )
 
-    const dataset = net.ode.samplers.directorySampler(
+    const dataset = await net.ode.samplers.directorySampler(
         trainArgs.sampleLength * 5,
         trainArgs?.overfit,
         '/home/crow/Repos/vtx/lab/phi/train',

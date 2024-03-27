@@ -1,5 +1,4 @@
 import * as tfjs from '@tensorflow/tfjs'
-
 let tf = tfjs
 let isBrowser = true
 ;(async function () {
@@ -8,7 +7,6 @@ let isBrowser = true
         tf = await import('@tensorflow/tfjs-node-gpu')
     }
 })()
-
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
@@ -17,7 +15,7 @@ import customLosses from './losses.js'
 import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
 import customSchedulers from './schedulers.js'
-import { samplers } from './utils.js'
+import customSamplers from './samplers.js'
 import { startTraining } from './train.js'
 import { preprocessData } from './utils.js'
 
@@ -37,7 +35,7 @@ export default class ModelBase {
             optimizers: customOptimizers,
             tokenizers: customTokenizers,
             schedulers: customSchedulers,
-            samplers: samplers
+            samplers: customSamplers
         }
         this.model
         this.config = config
