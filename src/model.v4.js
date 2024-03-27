@@ -33,12 +33,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .CompressEmbeddings({
-                compressionFactor: this.compressionFactor,
-                poolingType: 'dot'
-            })
-            .apply(outputs)
+        const compressor = this.ode.layers.CompressEmbeddings({
+            compressionFactor: this.compressionFactor,
+            poolingType: 'dot'
+        })
+
+        outputs = compressor.apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -64,12 +64,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 .apply(outputs)
         }
 
-        outputs = this.ode.layers
-            .LearnedUpsampling({
-                upsamplingFactor: this.compressionFactor,
-                units: this.units
-            })
-            .apply(outputs)
+        outputs = compressor.apply(outputs)
+
+        // outputs = this.ode.layers
+        //     .LearnedUpsampling({
+        //         upsamplingFactor: this.compressionFactor,
+        //         units: this.units
+        //     })
+        //     .apply(outputs)
 
         outputs = this.tf.layers
             .dense({

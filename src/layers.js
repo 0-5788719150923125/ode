@@ -1183,13 +1183,13 @@ class CompressEmbeddings extends tf.layers.Layer {
         super(config)
         this.compressionFactor = config.compressionFactor
         this.poolingType = config.poolingType || 'avg'
+        this.numVectors = config.numVectors || 23
     }
 
     build(inputShape) {
         if (this.poolingType !== 'dot') return
-        const numVectors = 23
         this.weightVectors = []
-        for (let i = 0; i < numVectors; i++) {
+        for (let i = 0; i < this.numVectors; i++) {
             const weightVector = this.addWeight(
                 `weightVector${i}`,
                 [inputShape[2]],
@@ -1200,10 +1200,34 @@ class CompressEmbeddings extends tf.layers.Layer {
         }
     }
 
-    call(inputs) {
+    setMode() {
+        if (this.mode === 'compress') {
+            this.mode = 'decompress'
+        } else {
+            this.mode = 'compress'
+        }
+    }
+
+    call(inputs, kwargs) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        this.setMode()
+
+        // Common variables
         const [batchSize, seqLen, embedDim] = inputs.shape
 
+        // Decide operation based on mode
+        if (this.mode === 'compress') {
+            // Perform compression
+            return this.compress(inputs, seqLen, embedDim, batchSize)
+        } else if (this.mode === 'decompress') {
+            // Perform decompression
+            return this.decompress(inputs, seqLen, embedDim, batchSize)
+        } else {
+            throw new Error(`Unsupported mode: ${this.mode}`)
+        }
+    }
+
+    compress(inputs, seqLen, embedDim, batchSize) {
         const paddedSeqLen =
             Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
         const paddedInputs = inputs.pad([
@@ -1220,13 +1244,7 @@ class CompressEmbeddings extends tf.layers.Layer {
         ])
 
         let pooledEmbeddings
-        if (this.poolingType === 'avg') {
-            pooledEmbeddings = tf.mean(reshapedInputs, 2)
-        } else if (this.poolingType === 'max') {
-            pooledEmbeddings = tf.max(reshapedInputs, 2)
-        } else if (this.poolingType === 'norm') {
-            pooledEmbeddings = tf.norm(reshapedInputs, 2)
-        } else if (this.poolingType === 'dot') {
+        if (this.poolingType === 'dot') {
             const pooledVectors = this.weightVectors.map((weightVector) => {
                 const expandedVector = weightVector
                     .read()
@@ -1235,7 +1253,6 @@ class CompressEmbeddings extends tf.layers.Layer {
                     .expandDims(0)
                 return tf.sum(reshapedInputs.mul(expandedVector), 2)
             })
-            // Combine the pooled vectors (e.g., sum, multiply, subtract, divide)
             pooledEmbeddings = pooledVectors.reduce((a, b, i) => {
                 if (i % 2 === 0) {
                     return a.sub(b)
@@ -1243,30 +1260,157 @@ class CompressEmbeddings extends tf.layers.Layer {
                     return a.add(b)
                 }
             })
-        } else {
-            throw new Error(`Unsupported pooling type: ${this.poolingType}`)
         }
         return pooledEmbeddings
     }
 
-    computeOutputShape(inputShape) {
-        const seqLen = Math.ceil(inputShape[1] / this.compressionFactor)
+    decompress(inputs, seqLen, embedDim, batchSize) {
+        const newSeqLen = seqLen * this.compressionFactor
+
+        let decompressedVectors = inputs
+            .reshape([batchSize, seqLen, 1, embedDim])
+            .tile([1, 1, this.compressionFactor, 1])
+            .reshape([batchSize, newSeqLen, embedDim])
+
+        decompressedVectors = decompressedVectors.reshape([
+            batchSize,
+            newSeqLen,
+            1,
+            embedDim
+        ])
+
+        let pooledLogits
+        if (this.poolingType === 'dot') {
+            const pooledVectors = this.weightVectors.map((weightVector) => {
+                const expandedVector = weightVector
+                    .read()
+                    .expandDims(0)
+                    .expandDims(0)
+                    .expandDims(0)
+                return tf.sum(decompressedVectors.mul(expandedVector), 2) // Sum over the synthetic 'compressionFactor' dimension
+            })
+            pooledLogits = pooledVectors.reduce((a, b, i) => {
+                if (i % 2 === 0) {
+                    return a.add(b)
+                } else {
+                    return a.sub(b)
+                }
+            })
+        }
+        return pooledLogits
+    }
+
+    computeOutputShape(inputShape, kwargs) {
+        const mode = kwargs && kwargs.mode ? kwargs.mode : 'compress'
+        let seqLen = Math.ceil(inputShape[1] / this.compressionFactor)
+        if (mode === 'decompress') {
+            seqLen = Math.ceil(inputShape[1] * this.compressionFactor)
+        }
         return [inputShape[0], seqLen, inputShape[2]]
     }
 
     getConfig() {
-        const config = super.getConfig()
-        Object.assign(config, {
+        return Object.assign(super.getConfig(), {
             compressionFactor: this.compressionFactor,
-            poolingType: this.poolingType
+            poolingType: this.poolingType,
+            numVectors: this.numVectors
         })
-        return config
     }
 
     static get className() {
         return 'CompressEmbeddings'
     }
 }
+
+// class CompressEmbeddings extends tf.layers.Layer {
+//     constructor(config) {
+//         super(config)
+//         this.compressionFactor = config.compressionFactor
+//         this.poolingType = config.poolingType || 'avg'
+//     }
+
+//     build(inputShape) {
+//         if (this.poolingType !== 'dot') return
+//         const numVectors = 23
+//         this.weightVectors = []
+//         for (let i = 0; i < numVectors; i++) {
+//             const weightVector = this.addWeight(
+//                 `weightVector${i}`,
+//                 [inputShape[2]],
+//                 'float32',
+//                 tf.initializers.glorotUniform()
+//             )
+//             this.weightVectors.push(weightVector)
+//         }
+//     }
+
+//     call(inputs) {
+//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//         const [batchSize, seqLen, embedDim] = inputs.shape
+
+//         const paddedSeqLen =
+//             Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
+//         const paddedInputs = inputs.pad([
+//             [0, 0],
+//             [0, paddedSeqLen - seqLen],
+//             [0, 0]
+//         ])
+
+//         const reshapedInputs = paddedInputs.reshape([
+//             batchSize,
+//             paddedSeqLen / this.compressionFactor,
+//             this.compressionFactor,
+//             embedDim
+//         ])
+
+//         let pooledEmbeddings
+//         if (this.poolingType === 'avg') {
+//             pooledEmbeddings = tf.mean(reshapedInputs, 2)
+//         } else if (this.poolingType === 'max') {
+//             pooledEmbeddings = tf.max(reshapedInputs, 2)
+//         } else if (this.poolingType === 'norm') {
+//             pooledEmbeddings = tf.norm(reshapedInputs, 2)
+//         } else if (this.poolingType === 'dot') {
+//             const pooledVectors = this.weightVectors.map((weightVector) => {
+//                 const expandedVector = weightVector
+//                     .read()
+//                     .expandDims(0)
+//                     .expandDims(0)
+//                     .expandDims(0)
+//                 return tf.sum(reshapedInputs.mul(expandedVector), 2)
+//             })
+//             // Combine the pooled vectors (e.g., sum, multiply, subtract, divide)
+//             pooledEmbeddings = pooledVectors.reduce((a, b, i) => {
+//                 if (i % 2 === 0) {
+//                     return a.sub(b)
+//                 } else {
+//                     return a.add(b)
+//                 }
+//             })
+//         } else {
+//             throw new Error(`Unsupported pooling type: ${this.poolingType}`)
+//         }
+//         return pooledEmbeddings
+//     }
+
+//     computeOutputShape(inputShape) {
+//         const seqLen = Math.ceil(inputShape[1] / this.compressionFactor)
+//         return [inputShape[0], seqLen, inputShape[2]]
+//     }
+
+//     getConfig() {
+//         const config = super.getConfig()
+//         Object.assign(config, {
+//             compressionFactor: this.compressionFactor,
+//             poolingType: this.poolingType
+//         })
+//         return config
+//     }
+
+//     static get className() {
+//         return 'CompressEmbeddings'
+//     }
+// }
 
 class ConvolutionalExpansionLayer extends tf.layers.Layer {
     constructor(config) {
