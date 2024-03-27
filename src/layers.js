@@ -683,8 +683,8 @@ class SynthesizerAttention extends tf.layers.Layer {
         this.units = config.units
         this.heads = config.heads
         this.blockSize = config.blockSize
-        this.attnPdrop = config.attnPdrop || 0.0
-        this.residPdrop = config.residPdrop || 0.0
+        this.attnPdrop = config.dropout || 0.0
+        this.residPdrop = config.dropout || 0.0
         this.activation = config.activation || tf.relu
         this.epsilon = config.epsilon || 1e-5
         this.depth = this.units / this.heads
@@ -696,40 +696,30 @@ class SynthesizerAttention extends tf.layers.Layer {
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
-            // true
-            // false
         )
         this.w2 = this.addWeight(
             'w2',
             [this.units / this.heads, this.blockSize],
             'float32',
             tf.initializers.zeros()
-            // true
-            // false
         )
         this.b2 = this.addWeight(
             'b2',
             [this.blockSize],
             'float32',
             tf.initializers.zeros()
-            // true
-            // false
         )
         this.value = this.addWeight(
             'value',
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
-            // true
-            // false
         )
         this.proj = this.addWeight(
             'proj',
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
-            // true
-            // false
         )
 
         this.layernorm = tf.layers.layerNormalization({
@@ -836,8 +826,8 @@ class SynthesizerAttention extends tf.layers.Layer {
             units: this.units,
             heads: this.heads,
             blockSize: this.blockSize,
-            attnPdrop: this.attnPdrop,
-            residPdrop: this.residPdrop
+            attnPdrop: this.dropout,
+            residPdrop: this.dropout
         })
         return config
     }
@@ -1178,18 +1168,16 @@ class RotaryPositionalEncoding extends tf.layers.Layer {
     }
 }
 
-class CompressEmbeddings extends tf.layers.Layer {
+class CompressorHead extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.compressionFactor = config.compressionFactor
-        this.poolingType = config.poolingType || 'avg'
-        this.numVectors = config.numVectors || 23
+        this.operations = config.operations || 3
+        this.compressionFactor = config.compressionFactor || 2
+        this.weightVectors = []
     }
 
     build(inputShape) {
-        if (this.poolingType !== 'dot') return
-        this.weightVectors = []
-        for (let i = 0; i < this.numVectors; i++) {
+        for (let i = 0; i < this.operations; i++) {
             const weightVector = this.addWeight(
                 `weightVector${i}`,
                 [inputShape[2]],
@@ -1210,20 +1198,16 @@ class CompressEmbeddings extends tf.layers.Layer {
 
     call(inputs, kwargs) {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
         this.setMode()
 
-        // Common variables
         const [batchSize, seqLen, embedDim] = inputs.shape
 
         // Decide operation based on mode
         if (this.mode === 'compress') {
-            // Perform compression
             return this.compress(inputs, seqLen, embedDim, batchSize)
         } else if (this.mode === 'decompress') {
-            // Perform decompression
             return this.decompress(inputs, seqLen, embedDim, batchSize)
-        } else {
-            throw new Error(`Unsupported mode: ${this.mode}`)
         }
     }
 
@@ -1243,82 +1227,61 @@ class CompressEmbeddings extends tf.layers.Layer {
             embedDim
         ])
 
-        let pooledEmbeddings
-        if (this.poolingType === 'dot') {
-            const pooledVectors = this.weightVectors.map((weightVector) => {
-                const expandedVector = weightVector
-                    .read()
-                    .expandDims(0)
-                    .expandDims(0)
-                    .expandDims(0)
-                return tf.sum(reshapedInputs.mul(expandedVector), 2)
-            })
-            pooledEmbeddings = pooledVectors.reduce((a, b, i) => {
-                if (i % 2 === 0) {
-                    return a.sub(b)
-                } else {
-                    return a.add(b)
-                }
-            })
-        }
-        return pooledEmbeddings
+        const pooledVectors = this.weightVectors.map((weightVector) => {
+            const expandedVector = weightVector
+                .read()
+                .expandDims(0)
+                .expandDims(0)
+                .expandDims(0)
+            return tf.sum(reshapedInputs.mul(expandedVector), 2)
+        })
+
+        return pooledVectors.reduce((a, b, i) => {
+            if (i % 2 === 0) {
+                return a.sub(b)
+            } else {
+                return a.add(b)
+            }
+        })
     }
 
     decompress(inputs, seqLen, embedDim, batchSize) {
-        const newSeqLen = seqLen * this.compressionFactor
-
-        let decompressedVectors = inputs
+        const reshapedInputs = inputs
             .reshape([batchSize, seqLen, 1, embedDim])
             .tile([1, 1, this.compressionFactor, 1])
-            .reshape([batchSize, newSeqLen, embedDim])
+            .reshape([batchSize, seqLen * this.compressionFactor, 1, embedDim])
 
-        decompressedVectors = decompressedVectors.reshape([
-            batchSize,
-            newSeqLen,
-            1,
-            embedDim
-        ])
+        const pooledVectors = this.weightVectors.map((weightVector) => {
+            const expandedVector = weightVector
+                .read()
+                .expandDims(0)
+                .expandDims(0)
+                .expandDims(0)
+            return tf.sum(reshapedInputs.mul(expandedVector), 2) // Sum over the synthetic 'compressionFactor' dimension
+        })
 
-        let pooledLogits
-        if (this.poolingType === 'dot') {
-            const pooledVectors = this.weightVectors.map((weightVector) => {
-                const expandedVector = weightVector
-                    .read()
-                    .expandDims(0)
-                    .expandDims(0)
-                    .expandDims(0)
-                return tf.sum(decompressedVectors.mul(expandedVector), 2) // Sum over the synthetic 'compressionFactor' dimension
-            })
-            pooledLogits = pooledVectors.reduce((a, b, i) => {
-                if (i % 2 === 0) {
-                    return a.add(b)
-                } else {
-                    return a.sub(b)
-                }
-            })
-        }
-        return pooledLogits
+        return pooledVectors.reduce((a, b, i) => {
+            if (i % 2 === 0) {
+                return a.add(b)
+            } else {
+                return a.sub(b)
+            }
+        })
     }
 
-    computeOutputShape(inputShape, kwargs) {
-        const mode = kwargs && kwargs.mode ? kwargs.mode : 'compress'
-        let seqLen = Math.ceil(inputShape[1] / this.compressionFactor)
-        if (mode === 'decompress') {
-            seqLen = Math.ceil(inputShape[1] * this.compressionFactor)
-        }
-        return [inputShape[0], seqLen, inputShape[2]]
+    computeOutputShape(inputShape) {
+        return inputShape
     }
 
     getConfig() {
         return Object.assign(super.getConfig(), {
             compressionFactor: this.compressionFactor,
-            poolingType: this.poolingType,
-            numVectors: this.numVectors
+            operations: this.operations
         })
     }
 
     static get className() {
-        return 'CompressEmbeddings'
+        return 'CompressorHead'
     }
 }
 
@@ -1666,7 +1629,7 @@ const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
     ConvolutionalExpansionLayer,
-    CompressEmbeddings,
+    CompressorHead,
     DebugLayer,
     GatedLinearUnit,
     GaussianMixtureModel,
