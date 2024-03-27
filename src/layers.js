@@ -1178,7 +1178,7 @@ class RotaryPositionalEmbedding extends tf.layers.Layer {
     }
 }
 
-class CompressedEmbeddings extends tf.layers.Layer {
+class CompressEmbeddings extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.compressionFactor = config.compressionFactor
@@ -1231,7 +1231,7 @@ class CompressedEmbeddings extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'CompressedEmbeddings'
+        return 'CompressEmbeddings'
     }
 }
 
@@ -1489,7 +1489,7 @@ const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
     ConvolutionalExpansionLayer,
-    CompressedEmbeddings,
+    CompressEmbeddings,
     DebugLayer,
     GatedLinearUnit,
     GaussianMixtureModel,

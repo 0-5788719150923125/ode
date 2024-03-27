@@ -17,10 +17,11 @@ export function getAdamW(
         throw 'AdamW with a decayRate of 0 is just Adam. You should use the `tf.train.adam` optimizer instead.'
     } else {
         model.getNamedWeights().forEach((v) => {
+            const name = v.name.toLowerCase()
             if (
-                v.name.toLowerCase().includes('bias') ||
-                v.name.toLowerCase().includes('norm') ||
-                v.name.toLowerCase().includes('emb')
+                name.includes('bias') ||
+                name.includes('norm') ||
+                name.includes('emb')
             ) {
                 excludeFromWeightDecay.push(v.name)
             } else {

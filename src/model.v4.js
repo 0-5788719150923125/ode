@@ -9,7 +9,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         super(config)
         this.layers = 6
         this.heads = 8
-        this.units = 256
+        this.units = 128
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
         this.compressionFactor = 4
@@ -27,7 +27,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(inputs)
 
         const compressed = this.ode.layers
-            .CompressedEmbeddings({
+            .CompressEmbeddings({
                 compressionFactor: this.compressionFactor,
                 poolingType: 'avg'
             })
