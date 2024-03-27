@@ -4,7 +4,7 @@ const testArgs = {
     version: 4,
     batchSize: 1,
     gradientAccumulationSteps: 64,
-    generateEvery: 128,
+    generateEvery: 256,
     sampleLength: 768,
     predictLength: 128
 }
