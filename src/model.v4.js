@@ -7,10 +7,10 @@ import OriginalDecoderEngine from './model.v3.js'
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.heads = 8
-        this.units = 256
-        this.innerDim = this.units * 4
+        this.layers = 3
+        this.heads = 4
+        this.units = 64
+        this.innerDim = this.units * 16
         this.epsilon = 1e-5
     }
 
@@ -25,16 +25,31 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(inputs)
 
-        const range = this.ode.layers.Range().apply(inputs)
-
-        const encoding = this.ode.layers
-            .SinusoidalPositionalEncoding({
-                units: this.units,
-                reverse: false
+        let outputs = this.ode.layers
+            .RotaryPositionalEmbedding({
+                seqLen: this.config.contextLength,
+                units: this.units
             })
-            .apply(range)
+            .apply(embeddings)
 
-        let outputs = this.tf.layers.add().apply([embeddings, encoding])
+        // const embeddings = this.tf.layers
+        //     .embedding({
+        //         inputDim: this.tokenizer.getLength(),
+        //         outputDim: this.units,
+        //         embeddingsInitializer: 'glorotUniform'
+        //     })
+        //     .apply(inputs)
+
+        // const range = this.ode.layers.Range().apply(inputs)
+
+        // const encoding = this.ode.layers
+        //     .SinusoidalPositionalEncoding({
+        //         units: this.units,
+        //         reverse: false
+        //     })
+        //     .apply(range)
+
+        // let outputs = this.tf.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

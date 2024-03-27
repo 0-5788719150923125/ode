@@ -1076,6 +1076,96 @@ class Antirectifier extends tf.layers.Layer {
     }
 }
 
+class RotaryPositionalEmbedding extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units
+        this.seqLen = config.seqLen
+        this.posEncoding = null
+    }
+
+    build(inputShape) {
+        const outputDim = inputShape[inputShape.length - 1]
+        if (outputDim !== this.units) {
+            throw new Error(
+                `Embedding dimension mismatch. Expected ${this.units}, got ${outputDim}.`
+            )
+        }
+        this.posEncoding = this.getRotaryPositionalEmbedding(
+            this.seqLen,
+            this.units
+        )
+    }
+
+    call(inputs) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        const batchSize = inputs.shape[0]
+        const seqLen = inputs.shape[1]
+        const posEncoding = this.posEncoding.slice([0, 0], [seqLen, this.units])
+        const output = this.applyRotaryPositionalEmbedding(inputs, posEncoding)
+        return output
+    }
+
+    getRotaryPositionalEmbedding(seqLen, embeddingDim) {
+        const pos = tf.range(0, seqLen, 1, 'float32').reshape([-1, 1])
+        const i = tf.range(0, embeddingDim / 2, 1, 'float32').reshape([1, -1])
+        const angleRates = tf.pow(10000, tf.div(i, embeddingDim / 2))
+        const angleRads = tf.mul(pos, tf.div(1, angleRates))
+        const sin = tf.sin(angleRads)
+        const cos = tf.cos(angleRads)
+        const posEncoding = tf.concat([sin, cos], -1)
+        return posEncoding
+    }
+
+    applyRotaryPositionalEmbedding(x, posEncoding) {
+        const xShape = x.shape
+        const xDtype = x.dtype
+        const [batchSize, seqLen, embeddingDim] = xShape
+
+        const rotaryDim = embeddingDim / 2
+        const xRot = x.slice([0, 0, 0], [batchSize, seqLen, rotaryDim])
+        const xPass = x.slice([0, 0, rotaryDim], [batchSize, seqLen, rotaryDim])
+
+        const rotatedX = tf.sub(
+            tf.mul(xRot, posEncoding.slice([0, 0], [seqLen, rotaryDim])),
+            tf.mul(
+                tf.reverse(xRot, -1),
+                posEncoding.slice([0, rotaryDim], [seqLen, rotaryDim])
+            )
+        )
+
+        const rotatedX2 = tf.add(
+            tf.mul(xRot, posEncoding.slice([0, 0], [seqLen, rotaryDim])),
+            tf.mul(
+                tf.reverse(xRot, -1),
+                posEncoding.slice([0, rotaryDim], [seqLen, rotaryDim])
+            )
+        )
+
+        const rotatedX3 = tf.concat([rotatedX, rotatedX2], -1)
+        const output = tf.concat([rotatedX3, xPass], -1)
+
+        return output.asType(xDtype)
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            units: this.units,
+            seqLen: this.seqLen
+        })
+        return config
+    }
+
+    static get className() {
+        return 'RotaryPositionalEmbedding'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -1087,6 +1177,7 @@ const exportedLayers = [
     MultiLayerPerceptron,
     Range,
     ResidualConnection,
+    RotaryPositionalEmbedding,
     SinusoidalPositionalEncoding,
     SynthesizerAttention,
     TransformerXLAttention
