@@ -35,18 +35,6 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.clipValue
     )
 
-    const initialLr = 0.0001
-    const peakLr = 0.00333
-    const iterations = 333
-    const modulation = 0.666
-    this.model.optimizer.learningRate = initialLr
-    const scheduler = this.ode.schedulers.cosineScheduler(
-        initialLr,
-        peakLr,
-        iterations,
-        modulation
-    )
-
     const dataset = batchGenerator(
         dataGenerator,
         this.tokenizer,
@@ -61,11 +49,10 @@ export async function startTraining(dataGenerator, args) {
             batch++
             if (batch % trainArgs.gradientAccumulationSteps === 0) {
                 step++
+                // Set learning rate via schedule
+                this.model.optimizer.learningRate =
+                    this.schedulers[0].next().value
             }
-
-            // Set learning rate via schedule
-            const lr = scheduler.next().value
-            this.model.optimizer.learningRate = lr
 
             // Fetch data and compute gradients
             const tensors = dataset.next().value
@@ -74,7 +61,7 @@ export async function startTraining(dataGenerator, args) {
 
             // Print logs
             const loss = gradientAccumulator.getLoss()
-            logger.log(batch, step, loss, lr)
+            logger.log(batch, step, loss, this.model.optimizer.learningRate)
 
             // Print sample text
             await predictionSampler.call(

@@ -51,6 +51,7 @@ export default class ModelBase {
         this.defineLossFunctions()
         this.defineBuild()
         this.defineOptimizers()
+        this.defineSchedulers()
         this.compile()
         this.postInit()
     }
@@ -78,6 +79,22 @@ export default class ModelBase {
                 this.config.momentum || 0.01,
                 this.config.epsilon || 1e-8,
                 this.config.centered || false
+            )
+        ]
+    }
+
+    defineSchedulers() {
+        const initialLr = 0.000333
+        const peakLr = 0.00333
+        const iterations = 333
+        const modulation = 0.666
+        this.optimizers[0].learningRate = initialLr
+        this.schedulers = [
+            this.ode.schedulers.cosineScheduler(
+                initialLr,
+                peakLr,
+                iterations,
+                modulation
             )
         ]
     }

@@ -1,7 +1,7 @@
 import OriginalDecoderEngine from './model.v3.js'
 
 /**
- * A small transformer with synthetic attention weights and sinusoidal position embeddings.
+ * A small transformer with synthetic attention weights and rotary positional embeddings.
  * @extends OriginalDecoderEngine
  */
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
