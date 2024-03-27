@@ -12,6 +12,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.units = 256
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
+        this.compressionFactor = 4
     }
 
     defineBuild() {
@@ -25,28 +26,25 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(inputs)
 
-        // const range = this.ode.layers.Range().apply(inputs)
-
-        // const encoding = this.ode.layers
-        //     .SinusoidalPositionalEncoding({
-        //         units: this.units,
-        //         reverse: false
-        //     })
-        //     .apply(range)
-
-        // let outputs = this.tf.layers.add().apply([embeddings, encoding])
+        const compressed = this.ode.layers
+            .CompressedEmbeddings({
+                compressionFactor: this.compressionFactor,
+                poolingType: 'avg'
+            })
+            .apply(embeddings)
 
         let outputs = this.ode.layers
             .RotaryPositionalEmbedding({
-                seqLen: this.config.contextLength,
+                seqLen: this.config.contextLength / this.compressionFactor,
                 units: this.units
             })
-            .apply(embeddings)
+            .apply(compressed)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SynthesizerAttention({
-                    blockSize: this.config.contextLength,
+                    blockSize:
+                        this.config.contextLength / this.compressionFactor,
                     units: this.units,
                     heads: this.heads,
                     bias: false,
@@ -65,6 +63,10 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
         }
+
+        outputs = this.ode.layers
+            .SequenceExpansionLayer({ seqLen: this.config.contextLength })
+            .apply(outputs)
 
         outputs = this.tf.layers
             .dense({

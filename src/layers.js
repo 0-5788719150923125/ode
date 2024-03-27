@@ -1189,39 +1189,35 @@ class CompressedEmbeddings extends tf.layers.Layer {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         const [batchSize, seqLen, embedDim] = inputs.shape
 
-        if (seqLen % this.compressionFactor !== 0) {
-            throw new Error(
-                `Sequence length (${seqLen}) must be divisible by the compression factor (${this.compressionFactor}).`
-            )
-        }
+        const paddedSeqLen =
+            Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
+        const paddedInputs = inputs.pad([
+            [0, 0],
+            [0, paddedSeqLen - seqLen],
+            [0, 0]
+        ])
 
-        const compressedSeqLen = seqLen / this.compressionFactor
+        const reshapedInputs = paddedInputs.reshape([
+            batchSize,
+            paddedSeqLen / this.compressionFactor,
+            this.compressionFactor,
+            embedDim
+        ])
 
         let pooledEmbeddings
         if (this.poolingType === 'avg') {
-            pooledEmbeddings = tf.avgPool(
-                inputs,
-                [this.compressionFactor, 1],
-                [this.compressionFactor, 1],
-                'valid'
-            )
+            pooledEmbeddings = tf.mean(reshapedInputs, 2)
         } else if (this.poolingType === 'max') {
-            pooledEmbeddings = tf.maxPool(
-                inputs,
-                [this.compressionFactor, 1],
-                [this.compressionFactor, 1],
-                'valid'
-            )
+            pooledEmbeddings = tf.max(reshapedInputs, 2)
         } else {
             throw new Error(`Unsupported pooling type: ${this.poolingType}`)
         }
-
-        return pooledEmbeddings.reshape([batchSize, compressedSeqLen, embedDim])
+        return pooledEmbeddings
     }
 
     computeOutputShape(inputShape) {
         const [batchSize, seqLen, embedDim] = inputShape
-        const compressedSeqLen = seqLen / this.compressionFactor
+        const compressedSeqLen = Math.ceil(seqLen / this.compressionFactor)
         return [batchSize, compressedSeqLen, embedDim]
     }
 
@@ -1239,6 +1235,47 @@ class CompressedEmbeddings extends tf.layers.Layer {
     }
 }
 
+class SequenceExpansionLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.seqLen = config.seqLen
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const input = inputs instanceof Array ? inputs[0] : inputs
+            const [batchSize, seqLen, embedDim] = input.shape
+
+            // Check if expansion is needed
+            if (seqLen >= this.seqLen) {
+                return input
+            }
+
+            // Calculate the expansion factor based on current and target sequence lengths
+            const expansionFactor = this.seqLen / seqLen
+
+            // Create an expanded sequence by repeating elements (simplistic approach)
+            let expandedInputs = input.tile([1, expansionFactor, 1])
+
+            // Slice the expanded sequence to match the exact target sequence length
+            let slicedExpandedInputs = expandedInputs.slice(
+                [0, 0, 0],
+                [batchSize, this.seqLen, embedDim]
+            )
+
+            return slicedExpandedInputs
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.seqLen, inputShape[2]]
+    }
+
+    static get className() {
+        return 'SequenceExpansionLayer'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -1252,6 +1289,7 @@ const exportedLayers = [
     Range,
     ResidualConnection,
     RotaryPositionalEmbedding,
+    SequenceExpansionLayer,
     SinusoidalPositionalEncoding,
     SynthesizerAttention,
     TransformerXLAttention
