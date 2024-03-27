@@ -1,11 +1,11 @@
-import { shaks13 } from './data.js'
-
 export const colors = {
     BLUE: '\x1b[34m',
     GREEN: '\x1b[32m',
     RED: '\x1b[31m',
     WHITE: '\x1b[0m'
 }
+
+export const delay = (ms) => new Promise((res) => setTimeout(res, ms))
 
 export function randomBetween(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)

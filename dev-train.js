@@ -22,16 +22,15 @@ export async function trainModel(args) {
     // await net.load()
     await net.tokenizer.writeVocabularyToFile()
 
-    // const dataset = net.ode.samplers.stringSampler(
-    //     trainArgs.sampleLength * 5,
-    //     trainArgs?.overfit
-    // )
-
-    const dataset = await net.ode.samplers.directorySampler(
+    const gun = net.ode.samplers.gunSampler()
+    await gun.init()
+    // await gun.subscribeChannel('trade')
+    // await gun.putDataset('phi', null)
+    // await gun.uploadDirectory('phi', '/home/crow/Repos/vtx/lab/phi/train')
+    const dataset = await net.ode.samplers.stringSampler(
         trainArgs.sampleLength * 5,
         trainArgs?.overfit,
-        '/home/crow/Repos/vtx/lab/phi/train',
-        '\n\n\n'
+        await gun.getDataset('phi')
     )
 
     await net.train(dataset, trainArgs)

@@ -1,3 +1,6 @@
+import { shaks13 } from './data.js'
+import { delay } from './utils.js'
+
 function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
     if (overfit > 0) {
         str = splitLines(str, overfit)
@@ -27,6 +30,11 @@ async function directorySampler(
     dir = './',
     delimiter = '\n\n'
 ) {
+    let allText = await directoryReader(dir, delimiter)
+    return stringSampler(sampleLen, overfit, allText)
+}
+
+async function directoryReader(dir = './', delimiter = '\n\n') {
     const fs = (await import('fs')).default
     const path = (await import('path')).default
 
@@ -47,27 +55,59 @@ async function directorySampler(
 
     readDirSync(dir)
 
-    return stringSampler(sampleLen, overfit, allText)
+    return allText
 }
 
-async function gunSampler() {
-    const Gun = (await import('gun')).default
-    // const SEA = (await import('gun/sea.js')).default
+class GunSampler {
+    constructor(config) {
+        this.gun
+        this.config = config
+    }
 
-    const gun = new Gun({
-        peers: ['wss://59.src.eco/gun', 'wss://95.src.eco/gun'],
-        localStorage: true,
-        radisk: false,
-        axe: false,
-        file: './data/gun'
-    })
-
-    gun.get('src')
-        .get('bullets')
-        .get('trade')
-        .on(async (node) => {
-            console.log(node)
+    async init() {
+        const Gun = (await import('gun')).default
+        this.gun = new Gun({
+            peers: ['wss://59.src.eco/gun', 'wss://95.src.eco/gun'],
+            localStorage: true,
+            radisk: false,
+            axe: false,
+            file: './data/gun'
         })
+    }
+
+    async uploadDirectory(key = 'phi', dir = './src') {
+        await this.putDataset(key, await directoryReader(dir, '\n\n\n'))
+    }
+
+    async putDataset(key, object) {
+        this.gun.get('src').get('datasets').get(key).put(object)
+    }
+
+    async getDataset(key) {
+        let data = false
+        this.gun
+            .get('src')
+            .get('datasets')
+            .get(key)
+            .once(async (node) => {
+                data = node
+            })
+        while (!data) {
+            console.log(`Retreiving [${key}] dataset...`)
+            await delay(5000)
+        }
+        return data
+    }
+
+    async subscribeChannel(key = 'trade') {
+        this.gun
+            .get('src')
+            .get('bullets')
+            .get(key)
+            .on(async (node) => {
+                console.log(node)
+            })
+    }
 }
 
 const samplers = {
@@ -77,6 +117,6 @@ const samplers = {
         sequentialStringSampler(sampleLen, str),
     directorySampler: (sampleLen, overfit, dir, delimiter) =>
         directorySampler(sampleLen, overfit, dir, delimiter),
-    gunSampler: () => gunSampler()
+    gunSampler: (config) => new GunSampler(config)
 }
 export default samplers
