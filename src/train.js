@@ -35,6 +35,18 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.clipValue
     )
 
+    const initialLr = 0.0001
+    const peakLr = 0.00333
+    const iterations = 333
+    const modulation = 0.666
+    this.model.optimizer.learningRate = initialLr
+    const scheduler = this.ode.schedulers.cosineScheduler(
+        initialLr,
+        peakLr,
+        iterations,
+        modulation
+    )
+
     const dataset = batchGenerator(
         dataGenerator,
         this.tokenizer,
@@ -51,13 +63,18 @@ export async function startTraining(dataGenerator, args) {
                 step++
             }
 
+            // Set learning rate via schedule
+            const lr = scheduler.next().value
+            this.model.optimizer.learningRate = lr
+
+            // Fetch data and compute gradients
             const tensors = dataset.next().value
             await gradientAccumulator.compute(tensors.xs, tensors.ys)
             await gradientAccumulator.step()
 
             // Print logs
             const loss = gradientAccumulator.getLoss()
-            logger.log(batch, step, loss)
+            logger.log(batch, step, loss, lr)
 
             // Print sample text
             await predictionSampler.call(
@@ -392,7 +409,7 @@ class Logger {
         this.ema.next()
         this.previousLoss = 0
     }
-    log(batch, step, currentLoss) {
+    log(batch, step, currentLoss, learningRate) {
         const updatedEma = this.ema.next(currentLoss).value // Send new loss to generator and get updated EMA
 
         let white = colors.WHITE
@@ -421,7 +438,7 @@ class Logger {
         const elapsed = this.timer.next().value
         this.totalElapsed += elapsed
         console.log(
-            `STEP=${step}, BATCH=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, ELAPSED=${elapsed / 1000}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
+            `STEP=${step}, BATCH=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(5)}, ELAPSED=${elapsed / 1000}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
         )
     }
 }

@@ -4,20 +4,26 @@ function* constantScheduler(max) {
     }
 }
 
-function* cosineScheduler(max, min, totalIterations, modulation = 1) {
+function* cosineScheduler(start, end, totalIterations, modulation = 1) {
     let i = 0
-    const range = max - min
+    const range = end - start
     while (true) {
+        // Adjust iteration for modulation
         let adjustedI = i / modulation
 
+        // Calculate cosine value for cyclical annealing
         let cosValue = Math.cos(
-            (2 * Math.PI * adjustedI) / totalIterations + Math.PI
+            Math.PI *
+                ((2 * (adjustedI % totalIterations)) / totalIterations - 1)
         )
-        let currentValue = min + (range * (1 - cosValue)) / 2
+
+        // Adjust current value based on cosine, equally applied at both ends
+        let currentValue = start + (range * (1 + cosValue)) / 2
 
         yield currentValue
 
-        i = (i + 1) % (totalIterations * modulation)
+        // Increment iteration
+        i++
     }
 }
 

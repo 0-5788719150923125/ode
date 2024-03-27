@@ -5,6 +5,7 @@ function initializePlot(width, height) {
 }
 
 function updatePlot(plot, value, maxVal, minVal, width, height) {
+    // Shift everything to the left
     plot.forEach((line) => {
         for (let i = 0; i < width - 1; i++) {
             line[i] = line[i + 1]
@@ -12,11 +13,15 @@ function updatePlot(plot, value, maxVal, minVal, width, height) {
         line[width - 1] = ' '
     })
 
+    // Scale factor to map value to plot coordinates
     const scaleFactor = height / (maxVal - minVal)
     let y = Math.floor((value - minVal) * scaleFactor)
-    y = Math.max(0, Math.min(height - 1, y)) // Ensure y is within bounds
 
-    plot[height - 1 - y].fill('*', width - 1, width) // Draw the new asterisk at the rightmost position
+    // Ensure y is within bounds
+    y = height - 1 - Math.max(0, Math.min(height - 1, y))
+
+    // Update the plot with the new value at the correct position
+    plot[y].fill('*', width - 1, width)
 }
 
 function printPlot(plot) {
@@ -30,15 +35,22 @@ function plotCosineSchedulerRealTime(
     iterations,
     width = 75,
     height = 30,
-    rate = 100
+    rate = 100,
+    modulation = 1
 ) {
-    const generator = schedulers.cosineScheduler(min, max, iterations)
+    const generator = schedulers.cosineScheduler(
+        min,
+        max,
+        iterations,
+        modulation
+    )
     let plot = initializePlot(width, height)
 
     function plotNext() {
         const value = generator.next().value
         updatePlot(plot, value, max, min, width, height)
         printPlot(plot)
+        // console.log(value)
 
         setTimeout(plotNext, rate)
     }
@@ -47,4 +59,6 @@ function plotCosineSchedulerRealTime(
 }
 
 // Usage
-plotCosineSchedulerRealTime(0, 1, 200, 75, 10, 100)
+const modulation = 0.666
+plotCosineSchedulerRealTime(0, 1, 333, 75, 20, 100, modulation)
+// plotCosineSchedulerRealTime(1, 0, 1000, 75, 20, 100)
