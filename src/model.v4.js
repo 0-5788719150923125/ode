@@ -11,9 +11,10 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.heads = 8
         this.units = 256
         this.innerDim = this.units * 3
-        this.epsilon = 1e-6
         this.operations = 23
         this.compressionFactor = 4
+        this.epsilon = 1e-6
+        this.alpha = 0.22
     }
 
     defineBuild() {
@@ -49,7 +50,8 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                         this.config.contextLength / this.compressionFactor,
                     heads: this.heads,
                     epsilon: this.epsilon,
-                    activation: this.tf.leakyRelu
+                    activation: this.tf.leakyRelu,
+                    alpha: this.alpha
                 })
                 .apply(outputs)
 

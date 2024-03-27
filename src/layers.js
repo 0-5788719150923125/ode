@@ -688,6 +688,7 @@ class SynthesizerAttention extends tf.layers.Layer {
         this.residPdrop = config.dropout || 0.0
         this.activation = config.activation || tf.relu
         this.epsilon = config.epsilon || 1e-5
+        this.alpha = config.alpha || 1
         this.depth = this.units / this.heads
     }
 
@@ -749,7 +750,8 @@ class SynthesizerAttention extends tf.layers.Layer {
             const [batchSize, seqLen, embedSize] = inputs.shape
 
             const nonlinearOut = this.activation(
-                this.synthesize(inputs, this.w1.read())
+                this.synthesize(inputs, this.w1.read()),
+                this.alpha
             )
             const nonlinearReshaped = tf.transpose(
                 tf.reshape(nonlinearOut, [
