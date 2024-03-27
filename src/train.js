@@ -150,8 +150,7 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
 
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
-            // const predictions = model.call(currentXs, { training: true })
-            const predictions = model.call(currentXs)
+            const predictions = model.call(currentXs, { training: true })
             const weights = null
             const smoothing = null
             const reduction = tf.Reduction.MEAN
