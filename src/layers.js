@@ -1076,7 +1076,7 @@ class Antirectifier extends tf.layers.Layer {
     }
 }
 
-class RotaryPositionalEmbedding extends tf.layers.Layer {
+class RotaryPositionalEncoding extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -1174,7 +1174,7 @@ class RotaryPositionalEmbedding extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'RotaryPositionalEmbedding'
+        return 'RotaryPositionalEncoding'
     }
 }
 
@@ -1183,6 +1183,21 @@ class CompressEmbeddings extends tf.layers.Layer {
         super(config)
         this.compressionFactor = config.compressionFactor
         this.poolingType = config.poolingType || 'avg'
+    }
+
+    build(inputShape) {
+        if (this.poolingType !== 'dot') return
+        const numVectors = 23
+        this.weightVectors = []
+        for (let i = 0; i < numVectors; i++) {
+            const weightVector = this.addWeight(
+                `weightVector${i}`,
+                [inputShape[2]],
+                'float32',
+                tf.initializers.glorotUniform()
+            )
+            this.weightVectors.push(weightVector)
+        }
     }
 
     call(inputs) {
@@ -1209,6 +1224,25 @@ class CompressEmbeddings extends tf.layers.Layer {
             pooledEmbeddings = tf.mean(reshapedInputs, 2)
         } else if (this.poolingType === 'max') {
             pooledEmbeddings = tf.max(reshapedInputs, 2)
+        } else if (this.poolingType === 'norm') {
+            pooledEmbeddings = tf.norm(reshapedInputs, 2)
+        } else if (this.poolingType === 'dot') {
+            const pooledVectors = this.weightVectors.map((weightVector) => {
+                const expandedVector = weightVector
+                    .read()
+                    .expandDims(0)
+                    .expandDims(0)
+                    .expandDims(0)
+                return tf.sum(reshapedInputs.mul(expandedVector), 2)
+            })
+            // Combine the pooled vectors (e.g., sum, multiply, subtract, divide)
+            pooledEmbeddings = pooledVectors.reduce((a, b, i) => {
+                if (i % 2 === 0) {
+                    return a.sub(b)
+                } else {
+                    return a.add(b)
+                }
+            })
         } else {
             throw new Error(`Unsupported pooling type: ${this.poolingType}`)
         }
@@ -1216,9 +1250,8 @@ class CompressEmbeddings extends tf.layers.Layer {
     }
 
     computeOutputShape(inputShape) {
-        const [batchSize, seqLen, embedDim] = inputShape
-        const compressedSeqLen = Math.ceil(seqLen / this.compressionFactor)
-        return [batchSize, compressedSeqLen, embedDim]
+        const seqLen = Math.ceil(inputShape[1] / this.compressionFactor)
+        return [inputShape[0], seqLen, inputShape[2]]
     }
 
     getConfig() {
@@ -1500,7 +1533,7 @@ const exportedLayers = [
     NearestNeighborUpsampling,
     Range,
     ResidualConnection,
-    RotaryPositionalEmbedding,
+    RotaryPositionalEncoding,
     SequenceExpansionLayer,
     SinusoidalPositionalEncoding,
     SynthesizerAttention,

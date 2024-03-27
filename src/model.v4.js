@@ -18,7 +18,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
 
-        const embeddings = this.tf.layers
+        let outputs = this.tf.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
@@ -26,19 +26,19 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(inputs)
 
-        const compressed = this.ode.layers
-            .CompressEmbeddings({
-                compressionFactor: this.compressionFactor,
-                poolingType: 'avg'
-            })
-            .apply(embeddings)
-
-        let outputs = this.ode.layers
-            .RotaryPositionalEmbedding({
-                seqLen: this.config.contextLength / this.compressionFactor,
+        outputs = this.ode.layers
+            .RotaryPositionalEncoding({
+                seqLen: this.config.contextLength,
                 units: this.units
             })
-            .apply(compressed)
+            .apply(outputs)
+
+        outputs = this.ode.layers
+            .CompressEmbeddings({
+                compressionFactor: this.compressionFactor,
+                poolingType: 'dot'
+            })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -70,13 +70,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 units: this.units
             })
             .apply(outputs)
-
-        // outputs = this.ode.layers
-        //     .ConvolutionalExpansionLayer({
-        //         seqLen: this.config.contextLength,
-        //         units: this.units
-        //     })
-        //     .apply(outputs)
 
         outputs = this.tf.layers
             .dense({
