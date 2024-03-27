@@ -7,10 +7,10 @@ import OriginalDecoderEngine from './model.v3.js'
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.heads = 4
-        this.units = 64
-        this.innerDim = this.units * 16
+        this.layers = 6
+        this.heads = 8
+        this.units = 256
+        this.innerDim = this.units * 4
         this.epsilon = 1e-5
     }
 

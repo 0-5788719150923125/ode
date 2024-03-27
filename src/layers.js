@@ -1101,9 +1101,21 @@ class RotaryPositionalEmbedding extends tf.layers.Layer {
         inputs = Array.isArray(inputs) ? inputs[0] : inputs
         const batchSize = inputs.shape[0]
         const seqLen = inputs.shape[1]
-        const posEncoding = this.posEncoding.slice([0, 0], [seqLen, this.units])
-        const output = this.applyRotaryPositionalEmbedding(inputs, posEncoding)
-        return output
+        const paddedInputs = inputs.pad([
+            [0, 0],
+            [0, Math.max(this.seqLen - seqLen, 0)],
+            [0, 0]
+        ])
+        const paddedSeqLen = paddedInputs.shape[1]
+        const posEncoding = this.posEncoding.slice(
+            [0, 0],
+            [paddedSeqLen, this.units]
+        )
+        const output = this.applyRotaryPositionalEmbedding(
+            paddedInputs,
+            posEncoding
+        )
+        return output.slice([0, 0, 0], [batchSize, this.seqLen, this.units])
     }
 
     getRotaryPositionalEmbedding(seqLen, embeddingDim) {
@@ -1149,7 +1161,7 @@ class RotaryPositionalEmbedding extends tf.layers.Layer {
     }
 
     computeOutputShape(inputShape) {
-        return inputShape
+        return [inputShape[0], this.seqLen, this.units]
     }
 
     getConfig() {
