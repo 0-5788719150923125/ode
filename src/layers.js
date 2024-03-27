@@ -742,73 +742,79 @@ class SynthesizerAttention extends tf.layers.Layer {
     }
 
     call(inputs, kwargs) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        const [batchSize, seqLen, embedSize] = inputs.shape
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            const [batchSize, seqLen, embedSize] = inputs.shape
 
-        const nonlinearOut = this.activation(
-            this.synthesize(inputs, this.w1.read())
-        )
-        const nonlinearReshaped = tf.transpose(
-            tf.reshape(nonlinearOut, [
+            const nonlinearOut = this.activation(
+                this.synthesize(inputs, this.w1.read())
+            )
+            const nonlinearReshaped = tf.transpose(
+                tf.reshape(nonlinearOut, [
+                    batchSize,
+                    seqLen,
+                    this.heads,
+                    this.depth
+                ]),
+                [0, 2, 1, 3]
+            )
+
+            const v = this.synthesize(inputs, this.value.read())
+            const vReshaped = tf.transpose(
+                tf.reshape(v, [batchSize, seqLen, this.heads, this.depth]),
+                [0, 2, 1, 3]
+            )
+
+            const w2Tiled = this.w2
+                .read()
+                .expandDims(0)
+                .tile([batchSize * this.heads, 1, 1])
+            let scores = tf.add(
+                tf.reshape(
+                    tf.matMul(
+                        tf.reshape(nonlinearReshaped, [
+                            batchSize * this.heads,
+                            seqLen,
+                            this.depth
+                        ]),
+                        w2Tiled
+                    ),
+                    [batchSize, this.heads, seqLen, this.blockSize]
+                ),
+                this.b2.read()
+            )
+            scores = scores.slice(
+                [0, 0, 0, 0],
+                [batchSize, this.heads, seqLen, seqLen]
+            )
+            scores = tf.where(
+                tf.equal(
+                    this.mask.slice([0, 0, 0, 0], [1, 1, seqLen, seqLen]),
+                    0
+                ),
+                tf.fill([batchSize, this.heads, seqLen, seqLen], -1e10),
+                scores
+            )
+
+            const probAttn = tf.softmax(scores, -1)
+            const attnOutput = this.attnDropout.apply(probAttn)
+            const y = tf.matMul(attnOutput, vReshaped)
+
+            const yTransposed = tf.transpose(y, [0, 2, 1, 3])
+            const yReshaped = tf.reshape(yTransposed, [
                 batchSize,
                 seqLen,
-                this.heads,
-                this.depth
-            ]),
-            [0, 2, 1, 3]
-        )
+                embedSize
+            ])
 
-        const v = this.synthesize(inputs, this.value.read())
-        const vReshaped = tf.transpose(
-            tf.reshape(v, [batchSize, seqLen, this.heads, this.depth]),
-            [0, 2, 1, 3]
-        )
+            const output = this.synthesize(yReshaped, this.proj.read())
 
-        const w2Tiled = this.w2
-            .read()
-            .expandDims(0)
-            .tile([batchSize * this.heads, 1, 1])
-        let scores = tf.add(
-            tf.reshape(
-                tf.matMul(
-                    tf.reshape(nonlinearReshaped, [
-                        batchSize * this.heads,
-                        seqLen,
-                        this.depth
-                    ]),
-                    w2Tiled
-                ),
-                [batchSize, this.heads, seqLen, this.blockSize]
-            ),
-            this.b2.read()
-        )
-        scores = scores.slice(
-            [0, 0, 0, 0],
-            [batchSize, this.heads, seqLen, seqLen]
-        )
-        scores = tf.where(
-            tf.equal(this.mask.slice([0, 0, 0, 0], [1, 1, seqLen, seqLen]), 0),
-            tf.fill([batchSize, this.heads, seqLen, seqLen], -1e10),
-            scores
-        )
+            const residOutput = this.residDropout.apply(output)
+            const normalized = this.layernorm.apply(residOutput)
 
-        const probAttn = tf.softmax(scores, -1)
-        const attnOutput = this.attnDropout.apply(probAttn)
-        const y = tf.matMul(attnOutput, vReshaped)
-
-        const yTransposed = tf.transpose(y, [0, 2, 1, 3])
-        const yReshaped = tf.reshape(yTransposed, [
-            batchSize,
-            seqLen,
-            embedSize
-        ])
-
-        const output = this.synthesize(yReshaped, this.proj.read())
-
-        const residOutput = this.residDropout.apply(output)
-        const normalized = this.layernorm.apply(residOutput)
-
-        return this.residual.apply([inputs, normalized])
+            return this.residual.apply([inputs, normalized])
+        })
     }
 
     synthesize(x, kernel) {
@@ -1087,25 +1093,28 @@ class RotaryPositionalEncoding extends tf.layers.Layer {
         )
     }
 
-    call(inputs) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        const batchSize = inputs.shape[0]
-        const seqLen = inputs.shape[1]
-        const paddedInputs = inputs.pad([
-            [0, 0],
-            [0, Math.max(this.seqLen - seqLen, 0)],
-            [0, 0]
-        ])
-        const paddedSeqLen = paddedInputs.shape[1]
-        const posEncoding = this.posEncoding.slice(
-            [0, 0],
-            [paddedSeqLen, this.units]
-        )
-        const output = this.applyRotaryPositionalEmbedding(
-            paddedInputs,
-            posEncoding
-        )
-        return output.slice([0, 0, 0], [batchSize, this.seqLen, this.units])
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            const batchSize = inputs.shape[0]
+            const seqLen = inputs.shape[1]
+            const paddedInputs = inputs.pad([
+                [0, 0],
+                [0, Math.max(this.seqLen - seqLen, 0)],
+                [0, 0]
+            ])
+            const paddedSeqLen = paddedInputs.shape[1]
+            const posEncoding = this.posEncoding.slice(
+                [0, 0],
+                [paddedSeqLen, this.units]
+            )
+            const output = this.applyRotaryPositionalEmbedding(
+                paddedInputs,
+                posEncoding
+            )
+            return output.slice([0, 0, 0], [batchSize, this.seqLen, this.units])
+        })
     }
 
     getRotaryPositionalEmbedding(seqLen, embeddingDim) {
@@ -1197,18 +1206,20 @@ class CompressorHead extends tf.layers.Layer {
     }
 
     call(inputs, kwargs) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            this.setMode()
 
-        this.setMode()
+            const [batchSize, seqLen, embedDim] = inputs.shape
 
-        const [batchSize, seqLen, embedDim] = inputs.shape
-
-        // Decide operation based on mode
-        if (this.mode === 'compress') {
-            return this.compress(inputs, seqLen, embedDim, batchSize)
-        } else if (this.mode === 'decompress') {
-            return this.decompress(inputs, seqLen, embedDim, batchSize)
-        }
+            // Decide operation based on mode
+            if (this.mode === 'compress') {
+                return this.compress(inputs, seqLen, embedDim, batchSize)
+            } else if (this.mode === 'decompress') {
+                return this.decompress(inputs, seqLen, embedDim, batchSize)
+            }
+        })
     }
 
     compress(inputs, seqLen, embedDim, batchSize) {

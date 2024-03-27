@@ -12,6 +12,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.units = 256
         this.innerDim = this.units * 3
         this.epsilon = 1e-6
+        this.operations = 23
         this.compressionFactor = 4
     }
 
@@ -34,7 +35,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         const compressor = this.ode.layers.CompressorHead({
-            operations: 23,
+            operations: this.operations,
             compressionFactor: this.compressionFactor
         })
 
