@@ -26,7 +26,7 @@ export async function trainModel(args) {
     await gun.init()
     // await gun.subscribeChannel('trade')
     // await gun.putDataset('phi', null)
-    // await gun.uploadDirectory('phi', '/home/crow/Repos/vtx/lab/phi/train')
+    await gun.uploadDirectory('phi', '/home/crow/Repos/vtx/lab/phi/train')
     const dataset = await net.ode.samplers.stringSampler(
         trainArgs.sampleLength * 5,
         trainArgs?.overfit,
