@@ -1235,6 +1235,89 @@ class CompressedEmbeddings extends tf.layers.Layer {
     }
 }
 
+class ConvolutionalExpansionLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.seqLen = config.seqLen
+        this.units = config.units // The desired depth of the output, similar to filters in conv2dTranspose
+        this.kernelSize = config.kernelSize || 3 // Kernel size for the transposed convolution
+    }
+
+    build(inputShape) {
+        // Define a 2D transposed convolution layer to simulate 1D sequence expansion
+        this.conv2dTransposeLayer = tf.layers.conv2dTranspose({
+            filters: this.units,
+            kernelSize: [1, this.kernelSize], // Faux height of 1, actual kernel size for width
+            strides: [1, 2], // Stride 2 for expansion, faux height stride of 1
+            padding: 'same',
+            activation: 'linear', // Consider the appropriate activation for your task
+            inputShape: [1, inputShape[1], inputShape[2]] // Adjusted for conv2d input
+        })
+        // this.conv2dTransposeLayer.build([1, inputShape[1], inputShape[2]])
+        // this._trainableWeights.push(...this.conv2dTransposeLayer)
+
+        super.build(inputShape) // Ensure the layer is marked as built
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            let input = inputs
+            if (!Array.isArray(input)) {
+                input = [input]
+            }
+            // Reshape the input to add a faux height dimension
+            const reshapedInput = input[0].reshape([
+                -1,
+                1,
+                input[0].shape[1],
+                input[0].shape[2]
+            ])
+
+            // Apply the transposed convolution layer
+            let output = this.conv2dTransposeLayer.apply(reshapedInput, kwargs)
+
+            // Squeeze to remove the faux height dimension and possibly adjust width (sequence length)
+            output = output.squeeze([1])
+
+            // If necessary, trim or pad the output to exactly match the target sequence length
+            const currentSeqLen = output.shape[1]
+            if (currentSeqLen > this.seqLen) {
+                // Trim excess length
+                output = output.slice([0, 0, 0], [-1, this.seqLen, -1])
+            } else if (currentSeqLen < this.seqLen) {
+                // Pad to target length
+                const padWidth = this.seqLen - currentSeqLen
+                output = tf.pad(output, [
+                    [0, 0],
+                    [0, padWidth],
+                    [0, 0]
+                ])
+            }
+
+            return output
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        // Assuming the transformation maintains or adjusts to the target sequence length
+        return [inputShape[0], this.seqLen, this.units]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            seqLen: this.seqLen,
+            units: this.units,
+            kernelSize: this.kernelSize
+        })
+        return config
+    }
+
+    static get className() {
+        return 'ConvolutionalExpansionLayer'
+    }
+}
+
 class SequenceExpansionLayer extends tf.layers.Layer {
     constructor(config) {
         super(config)
@@ -1279,6 +1362,7 @@ class SequenceExpansionLayer extends tf.layers.Layer {
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
+    ConvolutionalExpansionLayer,
     CompressedEmbeddings,
     DebugLayer,
     GatedLinearUnit,
