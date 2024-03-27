@@ -117,8 +117,15 @@ export default class ModelBase {
     }
 
     async load(path = `data/models/ode`) {
+        await tf.ready()
+        await tf.setBackend(this.config.backend || 'cpu')
+        this.defineTokenizer()
+        this.defineLossFunctions()
         this.model = await tf.loadLayersModel(`file://${path}/model.json`)
         console.log('successfully loaded model from disk')
+        this.defineOptimizers()
+        this.compile()
+        this.postInit()
     }
 
     debug(inputs) {

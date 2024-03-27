@@ -16,6 +16,50 @@ export function splitLines(text, num = 100) {
     return lines.slice(0, num).join('\n')
 }
 
+// Return a deterministic value from any array
+export function seededValueFromArray(array, seed) {
+    return array[Math.floor(seededPRNG(seed) * array.length)]
+}
+
+// Generate a deterministic PRNG from a string
+export function seededPRNG(str) {
+    // Hash function
+    function xmur3(str) {
+        for (var i = 0, h = 1779033703 ^ str.length; i < str.length; i++) {
+            h = Math.imul(h ^ str.charCodeAt(i), 3432918353)
+            h = (h << 13) | (h >>> 19)
+        }
+        return function () {
+            h = Math.imul(h ^ (h >>> 16), 2246822507)
+            h = Math.imul(h ^ (h >>> 13), 3266489909)
+            return (h ^= h >>> 16) >>> 0
+        }
+    }
+
+    // 128 bit generator
+    function xoshiro128ss(a, b, c, d) {
+        return function () {
+            var t = b << 9,
+                r = a * 5
+            r = ((r << 7) | (r >>> 25)) * 9
+            c ^= a
+            d ^= b
+            b ^= c
+            a ^= d
+            c ^= t
+            d = (d << 11) | (d >>> 21)
+            return (r >>> 0) / 4294967296
+        }
+    }
+
+    // Create xmur3 state:
+    const state = xmur3(str)
+    // Output four 32-bit hashes to provide the seed for sfc32.
+    const rand = xoshiro128ss(state(), state(), state(), state())
+    // Obtain sequential random numbers like so:
+    return rand()
+}
+
 export function* elapsedTimeGenerator() {
     let previousTime = new Date()
 

@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import { GELU } from './activations.js'
+import { seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {}
 export default customLayers
@@ -1248,10 +1249,11 @@ class CompressorHead extends tf.layers.Layer {
         })
 
         return pooledVectors.reduce((a, b, i) => {
-            if (i % 2 === 0) {
-                return a.sub(b)
-            } else {
+            const op = seededValueFromArray(['add', 'sub'], i)
+            if (op === 'add') {
                 return a.add(b)
+            } else if (op === 'sub') {
+                return a.sub(b)
             }
         })
     }
@@ -1272,9 +1274,10 @@ class CompressorHead extends tf.layers.Layer {
         })
 
         return pooledVectors.reduce((a, b, i) => {
-            if (i % 2 === 0) {
+            const op = seededValueFromArray(['add', 'sub'], seededPRNG(i))
+            if (op === 'add') {
                 return a.add(b)
-            } else {
+            } else if (op === 'sub') {
                 return a.sub(b)
             }
         })
