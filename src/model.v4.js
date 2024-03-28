@@ -19,11 +19,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     }
 
     defineBuild() {
-        const inputs = this.tf.input({ shape: [null] })
+        const inputs = this.tf.input({
+            name: `in1-${randomString()}`,
+            shape: [null]
+        })
 
         let outputs = this.tf.layers
             .embedding({
-                name: `emb-${randomString(7)}`,
+                name: `emb-${randomString()}`,
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -38,7 +41,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         const compressor = this.tf.layers.bidirectional({
-            name: `bidirectional-${randomString(7)}`,
+            name: `bid-${randomString()}`,
             layer: this.ode.layers.CompressorHead({
                 operations: this.operations,
                 compressionFactor: this.compressionFactor
@@ -81,7 +84,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         outputs = this.tf.layers
             .dense({
-                name: `out-${randomString(7)}`,
+                name: `out-${randomString()}`,
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })

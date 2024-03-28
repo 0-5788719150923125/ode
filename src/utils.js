@@ -8,7 +8,7 @@ export const colors = {
 export const delay = (ms) => new Promise((res) => setTimeout(res, ms))
 
 export function randomString(
-    len = 7,
+    len = 3,
     chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 ) {
     let text = ''

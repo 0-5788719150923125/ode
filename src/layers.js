@@ -381,7 +381,7 @@ class MultiHeadAttention extends LayerBase {
 
 class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `mlp-${randomString(7)}` })
+        super({ ...config, name: `mlp-${randomString()}` })
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
@@ -398,14 +398,14 @@ class MultiLayerPerceptron extends LayerBase {
     build(inputShape) {
         // Initialize dense layers for projection
         this.in_proj = tf.layers.dense({
-            name: `mlp-${randomString(7)}`,
+            name: `mlp-${randomString()}`,
             units: this.innerDim,
             inputDim: this.units,
             activation: this.activation
         })
         // We can't use 2 dense layers here, else kernel names will conflict during serialization/saving to disk
         this.out_proj = this.addWeight(
-            `mlp-${randomString(7)}`,
+            `mlp-${randomString()}`,
             [1, this.innerDim, this.units],
             'float32',
             tf.initializers.glorotNormal()
@@ -416,7 +416,7 @@ class MultiLayerPerceptron extends LayerBase {
 
         // Initialize layer normalization
         this.layernorm = tf.layers.layerNormalization({
-            name: `mlp-${randomString(7)}`,
+            name: `mlp-${randomString()}`,
             epsilon: 1e-5
         })
         this.layernorm.build(inputShape)
@@ -703,7 +703,7 @@ class LambdaLayer extends LayerBase {
 // https://github.com/iafarhan/causal-synthesizer-multihead-attention/blob/main/synthesizer.py
 class SynthesizerAttention extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `synthesizer-${randomString(7)}` })
+        super({ ...config, name: `syn-${randomString()}` })
         this.units = config.units
         this.heads = config.heads
         this.blockSize = config.blockSize
@@ -717,31 +717,31 @@ class SynthesizerAttention extends LayerBase {
 
     build(inputShape) {
         this.w1 = this.addWeight(
-            `w1-${randomString(7)}`,
+            `w1-${randomString()}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.w2 = this.addWeight(
-            `w2-${randomString(7)}`,
+            `w2-${randomString()}`,
             [this.units / this.heads, this.blockSize],
             'float32',
             tf.initializers.zeros()
         )
         this.b2 = this.addWeight(
-            `b2-${randomString(7)}`,
+            `b2-${randomString()}`,
             [this.blockSize],
             'float32',
             tf.initializers.zeros()
         )
         this.value = this.addWeight(
-            `value-${randomString(7)}`,
+            `value-${randomString()}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.proj = this.addWeight(
-            `proj-${randomString(7)}`,
+            `proj-${randomString()}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
@@ -1100,7 +1100,7 @@ class Antirectifier extends LayerBase {
 
 class RotaryPositionalEncoding extends LayerBase {
     constructor(config) {
-        super(config)
+        super({ ...config, name: `rot-${randomString()}` })
         this.units = config.units
         this.seqLen = config.seqLen
         this.posEncoding = null
@@ -1205,7 +1205,7 @@ class RotaryPositionalEncoding extends LayerBase {
 
 class CompressorHead extends LayerBase {
     constructor(config) {
-        super(config)
+        super({ ...config, name: `compressor-${randomString()}` })
         this.operations = config.operations || 3
         this.compressionFactor = config.compressionFactor || 2
         this.epsilon = config.epsilon || 1e-8
@@ -1244,7 +1244,7 @@ class CompressorHead extends LayerBase {
     build(inputShape) {
         for (let i = 0; i < this.operations; i++) {
             const weightVector = this.addWeight(
-                `ch-${randomString(7)}`,
+                `head-${randomString()}`,
                 [inputShape[2]],
                 'float32',
                 tf.initializers.glorotUniform()
