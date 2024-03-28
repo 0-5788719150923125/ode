@@ -53,7 +53,7 @@ export function seededPRNG(str) {
     }
 
     // Create xmur3 state:
-    const state = xmur3(str)
+    const state = xmur3(str.toString())
     // Output four 32-bit hashes to provide the seed for sfc32.
     const rand = xoshiro128ss(state(), state(), state(), state())
     // Obtain sequential random numbers like so:

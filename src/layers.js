@@ -1185,6 +1185,7 @@ class CompressorHead extends tf.layers.Layer {
         super(config)
         this.operations = config.operations || 3
         this.compressionFactor = config.compressionFactor || 2
+        this.epsilon = config.epsilon || 1e-8
         this.weightVectors = []
     }
 
@@ -1225,6 +1226,50 @@ class CompressorHead extends tf.layers.Layer {
         })
     }
 
+    randomOperation(a, b, seed) {
+        const ops = [
+            'add',
+            'sub',
+            'mul',
+            'div',
+            'relu',
+            'leakyRelu',
+            'sigmoid',
+            'tanh',
+            'mean',
+            'norm'
+        ]
+
+        const op = seededValueFromArray(ops, seed)
+
+        let result
+        if (op === 'add') {
+            result = a.add(b)
+        } else if (op === 'sub') {
+            result = a.sub(b)
+        } else if (op === 'mul') {
+            result = a.mul(b)
+        } else if (op === 'div') {
+            result = a.div(b.add(this.epsilon))
+        } else if (op === 'relu') {
+            result = tf.relu(a.add(b))
+        } else if (op === 'leakyRelu') {
+            result = tf.relu(a.sub(b))
+        } else if (op === 'sigmoid') {
+            result = tf.sigmoid(a.mul(b))
+        } else if (op === 'tanh') {
+            result = tf.tanh(a.div(b.add(this.epsilon)))
+        } else if (op === 'mean') {
+            result = tf.mean(tf.stack([a, b]), 0)
+        } else if (op === 'norm') {
+            result = tf.norm(tf.stack([a, b]), 2, 0)
+        }
+        // const mean = result.mean([-1], true);
+        // const variance = result.sub(mean).square().mean([-1], true);
+        // return result.sub(mean).div(variance.add(epsilon).sqrt());
+        return result
+    }
+
     compress(inputs, seqLen, embedDim, batchSize) {
         const paddedSeqLen =
             Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
@@ -1251,12 +1296,7 @@ class CompressorHead extends tf.layers.Layer {
         })
 
         return pooledVectors.reduce((a, b, i) => {
-            const op = seededValueFromArray(['add', 'sub'], i)
-            if (op === 'add') {
-                return a.add(b)
-            } else if (op === 'sub') {
-                return a.sub(b)
-            }
+            return this.randomOperation(a, b, i)
         })
     }
 
@@ -1276,12 +1316,7 @@ class CompressorHead extends tf.layers.Layer {
         })
 
         return pooledVectors.reduce((a, b, i) => {
-            const op = seededValueFromArray(['add', 'sub'], seededPRNG(i))
-            if (op === 'add') {
-                return a.add(b)
-            } else if (op === 'sub') {
-                return a.sub(b)
-            }
+            return this.randomOperation(a, b, seededPRNG(i))
         })
     }
 
