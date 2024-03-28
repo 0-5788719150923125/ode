@@ -30,7 +30,7 @@ export async function trainModel(args) {
     const dataset = await net.ode.samplers.stringSampler(
         trainArgs.sampleLength * 5,
         trainArgs?.overfit,
-        await gun.getDataset('phi')
+        await gun.getDataset('phi') // remove this to just use the default Shakespeare dataset
     )
 
     await net.train(dataset, trainArgs)
