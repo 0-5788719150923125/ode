@@ -82,19 +82,9 @@ export default class ModelBase {
     }
 
     defineSchedulers() {
-        const initialLr = 0.000333
-        const peakLr = 0.00333
-        const iterations = 333
-        const modulation = 0.666
+        const learningRate = 0.00333
         this.optimizers[0].learningRate = initialLr
-        this.schedulers = [
-            this.ode.schedulers.cosineScheduler(
-                initialLr,
-                peakLr,
-                iterations,
-                modulation
-            )
-        ]
+        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 
     compile() {
