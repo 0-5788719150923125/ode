@@ -2,6 +2,36 @@ import { Llama2Tokenizer } from '@lenml/llama2-tokenizer'
 import { load_vocab } from '@lenml/llama2-tokenizer-vocab-llama2'
 import { shaks13 } from './data.js'
 
+class CharacterTokenizer {
+    constructor() {
+        this.padToken = '�'
+        this.vocab = Array.from(
+            new Set(
+                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
+            )
+        )
+        this.vocab.unshift(this.padToken)
+        this.model = new Llama2Tokenizer()
+        this.model.install_vocab(load_vocab())
+    }
+
+    getLength() {
+        return this.vocab.length
+    }
+
+    encode(string) {
+        // not implemented
+    }
+
+    decode(array) {
+        // not implemented
+    }
+
+    writeVocabularyToFile(path) {
+        // skip
+    }
+}
+
 class BasicSubwordTokenizer {
     constructor(
         maxVocabSize = 32000,
@@ -127,13 +157,6 @@ class BasicSubwordTokenizer {
 
 class PretrainedTokenizer {
     constructor() {
-        // this.padToken = '�'
-        // this.vocab = Array.from(
-        //     new Set(
-        //         `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
-        //     )
-        // )
-        // this.vocab.unshift(this.padToken)
         this.model = new Llama2Tokenizer()
         this.model.install_vocab(load_vocab())
     }
@@ -156,6 +179,7 @@ class PretrainedTokenizer {
 }
 
 const tokenizers = {
+    CharacterTokenizer: (config) => new CharacterTokenizer(config),
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),
     PretrainedTokenizer: () => new PretrainedTokenizer()

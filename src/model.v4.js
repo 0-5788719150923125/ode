@@ -36,13 +36,18 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        const compressor = this.tf.layers.bidirectional({
-            name: `bidirectional-${randomString(7)}`,
-            layer: this.ode.layers.CompressorHead({
-                operations: this.operations,
-                compressionFactor: this.compressionFactor
-            }),
-            mergeMode: 'ave'
+        // const compressor = this.tf.layers.bidirectional({
+        //     name: `bidirectional-${randomString(7)}`,
+        //     layer: this.ode.layers.CompressorHead({
+        //         operations: this.operations,
+        //         compressionFactor: this.compressionFactor
+        //     }),
+        //     mergeMode: 'ave'
+        // })
+
+        const compressor = this.ode.layers.CompressorHead({
+            operations: this.operations,
+            compressionFactor: this.compressionFactor
         })
 
         outputs = compressor.apply(outputs)
