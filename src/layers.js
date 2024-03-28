@@ -1288,38 +1288,7 @@ class CompressorHead extends tf.layers.Layer {
         return result
     }
 
-    // Principal Component Analysis (PCA) for dimensionality reduction
-    // compress(inputs, seqLen, embedDim, batchSize) {
-    //     const paddedSeqLen =
-    //         Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
-    //     const paddedInputs = inputs.pad([
-    //         [0, 0],
-    //         [0, paddedSeqLen - seqLen],
-    //         [0, 0]
-    //     ])
-    //     const reshapedInputs = paddedInputs.reshape([
-    //         batchSize * paddedSeqLen,
-    //         embedDim
-    //     ])
-
-    //     const { mean, variance } = tf.moments(reshapedInputs, 0)
-    //     const centeredInputs = reshapedInputs.sub(mean)
-    //     const covarianceMatrix = centeredInputs
-    //         .transpose()
-    //         .matMul(centeredInputs)
-    //         .div(batchSize * paddedSeqLen)
-
-    //     const { q, r } = tf.linalg.qr(covarianceMatrix)
-    //     const compressedDim = Math.floor(embedDim * this.compressionFactor)
-    //     const principalComponents = q.slice([0, 0], [-1, compressedDim])
-
-    //     const compressedInputs = centeredInputs
-    //         .matMul(principalComponents)
-    //         .reshape([batchSize, paddedSeqLen, compressedDim])
-
-    //     return compressedInputs
-    // }
-
+    // TODO: We should probably try to implement Principal Component Analysis (PCA) for dimensionality reduction here
     compress(inputs, seqLen, embedDim, batchSize) {
         const paddedSeqLen =
             Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
