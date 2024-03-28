@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import { GELU } from './activations.js'
-import { seededPRNG, seededValueFromArray } from './utils.js'
+import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {}
 export default customLayers
@@ -359,7 +359,7 @@ class MultiHeadAttention extends tf.layers.Layer {
 
 class MultiLayerPerceptron extends tf.layers.Layer {
     constructor(config) {
-        super(config)
+        super({ ...config, name: `mlp-${randomString(7)}` })
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
@@ -376,11 +376,13 @@ class MultiLayerPerceptron extends tf.layers.Layer {
     build(inputShape) {
         // Initialize dense layers for projection
         this.in_proj = tf.layers.dense({
+            name: `mlp-${randomString(7)}`,
             units: this.innerDim,
             inputDim: this.units,
             activation: this.activation
         })
         this.out_proj = tf.layers.dense({
+            name: `mlp-${randomString(7)}`,
             units: this.units,
             inputDim: this.innerDim
         })
@@ -393,7 +395,10 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         this.residual = new ResidualConnection()
 
         // Initialize layer normalization
-        this.layernorm = tf.layers.layerNormalization({ epsilon: 1e-5 })
+        this.layernorm = tf.layers.layerNormalization({
+            name: `mlp-${randomString(7)}`,
+            epsilon: 1e-5
+        })
         this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
@@ -680,7 +685,7 @@ class LambdaLayer extends tf.layers.Layer {
 // https://github.com/iafarhan/causal-synthesizer-multihead-attention/blob/main/synthesizer.py
 class SynthesizerAttention extends tf.layers.Layer {
     constructor(config) {
-        super(config)
+        super({ ...config, name: `synth-attn-${randomString(7)}` })
         this.units = config.units
         this.heads = config.heads
         this.blockSize = config.blockSize
@@ -694,31 +699,31 @@ class SynthesizerAttention extends tf.layers.Layer {
 
     build(inputShape) {
         this.w1 = this.addWeight(
-            'w1',
+            `w1-${randomString(7)}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.w2 = this.addWeight(
-            'w2',
+            `w2-${randomString(7)}`,
             [this.units / this.heads, this.blockSize],
             'float32',
             tf.initializers.zeros()
         )
         this.b2 = this.addWeight(
-            'b2',
+            `b2-${randomString(7)}`,
             [this.blockSize],
             'float32',
             tf.initializers.zeros()
         )
         this.value = this.addWeight(
-            'value',
+            `value-${randomString(7)}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.proj = this.addWeight(
-            'proj',
+            `proj-${randomString(7)}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
@@ -1217,7 +1222,7 @@ class CompressorHead extends tf.layers.Layer {
     build(inputShape) {
         for (let i = 0; i < this.operations; i++) {
             const weightVector = this.addWeight(
-                `weightVector${i}`,
+                `ch-${randomString(7)}`,
                 [inputShape[2]],
                 'float32',
                 tf.initializers.glorotUniform()

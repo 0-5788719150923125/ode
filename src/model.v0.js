@@ -129,6 +129,7 @@ export default class ModelBase {
         this.model = await tf.loadLayersModel(`file://${path}/model.json`)
         console.log('successfully loaded model from disk')
         this.defineOptimizers()
+        this.defineSchedulers()
         this.compile()
         this.postInit()
     }
