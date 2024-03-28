@@ -11,7 +11,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.layers = 6
         this.heads = 8
         this.units = 256
-        this.innerDim = this.units * 3
+        this.innerDim = this.units * 2
         this.operations = 23
         this.compressionFactor = 4
         this.epsilon = 1e-6
@@ -23,6 +23,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         let outputs = this.tf.layers
             .embedding({
+                name: `emb-${randomString(7)}`,
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -36,19 +37,19 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        // const compressor = this.tf.layers.bidirectional({
-        //     name: `bidirectional-${randomString(7)}`,
-        //     layer: this.ode.layers.CompressorHead({
-        //         operations: this.operations,
-        //         compressionFactor: this.compressionFactor
-        //     }),
-        //     mergeMode: 'ave'
-        // })
-
-        const compressor = this.ode.layers.CompressorHead({
-            operations: this.operations,
-            compressionFactor: this.compressionFactor
+        const compressor = this.tf.layers.bidirectional({
+            name: `bidirectional-${randomString(7)}`,
+            layer: this.ode.layers.CompressorHead({
+                operations: this.operations,
+                compressionFactor: this.compressionFactor
+            }),
+            mergeMode: 'ave'
         })
+
+        // const compressor = this.ode.layers.CompressorHead({
+        //     operations: this.operations,
+        //     compressionFactor: this.compressionFactor
+        // })
 
         outputs = compressor.apply(outputs)
 
@@ -80,6 +81,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         outputs = this.tf.layers
             .dense({
+                name: `out-${randomString(7)}`,
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })

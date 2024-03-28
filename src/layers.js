@@ -1726,6 +1726,68 @@ class LearnedUpsampling extends LayerBase {
     }
 }
 
+// https://arxiv.org/abs/2203.03691
+class HyperMixer extends LayerBase {
+    constructor(config) {
+        super(config)
+        this.units = config.units
+    }
+
+    build(inputShape) {
+        // Assuming inputShape is [batchSize, numTokens, featureSize]
+        const featureSize = inputShape[2]
+
+        // Hypernetwork that generates weights for the main MLP dynamically
+        // This can be a simple MLP itself or something more sophisticated
+        this.dynamicWeightGenerator = tf.layers.dense({
+            units: this.units * featureSize,
+            activation: 'linear', // Or consider other activation functions
+            useBias: true // Depending on whether you want biases in the weight generator
+        })
+
+        // Main MLP weights and bias, initialized here but will be generated dynamically
+        // Note: These are placeholders; actual dynamic weights are generated per input
+        this.kernel = tf.zeros([featureSize, this.units])
+        this.bias = tf.zeros([this.units])
+
+        super.build(inputShape) // Must call super.build() at the end
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Generate dynamic weights and biases from the input
+            const weightBiasVector = this.dynamicWeightGenerator.apply(inputs)
+            const dynamicWeights = weightBiasVector
+                .slice([0, 0], [-1, this.units * inputs.shape[2]])
+                .reshape([-1, inputs.shape[2], this.units])
+            const dynamicBiases = weightBiasVector
+                .slice([0, this.units * inputs.shape[2]], [-1, this.units])
+                .reshape([-1, this.units])
+
+            // Apply the dynamically generated weights and biases
+            const output = tf.dot(inputs, dynamicWeights).add(dynamicBiases)
+            return output
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        // Output shape changes to [batchSize, numTokens, this.units]
+        return [inputShape[0], inputShape[1], this.units]
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        config.units = this.units
+        return config
+    }
+
+    static get className() {
+        return 'HyperMixer'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -1735,6 +1797,7 @@ const exportedLayers = [
     DumbCompression,
     GatedLinearUnit,
     GaussianMixtureModel,
+    HyperMixer,
     LambdaLayer,
     LearnedUpsampling,
     MultiHeadAttention,
