@@ -1,8 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 
-const ENGINE = tf.engine()
-
-export function getAdamW(
+export function prepareAdamW(
     model,
     learningRate,
     beta1,
@@ -51,6 +49,7 @@ class AdamW extends tf.AdamOptimizer {
         excludeFromWeightDecay
     ) {
         super(learningRate, beta1, beta2, epsilon)
+        this.ENGINE = tf.engine()
         this.decayRate = decayRate
         this.includeInWeightDecay = includeInWeightDecay
         this.excludeFromWeightDecay = excludeFromWeightDecay
@@ -64,7 +63,7 @@ class AdamW extends tf.AdamOptimizer {
             // Apply weight decay
             varNames.forEach((name, i) => {
                 if (this.includeInWeightDecay.includes(name)) {
-                    const value = ENGINE.registeredVariables[name]
+                    const value = this.ENGINE.registeredVariables[name]
                     const newValue = tf.sub(
                         value,
                         tf.mul(this.learningRate, tf.mul(value, this.decayRate))
@@ -80,7 +79,7 @@ class AdamW extends tf.AdamOptimizer {
 
 const customOptimizers = {
     AdamW: (model, learningRate, beta1, beta2, epsilon, decayRate) =>
-        getAdamW(model, learningRate, beta1, beta2, epsilon, decayRate)
+        prepareAdamW(model, learningRate, beta1, beta2, epsilon, decayRate)
 }
 
 export default customOptimizers

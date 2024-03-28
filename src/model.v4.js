@@ -10,8 +10,8 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         super(config)
         this.layers = 6
         this.heads = 8
-        this.units = 256
-        this.innerDim = this.units * 2
+        this.units = 192
+        this.innerDim = this.units * 3
         this.operations = 23
         this.compressionFactor = 4
         this.epsilon = 1e-6
