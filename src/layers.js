@@ -1187,6 +1187,31 @@ class CompressorHead extends tf.layers.Layer {
         this.compressionFactor = config.compressionFactor || 2
         this.epsilon = config.epsilon || 1e-8
         this.weightVectors = []
+        this.defaultOps = [
+            'add',
+            'sub',
+            'leakyRelu',
+            'tanh',
+            'softplus',
+            'sin',
+            'cos'
+        ]
+        this.allowedOps = config.allowedOps ||
+            this.defaultOps || [
+                'add',
+                'cos',
+                'div',
+                'leakyRelu',
+                'mean',
+                'mul',
+                'norm',
+                'relu',
+                'sigmoid',
+                'sin',
+                'softplus',
+                'sub',
+                'tanh'
+            ]
     }
 
     build(inputShape) {
@@ -1227,20 +1252,7 @@ class CompressorHead extends tf.layers.Layer {
     }
 
     randomOperation(a, b, seed) {
-        const ops = [
-            'add',
-            'sub',
-            'mul',
-            'div',
-            'relu',
-            'leakyRelu',
-            'sigmoid',
-            'tanh',
-            'mean',
-            'norm'
-        ]
-
-        const op = seededValueFromArray(ops, seed)
+        const op = seededValueFromArray(this.allowedOps, seed)
 
         let result
         if (op === 'add') {
@@ -1251,6 +1263,10 @@ class CompressorHead extends tf.layers.Layer {
             result = a.mul(b)
         } else if (op === 'div') {
             result = a.div(b.add(this.epsilon))
+        } else if (op === 'mean') {
+            result = tf.mean(tf.stack([a, b]), 0)
+        } else if (op === 'norm') {
+            result = tf.norm(tf.stack([a, b]), 2, 0)
         } else if (op === 'relu') {
             result = tf.relu(a.add(b))
         } else if (op === 'leakyRelu') {
@@ -1259,16 +1275,50 @@ class CompressorHead extends tf.layers.Layer {
             result = tf.sigmoid(a.mul(b))
         } else if (op === 'tanh') {
             result = tf.tanh(a.div(b.add(this.epsilon)))
-        } else if (op === 'mean') {
-            result = tf.mean(tf.stack([a, b]), 0)
-        } else if (op === 'norm') {
-            result = tf.norm(tf.stack([a, b]), 2, 0)
+        } else if (op === 'softplus') {
+            result = tf.softplus(a.add(b))
+        } else if (op === 'sin') {
+            result = tf.sin(a.add(b))
+        } else if (op === 'cos') {
+            result = tf.cos(a.sub(b))
         }
         // const mean = result.mean([-1], true);
         // const variance = result.sub(mean).square().mean([-1], true);
         // return result.sub(mean).div(variance.add(epsilon).sqrt());
         return result
     }
+
+    // Principal Component Analysis (PCA) for dimensionality reduction
+    // compress(inputs, seqLen, embedDim, batchSize) {
+    //     const paddedSeqLen =
+    //         Math.ceil(seqLen / this.compressionFactor) * this.compressionFactor
+    //     const paddedInputs = inputs.pad([
+    //         [0, 0],
+    //         [0, paddedSeqLen - seqLen],
+    //         [0, 0]
+    //     ])
+    //     const reshapedInputs = paddedInputs.reshape([
+    //         batchSize * paddedSeqLen,
+    //         embedDim
+    //     ])
+
+    //     const { mean, variance } = tf.moments(reshapedInputs, 0)
+    //     const centeredInputs = reshapedInputs.sub(mean)
+    //     const covarianceMatrix = centeredInputs
+    //         .transpose()
+    //         .matMul(centeredInputs)
+    //         .div(batchSize * paddedSeqLen)
+
+    //     const { q, r } = tf.linalg.qr(covarianceMatrix)
+    //     const compressedDim = Math.floor(embedDim * this.compressionFactor)
+    //     const principalComponents = q.slice([0, 0], [-1, compressedDim])
+
+    //     const compressedInputs = centeredInputs
+    //         .matMul(principalComponents)
+    //         .reshape([batchSize, paddedSeqLen, compressedDim])
+
+    //     return compressedInputs
+    // }
 
     compress(inputs, seqLen, embedDim, batchSize) {
         const paddedSeqLen =
