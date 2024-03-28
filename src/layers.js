@@ -5,7 +5,29 @@ import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 const customLayers = {}
 export default customLayers
 
-class DebugLayer extends tf.layers.Layer {
+class LayerBase extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.config = config
+        this.supportsMasking = true
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            // stuff should go here
+        })
+    }
+
+    static get className() {
+        return 'LayerBase'
+    }
+}
+
+class DebugLayer extends LayerBase {
     constructor(config) {
         super(config)
         this.config = config
@@ -33,7 +55,7 @@ class DebugLayer extends tf.layers.Layer {
     }
 }
 
-class Range extends tf.layers.Layer {
+class Range extends LayerBase {
     computeOutputShape(inputShape) {
         return inputShape
     }
@@ -55,7 +77,7 @@ class Range extends tf.layers.Layer {
     }
 }
 
-class CausalSelfAttention extends tf.layers.Layer {
+class CausalSelfAttention extends LayerBase {
     constructor(config) {
         super(config)
         this.config = Object.assign({ name: 'attn' }, config)
@@ -195,7 +217,7 @@ class CausalSelfAttention extends tf.layers.Layer {
     }
 }
 
-class SinusoidalPositionalEncoding extends tf.layers.Layer {
+class SinusoidalPositionalEncoding extends LayerBase {
     constructor({ units, reverse = false }) {
         super()
         this.units = units // Dimensionality of the positional encoding
@@ -245,7 +267,7 @@ class SinusoidalPositionalEncoding extends tf.layers.Layer {
     }
 }
 
-class MultiHeadAttention extends tf.layers.Layer {
+class MultiHeadAttention extends LayerBase {
     constructor(config) {
         super(config)
         this.heads = config.heads
@@ -357,7 +379,7 @@ class MultiHeadAttention extends tf.layers.Layer {
     }
 }
 
-class MultiLayerPerceptron extends tf.layers.Layer {
+class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
         super({ ...config, name: `mlp-${randomString(7)}` })
         this.units = config?.units || 256
@@ -432,10 +454,6 @@ class MultiLayerPerceptron extends tf.layers.Layer {
         })
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
     getConfig() {
         return {
             units: this.units,
@@ -449,7 +467,7 @@ class MultiLayerPerceptron extends tf.layers.Layer {
     }
 }
 
-class ResidualConnection extends tf.layers.Layer {
+class ResidualConnection extends LayerBase {
     constructor(config) {
         super(config)
     }
@@ -477,7 +495,7 @@ class ResidualConnection extends tf.layers.Layer {
     }
 }
 
-class GaussianMixtureModel extends tf.layers.Layer {
+class GaussianMixtureModel extends LayerBase {
     constructor(config) {
         super(config)
         this.numExperts = 4
@@ -567,7 +585,7 @@ function logGmmPosterior(z, expertCentroids, temperature) {
     return similarity.mul(temperature)
 }
 
-class GatedLinearUnit extends tf.layers.Layer {
+class GatedLinearUnit extends LayerBase {
     constructor(config) {
         super(config)
         this.supportsMasking = true
@@ -643,7 +661,7 @@ class GatedLinearUnit extends tf.layers.Layer {
 
 // Originally adapted from:
 // https://gist.githubusercontent.com/BenjaminWegener/311292080a71becbe5a8c0cc7657657d/raw/fd4f1f96184b58dace1854d0440d8c9dde3fd712/attention_layer_tfjs
-class LambdaLayer extends tf.layers.Layer {
+class LambdaLayer extends LayerBase {
     constructor(config) {
         super(config)
         if (config.name === undefined) {
@@ -683,9 +701,9 @@ class LambdaLayer extends tf.layers.Layer {
 
 // https://arxiv.org/abs/2005.00743
 // https://github.com/iafarhan/causal-synthesizer-multihead-attention/blob/main/synthesizer.py
-class SynthesizerAttention extends tf.layers.Layer {
+class SynthesizerAttention extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `synth-attn-${randomString(7)}` })
+        super({ ...config, name: `synthesizer-${randomString(7)}` })
         this.units = config.units
         this.heads = config.heads
         this.blockSize = config.blockSize
@@ -851,7 +869,7 @@ class SynthesizerAttention extends tf.layers.Layer {
     }
 }
 
-class TransformerXLAttention extends tf.layers.Layer {
+class TransformerXLAttention extends LayerBase {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -1022,7 +1040,7 @@ class TransformerXLAttention extends tf.layers.Layer {
     }
 }
 
-class Antirectifier extends tf.layers.Layer {
+class Antirectifier extends LayerBase {
     constructor() {
         super({})
         // TODO(bileschi): Can we point to documentation on masking here?
@@ -1080,7 +1098,7 @@ class Antirectifier extends tf.layers.Layer {
     }
 }
 
-class RotaryPositionalEncoding extends tf.layers.Layer {
+class RotaryPositionalEncoding extends LayerBase {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -1185,7 +1203,7 @@ class RotaryPositionalEncoding extends tf.layers.Layer {
     }
 }
 
-class CompressorHead extends tf.layers.Layer {
+class CompressorHead extends LayerBase {
     constructor(config) {
         super(config)
         this.operations = config.operations || 3
@@ -1195,6 +1213,8 @@ class CompressorHead extends tf.layers.Layer {
         this.defaultOps = [
             'add',
             'sub',
+            'min',
+            'max',
             'leakyRelu',
             'tanh',
             'softplus',
@@ -1207,7 +1227,9 @@ class CompressorHead extends tf.layers.Layer {
                 'cos',
                 'div',
                 'leakyRelu',
+                'max',
                 'mean',
+                'min',
                 'mul',
                 'norm',
                 'relu',
@@ -1268,6 +1290,10 @@ class CompressorHead extends tf.layers.Layer {
             result = a.mul(b)
         } else if (op === 'div') {
             result = a.div(b.add(this.epsilon))
+        } else if (op === 'max') {
+            result = a.maximum(b)
+        } else if (op === 'min') {
+            result = a.minimum(b)
         } else if (op === 'mean') {
             result = tf.mean(tf.stack([a, b]), 0)
         } else if (op === 'norm') {
@@ -1360,7 +1386,7 @@ class CompressorHead extends tf.layers.Layer {
     }
 }
 
-class DumbCompression extends tf.layers.Layer {
+class DumbCompression extends LayerBase {
     constructor(config) {
         super(config)
         this.compressionFactor = config.compressionFactor
@@ -1450,7 +1476,7 @@ class DumbCompression extends tf.layers.Layer {
     }
 }
 
-class ConvolutionalExpansionLayer extends tf.layers.Layer {
+class ConvolutionalExpansionLayer extends LayerBase {
     constructor(config) {
         super(config)
         this.seqLen = config.seqLen
@@ -1535,7 +1561,7 @@ class ConvolutionalExpansionLayer extends tf.layers.Layer {
     }
 }
 
-class SequenceExpansionLayer extends tf.layers.Layer {
+class SequenceExpansionLayer extends LayerBase {
     constructor(config) {
         super(config)
         this.seqLen = config.seqLen
@@ -1576,7 +1602,7 @@ class SequenceExpansionLayer extends tf.layers.Layer {
     }
 }
 
-class NearestNeighborUpsampling extends tf.layers.Layer {
+class NearestNeighborUpsampling extends LayerBase {
     constructor(config) {
         super(config)
         this.upsamplingFactor = config.upsamplingFactor
@@ -1622,7 +1648,7 @@ class NearestNeighborUpsampling extends tf.layers.Layer {
     }
 }
 
-class LearnedUpsampling extends tf.layers.Layer {
+class LearnedUpsampling extends LayerBase {
     constructor(config) {
         super(config)
         this.upsamplingFactor = config.upsamplingFactor
@@ -1729,7 +1755,7 @@ exportedLayers.forEach((LayerClass) => {
     customLayers[className] = (config) => new LayerClass(config)
 })
 
-// export class LearnedPositionalEmbeddings extends tf.layers.Layer {
+// export class LearnedPositionalEmbeddings extends LayerBase {
 //     constructor(config) {
 //         super(config)
 //         this.vocabSize = config.vocabSize
@@ -1817,7 +1843,7 @@ exportedLayers.forEach((LayerClass) => {
 
 // tf.serialization.registerClass(LearnedPositionalEmbeddings)
 
-// class MixtureOfExpertsLayer extends tf.layers.Layer {
+// class MixtureOfExpertsLayer extends LayerBase {
 //     constructor(config) {
 //         super(config)
 //         this.expertCount = config.expertCount || 2 // Number of experts
@@ -1888,7 +1914,7 @@ exportedLayers.forEach((LayerClass) => {
 
 // tf.serialization.registerClass(MixtureOfExpertsLayer)
 
-// class SimplifiedMoELayer extends tf.layers.Layer {
+// class SimplifiedMoELayer extends LayerBase {
 //     constructor(config) {
 //         super(config)
 //         this.units = config.units
@@ -1953,7 +1979,7 @@ exportedLayers.forEach((LayerClass) => {
 
 // tf.serialization.registerClass(SimplifiedMoELayer)
 
-// // export class AttentionLayer extends tf.layers.Layer {
+// // export class AttentionLayer extends LayerBase {
 // //     constructor(config) {
 // //         super(config)
 // //         this.n = config.n
@@ -1994,7 +2020,7 @@ exportedLayers.forEach((LayerClass) => {
 // //     }
 // // }
 
-// // class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
+// // class SparseMixtureOfExpertsLayer extends LayerBase {
 // //     constructor(config) {
 // //         super(config)
 // //         this.expertCount = config.expertCount || 2 // Number of experts
@@ -2077,7 +2103,7 @@ exportedLayers.forEach((LayerClass) => {
 // //     }
 // // }
 
-// class SparseMixtureOfExpertsLayer extends tf.layers.Layer {
+// class SparseMixtureOfExpertsLayer extends LayerBase {
 //     constructor(config) {
 //         super(config)
 //         this.expertCount = config.expertCount || 2 // Number of experts

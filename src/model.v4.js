@@ -1,4 +1,5 @@
 import OriginalDecoderEngine from './model.v3.js'
+import { randomString } from './utils.js'
 
 /**
  * A small transformer with synthetic attention weights and rotary positional embeddings.
@@ -36,6 +37,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         const compressor = this.tf.layers.bidirectional({
+            name: `bidirectional-${randomString(7)}`,
             layer: this.ode.layers.CompressorHead({
                 operations: this.operations,
                 compressionFactor: this.compressionFactor
