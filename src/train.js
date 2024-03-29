@@ -156,6 +156,7 @@ class GradientAccumulator {
 
             // Dispose of the clipped gradients after application
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
+            Object.values(filteredGrads).forEach((tensor) => tensor.dispose())
         }
 
         // Dispose of grads after accumulation
@@ -200,29 +201,53 @@ function computeGradients(
 
 function filterGradients(grads) {
     const activeLayers = []
+    const blockedLayers = []
+
+    this.experts.forEach((expert) => {
+        // console.log(expert._addedWeightNames)
+        if (expert.hasOwnProperty('wasActivated')) {
+            if (expert.wasActivated) activeLayers.push(expert.name)
+            else {
+                blockedLayers.push(expert.name)
+                if (!expert.hasOwnProperty('_addedWeightNames')) return
+                for (const name of expert._addedWeightNames) {
+                    // console.log(name)
+                    blockedLayers.push(name)
+                }
+            }
+        } else activeLayers.push(expert.name)
+    })
     this.model.layers.forEach((layer) => {
         if (layer.hasOwnProperty('wasActivated')) {
             if (layer.wasActivated) activeLayers.push(layer.name)
         } else activeLayers.push(layer.name)
     })
-    this.experts.forEach((expert) => {
-        if (expert.hasOwnProperty('wasActivated')) {
-            if (expert.wasActivated) activeLayers.push(expert.name)
-        } else activeLayers.push(expert.name)
-    })
 
     const filteredGrads = {}
     Object.keys(grads).forEach((varName) => {
+        // if (varName.includes('mlp')) {
+        //     return
+        // }
+
+        // if (varName.includes('moe')) {
+        //     return
+        // }
+
         // Determine if the current variable is part of an active expert
         const isActive = activeLayers.some((layerName) =>
             varName.includes(layerName)
         )
-        if (isActive) {
+        const isBlocked = blockedLayers.some((layerName) =>
+            varName.includes(layerName)
+        )
+
+        if (isActive && !isBlocked) {
             // If active, include this gradient in the filtered set
             filteredGrads[varName] = grads[varName]
         }
     })
-    console.log(activeLayers.join(', '))
+    console.log('active_layers', activeLayers)
+    console.log('blocked_layers', blockedLayers)
     return filteredGrads
 }
 

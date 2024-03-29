@@ -474,6 +474,8 @@ class SparseMixtureOfExperts extends LayerBase {
         this.experts = config.experts // Array of expert layers
         this.numExperts = this.experts.length
         this.topK = config.topK || 3
+        this.currentBatch
+        this.currentStep
     }
 
     build(inputShape) {
@@ -525,10 +527,21 @@ class SparseMixtureOfExperts extends LayerBase {
                 .reshape([this.topK])
                 .arraySync()
 
+            console.log(currentExperts)
             // Compute outputs only for the selected experts
-            this.experts.map((expert) => (expert.wasActivated = false))
+            if (kwargs.step !== this.currentStep) {
+                this.currentStep = kwargs.step
+                this.experts.map((expert) => {
+                    if (expert?.currentBatch !== kwargs.batch) {
+                        expert.currentBatch = kwargs.batch
+                        expert.wasActivated = false
+                    }
+                })
+            }
+
             const expertOutputs = currentExperts.map((index) => {
-                this.experts[index].wasActivated = true
+                this.experts[index].currentStep = kwargs.step
+                this.experts[index].wasActivated = false
                 return this.experts[index].apply(inputs)
             })
 
