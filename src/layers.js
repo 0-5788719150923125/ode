@@ -467,6 +467,69 @@ class MultiLayerPerceptron extends LayerBase {
     }
 }
 
+class SparseMixtureOfExperts extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.numExperts = config.numExperts || 10
+        this.topK = config.topK || 3
+        this.units = config.units || 256
+        this.experts = []
+        for (let i = 0; i < this.numExperts; i++) {
+            const expertLayer = tf.layers.dense({
+                units: this.units,
+                activation: 'relu', // Can be made configurable
+                name: `expert_${i}`
+            })
+            this.experts.push(expertLayer)
+        }
+        this.gatingMechanism = tf.layers.dense({
+            units: this.numExperts,
+            activation: 'softmax', // Ensures output is a distribution over experts
+            name: 'gating_mechanism'
+        })
+    }
+
+    build(inputShape) {
+        // Initialize experts and gating mechanism
+        this.experts.forEach((expert) => expert.build(inputShape))
+        this.gatingMechanism.build(inputShape)
+        super.build(inputShape) // Mark layer as built
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const gatingScores = this.gatingMechanism.apply(inputs)
+            const topKValues = tf.topk(gatingScores, this.topK, true)
+            const selectedExpertsOutputs = this.experts.map((expert, index) => {
+                // Use gating score to determine if an expert is in the top k
+                const isSelected = topKValues.indices
+                    .arraySync()
+                    .includes(index)
+                return isSelected ? expert.apply(inputs) : tf.zerosLike(inputs)
+            })
+            // Sum the outputs from the selected experts
+            const outputs = selectedExpertsOutputs.reduce(
+                (acc, curr) => acc.add(curr),
+                tf.zerosLike(inputs)
+            )
+            return outputs
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            topK: this.topK,
+            units: this.units
+        }
+    }
+
+    static get className() {
+        return 'SparseMixtureOfExperts'
+    }
+}
+
 class ResidualConnection extends LayerBase {
     constructor(config) {
         super(config)
@@ -1102,7 +1165,7 @@ class RotaryPositionalEncoding extends LayerBase {
     constructor(config) {
         super({ ...config, name: `rot-${randomString()}` })
         this.units = config.units
-        this.seqLen = config.seqLen
+        this.blockSize = config.blockSize
         this.posEncoding = null
     }
 
@@ -1114,7 +1177,7 @@ class RotaryPositionalEncoding extends LayerBase {
             )
         }
         this.posEncoding = this.getRotaryPositionalEmbedding(
-            this.seqLen,
+            this.blockSize,
             this.units
         )
     }
@@ -1127,7 +1190,7 @@ class RotaryPositionalEncoding extends LayerBase {
             const seqLen = inputs.shape[1]
             const paddedInputs = inputs.pad([
                 [0, 0],
-                [0, Math.max(this.seqLen - seqLen, 0)],
+                [0, Math.max(this.blockSize - seqLen, 0)],
                 [0, 0]
             ])
             const paddedSeqLen = paddedInputs.shape[1]
@@ -1139,7 +1202,10 @@ class RotaryPositionalEncoding extends LayerBase {
                 paddedInputs,
                 posEncoding
             )
-            return output.slice([0, 0, 0], [batchSize, this.seqLen, this.units])
+            return output.slice(
+                [0, 0, 0],
+                [batchSize, this.blockSize, this.units]
+            )
         })
     }
 
@@ -1186,14 +1252,14 @@ class RotaryPositionalEncoding extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], this.seqLen, this.units]
+        return [inputShape[0], this.blockSize, this.units]
     }
 
     getConfig() {
         const config = super.getConfig()
         Object.assign(config, {
             units: this.units,
-            seqLen: this.seqLen
+            blockSize: this.blockSize
         })
         return config
     }
@@ -1808,6 +1874,7 @@ const exportedLayers = [
     RotaryPositionalEncoding,
     SequenceExpansionLayer,
     SinusoidalPositionalEncoding,
+    SparseMixtureOfExperts,
     SynthesizerAttention,
     TransformerXLAttention
 ]

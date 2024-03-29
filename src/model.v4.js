@@ -32,7 +32,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         outputs = this.ode.layers
             .RotaryPositionalEncoding({
-                seqLen: this.config.contextLength,
+                blockSize: this.config.contextLength,
                 units: this.units
             })
             .apply(outputs)
