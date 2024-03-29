@@ -13,6 +13,8 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.units = 64
         this.innerDim = this.units * 4
         this.epsilon = 1e-6
+        this.numExperts = 4
+        this.topK = 2
     }
 
     defineBuild() {
@@ -37,6 +39,19 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
+        const experts = []
+        for (let i = 0; i < this.numExperts; i++) {
+            experts.push(
+                this.ode.layers.MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    heads: this.heads,
+                    epsilon: this.epsilon,
+                    activation: 'swish'
+                })
+            )
+        }
+
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SynthesizerAttention({
@@ -50,12 +65,10 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .MultiLayerPerceptron({
+                .SparseMixtureOfExperts({
+                    experts,
                     units: this.units,
-                    innerDim: this.innerDim,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    activation: 'swish'
+                    topK: this.topK
                 })
                 .apply(outputs)
         }
