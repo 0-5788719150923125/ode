@@ -13,13 +13,6 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
         this.config.mode = 'oneLabel'
     }
 
-    async defineTokenizer(config) {
-        await super.defineTokenizer({
-            vocabSize: config.vocabSize || 2222,
-            numIterations: config.numIterations || 500_000_000
-        })
-    }
-
     defineBuild() {
         this.model = this.tf.sequential()
 

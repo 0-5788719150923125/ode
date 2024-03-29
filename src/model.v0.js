@@ -56,8 +56,8 @@ export default class ModelBase {
 
     async defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
-            config.vocabSize || 6666,
-            config.numIterations || 10_000_000
+            config?.vocabSize || 6666,
+            config?.numIterations || 100_000_000
         )
     }
 
@@ -128,7 +128,7 @@ export default class ModelBase {
         this.defineLossFunctions()
         this.model = await tf.loadLayersModel(`file://${path}/model.json`, {
             // We disable strict mode to prevent errors like this:
-            // ValueError: Provided weight data has no target variable: syn-xxo/w1-qsA
+            //   ValueError: Provided weight data has no target variable: syn-xxo/w1-qsA
             // TODO: fix the actual problem
             strict: false
         })

@@ -11,7 +11,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 3
-        this.units = 128
+        this.units = 64
         this.epsilon = 1e-5
     }
 

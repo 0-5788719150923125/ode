@@ -206,18 +206,21 @@ function filterGradients(grads) {
     const activeLayers = []
     const blockedLayers = []
 
-    this.experts.forEach((expert) => {
-        if (expert.hasOwnProperty('wasActivated')) {
-            if (expert.wasActivated) activeLayers.push(expert.name)
-            else {
-                blockedLayers.push(expert.name)
-                if (!expert.hasOwnProperty('_addedWeightNames')) return
-                for (const name of expert._addedWeightNames) {
-                    blockedLayers.push(name)
+    if (this.experts) {
+        this.experts.forEach((expert) => {
+            if (expert.hasOwnProperty('wasActivated')) {
+                if (expert.wasActivated) activeLayers.push(expert.name)
+                else {
+                    blockedLayers.push(expert.name)
+                    if (!expert.hasOwnProperty('_addedWeightNames')) return
+                    for (const name of expert._addedWeightNames) {
+                        blockedLayers.push(name)
+                    }
                 }
-            }
-        } else activeLayers.push(expert.name)
-    })
+            } else activeLayers.push(expert.name)
+        })
+    }
+
     this.model.layers.forEach((layer) => {
         if (layer.hasOwnProperty('wasActivated')) {
             if (layer.wasActivated) activeLayers.push(layer.name)
