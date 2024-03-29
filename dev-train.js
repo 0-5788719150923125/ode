@@ -18,8 +18,8 @@ export async function trainModel(args) {
         ...trainArgs
     })
 
-    // await net.init()
-    await net.load()
+    await net.init()
+    // await net.load()
     await net.tokenizer.writeVocabularyToFile()
 
     const gun = net.ode.samplers.gunSampler()
