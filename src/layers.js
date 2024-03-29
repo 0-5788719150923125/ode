@@ -529,19 +529,43 @@ class SparseMixtureOfExperts extends LayerBase {
 
             console.log(currentExperts)
             // Compute outputs only for the selected experts
-            if (kwargs.step !== this.currentStep) {
-                this.currentStep = kwargs.step
-                this.experts.map((expert) => {
-                    if (expert?.currentBatch !== kwargs.batch) {
-                        expert.currentBatch = kwargs.batch
-                        expert.wasActivated = false
-                    }
-                })
-            }
+
+            this.currentBatch = kwargs.batch
+            this.experts.map((expert) => {
+                if (kwargs.step !== expert.currentStep) {
+                    expert.currentStep = kwargs.step
+                    expert.wasActivated = false
+                }
+            })
+
+            // this.experts.map((expert) => {
+            //     if (expert?.currentBatch !== kwargs.batch) {
+            //         expert.currentBatch = kwargs.batch
+            //         expert.wasActivated = false
+            //     }
+            // })
+            // if (kwargs.step !== this.currentStep) {
+            //     this.currentStep = kwargs.step
+            //     this.experts.map((expert) => {
+            //         if (expert?.currentBatch !== kwargs.batch) {
+            //             expert.currentBatch = kwargs.batch
+            //             expert.wasActivated = false
+            //         }
+            //     })
+            // }
+            // if (kwargs.step !== this.currentStep) {
+            //     this.currentStep = kwargs.step
+            //     this.experts.map((expert) => {
+            //         if (expert?.currentBatch !== kwargs.batch) {
+            //             expert.currentBatch = kwargs.batch
+            //             expert.wasActivated = false
+            //         }
+            //     })
+            // }
 
             const expertOutputs = currentExperts.map((index) => {
-                this.experts[index].currentStep = kwargs.step
-                this.experts[index].wasActivated = false
+                // this.experts[index].currentStep = kwargs.step
+                this.experts[index].wasActivated = true
                 return this.experts[index].apply(inputs)
             })
 
@@ -568,77 +592,89 @@ class SparseMixtureOfExperts extends LayerBase {
     }
 }
 
-// class SparseMixtureOfExperts extends tf.layers.Layer {
-//     constructor(config) {
-//         super(config)
-//         this.numExperts = config.numExperts || 10
-//         this.topK = config.topK || 3
-//         this.units = config.units || 256
-//         this.experts = []
-//         for (let i = 0; i < this.numExperts; i++) {
-//             const expertLayer = tf.layers.dense({
-//                 units: this.units,
-//                 activation: 'swish', // Can be made configurable
-//                 name: `expert_${i}`
-//             })
-//             this.experts.push(expertLayer)
-//         }
-//         this.gatingMechanism = tf.layers.dense({
-//             units: this.numExperts,
-//             activation: 'softmax', // Ensures output is a distribution over experts
-//             name: 'gating_mechanism'
-//         })
-//     }
+class HellGate extends LayerBase {
+    constructor(config) {
+        super({ ...config, name: `gate-${randomString()}` })
+        this.units = config.units || 64
+        this.experts = config.experts // Array of expert layers
+        this.numExperts = this.experts.length
+        this.topK = this.numExperts
+        this.currentBatch
+        this.currentExperts
+    }
 
-//     build(inputShape) {
-//         // Initialize experts and gating mechanism
-//         this.experts.forEach((expert) => expert.build(inputShape))
-//         this.gatingMechanism.build(inputShape)
-//         super.build(inputShape) // Mark layer as built
-//     }
+    build(inputShape) {
+        this.in_gate = tf.layers.dense({
+            name: `gate-${randomString()}`,
+            units: this.units,
+            activation: 'swish'
+        })
 
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//             const gatingScores = this.gatingMechanism.apply(inputs)
-//             const topKValues = tf.topk(gatingScores, this.topK, true)
+        this.out_gate = tf.layers.dense({
+            name: `gate-${randomString()}`,
+            units: this.numExperts,
+            activation: 'softmax'
+        })
 
-//             // Extract top-k indices for the last time step using calculated start index
-//             const lastStepIndices = topKValues.indices
-//                 .slice([0, inputs.shape[1] - 1, 0], [1, 1, this.topK])
-//                 .reshape([this.topK])
-//                 .arraySync()
+        // Build gating mechanism
+        this.in_gate.build(inputShape)
+        let gateOutputShape = this.in_gate.computeOutputShape(inputShape)
+        this.out_gate.build(gateOutputShape)
 
-//             // Compute outputs only for the selected experts
-//             const expertOutputs = []
-//             lastStepIndices.forEach((index) => {
-//                 const expertOutput = this.experts[index].apply(inputs)
-//                 expertOutputs.push(expertOutput)
-//             })
+        this._trainableWeights = [
+            ...this.in_gate.trainableWeights,
+            ...this.out_gate.trainableWeights
+        ]
 
-//             // Sum the outputs from the selected experts
-//             const outputs = expertOutputs.reduce(
-//                 (acc, curr) => acc.add(curr),
-//                 tf.zerosLike(expertOutputs[0])
-//             )
+        // Build each expert layer
+        this.experts.forEach((expert) => {
+            expert.build(inputShape)
+            this._trainableWeights.push(...expert.trainableWeights)
+        })
 
-//             return outputs
-//         })
-//     }
+        super.build(inputShape)
+    }
 
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             numExperts: this.numExperts,
-//             topK: this.topK,
-//             units: this.units
-//         }
-//     }
+    computeGate(inputs) {
+        return this.out_gate.apply(this.in_gate.apply(inputs))
+    }
 
-//     static get className() {
-//         return 'SparseMixtureOfExperts'
-//     }
-// }
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // We always train the gate, even if we do not use its output 100% of the time
+            const gatingScores = this.computeGate(inputs)
+
+            // Compute outputs sequentially over the first probability distribution
+            if (this.currentBatch !== kwargs.batch) {
+                this.currentBatch = kwargs.batch
+                const topKValues = tf.topk(gatingScores, this.topK, true)
+                this.currentExperts = topKValues.indices
+                    .slice([0, inputs.shape[1] - 1, 0], [1, 1, this.topK])
+                    .reshape([this.topK])
+                    .arraySync()
+            }
+
+            // Take the highest probability expert
+            const choice = this.currentExperts.shift()
+            return this.experts[choice].apply(inputs)
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            topK: this.topK
+            // Note: experts are not serialized here; you'd need a custom serialization strategy
+        }
+    }
+
+    static get className() {
+        return 'HellGate'
+    }
+}
 
 class ResidualConnection extends LayerBase {
     constructor(config) {
@@ -1973,6 +2009,7 @@ const exportedLayers = [
     DumbCompression,
     GatedLinearUnit,
     GaussianMixtureModel,
+    HellGate,
     HyperMixer,
     LambdaLayer,
     LearnedUpsampling,

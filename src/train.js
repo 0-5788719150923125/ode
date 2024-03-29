@@ -21,6 +21,7 @@ export async function startTraining(dataGenerator, args) {
         predictLength: 50,
         clipValue: 1.0,
         mode: this.config.mode || 'timeDistributed',
+        debug: false,
         ...args
     }
 
@@ -60,6 +61,8 @@ export async function startTraining(dataGenerator, args) {
             const tensors = dataset.next().value
             await gradientAccumulator.compute(tensors.xs, tensors.ys)
             await gradientAccumulator.step(step, batch)
+
+            if (trainArgs.debug) console.log(tf.memory())
 
             // Print logs
             const loss = gradientAccumulator.getLoss()
@@ -204,14 +207,12 @@ function filterGradients(grads) {
     const blockedLayers = []
 
     this.experts.forEach((expert) => {
-        // console.log(expert._addedWeightNames)
         if (expert.hasOwnProperty('wasActivated')) {
             if (expert.wasActivated) activeLayers.push(expert.name)
             else {
                 blockedLayers.push(expert.name)
                 if (!expert.hasOwnProperty('_addedWeightNames')) return
                 for (const name of expert._addedWeightNames) {
-                    // console.log(name)
                     blockedLayers.push(name)
                 }
             }
@@ -225,14 +226,6 @@ function filterGradients(grads) {
 
     const filteredGrads = {}
     Object.keys(grads).forEach((varName) => {
-        // if (varName.includes('mlp')) {
-        //     return
-        // }
-
-        // if (varName.includes('moe')) {
-        //     return
-        // }
-
         // Determine if the current variable is part of an active expert
         const isActive = activeLayers.some((layerName) =>
             varName.includes(layerName)
@@ -246,8 +239,7 @@ function filterGradients(grads) {
             filteredGrads[varName] = grads[varName]
         }
     })
-    console.log('active_layers', activeLayers)
-    console.log('blocked_layers', blockedLayers)
+    if (blockedLayers.length > 0) console.log('blocked_layers', blockedLayers)
     return filteredGrads
 }
 

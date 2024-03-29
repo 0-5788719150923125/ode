@@ -10,11 +10,9 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         super(config)
         this.layers = 3
         this.heads = 8
-        this.units = 32
+        this.units = 256
         this.innerDim = this.units * 4
         this.epsilon = 1e-6
-        this.numExperts = 8
-        this.topK = 2
         this.experts = []
     }
 
@@ -40,25 +38,34 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        // const mlp = this.ode.layers.MultiLayerPerceptron({
-        //     units: this.units,
-        //     innerDim: this.innerDim,
-        //     heads: this.heads,
-        //     epsilon: this.epsilon,
-        //     activation: 'swish'
-        // })
-        for (let i = 0; i < this.numExperts; i++) {
-            // experts.push(mlp)
-            this.experts.push(
-                this.ode.layers.MultiLayerPerceptron({
-                    units: this.units,
-                    innerDim: this.innerDim,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    activation: 'swish'
-                })
-            )
-        }
+        this.experts = [
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.innerDim,
+                heads: this.heads,
+                epsilon: this.epsilon,
+                activation: 'swish'
+            }),
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.innerDim,
+                heads: this.heads,
+                epsilon: this.epsilon,
+                activation: 'softsign'
+            }),
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.units / 2,
+                heads: this.heads * 4,
+                epsilon: this.epsilon,
+                activation: 'linear'
+            })
+        ]
+
+        const gate = this.ode.layers.HellGate({
+            experts: this.experts,
+            units: this.units * 2
+        })
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -72,13 +79,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
 
-            outputs = this.ode.layers
-                .SparseMixtureOfExperts({
-                    experts: this.experts,
-                    units: this.units,
-                    topK: this.topK
-                })
-                .apply(outputs)
+            outputs = gate.apply(outputs)
         }
 
         outputs = this.tf.layers
