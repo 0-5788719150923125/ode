@@ -385,7 +385,7 @@ class MultiLayerPerceptron extends LayerBase {
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
-        this.epsilon = config.epsilon || 1e-5
+        this.epsilon = config?.epsilon || 1e-5
         if (config?.activation === 'gelu') {
             this.customActivation = new GELU()
             this.activation = 'linear'
@@ -403,28 +403,29 @@ class MultiLayerPerceptron extends LayerBase {
             inputDim: this.units,
             activation: this.activation
         })
-        // We can't use 2 dense layers here, else kernel names will conflict during serialization/saving to disk
-        this.out_proj = this.addWeight(
-            `mlp-${randomString()}`,
-            // BUG: this breaks batches larger than 1
-            [1, this.innerDim, this.units],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
+        // We shouldn't use 2 dense layers here, since kernel names will conflict during serialization to disk
+        this.out_proj = tf.layers.dense({
+            name: `mlp-${randomString()}`,
+            units: this.units,
+            inputDim: inputShape,
+            activation: 'linear'
+        })
 
         // Manually call build on dense layers to initialize weights
         this.in_proj.build(inputShape)
+        this.out_proj.build([inputShape[0], this.innerDim])
 
         // Initialize layer normalization
         this.layernorm = tf.layers.layerNormalization({
             name: `mlp-${randomString()}`,
-            epsilon: 1e-5
+            epsilon: this.epsilon
         })
         this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
         this._trainableWeights = [
             ...this.in_proj.trainableWeights,
+            ...this.out_proj.trainableWeights,
             ...this.layernorm.trainableWeights
         ]
 
@@ -443,7 +444,7 @@ class MultiLayerPerceptron extends LayerBase {
             if (this.customActivation) {
                 outputs = this.customActivation.apply(outputs)
             }
-            outputs = tf.matMul(outputs, this.out_proj.read())
+            outputs = this.out_proj.apply(outputs)
             // If training, apply residual dropout
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
@@ -599,7 +600,6 @@ class ControlGate extends LayerBase {
         this.units = config.units || 64
         this.experts = config.experts // Array of expert layers
         this.numExperts = this.experts.length
-        this.topK = this.numExperts
         this.currentBatch
         this.currentExperts
     }
@@ -650,10 +650,10 @@ class ControlGate extends LayerBase {
             // Compute outputs sequentially over the first probability distribution
             if (!kwargs.training || this.currentBatch !== kwargs.batch) {
                 this.currentBatch = kwargs.batch
-                const topKValues = tf.topk(gatingScores, this.topK, true)
+                const topKValues = tf.topk(gatingScores, this.numExperts, true)
                 this.currentExperts = topKValues.indices
-                    .slice([0, inputs.shape[1] - 1, 0], [1, 1, this.topK])
-                    .reshape([this.topK])
+                    .slice([0, inputs.shape[1] - 1, 0], [1, 1, this.numExperts])
+                    .reshape([this.numExperts])
                     .arraySync()
             }
 
@@ -667,7 +667,7 @@ class ControlGate extends LayerBase {
         return {
             ...super.getConfig(),
             units: this.units,
-            topK: this.topK
+            numExperts: this.numExperts
         }
     }
 

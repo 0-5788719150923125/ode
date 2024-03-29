@@ -54,7 +54,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             }),
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
-                innerDim: this.innerDim,
+                innerDim: this.innerDim * 2,
                 heads: this.heads,
                 epsilon: this.epsilon,
                 activation: 'softsign'
