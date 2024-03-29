@@ -54,10 +54,10 @@ export default class ModelBase {
         this.postInit()
     }
 
-    async defineTokenizer(vocabSize = 6666, numIterations = 10_000_000) {
+    async defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
-            vocabSize,
-            numIterations
+            config.vocabSize || 6666,
+            config.numIterations || 10_000_000
         )
     }
 

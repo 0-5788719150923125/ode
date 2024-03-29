@@ -9,8 +9,6 @@ class CharacterTokenizer {
             )
         )
         this.vocab.unshift(this.padToken)
-        this.model = new Llama2Tokenizer()
-        this.model.install_vocab(load_vocab())
     }
 
     getLength() {

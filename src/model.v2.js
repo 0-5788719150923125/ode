@@ -15,10 +15,6 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
         this.epsilon = 1e-5
     }
 
-    async defineTokenizer() {
-        super.defineTokenizer(2222, 10_000_000)
-    }
-
     defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
         let outputs = this.tf.layers
