@@ -8,13 +8,11 @@ import { randomString } from './utils.js'
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
-        this.layers = 6
+        this.layers = 3
         this.heads = 8
-        this.units = 192
-        this.innerDim = this.units * 3
-        this.operations = 23
+        this.units = 64
+        this.innerDim = this.units * 4
         this.epsilon = 1e-6
-        this.alpha = 0.22
     }
 
     defineBuild() {
