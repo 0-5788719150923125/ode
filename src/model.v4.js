@@ -17,10 +17,9 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     }
 
     async defineTokenizer() {
-        super.defineTokenizer({
+        await super.defineTokenizer({
             model: 'TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T'
         })
-        await this.tokenizer.init()
     }
 
     defineBuild() {

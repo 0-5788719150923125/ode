@@ -14,7 +14,7 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
     }
 
     async defineTokenizer(config) {
-        super.defineTokenizer({
+        await super.defineTokenizer({
             vocabSize: config.vocabSize || 2222,
             numIterations: config.numIterations || 500_000_000
         })
