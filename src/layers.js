@@ -471,7 +471,7 @@ class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ ...config, name: `moe-${randomString()}` })
         this.units = config.units || 64
-        this.experts = config.experts // Array of expert layers passed as an argument
+        this.experts = config.experts // Array of expert layers
         this.numExperts = this.experts.length
         this.topK = config.topK || 3
     }
@@ -516,17 +516,19 @@ class SparseMixtureOfExperts extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const gatingScores = this.computeGate(inputs)
-            const topKValues = tf.topk(gatingScores, this.topK, true)
 
+            const topKValues = tf.topk(gatingScores, this.topK, true)
             // Assuming the use of the last timestep to select experts as before
             const sequenceLength = inputs.shape[1]
-            const lastStepIndices = topKValues.indices
+            const currentExperts = topKValues.indices
                 .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
                 .reshape([this.topK])
                 .arraySync()
 
             // Compute outputs only for the selected experts
-            const expertOutputs = lastStepIndices.map((index) => {
+            this.experts.map((expert) => (expert.wasActivated = false))
+            const expertOutputs = currentExperts.map((index) => {
+                this.experts[index].wasActivated = true
                 return this.experts[index].apply(inputs)
             })
 

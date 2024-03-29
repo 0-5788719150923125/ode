@@ -29,6 +29,7 @@ export async function startTraining(dataGenerator, args) {
     const logger = new Logger()
     const gradientAccumulator = new GradientAccumulator(
         this.model,
+        this.experts,
         this.model.optimizer,
         this.lossFunctions,
         trainArgs.gradientAccumulationSteps,
@@ -52,12 +53,13 @@ export async function startTraining(dataGenerator, args) {
                 // Set learning rate via schedule
                 this.model.optimizer.learningRate =
                     this.schedulers[0].next().value
+                // console.log(this.model.optimizer)
             }
 
             // Fetch data and compute gradients
             const tensors = dataset.next().value
             await gradientAccumulator.compute(tensors.xs, tensors.ys)
-            await gradientAccumulator.step()
+            await gradientAccumulator.step(step, batch)
 
             // Print logs
             const loss = gradientAccumulator.getLoss()
@@ -78,14 +80,24 @@ export async function startTraining(dataGenerator, args) {
 }
 
 class GradientAccumulator {
-    constructor(model, optimizer, lossFunctions, accumulationSteps, clipValue) {
+    constructor(
+        model,
+        experts,
+        optimizer,
+        lossFunctions,
+        accumulationSteps,
+        clipValue
+    ) {
         this.model = model
+        this.experts = experts
         this.optimizer = optimizer
         this.lossFunctions = lossFunctions
         this.accumulationSteps = accumulationSteps
         this.clipValue = clipValue
         this.accumulationCounter = 0
         this.accumulatedGrads = {}
+        this.currentStep = 0
+        this.currentBatch = 0
     }
 
     async compute(currentXs, currentYs) {
@@ -93,7 +105,9 @@ class GradientAccumulator {
             this.model,
             this.lossFunctions[0],
             currentXs,
-            currentYs
+            currentYs,
+            this.currentStep,
+            this.currentBatch
         )
 
         this.gradients = grads
@@ -106,7 +120,9 @@ class GradientAccumulator {
         return this.loss
     }
 
-    async step() {
+    async step(step, batch) {
+        this.currentStep = step
+        this.currentBatch = batch
         this.accumulationCounter++
         this.accumulatedGrads = accumulateGradients(
             this.gradients,
@@ -133,8 +149,10 @@ class GradientAccumulator {
 
             this.accumulatedGrads = {}
 
+            const filteredGrads = filterGradients.call(this, clippedGrads)
+
             // Update gradients, step the optimizer, changing weights
-            this.optimizer.applyGradients(clippedGrads)
+            this.optimizer.applyGradients(filteredGrads)
 
             // Dispose of the clipped gradients after application
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
@@ -145,12 +163,23 @@ class GradientAccumulator {
     }
 }
 
-function computeGradients(model, lossFunction, currentXs, currentYs) {
+function computeGradients(
+    model,
+    lossFunction,
+    currentXs,
+    currentYs,
+    step,
+    batch
+) {
     let loss
 
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
-            const predictions = model.call(currentXs, { training: true })
+            const predictions = model.call(currentXs, {
+                training: true,
+                step,
+                batch
+            })
             const weights = null
             const smoothing = null
             const reduction = tf.Reduction.MEAN
@@ -167,6 +196,34 @@ function computeGradients(model, lossFunction, currentXs, currentYs) {
     )
     tf.dispose([currentXs, currentYs, value])
     return { grads, loss }
+}
+
+function filterGradients(grads) {
+    const activeLayers = []
+    this.model.layers.forEach((layer) => {
+        if (layer.hasOwnProperty('wasActivated')) {
+            if (layer.wasActivated) activeLayers.push(layer.name)
+        } else activeLayers.push(layer.name)
+    })
+    this.experts.forEach((expert) => {
+        if (expert.hasOwnProperty('wasActivated')) {
+            if (expert.wasActivated) activeLayers.push(expert.name)
+        } else activeLayers.push(expert.name)
+    })
+
+    const filteredGrads = {}
+    Object.keys(grads).forEach((varName) => {
+        // Determine if the current variable is part of an active expert
+        const isActive = activeLayers.some((layerName) =>
+            varName.includes(layerName)
+        )
+        if (isActive) {
+            // If active, include this gradient in the filtered set
+            filteredGrads[varName] = grads[varName]
+        }
+    })
+    console.log(activeLayers.join(', '))
+    return filteredGrads
 }
 
 function clipByValue(grads, value) {
@@ -250,44 +307,6 @@ function accumulateGradients(gradients, accumulatedGrads) {
     })
     return accumulatedGrads
 }
-
-// function createDynamicLrScheduler(
-//     warmupSteps,
-//     initialLearningRate,
-//     postWarmupLearningRate
-// ) {
-//     // Example usage:
-//     const warmupSteps = 1000
-//     const initialLearningRate = 0.0001
-//     const postWarmupLearningRate = 0.001
-//     let totalSteps = 0
-//     const numBatchesPerEpoch = 64
-//     return {
-//         onBatchEnd: async (batch, logs) => {
-//             totalSteps++
-//             if (totalSteps < warmupSteps) {
-//                 const newLr =
-//                     initialLearningRate +
-//                     ((postWarmupLearningRate - initialLearningRate) *
-//                         totalSteps) /
-//                         warmupSteps
-//                 model.optimizer.setLearningRate(newLr)
-//             }
-//         },
-//         onEpochEnd: async (epoch, logs) => {
-//             if (totalSteps >= warmupSteps) {
-//                 model.optimizer.setLearningRate(postWarmupLearningRate)
-//             }
-//         }
-//     }
-// }
-
-// Assuming you have a model compiled with an optimizer
-// const customLrScheduler = createDynamicLrScheduler(
-//     warmupSteps,
-//     initialLearningRate,
-//     postWarmupLearningRate
-// )
 
 function* batchGenerator(
     dataGenerator,
