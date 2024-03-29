@@ -647,7 +647,7 @@ class HellGate extends LayerBase {
             const gatingScores = this.computeGate(inputs)
 
             // Compute outputs sequentially over the first probability distribution
-            if (this.currentBatch !== kwargs.batch) {
+            if (!kwargs.training || this.currentBatch !== kwargs.batch) {
                 this.currentBatch = kwargs.batch
                 const topKValues = tf.topk(gatingScores, this.topK, true)
                 this.currentExperts = topKValues.indices
@@ -667,7 +667,6 @@ class HellGate extends LayerBase {
             ...super.getConfig(),
             units: this.units,
             topK: this.topK
-            // Note: experts are not serialized here; you'd need a custom serialization strategy
         }
     }
 
