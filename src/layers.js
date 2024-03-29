@@ -498,6 +498,7 @@ class SparseMixtureOfExperts extends tf.layers.Layer {
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const gatingScores = this.gatingMechanism.apply(inputs)
             const topKValues = tf.topk(gatingScores, this.topK, true)
             const selectedExpertsOutputs = this.experts.map((expert, index) => {
@@ -505,6 +506,7 @@ class SparseMixtureOfExperts extends tf.layers.Layer {
                 const isSelected = topKValues.indices
                     .arraySync()
                     .includes(index)
+                console.log([index, isSelected])
                 return isSelected ? expert.apply(inputs) : tf.zerosLike(inputs)
             })
             // Sum the outputs from the selected experts
