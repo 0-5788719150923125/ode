@@ -126,7 +126,12 @@ export default class ModelBase {
         await tf.setBackend(this.config.backend || 'cpu')
         this.defineTokenizer()
         this.defineLossFunctions()
-        this.model = await tf.loadLayersModel(`file://${path}/model.json`)
+        this.model = await tf.loadLayersModel(`file://${path}/model.json`, {
+            // We disable strict mode to prevent errors like this:
+            // ValueError: Provided weight data has no target variable: syn-xxo/w1-qsA
+            // TODO: fix the actual problem
+            strict: false
+        })
         console.log('successfully loaded model from disk')
         this.defineOptimizers()
         this.defineSchedulers()

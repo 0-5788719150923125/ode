@@ -1253,14 +1253,6 @@ class CompressorHead extends LayerBase {
         }
     }
 
-    setMode() {
-        if (this.mode === 'compress') {
-            this.mode = 'decompress'
-        } else {
-            this.mode = 'compress'
-        }
-    }
-
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
@@ -1276,6 +1268,14 @@ class CompressorHead extends LayerBase {
                 return this.decompress(inputs, seqLen, embedDim, batchSize)
             }
         })
+    }
+
+    setMode() {
+        if (this.mode === 'compress') {
+            this.mode = 'decompress'
+        } else {
+            this.mode = 'compress'
+        }
     }
 
     randomOperation(a, b, seed) {

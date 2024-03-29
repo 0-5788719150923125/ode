@@ -13,7 +13,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.units = 192
         this.innerDim = this.units * 3
         this.operations = 23
-        this.compressionFactor = 4
         this.epsilon = 1e-6
         this.alpha = 0.22
     }
@@ -40,28 +39,11 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        const compressor = this.tf.layers.bidirectional({
-            name: `bid-${randomString()}`,
-            layer: this.ode.layers.CompressorHead({
-                operations: this.operations,
-                compressionFactor: this.compressionFactor
-            }),
-            mergeMode: 'ave'
-        })
-
-        // const compressor = this.ode.layers.CompressorHead({
-        //     operations: this.operations,
-        //     compressionFactor: this.compressionFactor
-        // })
-
-        outputs = compressor.apply(outputs)
-
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SynthesizerAttention({
                     units: this.units,
-                    blockSize:
-                        this.config.contextLength / this.compressionFactor,
+                    blockSize: this.config.contextLength,
                     heads: this.heads,
                     epsilon: this.epsilon,
                     activation: this.tf.leakyRelu,
@@ -79,8 +61,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
         }
-
-        outputs = compressor.apply(outputs)
 
         outputs = this.tf.layers
             .dense({
