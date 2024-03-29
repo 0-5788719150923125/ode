@@ -1,5 +1,3 @@
-import { Llama2Tokenizer } from '@lenml/llama2-tokenizer'
-import { load_vocab } from '@lenml/llama2-tokenizer-vocab-llama2'
 import { shaks13 } from './data.js'
 
 class CharacterTokenizer {
@@ -25,6 +23,36 @@ class CharacterTokenizer {
 
     decode(array) {
         // not implemented
+    }
+
+    writeVocabularyToFile(path) {
+        // skip
+    }
+}
+
+import { env } from '@xenova/transformers'
+env.allowLocalModels = false
+import { AutoTokenizer } from '@xenova/transformers'
+class XenovaTokenizer {
+    constructor(config) {
+        this.model = config.model || 'openai-community/gpt2'
+        this.tokenizer
+    }
+
+    async init() {
+        this.tokenizer = await AutoTokenizer.from_pretrained(this.model)
+    }
+
+    getLength() {
+        return this.tokenizer.model.vocab.length
+    }
+
+    encode(string) {
+        return this.tokenizer.encode(string)
+    }
+
+    decode(array) {
+        return this.tokenizer.decode(array, { skip_special_tokens: true })
     }
 
     writeVocabularyToFile(path) {
@@ -155,33 +183,10 @@ class BasicSubwordTokenizer {
     }
 }
 
-class PretrainedTokenizer {
-    constructor() {
-        this.model = new Llama2Tokenizer()
-        this.model.install_vocab(load_vocab())
-    }
-
-    getLength() {
-        return this.model.vocab_size
-    }
-
-    encode(string) {
-        return this.model.encode(string)
-    }
-
-    decode(sequence) {
-        return this.model.decode(sequence)
-    }
-
-    writeVocabularyToFile(path) {
-        // skip
-    }
-}
-
 const tokenizers = {
     CharacterTokenizer: (config) => new CharacterTokenizer(config),
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),
-    PretrainedTokenizer: () => new PretrainedTokenizer()
+    XenovaTokenizer: (config) => new XenovaTokenizer(config)
 }
 export default tokenizers

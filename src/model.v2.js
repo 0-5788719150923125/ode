@@ -15,7 +15,7 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
         this.epsilon = 1e-5
     }
 
-    defineTokenizer() {
+    async defineTokenizer() {
         super.defineTokenizer(2222, 10_000_000)
     }
 

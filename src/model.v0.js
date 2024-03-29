@@ -45,7 +45,7 @@ export default class ModelBase {
     async init() {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-        this.defineTokenizer()
+        await this.defineTokenizer()
         this.defineLossFunctions()
         this.defineBuild()
         this.defineOptimizers()
@@ -54,7 +54,7 @@ export default class ModelBase {
         this.postInit()
     }
 
-    defineTokenizer(vocabSize = 6666, numIterations = 10_000_000) {
+    async defineTokenizer(vocabSize = 6666, numIterations = 10_000_000) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
             vocabSize,
             numIterations

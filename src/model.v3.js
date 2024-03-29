@@ -14,8 +14,11 @@ export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
         this.epsilon = 1e-5
     }
 
-    defineTokenizer() {
-        this.tokenizer = this.ode.tokenizers.PretrainedTokenizer()
+    async defineTokenizer() {
+        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+            model: 'openai-community/gpt2'
+        })
+        await this.tokenizer.init()
     }
 
     defineBuild() {

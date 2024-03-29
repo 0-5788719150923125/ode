@@ -16,6 +16,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.experts = []
     }
 
+    async defineTokenizer() {
+        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+            model: 'TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T'
+        })
+        await this.tokenizer.init()
+    }
+
     defineBuild() {
         const inputs = this.tf.input({
             name: `in1-${randomString()}`,

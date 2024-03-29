@@ -13,8 +13,8 @@ export default class OmnipresentDegenerateEntity extends ModelBase {
         this.config.mode = 'oneLabel'
     }
 
-    trainTokenizer() {
-        super.trainTokenizer(2222, 500_000_000)
+    async defineTokenizer() {
+        super.defineTokenizer(2222, 500_000_000)
     }
 
     defineBuild() {
