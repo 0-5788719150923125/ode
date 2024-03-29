@@ -1,43 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
 
-export function prepareAdamW(
-    model,
-    learningRate,
-    beta1,
-    beta2,
-    epsilon,
-    decayRate
-) {
-    const includeInWeightDecay = []
-    const excludeFromWeightDecay = []
-
-    if (decayRate <= 0) {
-        throw 'AdamW with a decayRate of 0 is just Adam. You should use the `tf.train.adam` optimizer instead.'
-    } else {
-        model.getNamedWeights().forEach((v) => {
-            const name = v.name.toLowerCase()
-            if (
-                name.includes('bias') ||
-                name.includes('norm') ||
-                name.includes('emb')
-            ) {
-                excludeFromWeightDecay.push(v.name)
-            } else {
-                includeInWeightDecay.push(v.name)
-            }
-        })
-        return new AdamW(
-            learningRate,
-            beta1,
-            beta2,
-            epsilon,
-            decayRate,
-            includeInWeightDecay,
-            excludeFromWeightDecay
-        )
-    }
-}
-
 class AdamW extends tf.AdamOptimizer {
     constructor(
         learningRate = 0.1,
@@ -74,6 +36,37 @@ class AdamW extends tf.AdamOptimizer {
 
             super.applyGradients(variableGradients)
         })
+    }
+}
+
+function prepareAdamW(model, learningRate, beta1, beta2, epsilon, decayRate) {
+    const includeInWeightDecay = []
+    const excludeFromWeightDecay = []
+
+    if (decayRate <= 0) {
+        throw 'AdamW with a decayRate of 0 is just regular Adam. You should use `tf.train.adam` instead.'
+    } else {
+        model.getNamedWeights().forEach((v) => {
+            const name = v.name.toLowerCase()
+            if (
+                name.includes('bias') ||
+                name.includes('norm') ||
+                name.includes('emb')
+            ) {
+                excludeFromWeightDecay.push(v.name)
+            } else {
+                includeInWeightDecay.push(v.name)
+            }
+        })
+        return new AdamW(
+            learningRate,
+            beta1,
+            beta2,
+            epsilon,
+            decayRate,
+            includeInWeightDecay,
+            excludeFromWeightDecay
+        )
     }
 }
 

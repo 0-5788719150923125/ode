@@ -9,16 +9,16 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     constructor(config) {
         super(config)
         this.layers = 3
-        this.heads = 8
-        this.units = 256
-        this.innerDim = this.units * 4
+        this.heads = 4
+        this.units = 128
+        this.innerDim = this.units * 3
         this.epsilon = 1e-6
         this.experts = []
     }
 
     async defineTokenizer() {
         await super.defineTokenizer({
-            model: 'TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T'
+            model: 'mistralai/Mistral-7B-v0.1'
         })
     }
 

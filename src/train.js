@@ -28,11 +28,8 @@ export async function startTraining(dataGenerator, args) {
     let batch = 0
     let step = 0
     const logger = new Logger()
-    const gradientAccumulator = new GradientAccumulator(
-        this.model,
-        this.experts,
-        this.model.optimizer,
-        this.lossFunctions,
+    const accumulator = new GradientAccumulator(
+        this,
         trainArgs.gradientAccumulationSteps,
         trainArgs.clipValue
     )
@@ -54,18 +51,17 @@ export async function startTraining(dataGenerator, args) {
                 // Set learning rate via schedule
                 this.model.optimizer.learningRate =
                     this.schedulers[0].next().value
-                // console.log(this.model.optimizer)
             }
-
-            // Fetch data and compute gradients
-            const tensors = dataset.next().value
-            await gradientAccumulator.compute(tensors.xs, tensors.ys)
-            await gradientAccumulator.step(step, batch)
 
             if (trainArgs.debug) console.log(tf.memory())
 
+            // Fetch data and compute gradients
+            const tensors = dataset.next().value
+            await accumulator.compute(tensors.xs, tensors.ys)
+            await accumulator.step(step, batch)
+            const loss = accumulator.getLoss()
+
             // Print logs
-            const loss = gradientAccumulator.getLoss()
             logger.log(batch, step, loss, this.model.optimizer.learningRate)
 
             // Print sample text
@@ -83,18 +79,11 @@ export async function startTraining(dataGenerator, args) {
 }
 
 class GradientAccumulator {
-    constructor(
-        model,
-        experts,
-        optimizer,
-        lossFunctions,
-        accumulationSteps,
-        clipValue
-    ) {
-        this.model = model
-        this.experts = experts
-        this.optimizer = optimizer
-        this.lossFunctions = lossFunctions
+    constructor(parent, accumulationSteps, clipValue) {
+        this.parent = parent
+        this.model = this.parent.model
+        this.experts = this.parent.experts
+        this.lossFunctions = this.parent.lossFunctions
         this.accumulationSteps = accumulationSteps
         this.clipValue = clipValue
         this.accumulationCounter = 0
