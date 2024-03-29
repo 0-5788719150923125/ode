@@ -406,6 +406,7 @@ class MultiLayerPerceptron extends LayerBase {
         // We can't use 2 dense layers here, else kernel names will conflict during serialization/saving to disk
         this.out_proj = this.addWeight(
             `mlp-${randomString()}`,
+            // BUG: this breaks batches larger than 1
             [1, this.innerDim, this.units],
             'float32',
             tf.initializers.glorotNormal()
@@ -592,7 +593,7 @@ class SparseMixtureOfExperts extends LayerBase {
     }
 }
 
-class HellGate extends LayerBase {
+class ControlGate extends LayerBase {
     constructor(config) {
         super({ ...config, name: `gate-${randomString()}` })
         this.units = config.units || 64
@@ -671,7 +672,7 @@ class HellGate extends LayerBase {
     }
 
     static get className() {
-        return 'HellGate'
+        return 'ControlGate'
     }
 }
 
@@ -2008,7 +2009,7 @@ const exportedLayers = [
     DumbCompression,
     GatedLinearUnit,
     GaussianMixtureModel,
-    HellGate,
+    ControlGate,
     HyperMixer,
     LambdaLayer,
     LearnedUpsampling,

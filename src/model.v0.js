@@ -83,7 +83,7 @@ export default class ModelBase {
 
     defineSchedulers() {
         const learningRate = 0.00333
-        this.optimizers[0].learningRate = initialLr
+        this.optimizers[0].learningRate = learningRate
         this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 

@@ -68,7 +68,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
         ]
 
-        const gate = this.ode.layers.HellGate({
+        const gate = this.ode.layers.ControlGate({
             experts: this.experts,
             units: this.units * 2
         })
