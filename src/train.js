@@ -95,11 +95,14 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
             this.model,
-            this.lossFunctions[0],
+            this.lossFunctions,
             currentXs,
             currentYs,
-            this.currentStep,
-            this.currentBatch
+            {
+                training: true,
+                step: this.currentStep,
+                batch: this.currentBatch
+            }
         )
 
         this.gradients = grads
@@ -144,7 +147,7 @@ class GradientAccumulator {
             const filteredGrads = filterGradients.call(this, clippedGrads)
 
             // Update gradients, step the optimizer, changing weights
-            this.optimizer.applyGradients(filteredGrads)
+            this.model.optimizer.applyGradients(filteredGrads)
 
             // Dispose of the clipped gradients after application
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
@@ -158,21 +161,16 @@ class GradientAccumulator {
 
 function computeGradients(
     model,
-    lossFunction,
+    lossFunctions,
     currentXs,
     currentYs,
-    step,
-    batch
+    meta = { training: true }
 ) {
     let loss
-
+    const lossFunction = lossFunctions[0]
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
-            const predictions = model.call(currentXs, {
-                training: true,
-                step,
-                batch
-            })
+            const predictions = model.call(currentXs, meta)
             const weights = null
             const smoothing = null
             const reduction = tf.Reduction.MEAN
