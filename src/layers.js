@@ -473,11 +473,12 @@ class SparseMixtureOfExperts extends tf.layers.Layer {
         this.numExperts = config.numExperts || 10
         this.topK = config.topK || 3
         this.units = config.units || 256
+        this.blockSize = config.blockSize || 512
         this.experts = []
         for (let i = 0; i < this.numExperts; i++) {
             const expertLayer = tf.layers.dense({
                 units: this.units,
-                activation: 'relu', // Can be made configurable
+                activation: 'swish', // Can be made configurable
                 name: `expert_${i}`
             })
             this.experts.push(expertLayer)
@@ -501,19 +502,26 @@ class SparseMixtureOfExperts extends tf.layers.Layer {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const gatingScores = this.gatingMechanism.apply(inputs)
             const topKValues = tf.topk(gatingScores, this.topK, true)
-            const selectedExpertsOutputs = this.experts.map((expert, index) => {
-                // Use gating score to determine if an expert is in the top k
-                const isSelected = topKValues.indices
-                    .arraySync()
-                    .includes(index)
-                console.log([index, isSelected])
-                return isSelected ? expert.apply(inputs) : tf.zerosLike(inputs)
+
+            // Extract top-k indices for the last time step using calculated start index
+            const lastStepIndices = topKValues.indices
+                .slice([0, inputs.shape[1] - 1, 0], [1, 1, this.topK])
+                .reshape([this.topK])
+                .arraySync()
+
+            // Compute outputs only for the selected experts
+            const expertOutputs = []
+            lastStepIndices.forEach((index) => {
+                const expertOutput = this.experts[index].apply(inputs)
+                expertOutputs.push(expertOutput)
             })
+
             // Sum the outputs from the selected experts
-            const outputs = selectedExpertsOutputs.reduce(
+            const outputs = expertOutputs.reduce(
                 (acc, curr) => acc.add(curr),
-                tf.zerosLike(inputs)
+                tf.zerosLike(expertOutputs[0])
             )
+
             return outputs
         })
     }

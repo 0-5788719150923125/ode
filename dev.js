@@ -3,7 +3,7 @@ import { trainModel } from './dev-train.js'
 const testArgs = {
     version: 4,
     batchSize: 1,
-    gradientAccumulationSteps: 256,
+    gradientAccumulationSteps: 64,
     generateEvery: 256,
     sampleLength: 512,
     predictLength: 128
