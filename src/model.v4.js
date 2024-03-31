@@ -8,8 +8,8 @@ import { randomString } from './utils.js'
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.heads = 4
+        this.layers = 6
+        this.heads = 8
         this.units = 128
         this.innerDim = this.units * 3
         this.epsilon = 1e-6
@@ -44,29 +44,26 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        this.experts = [
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim,
-                heads: this.heads,
-                epsilon: this.epsilon,
-                activation: 'swish'
-            }),
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim * 2,
-                heads: this.heads,
-                epsilon: this.epsilon,
-                activation: 'softsign'
-            }),
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units / 2,
-                heads: this.heads * 4,
-                epsilon: this.epsilon,
-                activation: 'linear'
-            })
-        ]
+        for (let i = 0; i < this.layers / 2; i++) {
+            this.experts.push(
+                this.ode.layers.MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    heads: this.heads,
+                    epsilon: this.epsilon,
+                    activation: 'swish'
+                })
+            )
+            this.experts.push(
+                this.ode.layers.MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    heads: this.heads,
+                    epsilon: this.epsilon,
+                    activation: 'softsign'
+                })
+            )
+        }
 
         const gate = this.ode.layers.ControlGate({
             experts: this.experts,

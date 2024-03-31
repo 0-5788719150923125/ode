@@ -601,7 +601,7 @@ class ControlGate extends LayerBase {
         this.experts = config.experts // Array of expert layers
         this.numExperts = this.experts.length
         this.currentBatch
-        this.currentExperts
+        this.currentExperts = []
     }
 
     build(inputShape) {
@@ -648,7 +648,11 @@ class ControlGate extends LayerBase {
             const gatingScores = this.computeGate(inputs)
 
             // Compute outputs sequentially over the first probability distribution
-            if (!kwargs.training || this.currentBatch !== kwargs.batch) {
+            if (
+                !kwargs.training ||
+                this.currentBatch !== kwargs.batch ||
+                this.currentExperts.length === 0
+            ) {
                 this.currentBatch = kwargs.batch
                 const topKValues = tf.topk(gatingScores, this.numExperts, true)
                 this.currentExperts = topKValues.indices
