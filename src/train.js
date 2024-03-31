@@ -147,6 +147,7 @@ class GradientAccumulator {
             const filteredGrads = filterGradients.call(this, clippedGrads)
 
             // Update gradients, step the optimizer, changing weights
+            // applyGradients(this.model, filteredGrads)
             this.model.optimizer.applyGradients(filteredGrads)
 
             // Dispose of the clipped gradients after application
@@ -156,6 +157,27 @@ class GradientAccumulator {
 
         // Dispose of grads after accumulation
         Object.values(this.gradients).forEach((grad) => grad && grad.dispose())
+    }
+}
+
+function applyGradients(model, grads) {
+    const optimizer = model.optimizer
+    const trainableWeights = model.trainableWeights
+
+    const updatedGrads = {}
+    for (let i = 0; i < trainableWeights.length; i++) {
+        const weight = trainableWeights[i]
+        const grad = grads[weight.name]
+
+        if (grad != null && grad.shape.join(',') === weight.shape.join(',')) {
+            // console.log('grad ', grad.shape)
+            // console.log('weight ', weight.shape)
+            updatedGrads[weight.name] = grad
+        }
+    }
+
+    if (Object.keys(updatedGrads).length > 0) {
+        optimizer.applyGradients(updatedGrads)
     }
 }
 

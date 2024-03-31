@@ -516,6 +516,27 @@ class SparseMixtureOfExperts extends LayerBase {
         return this.out_gate.apply(this.in_gate.apply(inputs))
     }
 
+    setTrainableFlag(layer, trainable) {
+        if (layer.trainableWeights) {
+            layer.trainableWeights.forEach((weight) => {
+                weight.trainable = trainable
+            })
+        }
+
+        if (layer.layers) {
+            layer.layers.forEach((nestedLayer) => {
+                this.setTrainableFlag(nestedLayer, trainable)
+            })
+        }
+
+        // Recursively set the trainable flag for custom layers
+        Object.values(layer).forEach((value) => {
+            if (value instanceof LayerBase) {
+                this.setTrainableFlag(value, trainable)
+            }
+        })
+    }
+
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
@@ -524,49 +545,20 @@ class SparseMixtureOfExperts extends LayerBase {
             const topKValues = tf.topk(gatingScores, this.topK, true)
             // Assuming the use of the last timestep to select experts as before
             const sequenceLength = inputs.shape[1]
-            const currentExperts = topKValues.indices
+            let currentExperts = topKValues.indices
                 .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
                 .reshape([this.topK])
                 .arraySync()
 
-            console.log(currentExperts)
             // Compute outputs only for the selected experts
-
-            this.currentBatch = kwargs.batch
-            this.experts.map((expert) => {
-                if (kwargs.step !== expert.currentStep) {
-                    expert.currentStep = kwargs.step
+            if (kwargs.step !== this.currentStep) {
+                this.currentStep = kwargs.step
+                this.experts.map((expert) => {
                     expert.wasActivated = false
-                }
-            })
-
-            // this.experts.map((expert) => {
-            //     if (expert?.currentBatch !== kwargs.batch) {
-            //         expert.currentBatch = kwargs.batch
-            //         expert.wasActivated = false
-            //     }
-            // })
-            // if (kwargs.step !== this.currentStep) {
-            //     this.currentStep = kwargs.step
-            //     this.experts.map((expert) => {
-            //         if (expert?.currentBatch !== kwargs.batch) {
-            //             expert.currentBatch = kwargs.batch
-            //             expert.wasActivated = false
-            //         }
-            //     })
-            // }
-            // if (kwargs.step !== this.currentStep) {
-            //     this.currentStep = kwargs.step
-            //     this.experts.map((expert) => {
-            //         if (expert?.currentBatch !== kwargs.batch) {
-            //             expert.currentBatch = kwargs.batch
-            //             expert.wasActivated = false
-            //         }
-            //     })
-            // }
+                })
+            }
 
             const expertOutputs = currentExperts.map((index) => {
-                // this.experts[index].currentStep = kwargs.step
                 this.experts[index].wasActivated = true
                 return this.experts[index].apply(inputs)
             })
@@ -585,7 +577,6 @@ class SparseMixtureOfExperts extends LayerBase {
             ...super.getConfig(),
             units: this.units,
             topK: this.topK
-            // Note: experts are not serialized here; you'd need a custom serialization strategy
         }
     }
 

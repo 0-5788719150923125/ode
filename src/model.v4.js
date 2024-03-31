@@ -8,11 +8,13 @@ import { randomString } from './utils.js'
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
-        this.layers = 6
+        this.layers = 3
         this.heads = 8
         this.units = 128
         this.innerDim = this.units * 3
-        this.epsilon = 1e-6
+        this.epsilon = 1e-5
+        this.numExperts = 4
+        this.topK = 1
         this.experts = []
     }
 
@@ -44,7 +46,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             })
             .apply(outputs)
 
-        for (let i = 0; i < this.layers / 2; i++) {
+        for (let i = 0; i < this.numExperts; i++) {
             this.experts.push(
                 this.ode.layers.MultiLayerPerceptron({
                     units: this.units,
@@ -54,21 +56,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                     activation: 'swish'
                 })
             )
-            this.experts.push(
-                this.ode.layers.MultiLayerPerceptron({
-                    units: this.units,
-                    innerDim: this.innerDim,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    activation: 'softsign'
-                })
-            )
         }
-
-        const gate = this.ode.layers.ControlGate({
-            experts: this.experts,
-            units: this.units * 2
-        })
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -82,7 +70,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
 
-            outputs = gate.apply(outputs)
+            outputs = this.ode.layers
+                .SparseMixtureOfExperts({
+                    experts: this.experts,
+                    units: this.units * 2,
+                    topK: this.topK
+                })
+                .apply(outputs)
         }
 
         outputs = this.tf.layers
