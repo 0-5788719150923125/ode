@@ -476,7 +476,10 @@ class SparseMixtureOfExperts extends LayerBase {
         this.experts = config.experts // Array of expert layers
         this.numExperts = this.experts.length
         this.topK = config.topK || 3
-        this.currentBatch
+        this.loadBalancingLoss = config.loadBalancingLoss || 0.01
+        this.usageHistory = tf.zeros([this.numExperts])
+        this.usageDecay = config.usageDecay || 0.99
+        this.extraLoss = 0
         this.currentStep
     }
 
@@ -516,6 +519,50 @@ class SparseMixtureOfExperts extends LayerBase {
         return this.out_gate.apply(this.in_gate.apply(inputs))
     }
 
+    computeUtilization(currentExperts) {
+        const oldUsageHistory = this.usageHistory
+        tf.tidy(() => {
+            // Create a zeros tensor for new usage counts.
+            let newUsage = tf.zeros([this.numExperts])
+
+            // Update the tensor based on currentExperts indices.
+            currentExperts.forEach((expertIndex) => {
+                const indexTensor = tf.tensor1d([expertIndex], 'int32')
+                const updateTensor = tf.tensor1d([1], 'float32')
+                newUsage = tf
+                    .scatterND(indexTensor.expandDims(0), updateTensor, [
+                        this.numExperts
+                    ])
+                    .add(newUsage)
+            })
+
+            // Normalize the usage to proportion by dividing by the number of topK experts selected.
+            const currentUsageProportion = newUsage.div(tf.scalar(this.topK))
+
+            // Update the usage history tensor with decay.
+            this.usageHistory = oldUsageHistory
+                .mul(this.usageDecay)
+                .add(currentUsageProportion.mul(1 - this.usageDecay))
+            tf.keep(this.usageHistory)
+        })
+
+        oldUsageHistory.dispose()
+
+        // Calculate the dynamic penalty based on the updated usage history.
+        tf.tidy(() => {
+            const idealProportion = 1 / this.numExperts
+            const squaredDivergences = this.usageHistory
+                .sub(tf.scalar(idealProportion))
+                .square()
+            const scalingFactor = 1e2
+            this.extraLoss = squaredDivergences
+                .mean()
+                .mul(this.loadBalancingLoss)
+                .mul(scalingFactor)
+                .dataSync()[0]
+        })
+    }
+
     setTrainableFlag(expert, trainable) {
         if (expert.trainableWeights) {
             expert.trainableWeights.forEach((weight) => {
@@ -549,12 +596,15 @@ class SparseMixtureOfExperts extends LayerBase {
             const gatingScores = this.computeGate(inputs)
 
             const topKValues = tf.topk(gatingScores, this.topK, true)
+
             // Assuming the use of the last timestep to select experts as before
             const sequenceLength = inputs.shape[1]
             const currentExperts = topKValues.indices
                 .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
                 .reshape([this.topK])
                 .arraySync()
+
+            this.computeUtilization(currentExperts)
 
             // Disable all experts at the start of every new step
             if (this.currentStep !== kwargs.step) {
@@ -571,9 +621,11 @@ class SparseMixtureOfExperts extends LayerBase {
             })
 
             // Sum the outputs from the selected experts
-            const outputs = expertOutputs.reduce((acc, curr) => {
-                return acc.add(curr)
-            }, tf.zerosLike(expertOutputs[0]))
+            const outputs = expertOutputs
+                .reduce((acc, curr) => {
+                    return acc.add(curr)
+                }, tf.zerosLike(expertOutputs[0]))
+                .div(expertOutputs.length)
 
             return outputs
         })
@@ -583,7 +635,8 @@ class SparseMixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             units: this.units,
-            topK: this.topK
+            topK: this.topK,
+            loadBalancingLoss: this.loadBalancingLoss
         }
     }
 
@@ -1374,13 +1427,12 @@ class RotaryPositionalEncoding extends LayerBase {
     }
 
     applyRotaryPositionalEmbedding(x, posEncoding) {
-        const [batchSize, seqLen, embeddingDim] = x.shape
+        const embeddingDim = x.shape[2]
         const xDtype = x.dtype
 
         // Split the embedding dimension into two halves for sin and cos applications
         const rotaryDim = embeddingDim / 2
-        const xRot = x.slice([0, 0, 0], [batchSize, seqLen, rotaryDim])
-        const xPass = x.slice([0, 0, rotaryDim], [batchSize, seqLen, -1])
+        const [xRot, xPass] = tf.split(x, 2, -1)
 
         // Apply sin to the first half and cos to the second half of posEncoding
         const sinEncoding = posEncoding.slice([0, 0], [-1, rotaryDim])

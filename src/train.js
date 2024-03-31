@@ -95,6 +95,7 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
             this.model,
+            this.experts || [],
             this.lossFunctions,
             currentXs,
             currentYs,
@@ -183,6 +184,7 @@ class GradientAccumulator {
 
 function computeGradients(
     model,
+    experts,
     lossFunctions,
     currentXs,
     currentYs,
@@ -196,13 +198,21 @@ function computeGradients(
             const weights = null
             const smoothing = null
             const reduction = tf.Reduction.MEAN
-            const lossValue = lossFunction(
+            let lossValue = lossFunction(
                 currentYs,
                 predictions[0],
                 weights,
                 smoothing,
                 reduction
             )
+
+            model.layers.forEach((layer) => {
+                if (layer.hasOwnProperty('extraLoss')) {
+                    // console.log(layer.extraLoss)
+                    lossValue = tf.add(lossValue, layer.extraLoss)
+                }
+            })
+
             loss = lossValue.dataSync()[0]
             return lossValue
         })

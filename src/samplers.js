@@ -1,10 +1,8 @@
 import { shaks13 } from './data.js'
-import { delay } from './utils.js'
+import { delay, randomBetween } from './utils.js'
 
 function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
-    if (overfit > 0) {
-        str = splitLines(str, overfit)
-    }
+    if (overfit > 0) str = splitLines(str, overfit)
     while (true) {
         // Generate a random start index within the string's bounds
         const startIndex = Math.floor(Math.random() * (str.length - sampleLen))
@@ -13,14 +11,27 @@ function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
     }
 }
 
-function* sequentialStringSampler(sampleLen, str) {
+function* sinWaveOscillator(min, max) {
+    let i = 0
+    const amplitude = (max - min) / 2 // Height from center to peak
+    const offset = (max + min) / 2 // Midpoint between max and min
+    while (true) {
+        const value = Math.sin(i) * amplitude + offset
+        yield Math.round(value)
+        i += 0.1 // Increment angle to move along the sine wave
+    }
+}
+
+function* sequentialStringSampler(sampleLen, overfit = 0, str) {
     let index = 0
+    const oscillator = sinWaveOscillator(1, 64)
+    if (overfit > 0) str = splitLines(str, overfit)
     while (true) {
         if (index + sampleLen > str.length) {
             index = 0
         }
         yield str.substring(index, index + sampleLen) // Yield a substring of length sampleLen
-        index++ // Make 1 time step over the str
+        index = index + oscillator.next().value // Make [x] time step over the str
     }
 }
 
@@ -113,8 +124,8 @@ class GunSampler {
 const samplers = {
     stringSampler: (sampleLen, overfit, str) =>
         stringSampler(sampleLen, overfit, str),
-    sequentialStringSampler: (sampleLen, str) =>
-        sequentialStringSampler(sampleLen, str),
+    sequentialStringSampler: (sampleLen, overfit, str) =>
+        sequentialStringSampler(sampleLen, overfit, str),
     directorySampler: (sampleLen, overfit, dir, delimiter) =>
         directorySampler(sampleLen, overfit, dir, delimiter),
     gunSampler: (config) => new GunSampler(config)
