@@ -516,6 +516,33 @@ class SparseMixtureOfExperts extends LayerBase {
         return this.out_gate.apply(this.in_gate.apply(inputs))
     }
 
+    setTrainableFlag(expert, trainable) {
+        if (expert.trainableWeights) {
+            expert.trainableWeights.forEach((weight) => {
+                weight.trainable = trainable
+            })
+        }
+
+        if (expert._trainableWeights) {
+            expert._trainableWeights.forEach((weight) => {
+                weight.trainable_ = trainable
+            })
+        }
+
+        if (expert.layers) {
+            expert.layers.forEach((nestedLayer) => {
+                this.setTrainableFlag(nestedLayer, trainable)
+            })
+        }
+
+        // Recursively set the trainable flag for custom layers
+        Object.values(expert).forEach((value) => {
+            if (value instanceof tf.layers.Layer) {
+                this.setTrainableFlag(value, trainable)
+            }
+        })
+    }
+
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
@@ -524,21 +551,22 @@ class SparseMixtureOfExperts extends LayerBase {
             const topKValues = tf.topk(gatingScores, this.topK, true)
             // Assuming the use of the last timestep to select experts as before
             const sequenceLength = inputs.shape[1]
-            let currentExperts = topKValues.indices
+            const currentExperts = topKValues.indices
                 .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
                 .reshape([this.topK])
                 .arraySync()
 
-            // Compute outputs only for the selected experts
-            if (kwargs.step !== this.currentStep) {
+            // Disable all experts at the start of every new step
+            if (this.currentStep !== kwargs.step) {
                 this.currentStep = kwargs.step
                 this.experts.map((expert) => {
-                    expert.wasActivated = false
+                    this.setTrainableFlag(expert, false)
                 })
             }
 
+            // Compute outputs only for the selected experts
             const expertOutputs = currentExperts.map((index) => {
-                this.experts[index].wasActivated = true
+                this.setTrainableFlag(this.experts[index], true)
                 return this.experts[index].apply(inputs)
             })
 

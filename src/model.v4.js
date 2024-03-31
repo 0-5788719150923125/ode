@@ -9,12 +9,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     constructor(config) {
         super(config)
         this.layers = 3
-        this.heads = 8
+        this.heads = 4
         this.units = 128
         this.innerDim = this.units * 3
         this.epsilon = 1e-5
-        this.numExperts = 4
-        this.topK = 1
+        this.numExperts = 6
+        this.topK = 2
         this.experts = []
     }
 
@@ -70,13 +70,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 })
                 .apply(outputs)
 
-            outputs = this.ode.layers
-                .SparseMixtureOfExperts({
-                    experts: this.experts,
-                    units: this.units * 2,
-                    topK: this.topK
-                })
-                .apply(outputs)
+            const gate = this.ode.layers.SparseMixtureOfExperts({
+                experts: this.experts,
+                units: this.units * 2,
+                topK: this.topK
+            })
+
+            outputs = gate.apply(outputs)
         }
 
         outputs = this.tf.layers
@@ -88,5 +88,9 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineOptimizers() {
+        this.optimizers = [this.tf.train.sgd(1e-3)]
     }
 }

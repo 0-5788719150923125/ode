@@ -148,9 +148,9 @@ class GradientAccumulator {
 
             // Update gradients, step the optimizer, changing weights
             // applyGradients(this.model, filteredGrads)
+            // console.log(this.model.optimizer)
             this.model.optimizer.applyGradients(filteredGrads)
 
-            // Dispose of the clipped gradients after application
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
             Object.values(filteredGrads).forEach((tensor) => tensor.dispose())
         }
@@ -160,26 +160,26 @@ class GradientAccumulator {
     }
 }
 
-function applyGradients(model, grads) {
-    const optimizer = model.optimizer
-    const trainableWeights = model.trainableWeights
+// function applyGradients(model, grads) {
+//     const optimizer = model.optimizer
+//     const trainableWeights = model.trainableWeights
 
-    const updatedGrads = {}
-    for (let i = 0; i < trainableWeights.length; i++) {
-        const weight = trainableWeights[i]
-        const grad = grads[weight.name]
+//     const updatedGrads = {}
+//     for (let i = 0; i < trainableWeights.length; i++) {
+//         const weight = trainableWeights[i]
+//         const grad = grads[weight.name]
 
-        if (grad != null && grad.shape.join(',') === weight.shape.join(',')) {
-            // console.log('grad ', grad.shape)
-            // console.log('weight ', weight.shape)
-            updatedGrads[weight.name] = grad
-        }
-    }
+//         if (grad != null && grad.shape.join(',') === weight.shape.join(',')) {
+//             // console.log('grad ', grad.shape)
+//             // console.log('weight ', weight.shape)
+//             updatedGrads[weight.name] = grad
+//         }
+//     }
 
-    if (Object.keys(updatedGrads).length > 0) {
-        optimizer.applyGradients(updatedGrads)
-    }
-}
+//     if (Object.keys(updatedGrads).length > 0) {
+//         optimizer.applyGradients(updatedGrads)
+//     }
+// }
 
 function computeGradients(
     model,
@@ -212,46 +212,58 @@ function computeGradients(
 }
 
 function filterGradients(grads) {
-    const activeLayers = []
-    const blockedLayers = []
+    const activeLayers = new Set()
+    const blockedLayers = new Set()
 
-    if (this.experts) {
-        this.experts.forEach((expert) => {
-            if (expert.hasOwnProperty('wasActivated')) {
-                if (expert.wasActivated) activeLayers.push(expert.name)
-                else {
-                    blockedLayers.push(expert.name)
-                    if (!expert.hasOwnProperty('_addedWeightNames')) return
-                    for (const name of expert._addedWeightNames) {
-                        blockedLayers.push(name)
-                    }
-                }
-            } else activeLayers.push(expert.name)
-        })
-    }
+    // if (this.experts) {
+    //     this.experts.forEach((expert) => {
+    //         if (expert.hasOwnProperty('trainable_')) {
+    //             if (expert.trainable_) activeLayers.add(expert.name)
+    //             else {
+    //                 blockedLayers.add(expert.name)
+    //                 // if (!expert.hasOwnProperty('_addedWeightNames')) return
+    //                 // for (const name of expert._addedWeightNames) {
+    //                 //     blockedLayers.push(name)
+    //                 // }
+    //             }
+    //         } else activeLayers.add(expert.name)
+    //     })
+    // }
 
-    this.model.layers.forEach((layer) => {
-        if (layer.hasOwnProperty('wasActivated')) {
-            if (layer.wasActivated) activeLayers.push(layer.name)
-        } else activeLayers.push(layer.name)
+    // this.model.layers.forEach((layer) => {
+    //     if (layer.hasOwnProperty('trainable_')) {
+    //         if (layer.trainable_) activeLayers.add(layer.name)
+    //         else blockedLayers.add(layer.name)
+    //     } else activeLayers.add(layer.name)
+    // })
+
+    this.model.collectedTrainableWeights.forEach((variable) => {
+        if (variable.hasOwnProperty('trainable')) {
+            if (!variable.trainable) return blockedLayers.add(variable.name)
+        }
+        if (variable.hasOwnProperty('trainable_')) {
+            if (!variable.trainable_) return blockedLayers.add(variable.name)
+        }
+        activeLayers.add(variable.name)
     })
 
     const filteredGrads = {}
     Object.keys(grads).forEach((varName) => {
-        // Determine if the current variable is part of an active expert
-        const isActive = activeLayers.some((layerName) =>
-            varName.includes(layerName)
-        )
-        const isBlocked = blockedLayers.some((layerName) =>
+        const isActive = [...activeLayers].some((layerName) =>
             varName.includes(layerName)
         )
 
+        const isBlocked = [...blockedLayers].some((layerName) =>
+            varName.includes(layerName)
+        )
+
+        // If active, include this gradient in the filtered set
         if (isActive && !isBlocked) {
-            // If active, include this gradient in the filtered set
             filteredGrads[varName] = grads[varName]
         }
     })
-    if (blockedLayers.length > 0) console.log('blocked_layers', blockedLayers)
+    // if (activeLayers.size > 0) console.log('active_layers', activeLayers)
+    // if (blockedLayers.size > 0) console.log('blocked_layers', blockedLayers)
     return filteredGrads
 }
 
