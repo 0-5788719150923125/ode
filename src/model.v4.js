@@ -90,7 +90,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineOptimizers() {
-        this.optimizers = [this.tf.train.sgd(1e-3)]
-    }
+    // defineOptimizers() {
+    //     this.optimizers = [this.tf.train.sgd(1e-3)]
+    // }
 }
