@@ -57,7 +57,7 @@ export default class ModelBase {
     async defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
             config?.vocabSize || 6666,
-            config?.numIterations || 100_000_000
+            config?.numIterations || 30_000_000
         )
     }
 
@@ -105,10 +105,23 @@ export default class ModelBase {
         console.log(this.config)
     }
 
-    async generate(prompt, temperature = 0.7, length = 20) {
-        if (this.config.mode === 'oneLabel') {
-            return await oldGenerateText.call(this, prompt, temperature, length)
-        } else return await generateText.call(this, prompt, temperature, length)
+    async generate({
+        prompt,
+        doSample = true,
+        temperature = 0.7,
+        topK = 0,
+        topP = 1,
+        maxNewTokens = 50
+    } = {}) {
+        return await generateText.call(
+            this,
+            prompt,
+            doSample,
+            temperature,
+            topK,
+            topP,
+            maxNewTokens
+        )
     }
 
     async train(dataGenerator, args) {
@@ -144,106 +157,98 @@ export default class ModelBase {
     }
 }
 
-async function oldGenerateText(prompt, temperature = 0.7, maxNewChars = 20) {
+async function generateText(
+    prompt,
+    doSample,
+    temperature,
+    topK,
+    topP,
+    maxNewTokens
+) {
     const fixedLength = this.config.contextLength
+    const isSingleLabel = this.model.outputs[0].shape.length === 2
 
-    // Assuming preprocessData returns an array of token indices
-    let tokenIndices = preprocessData(
-        prompt,
-        this.tokenizer,
-        fixedLength,
-        'left'
-    )
+    let inputs
+    if (isSingleLabel) {
+        const tokenIndices = preprocessData(
+            prompt,
+            this.tokenizer,
+            fixedLength,
+            'left'
+        )
+        inputs = tf.tensor2d(tokenIndices, [1, fixedLength], 'int32')
+    } else {
+        inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
+    }
 
-    const generated = tf.tidy(() => {
-        let generatedText = prompt
+    let generatedText = prompt
 
-        // Initialize a TensorBuffer for more efficient manipulation
-        const inputBuffer = tf.buffer([1, fixedLength], 'int32')
-
-        // Correctly set initial token indices into the buffer
-        tokenIndices.forEach((tokenIndex, index) => {
-            inputBuffer.set(tokenIndex, 0, index)
-        })
-
-        for (let i = 0; i < maxNewChars; i++) {
-            // Convert the buffer to a tensor for prediction
-            const inputs = inputBuffer.toTensor()
-
-            const output = this.model.predict(inputs).squeeze()
-
-            let winnerIndex
-            if (temperature === 0) {
-                winnerIndex = greedySampling(output).dataSync()[0]
-            } else {
-                winnerIndex = temperatureSampling(
-                    output,
-                    temperature
-                ).dataSync()[0]
-            }
-
-            if (winnerIndex < 0 || winnerIndex >= this.tokenizer.getLength()) {
-                winnerIndex = 0 // Fallback to the first index if out of bounds
-            }
-
-            const nextToken = this.tokenizer.decode([winnerIndex])
-            generatedText += nextToken
-
-            // Shift left by one position and push the new winnerIndex at the end
-            for (let j = 0; j < fixedLength - 1; j++) {
-                inputBuffer.set(inputBuffer.get(0, j + 1), 0, j)
-            }
-            inputBuffer.set(winnerIndex, 0, fixedLength - 1)
-        }
-
-        return generatedText
-    })
-
-    return generated
-}
-
-async function generateText(prompt, temperature, maxNewTokens) {
-    let inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
     this.tf.tidy(() => {
         for (let step = 0; step < maxNewTokens; step++) {
-            const idxNext = generateOnce.call(this, inputs, temperature)
-            // Ensure idxNext has a shape of [1, 1] to match the rank of inputs
-            const idxNextExpanded = idxNext.expandDims(1) // Adjusting idxNext shape for concatenation
-            const idxNew = this.tf.concat([inputs, idxNextExpanded], 1) // Adjusting the axis to 1 for correct concatenation
-            this.tf.dispose([inputs, idxNext])
-            inputs = this.tf.keep(idxNew)
+            const idxNext = generateOnce.call(
+                this,
+                inputs,
+                doSample,
+                temperature,
+                topK,
+                topP,
+                isSingleLabel
+            )
+            const nextToken = this.tokenizer.decode([idxNext.dataSync()[0]])
+            generatedText += nextToken
+
+            if (isSingleLabel) {
+                inputs = inputs.slice([0, 1], [1, fixedLength - 1])
+                const idxNextExpanded = idxNext.reshape([1, 1])
+                inputs = this.tf.concat([inputs, idxNextExpanded], 1)
+            } else {
+                const idxNextExpanded = idxNext.expandDims(1)
+                const idxNew = this.tf.concat([inputs, idxNextExpanded], 1)
+                this.tf.dispose([inputs, idxNext])
+                inputs = this.tf.keep(idxNew)
+            }
         }
     })
-    const idxArr = await inputs.array()
+
     this.tf.dispose(inputs)
-    return this.tokenizer.decode(idxArr[0])
+    return generatedText
 }
 
-function generateOnce(idx, temperature) {
+function generateOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
     let idxNext
     tf.tidy(() => {
-        const block_size = this.model.inputs[0].shape[1]
-        const idxCond =
-            idx.shape[1] <= block_size
-                ? idx
-                : idx.slice([0, -block_size], [-1, -1])
-        // Forward the model to get the logits for the index in the sequence
-        const logits = this.model.predict(idxCond)
+        let logits
+        if (isSingleLabel) {
+            logits = this.model.predict(idx).squeeze()
+        } else {
+            const block_size = this.model.inputs[0].shape[1]
+            const idxCond =
+                idx.shape[1] <= block_size
+                    ? idx
+                    : idx.slice([0, -block_size], [-1, -1])
+            logits = this.model.predict(idxCond)
+        }
 
         let logitsScaled
         if (logits.shape.length === 3) {
-            // pluck the logits at the final step for timeDistributed
             logitsScaled = logits
                 .slice([0, idx.shape[1] - 1, 0], [1, 1, logits.shape[2]])
                 .reshape([logits.shape[2]])
         } else {
-            // For oneLabel mode, logits is already in the expected shape
             logitsScaled = logits
         }
 
-        // either sample from a scaled distribution or take the most likely element
-        if (temperature !== 1) {
-            idxNext = temperatureSampling(logitsScaled, temperature)
+        if (doSample) {
+            if (temperature !== 1) {
+                logitsScaled = applyTemperature(logitsScaled, temperature)
+            }
+            if (topK > 0) {
+                logitsScaled = applyTopK(logitsScaled, topK)
+            }
+            if (topP < 1) {
+                logitsScaled = applyTopP(logitsScaled, topP)
+            }
+            idxNext = sampleFromLogits(logitsScaled)
         } else {
             idxNext = greedySampling(logitsScaled)
         }
@@ -253,23 +258,59 @@ function generateOnce(idx, temperature) {
     return idxNext
 }
 
+function applyTemperature(logits, temperature) {
+    return tf.div(logits, tf.scalar(Math.max(temperature, 1e-6)))
+}
+
+function applyTopK(logits, k) {
+    return tf.tidy(() => {
+        const topK = tf.topk(logits, k)
+        const topKIndices = topK.indices
+        const topKMask = tf.oneHot(topKIndices, logits.shape[0]).sum(0)
+        const maskedLogits = tf.mul(logits, topKMask)
+        return maskedLogits
+    })
+}
+
+function applyTopP(logits, p) {
+    return tf.tidy(() => {
+        const probs = tf.softmax(logits)
+        const sortedIndices = tf.topk(probs, probs.size).indices
+        const sortedProbs = tf.gather(probs, sortedIndices)
+        const cumulativeProbs = sortedProbs.cumsum()
+        const cutoffIndex = cumulativeProbs
+            .greater(tf.scalar(p))
+            .argMax()
+            .flatten()
+        const topPIndices = sortedIndices.slice(
+            [0],
+            [cutoffIndex.dataSync()[0] + 1]
+        )
+        const topPMask = tf.zerosLike(logits).flatten()
+        topPMask.buffer().then((buffer) => {
+            for (let i = 0; i < topPIndices.size; i++) {
+                buffer.set(1, topPIndices.get(i))
+            }
+        })
+        const maskedLogits = tf.mul(logits, topPMask.reshape(logits.shape))
+        return maskedLogits
+    })
+}
+
+function sampleFromLogits(logits) {
+    return tf.tidy(() => {
+        const probabilities = tf.softmax(logits)
+        const sampledIndex = tf.multinomial(probabilities, 1).reshape([-1])
+        return sampledIndex
+    })
+}
+
 function greedySampling(probabilities) {
     const index = tf.tidy(() => {
         const predictedIndex = tf.argMax(probabilities)
         return predictedIndex.reshape([-1])
     })
     return index
-}
-
-function temperatureSampling(logits, temperature) {
-    return tf.tidy(() => {
-        const probabilities = tf.div(
-            logits,
-            tf.scalar(Math.max(temperature, 1e-6))
-        )
-        const sampledIndex = tf.multinomial(probabilities, 1).reshape([-1])
-        return sampledIndex
-    })
 }
 
 function prepareInputs(inputs) {
@@ -292,82 +333,4 @@ function prepareInputs(inputs) {
         // keep idx from deletion
     })
     return inputs
-}
-
-function topKSampling(logits, k) {
-    return tf.tidy(() => {
-        if (k === undefined || k > logits.shape[0]) {
-            k = logits.shape[0] // If k is not defined or too large, use all logits.
-        }
-        // Get the top k logits and their indices
-        const topK = tf.topk(logits, k)
-
-        // Normalize the probabilities of the top k logits
-        const topKLogits = topK.values
-        const topKIndices = topK.indices
-        const topKProbs = tf.softmax(topKLogits)
-
-        // Sample from the top k probabilities
-        const sampledIndex = tf.multinomial(topKProbs, 1).flatten()
-
-        // Use the sampled index to find the corresponding word index
-        const topKIndicesArray = topKIndices.arraySync() // Note: arraySync should be used sparingly
-        const sampledWordIndex = tf.tensor1d(
-            [topKIndicesArray[sampledIndex.dataSync()[0]]],
-            'int32'
-        )
-
-        // Clean up intermediate tensors
-        tf.dispose([topK, topKLogits, topKIndices, topKProbs, sampledIndex])
-
-        return sampledWordIndex
-    })
-}
-
-function topPSampling(logits, p) {
-    return tf.tidy(() => {
-        // Convert logits to probabilities
-        const probs = tf.softmax(logits)
-        // Sort the probabilities and the indices in descending order
-        const sorted = tf.topk(probs, probs.size)
-        const sortedProbs = sorted.values
-        const sortedIndices = sorted.indices
-
-        // Cumulatively sum the sorted probabilities
-        const cumulativeProbs = sortedProbs.cumsum()
-
-        // Find the cutoff index where the cumulative sum exceeds the threshold p
-        const cutoffIndex = cumulativeProbs
-            .greater(tf.scalar(p))
-            .findFirst(1)
-            .toInt()
-
-        // Create a new probabilities array that only includes the top tokens
-        // up to the cutoff index, setting all other probabilities to zero
-        const topProbs = sortedProbs.slice([0], [cutoffIndex + 1])
-        const topIndices = sortedIndices.slice([0], [cutoffIndex + 1])
-
-        // Renormalize the new probabilities array
-        const renormalizedProbs = topProbs.div(topProbs.sum())
-
-        // Sample from the renormalized probabilities
-        const sampledIndex = tf.multinomial(renormalizedProbs, 1).flatten()
-
-        // Find the original index of the sampled index
-        const originalIndex = tf.gather(topIndices, sampledIndex)
-
-        // Clean up intermediate tensors
-        tf.dispose([
-            sorted,
-            sortedProbs,
-            sortedIndices,
-            cumulativeProbs,
-            topProbs,
-            topIndices,
-            renormalizedProbs,
-            sampledIndex
-        ])
-
-        return originalIndex
-    })
 }

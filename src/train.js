@@ -417,12 +417,22 @@ async function predictionSampler(
         const seedLength = randomBetween(16, maxLength - 16)
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
-        for (const temp of [1, 0.3, 1.1]) {
+        for (const args of [
+            { doSample: false },
+            { doSample: true, temperature: 0.3 },
+            { doSample: true, temperature: 1.1 },
+            { doSample: true, temperature: 0.7, topK: 4 },
+            { doSample: true, temperature: 0.7, topP: 0.8 }
+        ]) {
             const startTime = performance.now()
-            const output = await this.generate(prompt, temp, maxLength)
+            const output = await this.generate({
+                prompt,
+                maxNewTokens: maxLength,
+                ...args
+            })
             const endTime = performance.now()
             console.log(
-                `TEMPERATURE: ${temp}, RATE: ${((endTime - startTime) / (maxLength - seedLength)).toFixed(2)} ms/token`
+                `KWARGS: ${JSON.stringify(args)}, RATE: ${((endTime - startTime) / (maxLength - seedLength)).toFixed(2)} ms/token`
             )
             console.log(
                 color + prompt + white + output.slice(prompt.length, -1)
