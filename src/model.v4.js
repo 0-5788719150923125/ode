@@ -77,4 +77,21 @@ export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine 
 
         this.model = this.tf.model({ inputs, outputs })
     }
+
+    defineOptimizers() {
+        this.learningRate = 1.0
+        this.optimizers = [
+            this.ode.optimizers.Prodigy({
+                learningRate: this.learningRate,
+                weightDecay: 0.01,
+                biasCorrection: true
+            })
+        ]
+    }
+
+    defineSchedulers() {
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
+    }
 }

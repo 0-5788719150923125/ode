@@ -184,7 +184,7 @@ async function generateText({
         let generatedText = prompt
 
         for (let step = 0; step < maxNewTokens; step++) {
-            const idxNext = generateOnce.call(
+            const idxNext = predictOnce.call(
                 this,
                 inputs,
                 doSample,
@@ -212,18 +212,17 @@ async function generateText({
     })
 }
 
-function generateOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
+function predictOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
     return tf.tidy(() => {
-        let idxNext
-        let logits
+        let logits, idxNext
         if (isSingleLabel) {
             logits = this.model.predict(idx).squeeze()
         } else {
-            const block_size = this.model.inputs[0].shape[1]
+            const blockSize = this.model.inputs[0].shape[1]
             const idxCond =
-                idx.shape[1] <= block_size
+                idx.shape[1] <= blockSize
                     ? idx
-                    : idx.slice([0, -block_size], [-1, -1])
+                    : idx.slice([0, -blockSize], [-1, -1])
             logits = this.model.predict(idxCond)
         }
 
