@@ -2,7 +2,7 @@ import OriginalDecoderEngine from './model.v3.js'
 import { randomString } from './utils.js'
 
 /**
- * A small transformer with synthetic attention weights and rotary positional embeddings.
+ * A mixture of experts.
  * @extends OriginalDecoderEngine
  */
 export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {

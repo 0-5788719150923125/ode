@@ -9,14 +9,9 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
     constructor(config) {
         super(config)
         this.layers = 3
-        this.units = 64
+        this.units = 128
         this.innerDim = this.units * 4
-    }
-
-    async defineTokenizer() {
-        await super.defineTokenizer({
-            model: 'OriginalDesign/frame'
-        })
+        this.epsilon = 1e-5
     }
 
     defineBuild() {
@@ -42,12 +37,12 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            const isLastLayer = i < this.layers - 1
             outputs = this.ode.layers
                 .StateSpace({
                     units: this.units,
                     innerDim: this.innerDim,
-                    returnSequences: isLastLayer
+                    epsilon: this.epsilon,
+                    returnSequences: true
                 })
                 .apply(outputs)
         }
@@ -61,5 +56,19 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineOptimizers() {
+        const learningRate = 1.0
+        const weightDecay = 0.01
+        this.optimizers = [
+            this.ode.optimizers.Prodigy(learningRate, weightDecay)
+        ]
+    }
+
+    defineSchedulers() {
+        const learningRate = 1.0
+        this.optimizers[0].learningRate = learningRate
+        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 }

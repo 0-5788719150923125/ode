@@ -2056,62 +2056,89 @@ class HyperMixer extends LayerBase {
 
 class StateSpace extends tf.layers.Layer {
     constructor(config) {
-        super(config)
+        super({ ...config, name: `ssm-${randomString()}` })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
+        this.epsilon = config.epsilon || 1e-5
     }
 
     build(inputShape) {
         const inputDim = inputShape[2]
         this.kernel = this.addWeight(
             'kernel',
-            [inputDim, this.units],
+            [inputDim, this.innerDim],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.recurrentKernel = this.addWeight(
             'recurrentKernel',
-            [this.units, this.units],
+            [this.units, this.innerDim],
             'float32',
-            tf.initializers.orthogonal()
+            tf.initializers.orthogonal({ gain: 1 })
+        )
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
         )
         this.bias = this.addWeight(
             'bias',
-            [this.units],
+            [this.innerDim],
             'float32',
             tf.initializers.zeros()
         )
+
+        this.layernorm = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
+        this.layernorm.build(inputShape)
+
+        this._trainableWeights.push(...this.layernorm.trainableWeights)
+
+        this.residual = new ResidualConnection()
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
             const [batchSize, sequenceLength, inputDim] = inputs.shape
-            const state = tf.zeros([batchSize, this.units])
 
+            let state = tf.zeros([batchSize, this.units])
             const outputs = []
+
+            const kernel = this.kernel.read()
+            const recurrentKernel = this.recurrentKernel.read()
+            const outputKernel = this.outputKernel.read()
+            const bias = this.bias.read()
+
             for (let t = 0; t < sequenceLength; t++) {
                 const input = inputs
                     .slice([0, t, 0], [batchSize, 1, inputDim])
                     .reshape([batchSize, inputDim])
-                const newState = tf.tanh(
+                const innerState = tf.tanh(
                     tf.add(
                         tf.add(
-                            tf.matMul(input, this.kernel),
-                            tf.matMul(state, this.recurrentKernel)
+                            tf.matMul(input, kernel),
+                            tf.matMul(state, recurrentKernel)
                         ),
-                        this.bias
+                        bias
                     )
                 )
+                const newState = tf.matMul(innerState, outputKernel)
                 outputs.push(newState)
-                Object.assign(state, newState)
+                state = newState
             }
 
-            const output = this.returnSequences
+            let output = this.returnSequences
                 ? tf.stack(outputs, 1)
                 : outputs[outputs.length - 1]
 
-            return output
+            output = this.layernorm.apply(output)
+
+            return this.residual.apply([inputs, output])
         })
     }
 
@@ -2125,12 +2152,17 @@ class StateSpace extends tf.layers.Layer {
     getConfig() {
         const config = {
             units: this.units,
-            inputDim: this.innerDim,
-            returnSequences: this.returnSequences
+            innerDim: this.innerDim,
+            returnSequences: this.returnSequences,
+            epsilon: this.epsilon
         }
         const baseConfig = super.getConfig()
         Object.assign(config, baseConfig)
         return config
+    }
+
+    static get className() {
+        return 'StateSpace'
     }
 }
 
