@@ -82,7 +82,6 @@ class GradientAccumulator {
     constructor(parent, accumulationSteps, clipValue) {
         this.parent = parent
         this.model = this.parent.model
-        this.experts = this.parent.experts
         this.lossFunctions = this.parent.lossFunctions
         this.accumulationSteps = accumulationSteps
         this.clipValue = clipValue
@@ -95,7 +94,6 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
             this.model,
-            this.experts || [],
             this.lossFunctions,
             currentXs,
             currentYs,
@@ -145,15 +143,15 @@ class GradientAccumulator {
 
             this.accumulatedGrads = {}
 
-            const filteredGrads = filterGradients.call(this, clippedGrads)
+            // const filteredGrads = filterGradients.call(this, clippedGrads)
 
             // Update gradients, step the optimizer, changing weights
             // applyGradients(this.model, filteredGrads)
             // console.log(this.model.optimizer)
-            this.model.optimizer.applyGradients(filteredGrads)
+            this.model.optimizer.applyGradients(clippedGrads)
 
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
-            Object.values(filteredGrads).forEach((tensor) => tensor.dispose())
+            // Object.values(filteredGrads).forEach((tensor) => tensor.dispose())
         }
 
         // Dispose of grads after accumulation
@@ -184,7 +182,6 @@ class GradientAccumulator {
 
 function computeGradients(
     model,
-    experts,
     lossFunctions,
     currentXs,
     currentYs,
@@ -224,28 +221,6 @@ function computeGradients(
 function filterGradients(grads) {
     const activeLayers = new Set()
     const blockedLayers = new Set()
-
-    // if (this.experts) {
-    //     this.experts.forEach((expert) => {
-    //         if (expert.hasOwnProperty('trainable_')) {
-    //             if (expert.trainable_) activeLayers.add(expert.name)
-    //             else {
-    //                 blockedLayers.add(expert.name)
-    //                 // if (!expert.hasOwnProperty('_addedWeightNames')) return
-    //                 // for (const name of expert._addedWeightNames) {
-    //                 //     blockedLayers.push(name)
-    //                 // }
-    //             }
-    //         } else activeLayers.add(expert.name)
-    //     })
-    // }
-
-    // this.model.layers.forEach((layer) => {
-    //     if (layer.hasOwnProperty('trainable_')) {
-    //         if (layer.trainable_) activeLayers.add(layer.name)
-    //         else blockedLayers.add(layer.name)
-    //     } else activeLayers.add(layer.name)
-    // })
 
     this.model.collectedTrainableWeights.forEach((variable) => {
         if (variable.hasOwnProperty('trainable')) {

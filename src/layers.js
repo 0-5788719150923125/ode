@@ -597,7 +597,7 @@ class SparseMixtureOfExperts extends LayerBase {
 
             const topKValues = tf.topk(gatingScores, this.topK, true)
 
-            // Assuming the use of the last timestep to select experts as before
+            // Sample experts from the last timestep
             const sequenceLength = inputs.shape[1]
             const currentExperts = topKValues.indices
                 .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
@@ -607,20 +607,20 @@ class SparseMixtureOfExperts extends LayerBase {
             this.computeUtilization(currentExperts)
 
             // Disable all experts at the start of every new step
-            if (this.currentStep !== kwargs.step) {
-                this.currentStep = kwargs.step
-                this.experts.map((expert) => {
-                    this.setTrainableFlag(expert, false)
-                })
-            }
+            // if (this.currentStep !== kwargs.step) {
+            //     this.currentStep = kwargs.step
+            //     this.experts.map((expert) => {
+            //         this.setTrainableFlag(expert, false)
+            //     })
+            // }
 
             // Compute outputs only for the selected experts
             const expertOutputs = currentExperts.map((index) => {
-                this.setTrainableFlag(this.experts[index], true)
+                // this.setTrainableFlag(this.experts[index], true)
                 return this.experts[index].apply(inputs)
             })
 
-            // Sum the outputs from the selected experts
+            // Average the outputs from selected experts
             const outputs = expertOutputs
                 .reduce((acc, curr) => {
                     return acc.add(curr)

@@ -296,23 +296,77 @@ function prepareInputs(inputs) {
 
 function topKSampling(logits, k) {
     return tf.tidy(() => {
-        // Step 1: Use tf.topk to find the top k logits and their indices
-        const topk = tf.topk(logits, k)
-        const values = topk.values
-        const indices = topk.indices
+        if (k === undefined || k > logits.shape[0]) {
+            k = logits.shape[0] // If k is not defined or too large, use all logits.
+        }
+        // Get the top k logits and their indices
+        const topK = tf.topk(logits, k)
 
-        // Step 2: Calculate the probabilities of the top k logits
-        // Normalize the values to prevent large logits from dominating
-        // const scaledValues = values.sub(values.max()).softmax()
-        const scaledValues = values.sub(values.max())
+        // Normalize the probabilities of the top k logits
+        const topKLogits = topK.values
+        const topKIndices = topK.indices
+        const topKProbs = tf.softmax(topKLogits)
 
-        // Step 3: Sample from the top k values
-        const sampledIndex = tf
-            .multinomial(scaledValues, 1, null, false)
-            .dataSync()[0]
+        // Sample from the top k probabilities
+        const sampledIndex = tf.multinomial(topKProbs, 1).flatten()
 
-        // Step 4: Map the sampled index back to the original logits' space using the indices tensor
-        const originalIndex = indices.arraySync()[sampledIndex]
+        // Use the sampled index to find the corresponding word index
+        const topKIndicesArray = topKIndices.arraySync() // Note: arraySync should be used sparingly
+        const sampledWordIndex = tf.tensor1d(
+            [topKIndicesArray[sampledIndex.dataSync()[0]]],
+            'int32'
+        )
+
+        // Clean up intermediate tensors
+        tf.dispose([topK, topKLogits, topKIndices, topKProbs, sampledIndex])
+
+        return sampledWordIndex
+    })
+}
+
+function topPSampling(logits, p) {
+    return tf.tidy(() => {
+        // Convert logits to probabilities
+        const probs = tf.softmax(logits)
+        // Sort the probabilities and the indices in descending order
+        const sorted = tf.topk(probs, probs.size)
+        const sortedProbs = sorted.values
+        const sortedIndices = sorted.indices
+
+        // Cumulatively sum the sorted probabilities
+        const cumulativeProbs = sortedProbs.cumsum()
+
+        // Find the cutoff index where the cumulative sum exceeds the threshold p
+        const cutoffIndex = cumulativeProbs
+            .greater(tf.scalar(p))
+            .findFirst(1)
+            .toInt()
+
+        // Create a new probabilities array that only includes the top tokens
+        // up to the cutoff index, setting all other probabilities to zero
+        const topProbs = sortedProbs.slice([0], [cutoffIndex + 1])
+        const topIndices = sortedIndices.slice([0], [cutoffIndex + 1])
+
+        // Renormalize the new probabilities array
+        const renormalizedProbs = topProbs.div(topProbs.sum())
+
+        // Sample from the renormalized probabilities
+        const sampledIndex = tf.multinomial(renormalizedProbs, 1).flatten()
+
+        // Find the original index of the sampled index
+        const originalIndex = tf.gather(topIndices, sampledIndex)
+
+        // Clean up intermediate tensors
+        tf.dispose([
+            sorted,
+            sortedProbs,
+            sortedIndices,
+            cumulativeProbs,
+            topProbs,
+            topIndices,
+            renormalizedProbs,
+            sampledIndex
+        ])
 
         return originalIndex
     })
