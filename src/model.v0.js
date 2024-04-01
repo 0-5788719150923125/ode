@@ -106,22 +106,21 @@ export default class ModelBase {
     }
 
     async generate({
-        prompt,
+        prompt = '',
         doSample = true,
         temperature = 0.7,
         topK = 0,
         topP = 1,
         maxNewTokens = 50
     } = {}) {
-        return await generateText.call(
-            this,
+        return await generateText.call(this, {
             prompt,
             doSample,
             temperature,
             topK,
             topP,
             maxNewTokens
-        )
+        })
     }
 
     async train(dataGenerator, args) {
@@ -157,33 +156,33 @@ export default class ModelBase {
     }
 }
 
-async function generateText(
+async function generateText({
     prompt,
     doSample,
     temperature,
     topK,
     topP,
     maxNewTokens
-) {
+} = {}) {
     const fixedLength = this.config.contextLength
     const isSingleLabel = this.model.outputs[0].shape.length === 2
 
-    let inputs
-    if (isSingleLabel) {
-        const tokenIndices = preprocessData(
-            prompt,
-            this.tokenizer,
-            fixedLength,
-            'left'
-        )
-        inputs = tf.tensor2d(tokenIndices, [1, fixedLength], 'int32')
-    } else {
-        inputs = await prepareInputs.call(this, this.tokenizer.encode(prompt))
-    }
+    return this.tf.tidy(() => {
+        let inputs
+        if (isSingleLabel) {
+            const tokenIndices = preprocessData(
+                prompt,
+                this.tokenizer,
+                fixedLength,
+                'left'
+            )
+            inputs = tf.tensor2d(tokenIndices, [1, fixedLength], 'int32')
+        } else {
+            inputs = prepareInputs.call(this, this.tokenizer.encode(prompt))
+        }
 
-    let generatedText = prompt
+        let generatedText = prompt
 
-    this.tf.tidy(() => {
         for (let step = 0; step < maxNewTokens; step++) {
             const idxNext = generateOnce.call(
                 this,
@@ -208,15 +207,14 @@ async function generateText(
                 inputs = this.tf.keep(idxNew)
             }
         }
+        tf.dispose([inputs])
+        return generatedText
     })
-
-    this.tf.dispose(inputs)
-    return generatedText
 }
 
 function generateOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
-    let idxNext
-    tf.tidy(() => {
+    return tf.tidy(() => {
+        let idxNext
         let logits
         if (isSingleLabel) {
             logits = this.model.predict(idx).squeeze()
@@ -229,37 +227,35 @@ function generateOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
             logits = this.model.predict(idxCond)
         }
 
-        let logitsScaled
         if (logits.shape.length === 3) {
-            logitsScaled = logits
+            logits = logits
                 .slice([0, idx.shape[1] - 1, 0], [1, 1, logits.shape[2]])
                 .reshape([logits.shape[2]])
-        } else {
-            logitsScaled = logits
         }
 
         if (doSample) {
             if (temperature !== 1) {
-                logitsScaled = applyTemperature(logitsScaled, temperature)
+                logits = applyTemperature(logits, temperature)
             }
             if (topK > 0) {
-                logitsScaled = applyTopK(logitsScaled, topK)
+                logits = applyTopK(logits, topK)
             }
             if (topP < 1) {
-                logitsScaled = applyTopP(logitsScaled, topP)
+                logits = applyTopP(logits, topP)
             }
-            idxNext = sampleFromLogits(logitsScaled)
+            idxNext = sampleFromLogits(logits)
         } else {
-            idxNext = greedySampling(logitsScaled)
+            idxNext = greedySampling(logits)
         }
 
-        tf.keep(idxNext)
+        return idxNext
     })
-    return idxNext
 }
 
 function applyTemperature(logits, temperature) {
-    return tf.div(logits, tf.scalar(Math.max(temperature, 1e-6)))
+    return tf.tidy(() => {
+        return tf.div(logits, tf.scalar(Math.max(temperature, 1e-6)))
+    })
 }
 
 function applyTopK(logits, k) {
@@ -286,13 +282,17 @@ function applyTopP(logits, p) {
             [0],
             [cutoffIndex.dataSync()[0] + 1]
         )
-        const topPMask = tf.zerosLike(logits).flatten()
-        topPMask.buffer().then((buffer) => {
-            for (let i = 0; i < topPIndices.size; i++) {
-                buffer.set(1, topPIndices.get(i))
-            }
-        })
-        const maskedLogits = tf.mul(logits, topPMask.reshape(logits.shape))
+        const topPMask = tf.zerosLike(logits)
+        const scatterIndices = tf
+            .range(0, topPIndices.shape[0], 1, 'int32')
+            .reshape([-1, 1])
+        const updateValues = tf.onesLike(topPIndices)
+        const updatedMask = tf.scatterND(
+            scatterIndices,
+            updateValues,
+            topPMask.shape
+        )
+        const maskedLogits = updatedMask.mul(logits)
         return maskedLogits
     })
 }
@@ -306,15 +306,14 @@ function sampleFromLogits(logits) {
 }
 
 function greedySampling(probabilities) {
-    const index = tf.tidy(() => {
+    return tf.tidy(() => {
         const predictedIndex = tf.argMax(probabilities)
         return predictedIndex.reshape([-1])
     })
-    return index
 }
 
 function prepareInputs(inputs) {
-    tf.tidy(() => {
+    return tf.tidy(() => {
         // Check if idx is a tensor or an array
         if (inputs instanceof tf.Tensor) {
             inputs = inputs.clone()
@@ -329,8 +328,6 @@ function prepareInputs(inputs) {
         if (inputs.shape.length === 1) {
             inputs = inputs.expandDims(0)
         }
-        tf.keep(inputs)
-        // keep idx from deletion
+        return inputs
     })
-    return inputs
 }

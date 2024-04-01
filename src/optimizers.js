@@ -298,7 +298,16 @@ class Prodigy extends tf.SGDOptimizer {
                     }
                 }
 
-                const { p0, expAvg, expAvgSq, s } = this.STATE[name]
+                const p0 = this.STATE[name].p0
+                const expAvg = tf.clone(this.STATE[name].expAvg)
+                const expAvgSq = tf.clone(this.STATE[name].expAvgSq)
+                const s = tf.clone(this.STATE[name].s)
+
+                tf.dispose([
+                    this.STATE[name].expAvg,
+                    this.STATE[name].expAvgSq,
+                    this.STATE[name].s
+                ])
 
                 dNumerator = dNumerator.add(
                     tf
