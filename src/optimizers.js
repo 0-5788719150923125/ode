@@ -234,23 +234,24 @@ function prepareAdamW(model, learningRate, beta1, beta2, epsilon, decayRate) {
 }
 
 class Prodigy extends tf.SGDOptimizer {
-    constructor(
+    constructor({
         learningRate = 1.0,
-        weightDecay = 0.0,
-        weightDecouple = true,
-        fixedDecay = false,
         beta1 = 0.9,
         beta2 = 0.999,
         beta3 = null,
         d0 = 1e-6,
         dCoef = 1.0,
         growthRate = Infinity,
+        weightDecay = 0.0,
+        weightDecouple = true,
+        fixedDecay = false,
         biasCorrection = false,
         safeguardWarmup = false,
         epsilon = 1e-8
-    ) {
+    } = {}) {
         super(learningRate)
         this.ENGINE = tf.engine()
+        this.STATE = {}
         this.beta1 = beta1
         this.beta2 = beta2
         this.beta3 = beta3 || Math.sqrt(beta2)
@@ -266,7 +267,6 @@ class Prodigy extends tf.SGDOptimizer {
         this.d = d0
         this.dMax = d0
         this.step = 1
-        this.STATE = {}
     }
 
     applyGradients(variableGradients) {
@@ -369,7 +369,7 @@ class Prodigy extends tf.SGDOptimizer {
             this.step++
         })
 
-        return super.applyGradients(variableGradients)
+        super.applyGradients(variableGradients)
     }
 
     shouldExcludeFromWeightDecay(name) {
@@ -384,15 +384,15 @@ class Prodigy extends tf.SGDOptimizer {
     getConfig() {
         return {
             learningRate: this.learningRate,
-            weightDecay: this.weightDecay,
-            weightDecouple: this.weightDecouple,
-            fixedDecay: this.fixedDecay,
             beta1: this.beta1,
             beta2: this.beta2,
             beta3: this.beta3,
             d0: this.d0,
             dCoef: this.dCoef,
             growthRate: this.growthRate,
+            weightDecay: this.weightDecay,
+            weightDecouple: this.weightDecouple,
+            fixedDecay: this.fixedDecay,
             biasCorrection: this.biasCorrection,
             safeguardWarmup: this.safeguardWarmup,
             epsilon: this.epsilon
@@ -403,36 +403,7 @@ class Prodigy extends tf.SGDOptimizer {
 const customOptimizers = {
     AdamW: (model, learningRate, beta1, beta2, epsilon, decayRate) =>
         prepareAdamW(model, learningRate, beta1, beta2, epsilon, decayRate),
-    Prodigy: (
-        learningRate,
-        beta1,
-        beta2,
-        beta3,
-        d0,
-        dCoef,
-        growthRate,
-        weightDecay,
-        weightDecouple,
-        fixedDecay,
-        biasCorrection,
-        safeguardWarmup,
-        epsilon
-    ) =>
-        new Prodigy(
-            learningRate,
-            beta1,
-            beta2,
-            beta3,
-            d0,
-            dCoef,
-            growthRate,
-            weightDecay,
-            weightDecouple,
-            fixedDecay,
-            biasCorrection,
-            safeguardWarmup,
-            epsilon
-        )
+    Prodigy: (config) => new Prodigy(config)
 }
 
 export default customOptimizers

@@ -59,16 +59,19 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
     }
 
     defineOptimizers() {
-        const learningRate = 1.0
-        const weightDecay = 0.01
+        this.learningRate = 1.0
         this.optimizers = [
-            this.ode.optimizers.Prodigy(learningRate, weightDecay)
+            this.ode.optimizers.Prodigy({
+                learningRate: this.learningRate,
+                weightDecay: 0.01,
+                biasCorrection: true
+            })
         ]
     }
 
     defineSchedulers() {
-        const learningRate = 1.0
-        this.optimizers[0].learningRate = learningRate
-        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
     }
 }
