@@ -1,25 +1,21 @@
-import OriginalDecoderEngine from './model.v3.js'
+import OpportunisticDialogueEncoder from './model.v4.js'
 import { randomString } from './utils.js'
 
 /**
- * A small transformer with synthetic attention weights and rotary positional embeddings.
- * @extends OriginalDecoderEngine
+ * A state space model.
+ * @extends OpportunisticDialogueEncoder
  */
-export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
+export default class ObservableDataEncryption extends OpportunisticDialogueEncoder {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.heads = 8
-        this.units = 256
+        this.layers = 3
+        this.units = 64
         this.innerDim = this.units * 4
-        this.epsilon = 1e-5
-        this.numExperts = 3
-        this.topK = 2
     }
 
     async defineTokenizer() {
         await super.defineTokenizer({
-            model: 'mistralai/Mistral-7B-v0.1'
+            model: 'OriginalDesign/frame'
         })
     }
 
@@ -46,30 +42,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
+            const isLastLayer = i < this.layers - 1
             outputs = this.ode.layers
-                .SynthesizerAttention({
+                .StateSpace({
                     units: this.units,
-                    blockSize: this.config.contextLength,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    activation: this.tf.leakyRelu,
-                    alpha: this.alpha
-                })
-                .apply(outputs)
-
-            outputs = this.ode.layers
-                .SparseMixtureOfExperts({
-                    experts: new Array(this.numExperts).fill(
-                        this.ode.layers.MultiLayerPerceptron({
-                            units: this.units,
-                            innerDim: this.innerDim,
-                            heads: this.heads,
-                            epsilon: this.epsilon,
-                            activation: 'swish'
-                        })
-                    ),
-                    units: this.units * 2,
-                    topK: this.topK
+                    innerDim: this.innerDim,
+                    returnSequences: isLastLayer
                 })
                 .apply(outputs)
         }
@@ -83,15 +61,5 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
-    }
-
-    defineOptimizers() {
-        this.optimizers = [this.tf.train.sgd(1e-2)]
-    }
-
-    defineSchedulers() {
-        const learningRate = 1e-2
-        this.optimizers[0].learningRate = learningRate
-        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 }

@@ -2054,6 +2054,86 @@ class HyperMixer extends LayerBase {
     }
 }
 
+class StateSpace extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units || 64
+        this.innerDim = config.innerDim || 256
+        this.returnSequences = config.returnSequences || false
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[2]
+        this.kernel = this.addWeight(
+            'kernel',
+            [inputDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.recurrentKernel = this.addWeight(
+            'recurrentKernel',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.orthogonal()
+        )
+        this.bias = this.addWeight(
+            'bias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const [batchSize, sequenceLength, inputDim] = inputs.shape
+            const state = tf.zeros([batchSize, this.units])
+
+            const outputs = []
+            for (let t = 0; t < sequenceLength; t++) {
+                const input = inputs
+                    .slice([0, t, 0], [batchSize, 1, inputDim])
+                    .reshape([batchSize, inputDim])
+                const newState = tf.tanh(
+                    tf.add(
+                        tf.add(
+                            tf.matMul(input, this.kernel),
+                            tf.matMul(state, this.recurrentKernel)
+                        ),
+                        this.bias
+                    )
+                )
+                outputs.push(newState)
+                Object.assign(state, newState)
+            }
+
+            const output = this.returnSequences
+                ? tf.stack(outputs, 1)
+                : outputs[outputs.length - 1]
+
+            return output
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        const outputShape = this.returnSequences
+            ? [inputShape[0], inputShape[1], this.units]
+            : [inputShape[0], this.units]
+        return outputShape
+    }
+
+    getConfig() {
+        const config = {
+            units: this.units,
+            inputDim: this.innerDim,
+            returnSequences: this.returnSequences
+        }
+        const baseConfig = super.getConfig()
+        Object.assign(config, baseConfig)
+        return config
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -2076,6 +2156,7 @@ const exportedLayers = [
     SequenceExpansionLayer,
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
+    StateSpace,
     SynthesizerAttention,
     TransformerXLAttention
 ]

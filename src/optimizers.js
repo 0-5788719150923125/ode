@@ -233,149 +233,149 @@ function prepareAdamW(model, learningRate, beta1, beta2, epsilon, decayRate) {
     }
 }
 
-class Prodigy extends tf.train.Optimizer {
-    constructor(
-        learningRate = 1.0,
-        beta1 = 0.9,
-        beta2 = 0.999,
-        beta3 = null,
-        d0 = 1e-6,
-        dCoef = 1.0,
-        growthRate = Infinity,
-        weightDecay = 0.0,
-        weightDecouple = true,
-        fixedDecay = false,
-        biasCorrection = false,
-        safeguardWarmup = false,
-        epsilon = 1e-8
-    ) {
-        super()
-        this.learningRate = learningRate
-        this.beta1 = beta1
-        this.beta2 = beta2
-        this.beta3 = beta3 || Math.sqrt(beta2)
-        this.d0 = d0
-        this.dCoef = dCoef
-        this.growthRate = growthRate
-        this.weightDecay = weightDecay
-        this.weightDecouple = weightDecouple
-        this.fixedDecay = fixedDecay
-        this.biasCorrection = biasCorrection
-        this.safeguardWarmup = safeguardWarmup
-        this.epsilon = epsilon
-        this.d = d0
-        this.dMax = d0
-        this.step = 1
-    }
+// class Prodigy extends tf.train.Optimizer {
+//     constructor(
+//         learningRate = 1.0,
+//         beta1 = 0.9,
+//         beta2 = 0.999,
+//         beta3 = null,
+//         d0 = 1e-6,
+//         dCoef = 1.0,
+//         growthRate = Infinity,
+//         weightDecay = 0.0,
+//         weightDecouple = true,
+//         fixedDecay = false,
+//         biasCorrection = false,
+//         safeguardWarmup = false,
+//         epsilon = 1e-8
+//     ) {
+//         super()
+//         this.learningRate = learningRate
+//         this.beta1 = beta1
+//         this.beta2 = beta2
+//         this.beta3 = beta3 || Math.sqrt(beta2)
+//         this.d0 = d0
+//         this.dCoef = dCoef
+//         this.growthRate = growthRate
+//         this.weightDecay = weightDecay
+//         this.weightDecouple = weightDecouple
+//         this.fixedDecay = fixedDecay
+//         this.biasCorrection = biasCorrection
+//         this.safeguardWarmup = safeguardWarmup
+//         this.epsilon = epsilon
+//         this.d = d0
+//         this.dMax = d0
+//         this.step = 1
+//     }
 
-    applyGradients(variableGradients) {
-        const beta1 = this.beta1
-        const beta2 = this.beta2
-        const beta3 = this.beta3
-        const biasCorrection1 = 1.0 - Math.pow(beta1, this.step)
-        const biasCorrection2Sq = Math.sqrt(1.0 - Math.pow(beta2, this.step))
-        const biasCorrection = this.biasCorrection
-            ? biasCorrection1 / biasCorrection2Sq
-            : 1.0
-        const dLr = (this.d * this.learningRate) / biasCorrection
-        let dNumerator = 0
-        let dDenom = 0
+//     applyGradients(variableGradients) {
+//         const beta1 = this.beta1
+//         const beta2 = this.beta2
+//         const beta3 = this.beta3
+//         const biasCorrection1 = 1.0 - Math.pow(beta1, this.step)
+//         const biasCorrection2Sq = Math.sqrt(1.0 - Math.pow(beta2, this.step))
+//         const biasCorrection = this.biasCorrection
+//             ? biasCorrection1 / biasCorrection2Sq
+//             : 1.0
+//         const dLr = (this.d * this.learningRate) / biasCorrection
+//         let dNumerator = 0
+//         let dDenom = 0
 
-        tf.tidy(() => {
-            variableGradients.forEach(({ name, tensor, gradients }) => {
-                const variable = this.ENGINE.registeredVariables[name]
-                const state = this.STATE[name] || {}
-                const p0 = state.p0 || variable.clone()
-                const expAvg = state.expAvg || tf.zerosLike(variable)
-                const expAvgSq = state.expAvgSq || tf.zerosLike(variable)
-                const s = state.s || tf.zerosLike(variable)
+//         tf.tidy(() => {
+//             variableGradients.forEach(({ name, tensor, gradients }) => {
+//                 const variable = this.ENGINE.registeredVariables[name]
+//                 const state = this.STATE[name] || {}
+//                 const p0 = state.p0 || variable.clone()
+//                 const expAvg = state.expAvg || tf.zerosLike(variable)
+//                 const expAvgSq = state.expAvgSq || tf.zerosLike(variable)
+//                 const s = state.s || tf.zerosLike(variable)
 
-                dNumerator += tf
-                    .dot(gradients.flatten(), tf.sub(p0, variable).flatten())
-                    .mul((this.d / this.d0) * dLr)
-                    .dataSync()[0]
+//                 dNumerator += tf
+//                     .dot(gradients.flatten(), tf.sub(p0, variable).flatten())
+//                     .mul((this.d / this.d0) * dLr)
+//                     .dataSync()[0]
 
-                expAvg.assign(
-                    expAvg.mul(beta1).add(gradients.mul(this.d * (1.0 - beta1)))
-                )
-                expAvgSq.assign(
-                    expAvgSq
-                        .mul(beta2)
-                        .addcmul(
-                            gradients,
-                            gradients,
-                            this.d * this.d * (1.0 - beta2)
-                        )
-                )
+//                 expAvg.assign(
+//                     expAvg.mul(beta1).add(gradients.mul(this.d * (1.0 - beta1)))
+//                 )
+//                 expAvgSq.assign(
+//                     expAvgSq
+//                         .mul(beta2)
+//                         .addcmul(
+//                             gradients,
+//                             gradients,
+//                             this.d * this.d * (1.0 - beta2)
+//                         )
+//                 )
 
-                s.assign(
-                    s
-                        .mul(beta3)
-                        .add(
-                            gradients.mul(
-                                (this.d / this.d0) *
-                                    (this.safeguardWarmup ? this.d : dLr)
-                            )
-                        )
-                )
+//                 s.assign(
+//                     s
+//                         .mul(beta3)
+//                         .add(
+//                             gradients.mul(
+//                                 (this.d / this.d0) *
+//                                     (this.safeguardWarmup ? this.d : dLr)
+//                             )
+//                         )
+//                 )
 
-                dDenom += s.abs().sum().dataSync()[0]
+//                 dDenom += s.abs().sum().dataSync()[0]
 
-                this.STATE[name] = { p0, expAvg, expAvgSq, s }
-            })
-        })
+//                 this.STATE[name] = { p0, expAvg, expAvgSq, s }
+//             })
+//         })
 
-        const dHat = (this.dCoef * dNumerator) / dDenom
-        if (this.d === this.d0) {
-            this.d = Math.max(this.d, dHat)
-        }
-        this.dMax = Math.max(this.dMax, dHat)
-        this.d = Math.min(this.dMax, this.d * this.growthRate)
+//         const dHat = (this.dCoef * dNumerator) / dDenom
+//         if (this.d === this.d0) {
+//             this.d = Math.max(this.d, dHat)
+//         }
+//         this.dMax = Math.max(this.dMax, dHat)
+//         this.d = Math.min(this.dMax, this.d * this.growthRate)
 
-        tf.tidy(() => {
-            variableGradients.forEach(({ name, tensor, gradients }) => {
-                const variable = this.ENGINE.registeredVariables[name]
-                const { expAvg, expAvgSq } = this.STATE[name]
+//         tf.tidy(() => {
+//             variableGradients.forEach(({ name, tensor, gradients }) => {
+//                 const variable = this.ENGINE.registeredVariables[name]
+//                 const { expAvg, expAvgSq } = this.STATE[name]
 
-                const denom = expAvgSq.sqrt().add(this.d * this.epsilon)
+//                 const denom = expAvgSq.sqrt().add(this.d * this.epsilon)
 
-                if (this.weightDecay !== 0) {
-                    if (this.weightDecouple) {
-                        variable.assign(
-                            variable.sub(variable.mul(this.weightDecay * dLr))
-                        )
-                    } else if (!this.fixedDecay) {
-                        gradients = gradients.add(
-                            variable.mul(this.weightDecay)
-                        )
-                    }
-                }
+//                 if (this.weightDecay !== 0) {
+//                     if (this.weightDecouple) {
+//                         variable.assign(
+//                             variable.sub(variable.mul(this.weightDecay * dLr))
+//                         )
+//                     } else if (!this.fixedDecay) {
+//                         gradients = gradients.add(
+//                             variable.mul(this.weightDecay)
+//                         )
+//                     }
+//                 }
 
-                variable.assign(variable.sub(expAvg.div(denom).mul(dLr)))
-            })
-        })
+//                 variable.assign(variable.sub(expAvg.div(denom).mul(dLr)))
+//             })
+//         })
 
-        this.step++
-    }
+//         this.step++
+//     }
 
-    getConfig() {
-        return {
-            learningRate: this.learningRate,
-            beta1: this.beta1,
-            beta2: this.beta2,
-            beta3: this.beta3,
-            d0: this.d0,
-            dCoef: this.dCoef,
-            growthRate: this.growthRate,
-            weightDecay: this.weightDecay,
-            weightDecouple: this.weightDecouple,
-            fixedDecay: this.fixedDecay,
-            biasCorrection: this.biasCorrection,
-            safeguardWarmup: this.safeguardWarmup,
-            epsilon: this.epsilon
-        }
-    }
-}
+//     getConfig() {
+//         return {
+//             learningRate: this.learningRate,
+//             beta1: this.beta1,
+//             beta2: this.beta2,
+//             beta3: this.beta3,
+//             d0: this.d0,
+//             dCoef: this.dCoef,
+//             growthRate: this.growthRate,
+//             weightDecay: this.weightDecay,
+//             weightDecouple: this.weightDecouple,
+//             fixedDecay: this.fixedDecay,
+//             biasCorrection: this.biasCorrection,
+//             safeguardWarmup: this.safeguardWarmup,
+//             epsilon: this.epsilon
+//         }
+//     }
+// }
 
 const customOptimizers = {
     AdamW: (model, learningRate, beta1, beta2, epsilon, decayRate) =>
