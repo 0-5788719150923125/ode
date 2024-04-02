@@ -86,13 +86,30 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
+    // defineOptimizers() {
+    //     this.optimizers = [this.tf.train.sgd(1e-2)]
+    // }
+
+    // defineSchedulers() {
+    //     const learningRate = 1e-2
+    //     this.optimizers[0].learningRate = learningRate
+    //     this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
+    // }
+
     defineOptimizers() {
-        this.optimizers = [this.tf.train.sgd(1e-2)]
+        this.learningRate = 1.0
+        this.optimizers = [
+            this.ode.optimizers.Prodigy({
+                learningRate: this.learningRate,
+                weightDecay: 0.01,
+                biasCorrection: true
+            })
+        ]
     }
 
     defineSchedulers() {
-        const learningRate = 1e-2
-        this.optimizers[0].learningRate = learningRate
-        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
     }
 }

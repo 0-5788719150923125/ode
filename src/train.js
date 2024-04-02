@@ -464,6 +464,7 @@ class Logger {
         this.previousLoss = currentLoss
 
         let memory = tf.memory()
+        const numTensors = memory.numTensors
 
         if (memory.numBytesInGPU) {
             memory = 'VRAM=' + (memory.numBytesInGPU / 1_000_000_000).toFixed(4)
@@ -479,7 +480,7 @@ class Logger {
         const elapsed = this.timer.next().value
         this.totalElapsed += elapsed
         console.log(
-            `STEP=${step}, BATCH=${batch}, ${memory}GB, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(5)}, ELAPSED=${(elapsed / 1000).toFixed(1)}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
+            `STEP=${step}, BATCH=${batch}, ${memory}GB, TENSORS=${numTensors}, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(5)}, ELAPSED=${(elapsed / 1000).toFixed(1)}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
         )
     }
 }

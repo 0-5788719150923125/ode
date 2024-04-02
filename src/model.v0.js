@@ -269,19 +269,20 @@ function applyTopK(logits, k) {
 
 function applyTopP(logits, p) {
     return tf.tidy(() => {
-        const probs = tf.softmax(logits)
-        const sortedIndices = tf.topk(probs, probs.size).indices
-        const sortedProbs = tf.gather(probs, sortedIndices)
-        const cumulativeProbs = sortedProbs.cumsum()
-        const cutoffIndex = cumulativeProbs
+        const logitsShape = logits.shape
+        const logitsFlat = logits.reshape([-1])
+        const topKIndices = tf.topk(logitsFlat, logitsFlat.shape[0]).indices
+        const topKLogits = tf.gather(logitsFlat, topKIndices)
+        const cumulativeLogits = topKLogits.cumsum()
+        const cutoffIndex = cumulativeLogits
             .greater(tf.scalar(p))
             .argMax()
             .flatten()
-        const topPIndices = sortedIndices.slice(
+        const topPIndices = topKIndices.slice(
             [0],
             [cutoffIndex.dataSync()[0] + 1]
         )
-        const topPMask = tf.zerosLike(logits)
+        const topPMask = tf.zerosLike(logitsFlat)
         const scatterIndices = tf
             .range(0, topPIndices.shape[0], 1, 'int32')
             .reshape([-1, 1])
@@ -291,22 +292,21 @@ function applyTopP(logits, p) {
             updateValues,
             topPMask.shape
         )
-        const maskedLogits = updatedMask.mul(logits)
+        const maskedLogits = updatedMask.mul(logitsFlat).reshape(logitsShape)
         return maskedLogits
     })
 }
 
 function sampleFromLogits(logits) {
     return tf.tidy(() => {
-        const probabilities = tf.softmax(logits)
-        const sampledIndex = tf.multinomial(probabilities, 1).reshape([-1])
+        const sampledIndex = tf.multinomial(logits, 1).reshape([-1])
         return sampledIndex
     })
 }
 
-function greedySampling(probabilities) {
+function greedySampling(logits) {
     return tf.tidy(() => {
-        const predictedIndex = tf.argMax(probabilities)
+        const predictedIndex = tf.argMax(logits)
         return predictedIndex.reshape([-1])
     })
 }
