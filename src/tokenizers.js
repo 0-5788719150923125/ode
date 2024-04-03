@@ -1,7 +1,7 @@
 import pako from 'pako'
 import { shaks13 } from './data.js'
 
-class BinaryTokenizer {
+class CompressedBinaryTokenizer {
     constructor({
         minLength = 1,
         maxLength = 23,
@@ -431,7 +431,8 @@ class BasicSubwordTokenizer {
 }
 
 const tokenizers = {
-    BinaryTokenizer: (config) => new BinaryTokenizer(config),
+    CompressedBinaryTokenizer: (config) =>
+        new CompressedBinaryTokenizer(config),
     CharacterTokenizer: (config) => new CharacterTokenizer(config),
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),

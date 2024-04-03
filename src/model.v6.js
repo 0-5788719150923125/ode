@@ -1,5 +1,4 @@
 import OriginalDecoderEngine from './model.v3.js'
-import { randomString } from './utils.js'
 
 /**
  * A mixture of experts.
@@ -26,14 +25,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     }
 
     defineBuild() {
-        const inputs = this.tf.input({
-            name: `inn-${randomString()}`,
+        const inputs = this.ode.layers.input({
             shape: [null]
         })
 
-        let outputs = this.tf.layers
+        let outputs = this.ode.layers
             .embedding({
-                name: `emb-${randomString()}`,
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -86,9 +83,8 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 .apply(outputs)
         }
 
-        outputs = this.tf.layers
+        outputs = this.ode.layers
             .dense({
-                name: `out-${randomString()}`,
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
@@ -111,6 +107,19 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     defineSchedulers() {
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
+    }
+
+    defineLossFunctions() {
+        this.lossFunctions = [
+            {
+                function: this.ode.losses.categoricalFocalCrossEntropy,
+                weights: null,
+                smoothing: 0,
+                reduction: this.tf.Reduction.SUM_BY_NONZERO_WEIGHTS,
+                alpha: 0.25,
+                gamma: 2.0
+            }
         ]
     }
 }

@@ -188,19 +188,24 @@ function computeGradients(
     meta = { training: true }
 ) {
     let loss
-    const lossFunction = lossFunctions[0]
+    const lossFunction = lossFunctions[0].function
+    const weights = lossFunctions[0].weights || null
+    const smoothing = lossFunctions[0].smoothing || null
+    const reduction = lossFunctions[0].reduction || tf.Reduction.MEAN
+    const alpha = lossFunctions[0].alpha || null
+    const gamma = lossFunctions[0].gamma || null
+    const fromLogits = lossFunctions[0].fromLogits || true
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
             const predictions = model.call(currentXs, meta)
-            const weights = null
-            const smoothing = null
-            const reduction = tf.Reduction.MEAN
             let lossValue = lossFunction(
                 currentYs,
                 predictions[0],
                 weights,
                 smoothing,
-                reduction
+                reduction,
+                alpha,
+                gamma
             )
 
             model.layers.forEach((layer) => {
@@ -418,7 +423,7 @@ async function predictionSampler(
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const args of [
-            { doSample: false, repetitionPenalty: 0.9 },
+            { doSample: false, repetitionPenalty: 0.1 },
             { doSample: true, temperature: 0.3 },
             { doSample: true, temperature: 1.1 },
             { doSample: true, temperature: 0.7, topK: 4 },

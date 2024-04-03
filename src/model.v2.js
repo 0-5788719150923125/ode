@@ -58,10 +58,6 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineLossFunctions() {
-        this.lossFunctions = [this.tf.losses.softmaxCrossEntropy]
-    }
-
     defineOptimizers() {
         this.optimizers = [
             this.ode.optimizers.AdamW(
@@ -89,12 +85,5 @@ export default class OmnipotentDiabolicalErudite extends ModelBase {
                 modulation
             )
         ]
-    }
-
-    async compile() {
-        this.model.compile({
-            optimizer: this.optimizers[0],
-            loss: this.lossFunctions
-        })
     }
 }

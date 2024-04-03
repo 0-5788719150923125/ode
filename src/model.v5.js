@@ -1,5 +1,4 @@
 import OpportunisticDialogueEncoder from './model.v4.js'
-import { randomString } from './utils.js'
 
 /**
  * A state space model.
@@ -15,14 +14,12 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
     }
 
     defineBuild() {
-        const inputs = this.tf.input({
-            name: `inn-${randomString()}`,
+        const inputs = this.ode.layers.input({
             shape: [null]
         })
 
         let outputs = this.tf.layers
             .embedding({
-                name: `emb-${randomString()}`,
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -47,9 +44,8 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
                 .apply(outputs)
         }
 
-        outputs = this.tf.layers
+        outputs = this.ode.layers
             .dense({
-                name: `out-${randomString()}`,
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })

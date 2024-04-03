@@ -1,8 +1,7 @@
 import OpportunisticDialogueEncoder from './model.v4.js'
-import { randomString } from './utils.js'
 
 /**
- * A binary compression model.
+ * A binary compression model. It's fatally-flawed currently.
  * @extends OpportunisticDialogueEncoder
  */
 export default class OrthogonallyDecayingExponent extends OpportunisticDialogueEncoder {
@@ -17,24 +16,21 @@ export default class OrthogonallyDecayingExponent extends OpportunisticDialogueE
     }
 
     async defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.BinaryTokenizer({
+        this.tokenizer = this.ode.tokenizers.CompressedBinaryTokenizer({
             minLength: 1,
-            maxLength: 17,
+            maxLength: 12,
             maxVocabLength: 8888,
             corpus: this.config.corpus
         })
-        console.log(this.tokenizer.vocab)
     }
 
     defineBuild() {
-        const inputs = this.tf.input({
-            name: `inn-${randomString()}`,
+        const inputs = this.ode.layers.input({
             shape: [null]
         })
 
-        let outputs = this.tf.layers
+        let outputs = this.ode.layers
             .embedding({
-                name: `emb-${randomString()}`,
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -71,9 +67,8 @@ export default class OrthogonallyDecayingExponent extends OpportunisticDialogueE
                 .apply(outputs)
         }
 
-        outputs = this.tf.layers
+        outputs = this.ode.layers
             .dense({
-                name: `out-${randomString()}`,
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })

@@ -2,7 +2,14 @@ import * as tf from '@tensorflow/tfjs'
 import { GELU } from './activations.js'
 import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
-const customLayers = {}
+const customLayers = {
+    dense: (config) =>
+        tf.layers.dense({ ...config, name: `ffd-${randomString()}` }),
+    embedding: (config) =>
+        tf.layers.embedding({ ...config, name: `emb-${randomString()}` }),
+    input: (config) =>
+        tf.layers.input({ ...config, name: `inp-${randomString()}` })
+}
 export default customLayers
 
 class LayerBase extends tf.layers.Layer {

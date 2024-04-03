@@ -49,76 +49,55 @@ function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
     })
 }
 
-function categoricalFocalLoss(gamma = 2.0, alpha = 1.0) {
-    return function (yTrue, yPred) {
-        return tf.tidy(() => {
-            // Ensure predictions are probabilities
-            const epsilon = tf.backend().epsilon()
-            yPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
+function categoricalFocalCrossEntropy(
+    target,
+    output,
+    weights,
+    labelSmoothing = 0,
+    reduction = tf.Reduction.SUM_BY_NONZERO_WEIGHTS,
+    alpha = 0.25,
+    gamma = 2.0,
+    fromLogits = false,
+    axis = -1
+) {
+    return tf.tidy(() => {
+        if (fromLogits) {
+            output = tf.softmax(output, axis)
+        }
 
-            // Calculate the cross entropy component of the focal loss
-            const crossEntropy = yTrue.mul(yPred.log().neg())
+        const numClasses = target.shape[axis]
+        const smoothedTarget = tf.add(
+            tf.mul(tf.cast(target, 'float32'), 1 - labelSmoothing),
+            labelSmoothing / numClasses
+        )
 
-            // Calculate the focal loss's modulating factor
-            const pT = yTrue
-                .mul(yPred)
-                .add(yTrue.neg().add(1).mul(yPred.neg().add(1)))
-            const modulatingFactor = pT.pow(gamma)
+        const alphaTensor = Array.isArray(alpha)
+            ? tf.tensor(alpha, target.shape)
+            : tf.scalar(alpha)
 
-            // Apply the alpha weighting factor
-            const alphaTensor = yTrue.mul(alpha).add(
-                yTrue
-                    .neg()
-                    .add(1)
-                    .mul(1 - alpha)
-            )
-            const focalLoss = alphaTensor
-                .mul(modulatingFactor)
-                .mul(crossEntropy)
+        const pt = tf.where(
+            tf.equal(smoothedTarget, 1),
+            output,
+            tf.sub(1, output)
+        )
+        const modulator = tf.pow(tf.sub(1, pt), tf.scalar(gamma))
+        const focalLoss = tf.neg(
+            tf.mul(tf.mul(alphaTensor, modulator), tf.log(pt))
+        )
 
-            // Reduce the loss to a single scalar value
-            return focalLoss.mean()
-        })
-    }
-}
-
-function sparseCategoricalFocalLoss(gamma, fromLogits = false) {
-    return (yTrue, yPred) => {
-        return tf.tidy(() => {
-            // Ensure yPred is probabilities (not logits) if fromLogits is false
-            if (fromLogits) {
-                yPred = tf.softmax(yPred)
-            }
-
-            const epsilon = tf.backend().epsilon()
-            const yPredClipped = tf.clipByValue(yPred, epsilon, 1 - epsilon)
-
-            // Calculate the cross entropy
-            const crossEntropy = tf.neg(
-                tf.sum(tf.mul(yTrue, tf.log(yPredClipped)), -1)
-            )
-
-            // Calculate p_t
-            const pT = tf.add(
-                tf.mul(yTrue, yPredClipped),
-                tf.mul(tf.sub(1, yTrue), tf.sub(1, yPredClipped))
-            )
-
-            // Calculate the focal loss scaling factor
-            const alphaFactor = tf.scalar(1) // Change as needed
-            const modulatingFactor = tf.pow(tf.sub(1.0, pT), gamma)
-
-            // Calculate focal loss
-            const focalLoss = tf.mul(
-                alphaFactor,
-                tf.mul(modulatingFactor, crossEntropy)
-            )
-
-            // Reduce over all elements to get final loss
-            const loss = tf.mean(focalLoss)
-            return loss
-        })
-    }
+        if (reduction === tf.Reduction.NONE) {
+            return focalLoss
+        } else if (reduction === tf.Reduction.SUM) {
+            return tf.sum(focalLoss)
+        } else if (reduction === tf.Reduction.MEAN) {
+            return tf.mean(focalLoss)
+        } else if (reduction === tf.Reduction.SUM_BY_NONZERO_WEIGHTS) {
+            const numNonZeros = tf.sum(tf.notEqual(target, 0))
+            return tf.div(tf.sum(focalLoss), numNonZeros)
+        } else {
+            throw new Error(`Unknown reduction: ${reduction}`)
+        }
+    })
 }
 
 const customLosses = {
@@ -126,9 +105,7 @@ const customLosses = {
         categoricalCrossentropy(target, output, fromLogits),
     sparseCategoricalCrossentropy: (target, output, fromLogits) =>
         sparseCategoricalCrossentropy(target, output, fromLogits),
-    categoricalFocalLoss: (gamma, alpha) => categoricalFocalLoss(gamma, alpha),
-    sparseCategoricalFocalLoss: (gamma, fromLogits) =>
-        sparseCategoricalFocalLoss(gamma, fromLogits)
+    categoricalFocalCrossEntropy: categoricalFocalCrossEntropy
 }
 
 export default customLosses

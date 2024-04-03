@@ -1,5 +1,4 @@
 import OriginalDecoderEngine from './model.v3.js'
-import { randomString } from './utils.js'
 
 /**
  * A small transformer with synthetic attention weights and rotary positional embeddings.
@@ -23,14 +22,12 @@ export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine 
     }
 
     defineBuild() {
-        const inputs = this.tf.input({
-            name: `inn-${randomString()}`,
+        const inputs = this.ode.layers.input({
             shape: [null]
         })
 
-        let outputs = this.tf.layers
+        let outputs = this.ode.layers
             .embedding({
-                name: `emb-${randomString()}`,
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
@@ -67,9 +64,8 @@ export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine 
                 .apply(outputs)
         }
 
-        outputs = this.tf.layers
+        outputs = this.ode.layers
             .dense({
-                name: `out-${randomString()}`,
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })

@@ -66,7 +66,14 @@ export default class ModelBase {
     }
 
     defineLossFunctions() {
-        this.lossFunctions = [tf.losses.softmaxCrossEntropy]
+        this.lossFunctions = [
+            {
+                function: tf.losses.softmaxCrossEntropy,
+                weights: null,
+                smoothing: null,
+                reduction: tf.Reduction.MEAN
+            }
+        ]
     }
 
     defineBuild() {
@@ -94,7 +101,7 @@ export default class ModelBase {
     compile() {
         this.model.compile({
             optimizer: this.optimizers[0],
-            loss: this.lossFunctions
+            loss: this.lossFunctions[0].function
         })
     }
 
