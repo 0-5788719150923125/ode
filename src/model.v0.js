@@ -259,6 +259,9 @@ function predictOnce(
                 .reshape([logits.shape[2]])
         }
 
+        if (repetitionPenalty !== 1) {
+            logits = applyRepetitionPenalty(logits, idx, repetitionPenalty)
+        }
         if (doSample) {
             if (temperature !== 1) {
                 logits = applyTemperature(logits, temperature)
@@ -269,11 +272,6 @@ function predictOnce(
             if (topP < 1) {
                 logits = applyTopP(logits, topP)
             }
-        }
-        if (repetitionPenalty !== 1) {
-            logits = applyRepetitionPenalty(logits, idx, repetitionPenalty)
-        }
-        if (doSample) {
             idxNext = sampleFromLogits(logits)
         } else {
             idxNext = greedySampling(logits)

@@ -13,7 +13,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
         this.alpha = 0.22
-        this.numExperts = 3
         this.topK = 2
         this.loadBalancing = 1.0
     }
@@ -47,16 +46,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: new Array(this.numExperts).fill(
-                        this.ode.layers.SynthesizerAttention({
-                            units: this.units,
-                            blockSize: this.config.contextLength,
-                            heads: this.heads,
-                            epsilon: this.epsilon,
-                            activation: this.tf.leakyRelu,
-                            alpha: this.alpha
-                        })
-                    ),
+                    experts: this.defineExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -66,15 +56,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: new Array(this.numExperts).fill(
-                        this.ode.layers.MultiLayerPerceptron({
-                            units: this.units,
-                            innerDim: this.innerDim,
-                            heads: this.heads,
-                            epsilon: this.epsilon,
-                            activation: 'swish'
-                        })
-                    ),
+                    experts: this.defineExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -91,6 +73,32 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineExperts() {
+        return [
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.innerDim,
+                heads: this.heads,
+                epsilon: this.epsilon,
+                activation: 'swish'
+            }),
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.innerDim * 2,
+                heads: this.heads / 2,
+                epsilon: this.epsilon,
+                activation: 'gelu'
+            }),
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.innerDim / 2,
+                heads: this.heads * 2,
+                epsilon: this.epsilon,
+                activation: 'tanh'
+            })
+        ]
     }
 
     defineOptimizers() {
@@ -110,14 +118,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         ]
     }
 
-    defineLossFunctions() {
-        this.lossFunctions = [
-            {
-                function: this.ode.losses.categoricalFocalCrossEntropy,
-                alpha: 0.44,
-                gamma: 2.3,
-                fromLogits: true
-            }
-        ]
-    }
+    // defineLossFunctions() {
+    //     this.lossFunctions = [
+    //         {
+    //             function: this.ode.losses.categoricalFocalCrossEntropy,
+    //             alpha: 0.44,
+    //             gamma: 2.3,
+    //             fromLogits: true
+    //         }
+    //     ]
+    // }
 }

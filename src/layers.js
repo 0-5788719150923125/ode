@@ -494,35 +494,35 @@ class SparseMixtureOfExperts extends LayerBase {
     }
 
     build(inputShape) {
-        this.in_gate = tf.layers.dense({
+        this.inGate = tf.layers.dense({
             name: `gate-${randomString()}`,
             units: this.units,
-            activation: 'swish'
+            activation: 'tanh'
         })
 
-        this.hidden_gate = tf.layers.dense({
+        this.hiddenGate = tf.layers.dense({
             name: `gate-${randomString()}`,
             units: this.innerDim,
-            activation: 'linear'
+            activation: 'softsign'
         })
 
-        this.out_gate = tf.layers.dense({
+        this.outGate = tf.layers.dense({
             name: `gate-${randomString()}`,
             units: this.numExperts,
             activation: 'softmax'
         })
 
         // Build gating mechanism
-        this.in_gate.build(inputShape)
-        const gateShape = this.in_gate.computeOutputShape(inputShape)
-        this.hidden_gate.build(gateShape)
-        const hiddenShape = this.hidden_gate.computeOutputShape(gateShape)
-        this.out_gate.build(hiddenShape)
+        this.inGate.build(inputShape)
+        const gateShape = this.inGate.computeOutputShape(inputShape)
+        this.hiddenGate.build(gateShape)
+        const hiddenShape = this.hiddenGate.computeOutputShape(gateShape)
+        this.outGate.build(hiddenShape)
 
         this._trainableWeights = [
-            ...this.in_gate.trainableWeights,
-            ...this.hidden_gate.trainableWeights,
-            ...this.out_gate.trainableWeights
+            ...this.inGate.trainableWeights,
+            ...this.hiddenGate.trainableWeights,
+            ...this.outGate.trainableWeights
         ]
 
         // Build each expert layer
@@ -535,8 +535,8 @@ class SparseMixtureOfExperts extends LayerBase {
     }
 
     computeGate(inputs) {
-        return this.out_gate.apply(
-            this.hidden_gate.apply(this.in_gate.apply(inputs))
+        return this.outGate.apply(
+            this.hiddenGate.apply(this.inGate.apply(inputs))
         )
     }
 
