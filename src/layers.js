@@ -2151,16 +2151,157 @@ class StateSpace extends tf.layers.Layer {
     }
 }
 
+class FuzzyStateSpace extends tf.layers.Layer {
+    constructor(config) {
+        super({ ...config, name: `ssm-${randomString()}` })
+        this.units = config.units || 64
+        this.innerDim = config.innerDim || 256
+        this.returnSequences = config.returnSequences || false
+        this.epsilon = config.epsilon || 1e-5
+        this.chunkSize = config.chunkSize || 4
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[2]
+        this.kernel = this.addWeight(
+            'kernel',
+            [inputDim, this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.recurrentKernel = this.addWeight(
+            'recurrentKernel',
+            [this.units, this.innerDim],
+            'float32',
+            tf.initializers.orthogonal({ gain: 1 })
+        )
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.bias = this.addWeight(
+            'bias',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+
+        this.layernorm = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
+        this.layernorm.build(inputShape)
+
+        this._trainableWeights.push(...this.layernorm.trainableWeights)
+
+        this.residual = new ResidualConnection()
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            const [batchSize, sequenceLength, inputDim] = inputs.shape
+
+            let state = tf.zeros([batchSize, this.units])
+            const outputs = []
+
+            const kernel = this.kernel.read()
+            const recurrentKernel = this.recurrentKernel.read()
+            const outputKernel = this.outputKernel.read()
+            const bias = this.bias.read()
+
+            const numChunks = Math.ceil(sequenceLength / this.chunkSize)
+
+            for (let c = 0; c < numChunks; c++) {
+                const chunkStart = c * this.chunkSize
+                const chunkEnd = Math.min(
+                    chunkStart + this.chunkSize,
+                    sequenceLength
+                )
+                const chunkLength = chunkEnd - chunkStart
+
+                const inputChunk = inputs
+                    .slice(
+                        [0, chunkStart, 0],
+                        [batchSize, chunkLength, inputDim]
+                    )
+                    .reshape([batchSize * chunkLength, inputDim])
+
+                const innerStateChunk = tf.tanh(
+                    tf.add(
+                        tf.add(
+                            tf.matMul(inputChunk, kernel),
+                            tf.matMul(
+                                tf.tile(state, [chunkLength, 1]),
+                                recurrentKernel
+                            )
+                        ),
+                        bias
+                    )
+                )
+
+                const newStateChunk = tf.matMul(innerStateChunk, outputKernel)
+                // state = tf.mean(
+                //     newStateChunk.reshape([batchSize, chunkLength, this.units]),
+                //     1
+                // )
+                state = newStateChunk.slice(
+                    [batchSize * (chunkLength - 1), 0],
+                    [batchSize, this.units]
+                )
+
+                outputs.push(
+                    newStateChunk.reshape([batchSize, chunkLength, this.units])
+                )
+            }
+
+            let output = this.returnSequences
+                ? tf.concat(outputs, 1)
+                : outputs[outputs.length - 1]
+
+            output = this.layernorm.apply(output)
+
+            return this.residual.apply([inputs, output])
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        const outputShape = this.returnSequences
+            ? [inputShape[0], inputShape[1], this.units]
+            : [inputShape[0], this.units]
+        return outputShape
+    }
+
+    getConfig() {
+        const config = {
+            units: this.units,
+            innerDim: this.innerDim,
+            returnSequences: this.returnSequences,
+            epsilon: this.epsilon
+        }
+        const baseConfig = super.getConfig()
+        Object.assign(config, baseConfig)
+        return config
+    }
+
+    static get className() {
+        return 'FuzzyStateSpace'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
-    ConvolutionalExpansionLayer,
     CompressorHead,
+    ControlGate,
+    ConvolutionalExpansionLayer,
     DebugLayer,
     DumbCompression,
+    FuzzyStateSpace,
     GatedLinearUnit,
     GaussianMixtureModel,
-    ControlGate,
     HyperMixer,
     LambdaLayer,
     LearnedUpsampling,
