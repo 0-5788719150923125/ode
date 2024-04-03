@@ -90,10 +90,12 @@ class CausalSelfAttention extends LayerBase {
         this.bias = config.bias || false
         this.epsilon = config.epsilon || 1e-5
         // Causal mask
-        this.mask = tf.linalg.bandPart(
-            tf.ones([config.blockSize, config.blockSize]),
-            -1,
-            0
+        this.mask = tf.keep(
+            tf.linalg.bandPart(
+                tf.ones([config.blockSize, config.blockSize]),
+                -1,
+                0
+            )
         )
     }
 
@@ -473,10 +475,11 @@ class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ ...config, name: `moe-${randomString()}` })
         this.units = config.units || 64
-        this.experts = config.experts // Array of expert layers
+        this.innerDim = config.innerDim || 128
+        this.experts = config.experts
         this.numExperts = this.experts.length
         this.topK = config.topK || 3
-        this.loadBalancingLoss = config.loadBalancingLoss || 0.01
+        this.loadBalancing = config.loadBalancing || 1.0
         this.usageHistory = tf.zeros([this.numExperts])
         this.usageDecay = config.usageDecay || 0.99
         this.extraLoss = 0
@@ -490,6 +493,12 @@ class SparseMixtureOfExperts extends LayerBase {
             activation: 'swish'
         })
 
+        this.hidden_gate = tf.layers.dense({
+            name: `gate-${randomString()}`,
+            units: this.innerDim,
+            activation: 'linear'
+        })
+
         this.out_gate = tf.layers.dense({
             name: `gate-${randomString()}`,
             units: this.numExperts,
@@ -498,11 +507,14 @@ class SparseMixtureOfExperts extends LayerBase {
 
         // Build gating mechanism
         this.in_gate.build(inputShape)
-        let gateOutputShape = this.in_gate.computeOutputShape(inputShape)
-        this.out_gate.build(gateOutputShape)
+        const gateShape = this.in_gate.computeOutputShape(inputShape)
+        this.hidden_gate.build(gateShape)
+        const hiddenShape = this.hidden_gate.computeOutputShape(gateShape)
+        this.out_gate.build(hiddenShape)
 
         this._trainableWeights = [
             ...this.in_gate.trainableWeights,
+            ...this.hidden_gate.trainableWeights,
             ...this.out_gate.trainableWeights
         ]
 
@@ -516,19 +528,21 @@ class SparseMixtureOfExperts extends LayerBase {
     }
 
     computeGate(inputs) {
-        return this.out_gate.apply(this.in_gate.apply(inputs))
+        return this.out_gate.apply(
+            this.hidden_gate.apply(this.in_gate.apply(inputs))
+        )
     }
 
-    computeUtilization(currentExperts) {
+    computeUtilization(currentExperts, gatingScores) {
         const oldUsageHistory = this.usageHistory
         tf.tidy(() => {
             // Create a zeros tensor for new usage counts.
             let newUsage = tf.zeros([this.numExperts])
 
-            // Update the tensor based on currentExperts indices.
-            currentExperts.forEach((expertIndex) => {
+            // Update the tensor based on currentExperts indices and gatingScores.
+            currentExperts.forEach((expertIndex, i) => {
                 const indexTensor = tf.tensor1d([expertIndex], 'int32')
-                const updateTensor = tf.tensor1d([1], 'float32')
+                const updateTensor = tf.tensor1d([gatingScores[i]], 'float32')
                 newUsage = tf
                     .scatterND(indexTensor.expandDims(0), updateTensor, [
                         this.numExperts
@@ -536,8 +550,8 @@ class SparseMixtureOfExperts extends LayerBase {
                     .add(newUsage)
             })
 
-            // Normalize the usage to proportion by dividing by the number of topK experts selected.
-            const currentUsageProportion = newUsage.div(tf.scalar(this.topK))
+            // Normalize the usage to proportion.
+            const currentUsageProportion = newUsage.div(tf.sum(newUsage))
 
             // Update the usage history tensor with decay.
             this.usageHistory = oldUsageHistory
@@ -551,42 +565,13 @@ class SparseMixtureOfExperts extends LayerBase {
         // Calculate the dynamic penalty based on the updated usage history.
         tf.tidy(() => {
             const idealProportion = 1 / this.numExperts
-            const squaredDivergences = this.usageHistory
+            const divergences = this.usageHistory
                 .sub(tf.scalar(idealProportion))
-                .square()
-            const scalingFactor = 1e2
-            this.extraLoss = squaredDivergences
+                .abs()
+            this.extraLoss = divergences
                 .mean()
-                .mul(this.loadBalancingLoss)
-                .mul(scalingFactor)
+                .mul(this.loadBalancing)
                 .dataSync()[0]
-        })
-    }
-
-    setTrainableFlag(expert, trainable) {
-        if (expert.trainableWeights) {
-            expert.trainableWeights.forEach((weight) => {
-                weight.trainable = trainable
-            })
-        }
-
-        if (expert._trainableWeights) {
-            expert._trainableWeights.forEach((weight) => {
-                weight.trainable_ = trainable
-            })
-        }
-
-        if (expert.layers) {
-            expert.layers.forEach((nestedLayer) => {
-                this.setTrainableFlag(nestedLayer, trainable)
-            })
-        }
-
-        // Recursively set the trainable flag for custom layers
-        Object.values(expert).forEach((value) => {
-            if (value instanceof tf.layers.Layer) {
-                this.setTrainableFlag(value, trainable)
-            }
         })
     }
 
@@ -603,29 +588,22 @@ class SparseMixtureOfExperts extends LayerBase {
                 .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
                 .reshape([this.topK])
                 .arraySync()
+            const currentGatingScores = topKValues.values
+                .slice([0, sequenceLength - 1, 0], [1, 1, this.topK])
+                .reshape([this.topK])
+                .arraySync()
 
-            this.computeUtilization(currentExperts)
+            this.computeUtilization(currentExperts, currentGatingScores)
 
-            // Disable all experts at the start of every new step
-            // if (this.currentStep !== kwargs.step) {
-            //     this.currentStep = kwargs.step
-            //     this.experts.map((expert) => {
-            //         this.setTrainableFlag(expert, false)
-            //     })
-            // }
-
-            // Compute outputs only for the selected experts
+            // Compute outputs for the selected experts
             const expertOutputs = currentExperts.map((index) => {
-                // this.setTrainableFlag(this.experts[index], true)
                 return this.experts[index].apply(inputs)
             })
 
-            // Average the outputs from selected experts
-            const outputs = expertOutputs
-                .reduce((acc, curr) => {
-                    return acc.add(curr)
-                }, tf.zerosLike(expertOutputs[0]))
-                .div(expertOutputs.length)
+            // Compute weighted sum of expert outputs
+            const outputs = expertOutputs.reduce((acc, curr, i) => {
+                return acc.add(curr.mul(currentGatingScores[i]))
+            }, tf.zerosLike(expertOutputs[0]))
 
             return outputs
         })
@@ -635,8 +613,9 @@ class SparseMixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             units: this.units,
+            innerDim: this.innerDim,
             topK: this.topK,
-            loadBalancingLoss: this.loadBalancingLoss
+            loadBalancing: this.loadBalancing
         }
     }
 
@@ -1027,7 +1006,7 @@ class SynthesizerAttention extends LayerBase {
             -1,
             0
         )
-        this.mask = tf.expandDims(tf.expandDims(mask, 0), 0)
+        this.mask = tf.keep(tf.expandDims(tf.expandDims(mask, 0), 0))
     }
 
     call(inputs, kwargs) {
@@ -1074,10 +1053,12 @@ class SynthesizerAttention extends LayerBase {
                 ),
                 this.b2.read()
             )
+
             scores = scores.slice(
                 [0, 0, 0, 0],
                 [batchSize, this.heads, seqLen, seqLen]
             )
+
             scores = tf.where(
                 tf.equal(
                     this.mask.slice([0, 0, 0, 0], [1, 1, seqLen, seqLen]),

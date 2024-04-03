@@ -418,7 +418,7 @@ async function predictionSampler(
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const args of [
-            { doSample: false, repetitionPenalty: 1.2 },
+            { doSample: false, repetitionPenalty: 0.9 },
             { doSample: true, temperature: 0.3 },
             { doSample: true, temperature: 1.1 },
             { doSample: true, temperature: 0.7, topK: 4 },
@@ -431,6 +431,7 @@ async function predictionSampler(
                 ...args
             })
             const endTime = performance.now()
+            console.log('#######################')
             console.log(
                 `KWARGS: ${JSON.stringify(args)}, RATE: ${((endTime - startTime) / (maxLength - seedLength)).toFixed(2)} ms/token`
             )

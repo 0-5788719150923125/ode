@@ -20,8 +20,8 @@ import { startTraining } from './train.js'
 import { preprocessData } from './utils.js'
 
 /**
- * The base model class, which provides a structure that
- * must remain compatible across all future model versions.
+ * The base model class, which defines a standard that
+ * must remain compatible across all model versions.
  * @constructor
  * @param {Object} config - The configuration settings for the model.
  */
@@ -42,7 +42,11 @@ export default class ModelBase {
         this.tokenizer
     }
 
-    async init() {
+    async init({ corpus = null } = {}) {
+        // console.log(corpus.slice(0, 300))
+        if (corpus) {
+            this.config.corpus = corpus
+        }
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
         await this.defineTokenizer()
@@ -179,13 +183,14 @@ async function generateText({
                 fixedLength,
                 'left'
             )
-            inputs = tf.tensor2d(tokenIndices, [1, fixedLength], 'int32')
+            inputs = this.tf.tensor2d(tokenIndices, [1, fixedLength], 'int32')
         } else {
             inputs = prepareInputs.call(this, this.tokenizer.encode(prompt))
         }
 
-        let generatedText = prompt
+        let tokenIndices = this.tokenizer.encode(prompt)
 
+        let decodedText
         for (let step = 0; step < maxNewTokens; step++) {
             const idxNext = predictOnce.call(
                 this,
@@ -197,8 +202,11 @@ async function generateText({
                 repetitionPenalty,
                 isSingleLabel
             )
-            const nextToken = this.tokenizer.decode([idxNext.dataSync()[0]])
-            generatedText += nextToken
+            // Append the predicted token index to the list of token indices
+            tokenIndices.push(idxNext.dataSync()[0])
+
+            // Decode the entire sequence of token indices to update generatedText
+            decodedText = this.tokenizer.decode(tokenIndices)
 
             if (isSingleLabel) {
                 inputs = inputs.slice([0, 1], [1, fixedLength - 1])
@@ -211,8 +219,8 @@ async function generateText({
                 inputs = this.tf.keep(idxNew)
             }
         }
-        tf.dispose([inputs])
-        return generatedText
+        this.tf.dispose([inputs])
+        return decodedText
     })
 }
 

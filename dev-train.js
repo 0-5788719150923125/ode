@@ -18,19 +18,23 @@ export async function trainModel(args) {
         ...trainArgs
     })
 
-    await net.init()
-    // await net.load()
-    await net.tokenizer.writeVocabularyToFile()
-
     const gun = net.ode.samplers.gunSampler()
     await gun.init()
     // await gun.subscribeChannel('trade')
     // await gun.putDataset('phi', null)
     // await gun.uploadDirectory('phi', '/home/crow/Repos/vtx/lab/phi/train')
+    // const corpus = await gun.getDataset('phi')
+
+    await net.init({ corpus })
+    // await net.load()
+    // net.tokenizer.train(data)
+    // await net.tokenizer.writeVocabularyToFile()
+
     const dataset = await net.ode.samplers.stringSampler(
+        // const dataset = await net.ode.samplers.sequentialStringSampler(
         trainArgs.sampleLength * 5,
         trainArgs?.overfit
-        // await gun.getDataset('phi') // remove this to just use the default Shakespeare dataset
+        // corpus // remove this to just use the default Shakespeare dataset
     )
 
     await net.train(dataset, trainArgs)

@@ -16,6 +16,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.alpha = 0.22
         this.numExperts = 3
         this.topK = 2
+        this.loadBalancing = 1.0
     }
 
     async defineTokenizer() {
@@ -48,13 +49,21 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SynthesizerAttention({
+                .SparseMixtureOfExperts({
+                    experts: new Array(this.numExperts).fill(
+                        this.ode.layers.SynthesizerAttention({
+                            units: this.units,
+                            blockSize: this.config.contextLength,
+                            heads: this.heads,
+                            epsilon: this.epsilon,
+                            activation: this.tf.leakyRelu,
+                            alpha: this.alpha
+                        })
+                    ),
                     units: this.units,
-                    blockSize: this.config.contextLength,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    activation: this.tf.leakyRelu,
-                    alpha: this.alpha
+                    innerDim: this.innerDim,
+                    topK: this.topK,
+                    loadBalancing: this.loadBalancing
                 })
                 .apply(outputs)
 
@@ -69,8 +78,10 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                             activation: 'swish'
                         })
                     ),
-                    units: this.units * 2,
-                    topK: this.topK
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    topK: this.topK,
+                    loadBalancing: this.loadBalancing
                 })
                 .apply(outputs)
         }
@@ -86,22 +97,12 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    // defineOptimizers() {
-    //     this.optimizers = [this.tf.train.sgd(1e-2)]
-    // }
-
-    // defineSchedulers() {
-    //     const learningRate = 1e-2
-    //     this.optimizers[0].learningRate = learningRate
-    //     this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
-    // }
-
     defineOptimizers() {
         this.learningRate = 1.0
         this.optimizers = [
             this.ode.optimizers.Prodigy({
                 learningRate: this.learningRate,
-                weightDecay: 0.01,
+                weightDecay: 0.1,
                 biasCorrection: true
             })
         ]
