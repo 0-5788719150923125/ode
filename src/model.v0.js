@@ -262,6 +262,7 @@ function predictOnce(
         if (repetitionPenalty !== 1) {
             logits = applyRepetitionPenalty(logits, idx, repetitionPenalty)
         }
+
         if (doSample) {
             if (temperature !== 1) {
                 logits = applyTemperature(logits, temperature)

@@ -46,7 +46,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.defineExperts(),
+                    experts: this.createExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -56,7 +56,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.defineExperts(),
+                    experts: this.createExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -75,7 +75,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineExperts() {
+    createExperts() {
         return [
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,

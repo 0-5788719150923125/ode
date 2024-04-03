@@ -485,29 +485,26 @@ class SparseMixtureOfExperts extends LayerBase {
         this.innerDim = config.innerDim || 128
         this.experts = config.experts
         this.numExperts = this.experts.length
-        this.topK = config.topK || 3
+        this.topK = config.topK || 2
         this.loadBalancing = config.loadBalancing || 1.0
-        this.usageHistory = tf.zeros([this.numExperts])
         this.usageDecay = config.usageDecay || 0.99
+        this.usageHistory = tf.zeros([this.numExperts])
         this.extraLoss = 0
         this.currentStep
     }
 
     build(inputShape) {
         this.inGate = tf.layers.dense({
-            name: `gate-${randomString()}`,
             units: this.units,
             activation: 'tanh'
         })
 
         this.hiddenGate = tf.layers.dense({
-            name: `gate-${randomString()}`,
             units: this.innerDim,
             activation: 'softsign'
         })
 
         this.outGate = tf.layers.dense({
-            name: `gate-${randomString()}`,
             units: this.numExperts,
             activation: 'softmax'
         })
