@@ -111,6 +111,7 @@ export default class ModelBase {
         temperature = 0.7,
         topK = 0,
         topP = 1,
+        repetitionPenalty = 1,
         maxNewTokens = 50
     } = {}) {
         return await generateText.call(this, {
@@ -119,6 +120,7 @@ export default class ModelBase {
             temperature,
             topK,
             topP,
+            repetitionPenalty,
             maxNewTokens
         })
     }
@@ -162,6 +164,7 @@ async function generateText({
     temperature,
     topK,
     topP,
+    repetitionPenalty,
     maxNewTokens
 } = {}) {
     const fixedLength = this.config.contextLength
@@ -191,6 +194,7 @@ async function generateText({
                 temperature,
                 topK,
                 topP,
+                repetitionPenalty,
                 isSingleLabel
             )
             const nextToken = this.tokenizer.decode([idxNext.dataSync()[0]])
@@ -212,7 +216,15 @@ async function generateText({
     })
 }
 
-function predictOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
+function predictOnce(
+    idx,
+    doSample,
+    temperature,
+    topK,
+    topP,
+    repetitionPenalty,
+    isSingleLabel
+) {
     return tf.tidy(() => {
         let logits, idxNext
         if (isSingleLabel) {
@@ -242,6 +254,11 @@ function predictOnce(idx, doSample, temperature, topK, topP, isSingleLabel) {
             if (topP < 1) {
                 logits = applyTopP(logits, topP)
             }
+        }
+        if (repetitionPenalty !== 1) {
+            logits = applyRepetitionPenalty(logits, idx, repetitionPenalty)
+        }
+        if (doSample) {
             idxNext = sampleFromLogits(logits)
         } else {
             idxNext = greedySampling(logits)
@@ -328,5 +345,36 @@ function prepareInputs(inputs) {
             inputs = inputs.expandDims(0)
         }
         return inputs
+    })
+}
+
+function applyRepetitionPenalty(logits, idx, repetitionPenalty) {
+    return tf.tidy(() => {
+        const logitsShape = logits.shape
+        const logitsFlat = logits.reshape([-1])
+        const idxFlat = idx.flatten()
+
+        const uniqueIndices = tf.unique(idxFlat).values
+        const gatherIndices = uniqueIndices
+        const scores = tf.gather(logitsFlat, gatherIndices)
+
+        const penalizedScores = tf.where(
+            scores.less(0),
+            scores.mul(repetitionPenalty),
+            scores.div(repetitionPenalty)
+        )
+
+        const scatterIndices = tf
+            .range(0, uniqueIndices.shape[0], 1, 'int32')
+            .reshape([-1, 1])
+        const updatedLogitsFlat = tf.scatterND(
+            scatterIndices,
+            penalizedScores,
+            logitsFlat.shape
+        )
+
+        const updatedLogits = updatedLogitsFlat.reshape(logitsShape)
+
+        return updatedLogits
     })
 }

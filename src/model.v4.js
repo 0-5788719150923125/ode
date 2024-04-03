@@ -10,7 +10,7 @@ export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine 
         super(config)
         this.layers = 6
         this.heads = 8
-        this.units = 256
+        this.units = 512
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
         this.alpha = 0.22

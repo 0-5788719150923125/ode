@@ -8,8 +8,8 @@ import { randomString } from './utils.js'
 export default class ObservableDataEncryption extends OpportunisticDialogueEncoder {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.units = 128
+        this.layers = 4
+        this.units = 256
         this.innerDim = this.units * 4
         this.epsilon = 1e-5
     }
@@ -56,22 +56,5 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
-    }
-
-    defineOptimizers() {
-        this.learningRate = 1.0
-        this.optimizers = [
-            this.ode.optimizers.Prodigy({
-                learningRate: this.learningRate,
-                weightDecay: 0.01,
-                biasCorrection: true
-            })
-        ]
-    }
-
-    defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
     }
 }
