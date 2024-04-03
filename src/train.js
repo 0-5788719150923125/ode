@@ -205,7 +205,8 @@ function computeGradients(
                 smoothing,
                 reduction,
                 alpha,
-                gamma
+                gamma,
+                fromLogits
             )
 
             model.layers.forEach((layer) => {

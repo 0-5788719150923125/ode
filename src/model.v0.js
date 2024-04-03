@@ -77,7 +77,7 @@ export default class ModelBase {
     }
 
     defineBuild() {
-        throw 'Your model is missing a build() method. Did you forget to define it?'
+        throw 'Your model is missing a defineBuild() method. Did you forget to define one?'
     }
 
     defineOptimizers() {

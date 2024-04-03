@@ -114,11 +114,9 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.lossFunctions = [
             {
                 function: this.ode.losses.categoricalFocalCrossEntropy,
-                weights: null,
-                smoothing: 0,
-                reduction: this.tf.Reduction.SUM_BY_NONZERO_WEIGHTS,
-                alpha: 0.25,
-                gamma: 2.0
+                alpha: 0.44,
+                gamma: 2.3,
+                fromLogits: true
             }
         ]
     }

@@ -50,53 +50,43 @@ function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
 }
 
 function categoricalFocalCrossEntropy(
-    target,
-    output,
+    yTrue,
+    yPred,
     weights,
     labelSmoothing = 0,
     reduction = tf.Reduction.SUM_BY_NONZERO_WEIGHTS,
-    alpha = 0.25,
+    alpha = null,
     gamma = 2.0,
     fromLogits = false,
     axis = -1
 ) {
     return tf.tidy(() => {
+        // Clip values to prevent division by zero error
+        const epsilon = tf.backend().epsilon()
+        const clippedPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
+
         if (fromLogits) {
-            output = tf.softmax(output, axis)
+            yPred = tf.softmax(yPred, axis)
         }
 
-        const numClasses = target.shape[axis]
-        const smoothedTarget = tf.add(
-            tf.mul(tf.cast(target, 'float32'), 1 - labelSmoothing),
-            labelSmoothing / numClasses
-        )
+        // Calculate cross-entropy loss
+        const crossEntropy = tf.mul(tf.neg(yTrue), tf.log(clippedPred))
 
-        const alphaTensor = Array.isArray(alpha)
-            ? tf.tensor(alpha, target.shape)
-            : tf.scalar(alpha)
-
-        const pt = tf.where(
-            tf.equal(smoothedTarget, 1),
-            output,
-            tf.sub(1, output)
-        )
-        const modulator = tf.pow(tf.sub(1, pt), tf.scalar(gamma))
-        const focalLoss = tf.neg(
-            tf.mul(tf.mul(alphaTensor, modulator), tf.log(pt))
-        )
-
-        if (reduction === tf.Reduction.NONE) {
-            return focalLoss
-        } else if (reduction === tf.Reduction.SUM) {
-            return tf.sum(focalLoss)
-        } else if (reduction === tf.Reduction.MEAN) {
-            return tf.mean(focalLoss)
-        } else if (reduction === tf.Reduction.SUM_BY_NONZERO_WEIGHTS) {
-            const numNonZeros = tf.sum(tf.notEqual(target, 0))
-            return tf.div(tf.sum(focalLoss), numNonZeros)
+        let focalLoss
+        if (alpha !== null) {
+            const alphaWeight = tf.scalar(alpha)
+            focalLoss = tf.mul(
+                tf.mul(alphaWeight, tf.pow(tf.sub(1, clippedPred), gamma)),
+                crossEntropy
+            )
         } else {
-            throw new Error(`Unknown reduction: ${reduction}`)
+            focalLoss = tf.mul(
+                tf.pow(tf.sub(1, clippedPred), gamma),
+                crossEntropy
+            )
         }
+
+        return tf.mean(tf.sum(focalLoss, -1))
     })
 }
 
