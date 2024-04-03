@@ -406,35 +406,32 @@ class MultiLayerPerceptron extends LayerBase {
 
     build(inputShape) {
         // Initialize dense layers for projection
-        this.in_proj = tf.layers.dense({
-            name: `mlp-${randomString()}`,
+        this.inProj = tf.layers.dense({
             units: this.innerDim,
             inputDim: this.units,
             activation: this.activation
         })
         // We shouldn't use 2 dense layers here, since kernel names will conflict during serialization to disk
-        this.out_proj = tf.layers.dense({
-            name: `mlp-${randomString()}`,
+        this.outProj = tf.layers.dense({
             units: this.units,
             inputDim: inputShape,
             activation: 'linear'
         })
 
         // Manually call build on dense layers to initialize weights
-        this.in_proj.build(inputShape)
-        this.out_proj.build([inputShape[0], this.innerDim])
+        this.inProj.build(inputShape)
+        this.outProj.build([inputShape[0], this.innerDim])
 
         // Initialize layer normalization
         this.layernorm = tf.layers.layerNormalization({
-            name: `mlp-${randomString()}`,
             epsilon: this.epsilon
         })
         this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
         this._trainableWeights = [
-            ...this.in_proj.trainableWeights,
-            ...this.out_proj.trainableWeights,
+            ...this.inProj.trainableWeights,
+            ...this.outProj.trainableWeights,
             ...this.layernorm.trainableWeights
         ]
 
@@ -449,11 +446,11 @@ class MultiLayerPerceptron extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
             // Expand and contract projection via feedfoward layers
-            let outputs = this.in_proj.apply(inputs)
+            let outputs = this.inProj.apply(inputs)
             if (this.customActivation) {
                 outputs = this.customActivation.apply(outputs)
             }
-            outputs = this.out_proj.apply(outputs)
+            outputs = this.outProj.apply(outputs)
             // If training, apply residual dropout
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
@@ -475,6 +472,94 @@ class MultiLayerPerceptron extends LayerBase {
 
     static get className() {
         return 'MultiLayerPerceptron'
+    }
+}
+
+class GatedLinearUnit extends MultiLayerPerceptron {
+    // constructor(config) {
+    //     super({ ...config, name: `glu-${randomString()}` })
+    //     this.units = config?.units || 256
+    //     this.innerDim = config?.innerDim || 1024
+    //     this.dropout = config?.dropout || 0
+    //     this.epsilon = config?.epsilon || 1e-5
+    //     this.activation = config?.activation || 'relu'
+    //     this.supportsMasking = true
+    // }
+
+    build(inputShape) {
+        // Initialize dense layers for projection and gating
+        this.inProj = tf.layers.dense({
+            units: this.innerDim,
+            inputDim: this.units,
+            activation: this.activation
+        })
+        this.gateProj = tf.layers.dense({
+            units: this.innerDim,
+            inputDim: this.units,
+            activation: 'sigmoid'
+        })
+        this.outProj = tf.layers.dense({
+            units: this.units,
+            inputDim: inputShape,
+            activation: 'linear'
+        })
+
+        // Manually call build on dense layers to initialize weights
+        this.inProj.build(inputShape)
+        this.gateProj.build(inputShape)
+        this.outProj.build([inputShape[0], this.innerDim])
+
+        // Initialize layer normalization
+        this.layernorm = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
+        this.layernorm.build(inputShape)
+
+        // Collect all trainable weights from internal layers
+        this._trainableWeights = [
+            ...this.inProj.trainableWeights,
+            ...this.gateProj.trainableWeights,
+            ...this.outProj.trainableWeights,
+            ...this.layernorm.trainableWeights
+        ]
+
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+
+        super.build(inputShape)
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            // Expand and contract projection via feedforward layers
+            const proj = this.inProj.apply(inputs)
+            const gate = this.gateProj.apply(inputs)
+            const gatedOutput = tf.mul(proj, gate)
+            let outputs = this.outProj.apply(gatedOutput)
+            // If training, apply residual dropout
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+            // Apply layer norm
+            outputs = this.layernorm.apply(outputs)
+            // Apply skip connection
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    // getConfig() {
+    //     return {
+    //         units: this.units,
+    //         innerDim: this.innerDim,
+    //         dropout: this.dropout,
+    //         activation: this.activation
+    //     }
+    // }
+
+    static get className() {
+        return 'GatedLinearUnit'
     }
 }
 
@@ -830,80 +915,6 @@ function logGmmPosterior(z, expertCentroids, temperature) {
 
     // Apply temperature scaling to the result of your actual comparison logic
     return similarity.mul(temperature)
-}
-
-class GatedLinearUnit extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.supportsMasking = true
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-        this.linearKernel = this.addWeight(
-            'linearKernel',
-            [inputDim, inputDim],
-            'float32',
-            tf.initializers.glorotUniform({})
-        )
-        this.gateKernel = this.addWeight(
-            'gateKernel',
-            [inputDim, inputDim],
-            'float32',
-            tf.initializers.glorotUniform({})
-        )
-        this.linearBias = this.addWeight(
-            'linearBias',
-            [inputDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.gateBias = this.addWeight(
-            'gateBias',
-            [inputDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-        super.build(inputShape)
-    }
-
-    call(inputs, kwargs) {
-        let input = inputs
-        if (Array.isArray(input)) {
-            input = input[0]
-        }
-
-        this.invokeCallHook(inputs, kwargs)
-
-        // Use tf.tidy for better memory management
-        return tf.tidy(() => {
-            const linearPart = tf
-                .matMul(input, this.linearKernel.read())
-                .add(this.linearBias.read())
-
-            const gatePart = tf
-                .matMul(input, this.gateKernel.read())
-                .add(this.gateBias.read())
-                .sigmoid()
-
-            return linearPart.mul(gatePart)
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    getConfig() {
-        const baseConfig = super.getConfig()
-        return {
-            ...baseConfig
-        }
-    }
-
-    static get className() {
-        return 'GatedLinearUnit'
-    }
 }
 
 // Originally adapted from:
