@@ -18,7 +18,7 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
             shape: [null]
         })
 
-        let outputs = this.tf.layers
+        let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
@@ -52,5 +52,23 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineOptimizers() {
+        this.learningRate = 1e-4
+        this.optimizers = [
+            this.ode.optimizers.Lion({
+                learningRate: this.learningRate,
+                weightDecay: 0.01,
+                adaNorm: false,
+                useGc: false
+            })
+        ]
+    }
+
+    defineSchedulers() {
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
     }
 }

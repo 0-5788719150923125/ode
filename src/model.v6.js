@@ -90,16 +90,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 blockSize: this.config.contextLength,
                 heads: this.heads / 2,
                 epsilon: this.epsilon,
-                activation: this.tf.relu,
-                alpha: this.alpha
+                activation: this.tf.selu
             }),
             this.ode.layers.SynthesizerAttention({
                 units: this.units,
                 blockSize: this.config.contextLength,
                 heads: this.heads * 2,
                 epsilon: this.epsilon,
-                activation: this.tf.tanh,
-                alpha: this.alpha
+                activation: this.tf.tanh
             })
         ]
     }

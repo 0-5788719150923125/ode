@@ -142,10 +142,6 @@ class Prodigy extends tf.SGDOptimizer {
                 dDenom = dDenom.add(this.STATE[name].s.abs().sum())
             })
 
-            if (dDenom.dataSync()[0] === 0) {
-                return
-            }
-
             const dHat = this.dCoef * dNumerator.div(dDenom).dataSync()[0]
             if (this.d === this.d0) {
                 this.d = Math.max(this.d, dHat)
@@ -200,6 +196,112 @@ class Prodigy extends tf.SGDOptimizer {
     }
 }
 
+class Lion extends tf.SGDOptimizer {
+    constructor({
+        learningRate = 1e-4,
+        beta1 = 0.9,
+        beta2 = 0.99,
+        weightDecay = 0.0,
+        weightDecouple = true,
+        fixedDecay = false,
+        useGc = false,
+        r = 0.95,
+        adaNorm = false
+    } = {}) {
+        super(learningRate)
+        this.learningRate = learningRate
+        this.beta1 = beta1
+        this.beta2 = beta2
+        this.weightDecay = weightDecay
+        this.weightDecouple = weightDecouple
+        this.fixedDecay = fixedDecay
+        this.useGc = useGc
+        this.r = r
+        this.adaNorm = adaNorm
+        this.ENGINE = tf.engine()
+        this.STATE = {}
+    }
+
+    applyGradients(variableGradients) {
+        Object.keys(variableGradients).forEach((name) => {
+            tf.tidy(() => {
+                const variable = this.ENGINE.registeredVariables[name]
+                const grad = variableGradients[name]
+
+                if (!this.STATE[name]) {
+                    this.STATE[name] = {
+                        expAvg: tf.keep(tf.zerosLike(variable))
+                    }
+                    if (this.adaNorm) {
+                        this.STATE[name].expGradNorm = tf.variable(tf.scalar(0))
+                    }
+                }
+
+                const state = this.STATE[name]
+
+                if (this.useGc) {
+                    const mean = grad.mean()
+                    grad.sub(mean)
+                }
+
+                if (
+                    this.weightDecay !== 0 &&
+                    !shouldExcludeFromWeightDecay(name)
+                ) {
+                    if (this.weightDecouple) {
+                        variable.assign(
+                            variable.sub(
+                                variable.mul(
+                                    this.weightDecay * this.learningRate
+                                )
+                            )
+                        )
+                    } else if (!this.fixedDecay) {
+                        grad.add(variable.mul(this.weightDecay))
+                    }
+                }
+
+                const sGrad = this.getAdaNormGradient(grad, state)
+
+                const expAvg = state.expAvg
+                const update = expAvg.clone()
+
+                update
+                    .mul(this.beta1)
+                    .add(grad.mul(1 - this.beta1))
+                    .sign()
+                expAvg.mul(this.beta2).add(sGrad.mul(1 - this.beta2))
+
+                variable.assign(variable.sub(update.mul(this.learningRate)))
+            })
+        })
+
+        super.applyGradients(variableGradients)
+        for (const gradient of Object.values(variableGradients)) {
+            gradient.dispose()
+        }
+    }
+
+    getAdaNormGradient(grad, state) {
+        if (!this.adaNorm) {
+            return grad
+        }
+
+        const expGradNorm = state.expGradNorm
+        const gradNorm = grad.norm()
+
+        expGradNorm.assign(
+            expGradNorm.mul(this.r).add(gradNorm.mul(1 - this.r))
+        )
+
+        const sGrad = grad.div(expGradNorm.add(1e-5))
+
+        gradNorm.dispose()
+
+        return sGrad
+    }
+}
+
 function shouldExcludeFromWeightDecay(name) {
     const lowerCaseName = name.toLowerCase()
     return (
@@ -211,6 +313,7 @@ function shouldExcludeFromWeightDecay(name) {
 
 const customOptimizers = {
     AdamW: (config) => new AdamW(config),
+    Lion: (config) => new Lion(config),
     Prodigy: (config) => new Prodigy(config)
 }
 
