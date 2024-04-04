@@ -59,7 +59,7 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: 0.01,
+                weightDecay: 0.001,
                 adaNorm: false,
                 useGc: false
             })

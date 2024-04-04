@@ -226,22 +226,22 @@ class Lion extends tf.SGDOptimizer {
         Object.keys(variableGradients).forEach((name) => {
             tf.tidy(() => {
                 const variable = this.ENGINE.registeredVariables[name]
-                const grad = variableGradients[name]
+                const gradient = variableGradients[name]
 
                 if (!this.STATE[name]) {
                     this.STATE[name] = {
                         expAvg: tf.keep(tf.zerosLike(variable))
                     }
                     if (this.adaNorm) {
-                        this.STATE[name].expGradNorm = tf.variable(tf.scalar(0))
+                        this.STATE[name].expGradNorm = tf.keep(
+                            tf.variable(tf.scalar(0))
+                        )
                     }
                 }
 
-                const state = this.STATE[name]
-
                 if (this.useGc) {
-                    const mean = grad.mean()
-                    grad.sub(mean)
+                    const mean = gradient.mean()
+                    gradient.sub(mean)
                 }
 
                 if (
@@ -257,46 +257,52 @@ class Lion extends tf.SGDOptimizer {
                             )
                         )
                     } else if (!this.fixedDecay) {
-                        grad.add(variable.mul(this.weightDecay))
+                        gradient.add(variable.mul(this.weightDecay))
                     }
                 }
 
-                const sGrad = this.getAdaNormGradient(grad, state)
+                const sGrad = this.getAdaNormGradient(gradient, name)
 
-                const expAvg = state.expAvg
-                const update = expAvg.clone()
+                const expAvg = tf.clone(this.STATE[name].expAvg)
+                tf.dispose(this.STATE[name].expAvg)
 
-                update
+                const update = expAvg
+                    .clone()
                     .mul(this.beta1)
-                    .add(grad.mul(1 - this.beta1))
+                    .add(gradient.mul(1 - this.beta1))
                     .sign()
-                expAvg.mul(this.beta2).add(sGrad.mul(1 - this.beta2))
+
+                const updatedExpAvg = expAvg
+                    .mul(this.beta2)
+                    .add(sGrad.mul(1 - this.beta2))
 
                 variable.assign(variable.sub(update.mul(this.learningRate)))
+
+                this.STATE[name].expAvg = tf.keep(updatedExpAvg)
+                tf.dispose(expAvg)
             })
         })
 
         super.applyGradients(variableGradients)
-        for (const gradient of Object.values(variableGradients)) {
-            gradient.dispose()
-        }
     }
 
-    getAdaNormGradient(grad, state) {
+    getAdaNormGradient(gradient, name) {
         if (!this.adaNorm) {
-            return grad
+            return gradient
         }
 
-        const expGradNorm = state.expGradNorm
-        const gradNorm = grad.norm()
+        const expGradNorm = this.STATE[name].expGradNorm
+        const gradNorm = gradient.norm()
 
         expGradNorm.assign(
             expGradNorm.mul(this.r).add(gradNorm.mul(1 - this.r))
         )
 
-        const sGrad = grad.div(expGradNorm.add(1e-5))
+        this.STATE[name].expGradNorm = tf.keep(tf.variable(expGradNorm))
 
-        gradNorm.dispose()
+        const sGrad = gradient.div(expGradNorm.maximum(1e-10))
+
+        tf.dispose(expGradNorm)
 
         return sGrad
     }
