@@ -476,15 +476,9 @@ class MultiLayerPerceptron extends LayerBase {
 }
 
 class GatedLinearUnit extends MultiLayerPerceptron {
-    // constructor(config) {
-    //     super({ ...config, name: `glu-${randomString()}` })
-    //     this.units = config?.units || 256
-    //     this.innerDim = config?.innerDim || 1024
-    //     this.dropout = config?.dropout || 0
-    //     this.epsilon = config?.epsilon || 1e-5
-    //     this.activation = config?.activation || 'relu'
-    //     this.supportsMasking = true
-    // }
+    constructor(config) {
+        super({ ...config, name: `glu-${randomString()}` })
+    }
 
     build(inputShape) {
         // Initialize dense layers for projection and gating
@@ -548,15 +542,6 @@ class GatedLinearUnit extends MultiLayerPerceptron {
             return this.residual.apply([inputs, outputs])
         })
     }
-
-    // getConfig() {
-    //     return {
-    //         units: this.units,
-    //         innerDim: this.innerDim,
-    //         dropout: this.dropout,
-    //         activation: this.activation
-    //     }
-    // }
 
     static get className() {
         return 'GatedLinearUnit'
@@ -709,6 +694,167 @@ class SparseMixtureOfExperts extends LayerBase {
 
     static get className() {
         return 'SparseMixtureOfExperts'
+    }
+}
+
+class LazyMixtureOfExperts extends LayerBase {
+    constructor(config) {
+        super({ ...config, name: `lmoe-${randomString()}` })
+        this.numRoutingIterations = config.numRoutingIterations || 3
+        this.topK = config.topK || 2
+        this.experts = config.experts
+        this.numExperts = this.experts.length
+        this.topK = Math.min(this.topK, this.numExperts)
+    }
+
+    build(inputShape) {
+        this.experts.forEach((expert) => {
+            expert.build(inputShape)
+            this._trainableWeights.push(...expert.trainableWeights)
+        })
+
+        super.build(inputShape)
+    }
+
+    computeRoutingWeights(routingLogits, inputs) {
+        return tf.softmax(
+            routingLogits.reshape([inputs.shape[0], this.numExperts]),
+            -1
+        )
+    }
+
+    computeExpertOutputs(inputs, topKIndices) {
+        return topKIndices
+            .arraySync()
+            .map((indices) =>
+                indices.map((index) => this.experts[index].apply(inputs))
+            )
+    }
+
+    computeWeightedPredictions(expertOutputs, routingWeights, topKIndices) {
+        return expertOutputs.map((outputs, batchIndex) =>
+            outputs.map((output, expertIndex) =>
+                output.mul(
+                    routingWeights
+                        .slice(
+                            [
+                                batchIndex,
+                                topKIndices.arraySync()[batchIndex][expertIndex]
+                            ],
+                            [1, 1]
+                        )
+                        .reshape([1, 1, -1])
+                )
+            )
+        )
+    }
+
+    computeCombinedPredictions(weightedPredictions) {
+        return weightedPredictions.map((predictions) =>
+            predictions.reduce((acc, curr) => acc.add(curr))
+        )
+    }
+
+    computeAgreementScores(expertOutputs, combinedPredictions) {
+        return expertOutputs.map((outputs, batchIndex) =>
+            outputs.map((output) =>
+                tf.matMul(output, combinedPredictions[batchIndex], false, true)
+            )
+        )
+    }
+
+    updateRoutingLogits(routingLogits, topKIndices, agreementScores) {
+        const updatedLogits = routingLogits.dataSync()
+
+        topKIndices.arraySync().forEach((indices, batchIndex) => {
+            indices.forEach((index, expertIndex) => {
+                const update = agreementScores[batchIndex][expertIndex]
+                const currentValue = updatedLogits[batchIndex][index][0]
+                const newValue = currentValue + update.arraySync()
+
+                updatedLogits.bufferSync().set(newValue, batchIndex, index, 0)
+            })
+        })
+
+        routingLogits.assign(updatedLogits)
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Initialize routing logits
+            const routingLogits = tf.variable(
+                tf.zeros([inputs.shape[0], this.numExperts, 1])
+            )
+
+            // Perform dynamic routing
+            for (let i = 0; i < this.numRoutingIterations; i++) {
+                const routingWeights = this.computeRoutingWeights(
+                    routingLogits,
+                    inputs
+                )
+                const topKIndices = tf.topk(
+                    routingWeights,
+                    this.topK,
+                    true
+                ).indices
+
+                const expertOutputs = this.computeExpertOutputs(
+                    inputs,
+                    topKIndices
+                )
+
+                const weightedPredictions = this.computeWeightedPredictions(
+                    expertOutputs,
+                    routingWeights,
+                    topKIndices
+                )
+                const combinedPredictions =
+                    this.computeCombinedPredictions(weightedPredictions)
+                const agreementScores = this.computeAgreementScores(
+                    expertOutputs,
+                    combinedPredictions
+                )
+
+                this.updateRoutingLogits(
+                    routingLogits,
+                    topKIndices,
+                    agreementScores
+                )
+            }
+
+            // Compute final output
+            const routingWeights = this.computeRoutingWeights(
+                routingLogits,
+                inputs
+            )
+            const topKIndices = tf.topk(routingWeights, this.topK).indices
+
+            const expertOutputs = this.computeExpertOutputs(inputs, topKIndices)
+            const weightedPredictions = this.computeWeightedPredictions(
+                expertOutputs,
+                routingWeights,
+                topKIndices
+            )
+            const finalOutput =
+                this.computeCombinedPredictions(weightedPredictions)
+
+            return finalOutput
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            numRoutingIterations: this.numRoutingIterations,
+            topK: this.topK
+        }
+    }
+
+    static get className() {
+        return 'LazyMixtureOfExperts'
     }
 }
 
@@ -2309,6 +2455,7 @@ const exportedLayers = [
     ConvolutionalExpansionLayer,
     DebugLayer,
     DumbCompression,
+    LazyMixtureOfExperts,
     FuzzyStateSpace,
     GatedLinearUnit,
     GaussianMixtureModel,

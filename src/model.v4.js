@@ -1,7 +1,8 @@
 import OriginalDecoderEngine from './model.v3.js'
 
 /**
- * A small transformer with synthetic attention weights and rotary positional embeddings.
+ * A small transformer with synthetic attention weights, GLU-based feedforward
+ * networks, and rotary positional embeddings.
  * @extends OriginalDecoderEngine
  */
 export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine {
@@ -54,7 +55,7 @@ export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine 
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .MultiLayerPerceptron({
+                .GatedLinearUnit({
                     units: this.units,
                     innerDim: this.innerDim,
                     heads: this.heads,
