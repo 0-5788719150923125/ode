@@ -53,22 +53,4 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
 
         this.model = this.tf.model({ inputs, outputs })
     }
-
-    defineOptimizers() {
-        this.learningRate = 1e-4
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: 0.001,
-                adaNorm: false,
-                useGc: false
-            })
-        ]
-    }
-
-    defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
-    }
 }

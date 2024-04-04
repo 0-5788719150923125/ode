@@ -129,12 +129,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
     }
 
     defineOptimizers() {
-        this.learningRate = 1.0
+        this.learningRate = 0.000333
         this.optimizers = [
-            this.ode.optimizers.Prodigy({
+            this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: 0.1,
-                biasCorrection: true
+                weightDecay: 0.01,
+                adaNorm: false,
+                useGc: false
             })
         ]
     }

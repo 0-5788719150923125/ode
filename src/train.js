@@ -424,7 +424,7 @@ async function predictionSampler(
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const args of [
-            { doSample: false, repetitionPenalty: 2.3 },
+            { doSample: false, repetitionPenalty: 10.0 },
             { doSample: true, temperature: 0.3 },
             { doSample: true, temperature: 1.1 },
             { doSample: true, temperature: 0.7, topK: 4 },

@@ -689,12 +689,11 @@ class SparseMixtureOfExperts extends LayerBase {
                 return this.experts[index].apply(inputs)
             })
 
-            // Compute weighted sum of expert outputs
-            const outputs = expertOutputs.reduce((acc, curr, i) => {
-                return acc.add(curr.mul(currentGatingScores[i]))
-            }, tf.zerosLike(expertOutputs[0]))
+            // Compute average of expert outputs
+            const outputSum = expertOutputs.reduce((acc, curr) => acc.add(curr))
+            const outputAverage = outputSum.div(expertOutputs.length)
 
-            return outputs
+            return outputAverage
         })
     }
 
