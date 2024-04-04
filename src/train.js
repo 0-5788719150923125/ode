@@ -27,7 +27,7 @@ export async function startTraining(dataGenerator, args) {
 
     let batch = 0
     let step = 0
-    const logger = new Logger()
+    const logger = new ConsoleLogger()
     const accumulator = new GradientAccumulator(
         this,
         trainArgs.gradientAccumulationSteps,
@@ -211,7 +211,6 @@ function computeGradients(
 
             model.layers.forEach((layer) => {
                 if (layer.hasOwnProperty('extraLoss')) {
-                    // console.log(layer.extraLoss)
                     lossValue = tf.add(lossValue, layer.extraLoss)
                 }
             })
@@ -224,48 +223,48 @@ function computeGradients(
     return { grads, loss }
 }
 
-function filterGradients(grads) {
-    const activeLayers = new Set()
-    const blockedLayers = new Set()
+// function filterGradients(grads) {
+//     const activeLayers = new Set()
+//     const blockedLayers = new Set()
 
-    this.model.collectedTrainableWeights.forEach((variable) => {
-        if (variable.hasOwnProperty('trainable')) {
-            if (!variable.trainable) return blockedLayers.add(variable.name)
-        }
-        if (variable.hasOwnProperty('trainable_')) {
-            if (!variable.trainable_) return blockedLayers.add(variable.name)
-        }
-        activeLayers.add(variable.name)
-    })
+//     this.model.collectedTrainableWeights.forEach((variable) => {
+//         if (variable.hasOwnProperty('trainable')) {
+//             if (!variable.trainable) return blockedLayers.add(variable.name)
+//         }
+//         if (variable.hasOwnProperty('trainable_')) {
+//             if (!variable.trainable_) return blockedLayers.add(variable.name)
+//         }
+//         activeLayers.add(variable.name)
+//     })
 
-    const filteredGrads = {}
-    Object.keys(grads).forEach((varName) => {
-        const isActive = [...activeLayers].some((layerName) =>
-            varName.includes(layerName)
-        )
+//     const filteredGrads = {}
+//     Object.keys(grads).forEach((varName) => {
+//         const isActive = [...activeLayers].some((layerName) =>
+//             varName.includes(layerName)
+//         )
 
-        const isBlocked = [...blockedLayers].some((layerName) =>
-            varName.includes(layerName)
-        )
+//         const isBlocked = [...blockedLayers].some((layerName) =>
+//             varName.includes(layerName)
+//         )
 
-        // If active, include this gradient in the filtered set
-        if (isActive && !isBlocked) {
-            filteredGrads[varName] = grads[varName]
-        }
-    })
-    // if (activeLayers.size > 0) console.log('active_layers', activeLayers)
-    // if (blockedLayers.size > 0) console.log('blocked_layers', blockedLayers)
-    return filteredGrads
-}
+//         // If active, include this gradient in the filtered set
+//         if (isActive && !isBlocked) {
+//             filteredGrads[varName] = grads[varName]
+//         }
+//     })
+//     // if (activeLayers.size > 0) console.log('active_layers', activeLayers)
+//     // if (blockedLayers.size > 0) console.log('blocked_layers', blockedLayers)
+//     return filteredGrads
+// }
 
-function clipByValue(grads, value) {
-    const clippedGrads = {}
-    Object.keys(grads).forEach((key) => {
-        clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
-        grads[key].dispose()
-    })
-    return clippedGrads
-}
+// function clipByValue(grads, value) {
+//     const clippedGrads = {}
+//     Object.keys(grads).forEach((key) => {
+//         clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
+//         grads[key].dispose()
+//     })
+//     return clippedGrads
+// }
 
 function l2Loss(tensor) {
     // https://www.tensorflow.org/api_docs/python/tf/nn/l2_loss
@@ -316,12 +315,12 @@ function clipByGlobalNorm(tensors, clipNorm) {
 }
 
 function averageGradients(grads, accumulationSteps) {
-    const divisor = tf.scalar(accumulationSteps) // Create the scalar outside the loop
+    const divisor = tf.scalar(accumulationSteps)
     Object.keys(grads).forEach((key) => {
         const gradTensor = grads[key]
         const avgGrad = gradTensor.div(divisor)
-        grads[key].dispose() // Dispose of the original gradient tensor
-        grads[key] = avgGrad // Update with the averaged gradient
+        grads[key].dispose()
+        grads[key] = avgGrad
     })
     divisor.dispose()
 
@@ -357,7 +356,7 @@ function* batchGenerator(
             const textIndices = preprocessData(
                 sample,
                 tokenizer,
-                inputLength + 1, // Including the next token to predict
+                inputLength + 1, // Include the next token to predict
                 'left'
             )
 
@@ -371,7 +370,7 @@ function* batchGenerator(
             if (mode === 'oneLabel') {
                 ys = [textIndices[inputLength]]
             }
-            // Output sequence for timeDistributed (the entire sequence shifted by one position to the left)
+            // Output sequence for timeDistributed (the entire sequence shifted by one position to the right)
             else {
                 ys = textIndices.slice(1)
             }
@@ -448,7 +447,7 @@ async function predictionSampler(
     }
 }
 
-class Logger {
+class ConsoleLogger {
     constructor() {
         this.timer = elapsedTimeGenerator()
         this.startTime = Date.now()

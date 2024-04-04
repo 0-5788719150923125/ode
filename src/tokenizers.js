@@ -1,137 +1,137 @@
-import pako from 'pako'
+// import pako from 'pako'
 import { shaks13 } from './data.js'
 
-class CompressedBinaryTokenizer {
-    constructor({
-        minLength = 1,
-        maxLength = 23,
-        corpus = '',
-        chunkSize = 1024 * 256,
-        maxVocabLength = 10000
-    } = {}) {
-        this.patternFrequency = new Map() // Tracks pattern frequencies
-        this.vocab = new Map() // Maps binary pattern to index
-        this.indexToPattern = new Map() // Maps index to binary pattern for decoding
-        this.minLength = minLength
-        this.maxLength = maxLength
-        this.corpus = corpus
-        this.chunkSize = chunkSize
-        this.maxVocabLength = maxVocabLength
-        this.train()
-        this.finalizeVocabulary()
-    }
+// class CompressedBinaryTokenizer {
+//     constructor({
+//         minLength = 1,
+//         maxLength = 23,
+//         corpus = '',
+//         chunkSize = 1024 * 256,
+//         maxVocabLength = 10000
+//     } = {}) {
+//         this.patternFrequency = new Map() // Tracks pattern frequencies
+//         this.vocab = new Map() // Maps binary pattern to index
+//         this.indexToPattern = new Map() // Maps index to binary pattern for decoding
+//         this.minLength = minLength
+//         this.maxLength = maxLength
+//         this.corpus = corpus
+//         this.chunkSize = chunkSize
+//         this.maxVocabLength = maxVocabLength
+//         this.train()
+//         this.finalizeVocabulary()
+//     }
 
-    train() {
-        const encoder = new TextEncoder()
-        let mb = 0
-        for (
-            let start = 0;
-            start < this.corpus.length;
-            start += this.chunkSize
-        ) {
-            console.log(
-                `chunking: ${mb / 4}mb, length: ${this.patternFrequency.size}`
-            )
-            mb++
-            const end = Math.min(start + this.chunkSize, this.corpus.length)
-            const chunk = this.corpus.substring(start, end)
-            const compressed = pako.deflate(encoder.encode(chunk))
-            let binaryString = ''
-            compressed.forEach((byte) => {
-                binaryString += byte.toString(2).padStart(8, '0')
-            })
+//     train() {
+//         const encoder = new TextEncoder()
+//         let mb = 0
+//         for (
+//             let start = 0;
+//             start < this.corpus.length;
+//             start += this.chunkSize
+//         ) {
+//             console.log(
+//                 `chunking: ${mb / 4}mb, length: ${this.patternFrequency.size}`
+//             )
+//             mb++
+//             const end = Math.min(start + this.chunkSize, this.corpus.length)
+//             const chunk = this.corpus.substring(start, end)
+//             const compressed = pako.deflate(encoder.encode(chunk))
+//             let binaryString = ''
+//             compressed.forEach((byte) => {
+//                 binaryString += byte.toString(2).padStart(8, '0')
+//             })
 
-            for (
-                let length = this.minLength;
-                length <= this.maxLength;
-                length++
-            ) {
-                for (let i = 0; i <= binaryString.length - length; i++) {
-                    const pattern = binaryString.substring(i, i + length)
-                    this.patternFrequency.set(
-                        pattern,
-                        (this.patternFrequency.get(pattern) || 0) + 1
-                    )
-                }
-            }
-        }
-    }
+//             for (
+//                 let length = this.minLength;
+//                 length <= this.maxLength;
+//                 length++
+//             ) {
+//                 for (let i = 0; i <= binaryString.length - length; i++) {
+//                     const pattern = binaryString.substring(i, i + length)
+//                     this.patternFrequency.set(
+//                         pattern,
+//                         (this.patternFrequency.get(pattern) || 0) + 1
+//                     )
+//                 }
+//             }
+//         }
+//     }
 
-    finalizeVocabulary() {
-        // Sort patterns by frequency and keep only the top `maxVocabLength` patterns
-        const sortedPatterns = Array.from(this.patternFrequency.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, this.maxVocabLength)
+//     finalizeVocabulary() {
+//         // Sort patterns by frequency and keep only the top `maxVocabLength` patterns
+//         const sortedPatterns = Array.from(this.patternFrequency.entries())
+//             .sort((a, b) => b[1] - a[1])
+//             .slice(0, this.maxVocabLength)
 
-        // Clear patternFrequency to free memory
-        this.patternFrequency.clear()
+//         // Clear patternFrequency to free memory
+//         this.patternFrequency.clear()
 
-        // Assign indices to the most common patterns
-        sortedPatterns.forEach(([pattern], index) => {
-            this.vocab.set(pattern, index)
-            this.indexToPattern.set(index, pattern)
-        })
-    }
+//         // Assign indices to the most common patterns
+//         sortedPatterns.forEach(([pattern], index) => {
+//             this.vocab.set(pattern, index)
+//             this.indexToPattern.set(index, pattern)
+//         })
+//     }
 
-    encode(string) {
-        const encoder = new TextEncoder()
-        const compressed = pako.deflate(encoder.encode(string))
-        let binaryString = ''
-        compressed.forEach((byte) => {
-            binaryString += byte.toString(2).padStart(8, '0')
-        })
+//     encode(string) {
+//         const encoder = new TextEncoder()
+//         const compressed = pako.deflate(encoder.encode(string))
+//         let binaryString = ''
+//         compressed.forEach((byte) => {
+//             binaryString += byte.toString(2).padStart(8, '0')
+//         })
 
-        const tokens = []
-        for (let i = 0; i < binaryString.length; ) {
-            let tokenFound = false
-            for (
-                let length = this.maxLength;
-                length >= this.minLength;
-                length--
-            ) {
-                if (i + length > binaryString.length) continue
-                const potentialToken = binaryString.substring(i, i + length)
-                if (this.vocab.has(potentialToken)) {
-                    tokens.push(this.vocab.get(potentialToken))
-                    i += length
-                    tokenFound = true
-                    break
-                }
-            }
-            if (!tokenFound) i++
-        }
-        return tokens
-    }
+//         const tokens = []
+//         for (let i = 0; i < binaryString.length; ) {
+//             let tokenFound = false
+//             for (
+//                 let length = this.maxLength;
+//                 length >= this.minLength;
+//                 length--
+//             ) {
+//                 if (i + length > binaryString.length) continue
+//                 const potentialToken = binaryString.substring(i, i + length)
+//                 if (this.vocab.has(potentialToken)) {
+//                     tokens.push(this.vocab.get(potentialToken))
+//                     i += length
+//                     tokenFound = true
+//                     break
+//                 }
+//             }
+//             if (!tokenFound) i++
+//         }
+//         return tokens
+//     }
 
-    decode(tokens) {
-        let binaryString = ''
-        tokens.forEach((index) => {
-            const pattern = this.indexToPattern.get(index)
-            if (pattern) {
-                binaryString += pattern
-            } else {
-                // Ignore invalid tokens by not adding anything to binaryString
-            }
-        })
+//     decode(tokens) {
+//         let binaryString = ''
+//         tokens.forEach((index) => {
+//             const pattern = this.indexToPattern.get(index)
+//             if (pattern) {
+//                 binaryString += pattern
+//             } else {
+//                 // Ignore invalid tokens by not adding anything to binaryString
+//             }
+//         })
 
-        try {
-            const byteArray = []
-            for (let i = 0; i < binaryString.length; i += 8) {
-                byteArray.push(parseInt(binaryString.slice(i, i + 8), 2))
-            }
-            const decompressed = pako.inflate(new Uint8Array(byteArray))
-            return new TextDecoder().decode(decompressed)
-        } catch (error) {
-            // console.error('Decompression failed:', error)
-            // Return a fallback or partial decompression result if necessary
-            return ''
-        }
-    }
+//         try {
+//             const byteArray = []
+//             for (let i = 0; i < binaryString.length; i += 8) {
+//                 byteArray.push(parseInt(binaryString.slice(i, i + 8), 2))
+//             }
+//             const decompressed = pako.inflate(new Uint8Array(byteArray))
+//             return new TextDecoder().decode(decompressed)
+//         } catch (error) {
+//             // console.error('Decompression failed:', error)
+//             // Return a fallback or partial decompression result if necessary
+//             return ''
+//         }
+//     }
 
-    getLength() {
-        return this.vocab.size
-    }
-}
+//     getLength() {
+//         return this.vocab.size
+//     }
+// }
 
 // class BinaryTokenizer {
 //     constructor({
@@ -431,8 +431,8 @@ class BasicSubwordTokenizer {
 }
 
 const tokenizers = {
-    CompressedBinaryTokenizer: (config) =>
-        new CompressedBinaryTokenizer(config),
+    // CompressedBinaryTokenizer: (config) =>
+    //     new CompressedBinaryTokenizer(config),
     CharacterTokenizer: (config) => new CharacterTokenizer(config),
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),

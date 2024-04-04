@@ -75,6 +75,24 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
+    defineOptimizers() {
+        this.learningRate = 0.000333
+        this.optimizers = [
+            this.ode.optimizers.Lion({
+                learningRate: this.learningRate,
+                weightDecay: 0.01,
+                adaNorm: false,
+                useGc: false
+            })
+        ]
+    }
+
+    defineSchedulers() {
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
+    }
+
     createAttentionExperts() {
         return [
             this.ode.layers.SynthesizerAttention({
@@ -125,24 +143,6 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 epsilon: this.epsilon,
                 activation: 'tanh'
             })
-        ]
-    }
-
-    defineOptimizers() {
-        this.learningRate = 0.000333
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: 0.01,
-                adaNorm: false,
-                useGc: false
-            })
-        ]
-    }
-
-    defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
         ]
     }
 
