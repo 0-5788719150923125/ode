@@ -46,7 +46,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.createExperts(),
+                    experts: this.createAttentionExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -56,7 +56,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.createExperts(),
+                    experts: this.createFeedforwardExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -75,7 +75,36 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    createExperts() {
+    createAttentionExperts() {
+        return [
+            this.ode.layers.SynthesizerAttention({
+                units: this.units,
+                blockSize: this.config.contextLength,
+                heads: this.heads,
+                epsilon: this.epsilon,
+                activation: this.tf.leakyRelu,
+                alpha: this.alpha
+            }),
+            this.ode.layers.SynthesizerAttention({
+                units: this.units,
+                blockSize: this.config.contextLength,
+                heads: this.heads / 2,
+                epsilon: this.epsilon,
+                activation: this.tf.relu,
+                alpha: this.alpha
+            }),
+            this.ode.layers.SynthesizerAttention({
+                units: this.units,
+                blockSize: this.config.contextLength,
+                heads: this.heads * 2,
+                epsilon: this.epsilon,
+                activation: this.tf.tanh,
+                alpha: this.alpha
+            })
+        ]
+    }
+
+    createFeedforwardExperts() {
         return [
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
