@@ -44,19 +44,29 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
+            // outputs = this.ode.layers
+            //     .SparseMixtureOfExperts({
+            //         experts: this.createAttentionExperts(),
+            //         units: this.units,
+            //         innerDim: this.innerDim,
+            //         topK: this.topK,
+            //         loadBalancing: this.loadBalancing
+            //     })
+            //     .apply(outputs)
+
             outputs = this.ode.layers
-                .SparseMixtureOfExperts({
-                    experts: this.createAttentionExperts(),
+                .SynthesizerAttention({
                     units: this.units,
-                    innerDim: this.innerDim,
-                    topK: this.topK,
-                    loadBalancing: this.loadBalancing
+                    blockSize: this.config.contextLength,
+                    heads: this.heads,
+                    epsilon: this.epsilon,
+                    activation: this.tf.selu
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.createAttentionExperts(),
+                    experts: this.createFeedforwardExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -130,13 +140,13 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             }),
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
-                innerDim: this.innerDim / 2,
+                innerDim: this.innerDim,
                 epsilon: this.epsilon,
                 activation: 'gelu'
             }),
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
-                innerDim: this.innerDim * 2,
+                innerDim: this.innerDim,
                 epsilon: this.epsilon,
                 activation: 'tanh'
             })

@@ -779,36 +779,33 @@ class LazyMixtureOfExperts extends LayerBase {
     }
 
     updateRoutingLogits(routingLogits, topKIndices, agreementScores) {
-        tf.tidy(() => {
-            // Flatten the topKIndices and create a batch-expert index mapping
-            const batchIndices = tf
-                .range(0, routingLogits.shape[0])
-                .tile([this.topK])
-            const flatTopKIndices = topKIndices.flatten()
-            const indices = tf
-                .stack(
-                    [batchIndices.cast('int32'), flatTopKIndices.cast('int32')],
-                    1
-                )
-                .cast('int32')
-
-            // Convert agreementScores to a tensor and ensure it has the correct shape
-            // Assuming agreementScores is a 2D array where the outer array is for batches
-            // and the inner arrays are the scores for the topK experts in each batch
-            // const agreementScoresTensor = tf
-            //     .tensor(agreementScores)
-            //     .reshape([-1, 1])
-
-            // Use scatterND to update the routingLogits based on the indices and agreement scores
-            const updatedRoutingLogits = tf.scatterND(
-                indices,
-                agreementScores.cast('int32'),
-                routingLogits.shape
+        // Convert agreementScores to a tensor to work with TensorFlow.js operations
+        const agreementScoresTensor = tf.stack(
+            agreementScores.map((scores) =>
+                tf.stack(scores.map((score) => score))
             )
+        )
 
-            // Assign the updated logits back to the routingLogits variable
-            routingLogits.assign(updatedRoutingLogits)
+        // Get the current value of the routingLogits variable
+        const currentRoutingLogits = routingLogits.read()
+
+        // Update the routingLogits tensor using gather and scatter operations
+        const updatedRoutingLogits = tf.tidy(() => {
+            const indices = topKIndices.reshape([-1])
+            const updates = agreementScoresTensor.reshape([-1])
+
+            const gatheredLogits = tf.gather(currentRoutingLogits, indices, 1)
+            const updatedLogits = gatheredLogits.add(updates)
+
+            return tf.scatterND(
+                indices.expandDims(1),
+                updatedLogits,
+                currentRoutingLogits.shape
+            )
         })
+
+        // Assign the updated logits back to the routingLogits variable
+        routingLogits.assign(updatedRoutingLogits)
     }
 
     call(inputs, kwargs) {
