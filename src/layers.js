@@ -2482,7 +2482,7 @@ class StateSpace extends tf.layers.Layer {
     }
 }
 
-class FuzzyStateSpace extends tf.layers.Layer {
+class ChunkedStateSpace extends tf.layers.Layer {
     constructor(config) {
         super({ ...config, name: `ssm-${randomString()}` })
         this.units = config.units || 64
@@ -2606,19 +2606,17 @@ class FuzzyStateSpace extends tf.layers.Layer {
     }
 
     getConfig() {
-        const config = {
+        return {
+            ...super.getConfig(),
             units: this.units,
             innerDim: this.innerDim,
             returnSequences: this.returnSequences,
             epsilon: this.epsilon
         }
-        const baseConfig = super.getConfig()
-        Object.assign(config, baseConfig)
-        return config
     }
 
     static get className() {
-        return 'FuzzyStateSpace'
+        return 'ChunkedStateSpace'
     }
 }
 
@@ -2632,7 +2630,7 @@ const exportedLayers = [
     DumbCompression,
     EncapsulatedMLP,
     LazyMixtureOfExperts,
-    FuzzyStateSpace,
+    ChunkedStateSpace,
     GatedLinearUnit,
     GaussianMixtureModel,
     HyperMixer,

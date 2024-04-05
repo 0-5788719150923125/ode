@@ -62,6 +62,26 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                     activation: 'swish'
                 })
                 .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .SynthesizerAttention({
+            //         units: this.units,
+            //         blockSize: this.config.contextLength,
+            //         heads: this.heads,
+            //         epsilon: this.epsilon,
+            //         activation: this.tf.selu
+            //     })
+            //     .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .SparseMixtureOfExperts({
+            //         experts: this.createFeedforwardExperts(),
+            //         units: this.units,
+            //         innerDim: this.innerDim,
+            //         topK: this.topK,
+            //         loadBalancing: this.loadBalancing
+            //     })
+            //     .apply(outputs)
         }
 
         outputs = this.ode.layers

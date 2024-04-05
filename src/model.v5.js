@@ -35,9 +35,10 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .StateSpace({
+                .ChunkedStateSpace({
                     units: this.units,
                     innerDim: this.innerDim,
+                    chunkSize: 4,
                     epsilon: this.epsilon,
                     returnSequences: true
                 })
