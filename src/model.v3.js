@@ -1,10 +1,10 @@
-import OmnipotentDiabolicalErudite from './model.v2.js'
+import OmnipresentDiabolicalErudite from './model.v2.js'
 
 /**
  * A GPT-2 clone with causal attention and learned position embeddings.
- * @extends OmnipotentDiabolicalErudite
+ * @extends OmnipresentDiabolicalErudite
  */
-export default class OriginalDecoderEngine extends OmnipotentDiabolicalErudite {
+export default class OriginalDecoderEngine extends OmnipresentDiabolicalErudite {
     constructor(config) {
         super(config)
         this.layers = 4

@@ -5,7 +5,7 @@ import ModelBase from './model.v0.js'
  * will see versions of this model everywhere, in tutorials on the Internet.
  * @extends ModelBase
  */
-export default class OmnipresentDegenerateEntity extends ModelBase {
+export default class OmnipotentDegenerateEntity extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 3

@@ -4,7 +4,7 @@ import OriginalDecoderEngine from './model.v3.js'
  * A mixture of experts.
  * @extends OriginalDecoderEngine
  */
-export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngine {
+export default class OmnipotentDeterministicEnsemble extends OriginalDecoderEngine {
     constructor(config) {
         super(config)
         this.layers = 4
@@ -55,7 +55,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .MultiLayerPerceptron({
+                .CapNet({
                     units: this.units,
                     innerDim: this.innerDim * 4,
                     epsilon: this.epsilon,

@@ -4,14 +4,14 @@ import OpportunisticDialogueEncoder from './model.v4.js'
  * A state space model.
  * @extends OpportunisticDialogueEncoder
  */
-export default class ObservableDataEncryption extends OpportunisticDialogueEncoder {
+export default class OrthogonalDecayedExponent extends OpportunisticDialogueEncoder {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.units = 256
+        this.layers = 6
+        this.units = 512
         this.innerDim = this.units * 4
         this.chunkSize = 8
-        this.epsilon = 1e-5
+        this.epsilon = 1e-6
     }
 
     defineBuild() {

@@ -7,7 +7,7 @@ import ModelBase from './model.v0.js'
  * this model trains on vectors of them, shifted by one to the right.
  * @extends ModelBase
  */
-export default class OmnipotentDiabolicalErudite extends ModelBase {
+export default class OmnipresentDiabolicalErudite extends ModelBase {
     constructor(config) {
         super(config)
         this.layers = 3

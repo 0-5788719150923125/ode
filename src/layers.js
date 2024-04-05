@@ -552,56 +552,71 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     }
 }
 
-class EncapsulatedMLP extends LayerBase {
+class CapNet extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `cap-${randomString()}` })
-        // Inherits most settings from the original MLP configuration
+        super({ ...config, name: `encap-mlp-${randomString()}` })
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
         this.epsilon = config?.epsilon || 1e-5
-        this.activation = config?.activation || 'relu'
+        this.numCapsules = config?.numCapsules || 8
+        this.capsuleDim = config?.capsuleDim || 16
+        if (config?.activation === 'gelu') {
+            this.customActivation = new GELU()
+            this.activation = 'linear'
+        } else {
+            this.activation = config?.activation || 'relu'
+        }
         this.supportsMasking = true
     }
 
     build(inputShape) {
-        // Primary projection layer remains similar
+        // Initialize dense layers for projection
         this.inProj = tf.layers.dense({
             units: this.innerDim,
-            activation: 'linear' // Keeping linear for custom post-processing
+            inputDim: this.units,
+            activation: this.activation
         })
-
-        // Capsule-like mechanism for dynamic routing
-        // Note: This is conceptual; dynamic routing requires significant additional logic
-        this.dynamicRouting = new DynamicRouting({
-            numCapsules: this.units, // Simplification: number of capsules set to units
-            dimensions: this.innerDim
-            // Further configuration for dynamic routing can be added here
-        })
-
-        // Output projection adjusted for encapsulated processing
         this.outProj = tf.layers.dense({
             units: this.units,
+            inputDim: this.capsuleDim * this.numCapsules,
             activation: 'linear'
         })
 
-        // Initialize layers
+        // Initialize capsule layers
+        this.primaryCaps = tf.layers.dense({
+            units: this.numCapsules * this.capsuleDim,
+            inputDim: this.innerDim,
+            activation: 'linear'
+        })
+        this.digitCaps = new DigitCaps({
+            numCapsules: this.numCapsules,
+            capsuleDim: this.capsuleDim,
+            routingIterations: 3
+        })
+
+        // Manually call build on layers to initialize weights
         this.inProj.build(inputShape)
-        this.dynamicRouting.build(inputShape)
-        this.outProj.build([inputShape[0], this.innerDim])
-        this.layernorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
+        this.primaryCaps.build([inputShape[0], this.innerDim])
+        this.digitCaps.build([inputShape[0], this.numCapsules, this.capsuleDim])
+        this.outProj.build([inputShape[0], this.numCapsules * this.capsuleDim])
+
+        // Initialize layer normalization
+        this.layernorm = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
         this.layernorm.build(inputShape)
 
-        // Collect trainable weights
+        // Collect all trainable weights from internal layers
         this._trainableWeights = [
             ...this.inProj.trainableWeights,
+            ...this.primaryCaps.trainableWeights,
+            ...this.digitCaps.trainableWeights,
             ...this.outProj.trainableWeights,
-            ...this.layernorm.trainableWeights,
-            // Assuming dynamic routing has trainable parameters
-            ...this.dynamicRouting.trainableWeights
+            ...this.layernorm.trainableWeights
         ]
 
-        // Residual connection remains
+        // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
 
         super.build(inputShape)
@@ -611,31 +626,129 @@ class EncapsulatedMLP extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             this.invokeCallHook(inputs, kwargs)
+            // Expand and contract projection via feedforward layers
             let outputs = this.inProj.apply(inputs)
-
-            // Apply dynamic routing or capsule mechanism
-            outputs = this.dynamicRouting.apply(outputs)
-
+            if (this.customActivation) {
+                outputs = this.customActivation.apply(outputs)
+            }
+            // Apply primary capsules
+            outputs = this.primaryCaps.apply(outputs)
+            outputs = tf.reshape(outputs, [
+                -1,
+                this.numCapsules,
+                this.capsuleDim
+            ])
+            // Apply digit capsules with dynamic routing
+            outputs = this.digitCaps.apply(outputs)
+            outputs = tf.reshape(outputs, [
+                -1,
+                this.numCapsules * this.capsuleDim
+            ])
             outputs = this.outProj.apply(outputs)
-
-            // Apply layer normalization and residual connection as before
+            // If training, apply residual dropout
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+            outputs = tf.reshape(outputs, inputs.shape)
+            // Apply layer norm
             outputs = this.layernorm.apply(outputs)
+            // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
     }
 
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
     getConfig() {
         return {
-            ...super.getConfig(),
             units: this.units,
             innerDim: this.innerDim,
             dropout: this.dropout,
-            epsilon: this.epsilon
+            numCapsules: this.numCapsules,
+            capsuleDim: this.capsuleDim
         }
     }
 
     static get className() {
-        return 'EncapsulatedMLP'
+        return 'CapNet'
+    }
+}
+
+class DigitCaps extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.numCapsules = config.numCapsules
+        this.capsuleDim = config.capsuleDim
+        this.routingIterations = config.routingIterations || 3
+    }
+
+    build(inputShape) {
+        this.W = this.addWeight(
+            'capsule_weights',
+            [
+                1,
+                inputShape[1],
+                this.numCapsules,
+                this.capsuleDim,
+                inputShape[2]
+            ],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.built = true
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            const [batchSize, numPrimaryCaps, primaryCapsDim] = inputs.shape
+            const uji = tf.tile(tf.expandDims(inputs, 2), [
+                1,
+                1,
+                this.numCapsules,
+                1
+            ])
+            const ujiHat = tf.sum(
+                tf.mul(this.W.read(), tf.expandDims(uji, 3)),
+                4
+            )
+
+            let b = tf.zeros([batchSize, numPrimaryCaps, this.numCapsules])
+            let v = null
+            for (let i = 0; i < this.routingIterations; i++) {
+                const c = tf.softmax(b, 2)
+                const s = tf.sum(tf.mul(tf.expandDims(c, 3), ujiHat), 1)
+                v = this.squash(s)
+                const agreement = tf.sum(tf.mul(ujiHat, tf.expandDims(v, 1)), 3)
+                b = tf.add(b, agreement)
+            }
+
+            return v
+        })
+    }
+
+    squash(s) {
+        const squaredNorm = tf.sum(tf.square(s), -1, true)
+        const squashFactor = tf.div(squaredNorm, tf.add(1, squaredNorm))
+        return tf.mul(squashFactor, tf.div(s, tf.sqrt(squaredNorm)))
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.numCapsules, this.capsuleDim]
+    }
+
+    getConfig() {
+        const config = {
+            numCapsules: this.numCapsules,
+            capsuleDim: this.capsuleDim,
+            routingIterations: this.routingIterations
+        }
+        return config
+    }
+
+    static get className() {
+        return 'DigitCaps'
     }
 }
 
@@ -2664,12 +2777,12 @@ class StructuredStateSpace extends tf.layers.Layer {
             tf.initializers.zeros()
         )
 
-        this.layernorm = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-        this.layernorm.build(inputShape)
+        // this.layernorm = tf.layers.layerNormalization({
+        //     epsilon: this.epsilon
+        // })
+        // this.layernorm.build(inputShape)
 
-        this._trainableWeights.push(...this.layernorm.trainableWeights)
+        // this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
     }
@@ -2716,7 +2829,10 @@ class StructuredStateSpace extends tf.layers.Layer {
                     stableAttentionScores
                 )
 
-                const innerStateChunk = tf.tanh(
+                // let activation = tf.tanh
+                // if (c % 2 !== 0) activation = tf.selu
+
+                const innerStateChunk = tf.selu(
                     tf.add(
                         tf.add(
                             tf.matMul(attendedInputChunk, kernel),
@@ -2745,7 +2861,7 @@ class StructuredStateSpace extends tf.layers.Layer {
                 ? tf.concat(outputs, 1)
                 : outputs[outputs.length - 1]
 
-            output = this.layernorm.apply(output)
+            // output = this.layernorm.apply(output)
 
             return this.residual.apply([inputs, output])
         })
@@ -2782,7 +2898,7 @@ const exportedLayers = [
     ConvolutionalExpansionLayer,
     DebugLayer,
     DumbCompression,
-    EncapsulatedMLP,
+    CapNet,
     LazyMixtureOfExperts,
     ChunkedStateSpace,
     GatedLinearUnit,
