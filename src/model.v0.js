@@ -155,7 +155,7 @@ export default class ModelBase {
             // We disable strict mode to prevent errors like this:
             //   ValueError: Provided weight data has no target variable: syn-xxo/w1-qsA
             // TODO: fix the actual problem
-            strict: false
+            strict: true
         })
         console.log('successfully loaded model from disk')
         this.defineOptimizers()

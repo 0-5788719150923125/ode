@@ -423,7 +423,7 @@ async function predictionSampler(
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const args of [
-            { doSample: false, repetitionPenalty: 10.0 },
+            { doSample: false, repetitionPenalty: 1 },
             { doSample: true, temperature: 0.3 },
             { doSample: true, temperature: 1.1 },
             { doSample: true, temperature: 0.7, topK: 4 },
@@ -486,7 +486,7 @@ class ConsoleLogger {
         const elapsed = this.timer.next().value
         this.totalElapsed += elapsed
         console.log(
-            `STEP=${step}, BATCH=${batch}, ${memory}GB, TENSORS=${numTensors}, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(5)}, ELAPSED=${(elapsed / 1000).toFixed(1)}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
+            `STEP=${step}, BATCH=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(5)}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(elapsed / 1000).toFixed(1)}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
         )
     }
 }

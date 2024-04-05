@@ -10,6 +10,7 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
         this.layers = 4
         this.units = 256
         this.innerDim = this.units * 4
+        this.chunkSize = 8
         this.epsilon = 1e-5
     }
 
@@ -26,19 +27,12 @@ export default class ObservableDataEncryption extends OpportunisticDialogueEncod
             })
             .apply(inputs)
 
-        outputs = this.ode.layers
-            .RotaryPositionalEncoding({
-                blockSize: this.config.contextLength,
-                units: this.units
-            })
-            .apply(outputs)
-
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .ChunkedStateSpace({
+                .StructuredStateSpace({
                     units: this.units,
                     innerDim: this.innerDim,
-                    chunkSize: 4,
+                    chunkSize: this.chunkSize,
                     epsilon: this.epsilon,
                     returnSequences: true
                 })
