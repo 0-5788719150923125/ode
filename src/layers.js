@@ -462,6 +462,10 @@ class MultiLayerPerceptron extends LayerBase {
         })
     }
 
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
     getConfig() {
         return {
             units: this.units,
@@ -674,12 +678,23 @@ class SparseMixtureOfExperts extends LayerBase {
                 return this.experts[index].apply(inputs)
             })
 
-            // Compute average of expert outputs
-            const outputSum = expertOutputs.reduce((acc, curr) => acc.add(curr))
-            const outputAverage = outputSum.div(expertOutputs.length)
+            // // Compute average of expert outputs
+            // const outputSum = expertOutputs.reduce((acc, curr) => acc.add(curr))
+            // const outputAverage = outputSum.div(expertOutputs.length)
 
-            return outputAverage
+            // return outputAverage
+
+            // Compute weighted sum of expert outputs
+            const outputs = expertOutputs.reduce((acc, curr, i) => {
+                return acc.add(curr.mul(currentGatingScores[i]))
+            }, tf.zerosLike(expertOutputs[0]))
+
+            return outputs
         })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
     }
 
     getConfig() {
@@ -1271,7 +1286,7 @@ class SynthesizerAttention extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        return inputShape
+        return [inputShape[0], this.blockSize, this.units]
     }
 
     getConfig() {

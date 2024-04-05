@@ -56,7 +56,7 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.createFeedforwardExperts(),
+                    experts: this.createAttentionExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
@@ -75,23 +75,23 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineOptimizers() {
-        this.learningRate = 0.000333
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: 0.01,
-                adaNorm: false,
-                useGc: false
-            })
-        ]
-    }
+    // defineOptimizers() {
+    //     this.learningRate = 0.000333
+    //     this.optimizers = [
+    //         this.ode.optimizers.Lion({
+    //             learningRate: this.learningRate,
+    //             weightDecay: 0.01,
+    //             adaNorm: false,
+    //             useGc: false
+    //         })
+    //     ]
+    // }
 
-    defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
-    }
+    // defineSchedulers() {
+    //     this.schedulers = [
+    //         this.ode.schedulers.constantScheduler(this.learningRate)
+    //     ]
+    // }
 
     createAttentionExperts() {
         return [
@@ -106,14 +106,14 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             this.ode.layers.SynthesizerAttention({
                 units: this.units,
                 blockSize: this.config.contextLength,
-                heads: this.heads / 2,
+                heads: this.heads,
                 epsilon: this.epsilon,
                 activation: this.tf.selu
             }),
             this.ode.layers.SynthesizerAttention({
                 units: this.units,
                 blockSize: this.config.contextLength,
-                heads: this.heads * 2,
+                heads: this.heads,
                 epsilon: this.epsilon,
                 activation: this.tf.tanh
             })
@@ -125,21 +125,18 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
                 innerDim: this.innerDim,
-                heads: this.heads,
                 epsilon: this.epsilon,
                 activation: 'swish'
             }),
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
-                innerDim: this.innerDim * 2,
-                heads: this.heads / 2,
+                innerDim: this.innerDim / 2,
                 epsilon: this.epsilon,
                 activation: 'gelu'
             }),
             this.ode.layers.MultiLayerPerceptron({
                 units: this.units,
-                innerDim: this.innerDim / 2,
-                heads: this.heads * 2,
+                innerDim: this.innerDim * 2,
                 epsilon: this.epsilon,
                 activation: 'tanh'
             })
