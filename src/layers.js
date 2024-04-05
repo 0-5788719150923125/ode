@@ -87,7 +87,7 @@ class Range extends LayerBase {
 class CausalSelfAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.config = Object.assign({ name: 'attn' }, config)
+        this.config = Object.assign({ name: `attn-${randomString()}` }, config)
 
         // Config
         this.blockSize = config.blockSize || 256
@@ -108,25 +108,25 @@ class CausalSelfAttention extends LayerBase {
 
     build(inputShape) {
         this.cAttnKernel = this.addWeight(
-            'c_attn/kernel',
+            `c_attn-${randomString()}`,
             [this.units, 3 * this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.cAttnBias = this.addWeight(
-            'c_attn/bias',
+            `c_attn-${randomString()}`,
             [3 * this.units],
             'float32',
             tf.initializers.zeros()
         )
         this.cProjKernel = this.addWeight(
-            'c_proj/kernel',
+            `c_proj-${randomString()}`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.cProjBias = this.addWeight(
-            'c_proj/bias',
+            `c_proj-${randomString()}`,
             [this.units],
             'float32',
             tf.initializers.zeros()
@@ -552,6 +552,199 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     }
 }
 
+class EncapsulatedMLP extends LayerBase {
+    constructor(config) {
+        super({ ...config, name: `cap-${randomString()}` })
+        // Inherits most settings from the original MLP configuration
+        this.units = config?.units || 256
+        this.innerDim = config?.innerDim || 1024
+        this.dropout = config?.dropout || 0
+        this.epsilon = config?.epsilon || 1e-5
+        this.activation = config?.activation || 'relu'
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        // Primary projection layer remains similar
+        this.inProj = tf.layers.dense({
+            units: this.innerDim,
+            activation: 'linear' // Keeping linear for custom post-processing
+        })
+
+        // Capsule-like mechanism for dynamic routing
+        // Note: This is conceptual; dynamic routing requires significant additional logic
+        this.dynamicRouting = new DynamicRouting({
+            numCapsules: this.units, // Simplification: number of capsules set to units
+            dimensions: this.innerDim
+            // Further configuration for dynamic routing can be added here
+        })
+
+        // Output projection adjusted for encapsulated processing
+        this.outProj = tf.layers.dense({
+            units: this.units,
+            activation: 'linear'
+        })
+
+        // Initialize layers
+        this.inProj.build(inputShape)
+        this.dynamicRouting.build(inputShape)
+        this.outProj.build([inputShape[0], this.innerDim])
+        this.layernorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
+        this.layernorm.build(inputShape)
+
+        // Collect trainable weights
+        this._trainableWeights = [
+            ...this.inProj.trainableWeights,
+            ...this.outProj.trainableWeights,
+            ...this.layernorm.trainableWeights,
+            // Assuming dynamic routing has trainable parameters
+            ...this.dynamicRouting.trainableWeights
+        ]
+
+        // Residual connection remains
+        this.residual = new ResidualConnection()
+
+        super.build(inputShape)
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            this.invokeCallHook(inputs, kwargs)
+            let outputs = this.inProj.apply(inputs)
+
+            // Apply dynamic routing or capsule mechanism
+            outputs = this.dynamicRouting.apply(outputs)
+
+            outputs = this.outProj.apply(outputs)
+
+            // Apply layer normalization and residual connection as before
+            outputs = this.layernorm.apply(outputs)
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            innerDim: this.innerDim,
+            dropout: this.dropout,
+            epsilon: this.epsilon
+        }
+    }
+
+    static get className() {
+        return 'EncapsulatedMLP'
+    }
+}
+
+class DynamicRouting extends LayerBase {
+    constructor(config) {
+        super(config)
+        this.numCapsules = config.numCapsules
+        this.dimensions = config.dimensions
+        // Assuming 'dimensions' represents the size of the output vectors from capsules
+    }
+
+    build(inputShape) {
+        // Simplified routing weights
+        this.routingWeights = this.addWeight(
+            'routingWeights',
+            [
+                this.numCapsules,
+                this.dimensions,
+                inputShape[inputShape.length - 1]
+            ],
+            'float32',
+            tf.initializers.randomNormal({ stddev: 0.1 })
+        )
+        super.build(inputShape)
+    }
+
+    // Assuming inputs have a shape of [batch_size, units, innerDim]
+    // and you wish to apply dynamic routing in a manner that involves smaller subnetworks or "capsules"
+
+    // First, ensure that your routing weights are initialized to match the operation.
+    // If your operation needs to be [batch_size, units*innerDim] @ [units*innerDim, some_dimension],
+    // then you must reshape or partition your inputs or weights accordingly.
+
+    // Here's a conceptual adjustment focusing on smaller, manageable parts of the dynamic layer:
+    call(inputs) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        // Flatten inputs to 2D for matMul compatibility, preserving batch information.
+        const batch_size = inputs.shape[0]
+        const flattenedInputs = tf.reshape(inputs, [batch_size, -1]) // Now [batch_size, units*innerDim]
+
+        // Instead of one massive weight, consider having smaller "capsule" weights
+        // For illustration, let's say we break it down into several smaller matrices
+        // Adjust the number of capsules and the dimensionality as needed
+        const numCapsules = this.numCapsules // e.g., much smaller like 10 or 20
+        const capsuleDimension = this.dimensions // Adjust based on what each capsule should output
+
+        // Initialize smaller capsule weights as part of the build process or here if dynamic
+        // Let's simplify and not show the initialization here for brevity
+
+        // Example loop over smaller capsule weights (assuming they are stored in an array this.capsuleWeights)
+        let capsuleOutputs = []
+        for (let i = 0; i < numCapsules; i++) {
+            let capsuleWeight = this.capsuleWeights[i] // Each with shape [units*innerDim/numCapsules, capsuleDimension]
+            let output = tf.matMul(flattenedInputs, capsuleWeight) // Outputs for each capsule
+            capsuleOutputs.push(output)
+        }
+
+        // Assuming you want to concatenate or somehow aggregate these outputs
+        let concatenatedOutputs = tf.concat(capsuleOutputs, 1) // Adjust axis as needed
+        // Now reshape or process concatenatedOutputs as needed to fit the next layer
+
+        return concatenatedOutputs // This needs to be reshaped or adjusted to match your model's expectations
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.numCapsules, this.dimensions]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numCapsules: this.numCapsules,
+            dimensions: this.dimensions
+        }
+    }
+
+    static get className() {
+        return 'DynamicRouting'
+    }
+}
+
+class PassthroughLayer extends LayerBase {
+    constructor(config) {
+        super({ ...config, name: `pass-${randomString()}` })
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            console.log(inputs)
+            return inputs
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig()
+        }
+    }
+
+    static get className() {
+        return 'PassthroughLayer'
+    }
+}
+
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ ...config, name: `moe-${randomString()}` })
@@ -727,147 +920,100 @@ class LazyMixtureOfExperts extends LayerBase {
             expert.build(inputShape)
             this._trainableWeights.push(...expert.trainableWeights)
         })
-
         super.build(inputShape)
-    }
-
-    computeRoutingWeights(routingLogits, inputs) {
-        return tf.softmax(
-            routingLogits.reshape([inputs.shape[0], this.numExperts]),
-            -1
-        )
-    }
-
-    computeExpertOutputs(inputs, topKIndices) {
-        return topKIndices
-            .arraySync()
-            .map((indices) =>
-                indices.map((index) => this.experts[index].apply(inputs))
-            )
-    }
-
-    computeWeightedPredictions(expertOutputs, routingWeights, topKIndices) {
-        return expertOutputs.map((outputs, batchIndex) =>
-            outputs.map((output, expertIndex) =>
-                output.mul(
-                    routingWeights
-                        .slice(
-                            [
-                                batchIndex,
-                                topKIndices.arraySync()[batchIndex][expertIndex]
-                            ],
-                            [1, 1]
-                        )
-                        .reshape([1, 1, -1])
-                )
-            )
-        )
-    }
-
-    computeCombinedPredictions(weightedPredictions) {
-        return weightedPredictions.map((predictions) =>
-            predictions.reduce((acc, curr) => acc.add(curr))
-        )
-    }
-
-    computeAgreementScores(expertOutputs, combinedPredictions) {
-        return expertOutputs.map((outputs, batchIndex) =>
-            outputs.map((output) =>
-                tf.matMul(output, combinedPredictions[batchIndex], false, true)
-            )
-        )
-    }
-
-    updateRoutingLogits(routingLogits, topKIndices, agreementScores) {
-        // Convert agreementScores to a tensor to work with TensorFlow.js operations
-        const agreementScoresTensor = tf.stack(
-            agreementScores.map((scores) =>
-                tf.stack(scores.map((score) => score))
-            )
-        )
-
-        // Get the current value of the routingLogits variable
-        const currentRoutingLogits = routingLogits.read()
-
-        // Update the routingLogits tensor using gather and scatter operations
-        const updatedRoutingLogits = tf.tidy(() => {
-            const indices = topKIndices.reshape([-1])
-            const updates = agreementScoresTensor.reshape([-1])
-
-            const gatheredLogits = tf.gather(currentRoutingLogits, indices, 1)
-            const updatedLogits = gatheredLogits.add(updates)
-
-            return tf.scatterND(
-                indices.expandDims(1),
-                updatedLogits,
-                currentRoutingLogits.shape
-            )
-        })
-
-        // Assign the updated logits back to the routingLogits variable
-        routingLogits.assign(updatedRoutingLogits)
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Initialize routing logits
             const routingLogits = tf.variable(
-                tf.zeros([inputs.shape[0], this.numExperts, 1])
+                tf.zeros([inputs.shape[0], this.numExperts])
             )
 
-            // Perform dynamic routing
             for (let i = 0; i < this.numRoutingIterations; i++) {
-                const routingWeights = this.computeRoutingWeights(
-                    routingLogits,
-                    inputs
-                )
-                const topKIndices = tf.topk(
-                    routingWeights,
-                    this.topK,
-                    true
-                ).indices
+                const routingWeights = tf.softmax(routingLogits, -1)
+                const topKIndices = tf.topk(routingWeights, this.topK).indices
 
-                const expertOutputs = this.computeExpertOutputs(
-                    inputs,
+                const expertOutputs = tf.stack(
                     topKIndices
+                        .arraySync()
+                        .map((indices) =>
+                            tf.stack(
+                                indices.map((index) =>
+                                    this.experts[index].apply(inputs)
+                                )
+                            )
+                        )
                 )
 
-                const weightedPredictions = this.computeWeightedPredictions(
-                    expertOutputs,
+                const routingWeightsGathered = tf.gather(
                     routingWeights,
-                    topKIndices
-                )
-                const combinedPredictions =
-                    this.computeCombinedPredictions(weightedPredictions)
-                const agreementScores = this.computeAgreementScores(
-                    expertOutputs,
-                    combinedPredictions
-                )
-
-                this.updateRoutingLogits(
-                    routingLogits,
                     topKIndices,
-                    agreementScores
+                    1
+                )
+                const combinedPredictions = tf.sum(
+                    expertOutputs.mul(
+                        routingWeightsGathered.expandDims(-1).expandDims(-1)
+                    ),
+                    1
+                )
+
+                const agreementScores = tf.sum(
+                    expertOutputs.mul(combinedPredictions.expandDims(1)),
+                    [-1, -2]
+                )
+
+                const batchIndices = tf.range(0, inputs.shape[0])
+                const flattenedTopKIndices = topKIndices.flatten()
+
+                const updates = agreementScores.reshape([
+                    inputs.shape[0],
+                    this.topK
+                ])
+                console.log(updates)
+
+                const indices = tf.stack(
+                    [
+                        batchIndices.cast('int32'),
+                        flattenedTopKIndices.cast('int32')
+                    ],
+                    1
+                )
+
+                routingLogits.assign(
+                    routingLogits.add(
+                        tf.scatterND(indices, updates, routingLogits.shape)
+                    )
                 )
             }
 
-            // Compute final output
-            const routingWeights = this.computeRoutingWeights(
-                routingLogits,
-                inputs
-            )
+            const routingWeights = tf.softmax(routingLogits, -1)
             const topKIndices = tf.topk(routingWeights, this.topK).indices
 
-            const expertOutputs = this.computeExpertOutputs(inputs, topKIndices)
-            const weightedPredictions = this.computeWeightedPredictions(
-                expertOutputs,
-                routingWeights,
+            const expertOutputs = tf.stack(
                 topKIndices
+                    .arraySync()
+                    .map((indices) =>
+                        tf.stack(
+                            indices.map((index) =>
+                                this.experts[index].apply(inputs)
+                            )
+                        )
+                    )
             )
-            const finalOutput =
-                this.computeCombinedPredictions(weightedPredictions)
+
+            const routingWeightsGathered = tf.gather(
+                routingWeights,
+                topKIndices,
+                1
+            )
+            const finalOutput = tf.sum(
+                expertOutputs.mul(
+                    routingWeightsGathered.expandDims(-1).expandDims(-1)
+                ),
+                1
+            )
 
             return finalOutput
         })
@@ -2484,6 +2630,7 @@ const exportedLayers = [
     ConvolutionalExpansionLayer,
     DebugLayer,
     DumbCompression,
+    EncapsulatedMLP,
     LazyMixtureOfExperts,
     FuzzyStateSpace,
     GatedLinearUnit,
@@ -2494,6 +2641,7 @@ const exportedLayers = [
     MultiHeadAttention,
     MultiLayerPerceptron,
     NearestNeighborUpsampling,
+    PassthroughLayer,
     Range,
     ResidualConnection,
     RotaryPositionalEncoding,

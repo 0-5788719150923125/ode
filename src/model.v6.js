@@ -44,33 +44,22 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            // outputs = this.ode.layers
-            //     .SparseMixtureOfExperts({
-            //         experts: this.createAttentionExperts(),
-            //         units: this.units,
-            //         innerDim: this.innerDim,
-            //         topK: this.topK,
-            //         loadBalancing: this.loadBalancing
-            //     })
-            //     .apply(outputs)
-
-            outputs = this.ode.layers
-                .SynthesizerAttention({
-                    units: this.units,
-                    blockSize: this.config.contextLength,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    activation: this.tf.selu
-                })
-                .apply(outputs)
-
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
-                    experts: this.createFeedforwardExperts(),
+                    experts: this.createAttentionExperts(),
                     units: this.units,
                     innerDim: this.innerDim,
                     topK: this.topK,
                     loadBalancing: this.loadBalancing
+                })
+                .apply(outputs)
+
+            outputs = this.ode.layers
+                .MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim * 4,
+                    epsilon: this.epsilon,
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }
@@ -130,28 +119,28 @@ export default class OmniscientDeterministicEnsemble extends OriginalDecoderEngi
         ]
     }
 
-    createFeedforwardExperts() {
-        return [
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim,
-                epsilon: this.epsilon,
-                activation: 'swish'
-            }),
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim,
-                epsilon: this.epsilon,
-                activation: 'gelu'
-            }),
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.innerDim,
-                epsilon: this.epsilon,
-                activation: 'tanh'
-            })
-        ]
-    }
+    // createFeedforwardExperts() {
+    //     return [
+    //         this.ode.layers.MultiLayerPerceptron({
+    //             units: this.units,
+    //             innerDim: this.innerDim,
+    //             epsilon: this.epsilon,
+    //             activation: 'swish'
+    //         }),
+    //         this.ode.layers.MultiLayerPerceptron({
+    //             units: this.units,
+    //             innerDim: this.innerDim,
+    //             epsilon: this.epsilon,
+    //             activation: 'gelu'
+    //         }),
+    //         this.ode.layers.MultiLayerPerceptron({
+    //             units: this.units,
+    //             innerDim: this.innerDim,
+    //             epsilon: this.epsilon,
+    //             activation: 'tanh'
+    //         })
+    //     ]
+    // }
 
     // defineLossFunctions() {
     //     this.lossFunctions = [
