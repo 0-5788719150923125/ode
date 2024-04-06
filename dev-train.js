@@ -22,10 +22,11 @@ export async function trainModel(args) {
     await gun.init()
     // await gun.subscribeChannel('trade')
     // await gun.putDataset('phi', null)
-    // await gun.uploadDirectory('phi', '/home/crow/Repos/vtx/lab/phi/train')
-    // const corpus = await gun.getDataset('phi')
+    await gun.uploadDirectory('phi', '/home/crow/Repos/vtx/lab/phi/train')
+    const corpus = await gun.getDataset('phi')
 
-    await net.init({ corpus })
+    await net.init()
+    // await net.init({ corpus })
     // await net.load()
     // net.tokenizer.train(data)
     // await net.tokenizer.writeVocabularyToFile()
@@ -33,8 +34,8 @@ export async function trainModel(args) {
     const dataset = await net.ode.samplers.stringSampler(
         // const dataset = await net.ode.samplers.sequentialStringSampler(
         trainArgs.sampleLength * 5,
-        trainArgs?.overfit
-        // corpus // remove this to just use the default Shakespeare dataset
+        trainArgs?.overfit,
+        corpus // remove this to just use the default Shakespeare dataset
     )
 
     await net.train(dataset, trainArgs)
