@@ -143,7 +143,7 @@ export default class ModelBase {
     async save(path = `data/models/ode`) {
         const fs = await import('fs')
         fs.mkdirSync(path, { recursive: true })
-        await this.model.save(`file://${path}`, { includeOptimizer: false })
+        await this.model.save(`file://${path}`, { includeOptimizer: true })
     }
 
     async load(path = `data/models/ode`) {
@@ -152,9 +152,6 @@ export default class ModelBase {
         this.defineTokenizer()
         this.defineLossFunctions()
         this.model = await tf.loadLayersModel(`file://${path}/model.json`, {
-            // We disable strict mode to prevent errors like this:
-            //   ValueError: Provided weight data has no target variable: syn-xxo/w1-qsA
-            // TODO: fix the actual problem
             strict: true
         })
         console.log('successfully loaded model from disk')

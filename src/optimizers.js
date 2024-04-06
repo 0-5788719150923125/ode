@@ -12,6 +12,7 @@ class AdamW extends tf.AdamOptimizer {
         this.ENGINE = tf.engine()
         this.decayRate = decayRate
     }
+
     applyGradients(variableGradients) {
         tf.tidy(() => {
             const varNames = Array.isArray(variableGradients)
@@ -30,6 +31,10 @@ class AdamW extends tf.AdamOptimizer {
 
             super.applyGradients(variableGradients)
         })
+    }
+
+    static get className() {
+        return 'AdamW'
     }
 }
 
@@ -194,6 +199,10 @@ class Prodigy extends tf.SGDOptimizer {
             epsilon: this.epsilon
         }
     }
+
+    static get className() {
+        return 'Prodigy'
+    }
 }
 
 class Lion extends tf.SGDOptimizer {
@@ -305,6 +314,10 @@ class Lion extends tf.SGDOptimizer {
         tf.dispose(expGradNorm)
 
         return sGrad
+    }
+
+    static get className() {
+        return 'Lion'
     }
 }
 

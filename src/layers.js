@@ -496,15 +496,6 @@ class CapsNet extends LayerBase {
         })
         this.layernorm.build(inputShape)
 
-        // Collect all trainable weights from internal layers
-        // this._trainableWeights = [
-        //     ...this.inProj.trainableWeights,
-        //     ...this.primaryCaps.trainableWeights,
-        //     ...this.digitCaps.trainableWeights,
-        //     ...this.outProj.trainableWeights,
-        //     ...this.layernorm.trainableWeights
-        // ]
-
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
 
