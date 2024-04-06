@@ -7,10 +7,10 @@ import OpportunisticDialogueEncoder from './model.v4.js'
 export default class OrthogonalDecayedExponent extends OpportunisticDialogueEncoder {
     constructor(config) {
         super(config)
-        this.layers = 6
-        this.units = 512
+        this.layers = 4
+        this.units = 256
         this.innerDim = this.units * 4
-        this.chunkSize = 8
+        this.chunkSize = 4
         this.epsilon = 1e-5
     }
 

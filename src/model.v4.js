@@ -49,7 +49,6 @@ export default class OpportunisticDialogueEncoder extends OriginalDecoderEngine 
                     blockSize: this.config.contextLength,
                     heads: this.heads,
                     epsilon: this.epsilon,
-                    activation: this.tf.leakyRelu,
                     alpha: this.alpha
                 })
                 .apply(outputs)

@@ -390,7 +390,7 @@ class MultiHeadAttention extends LayerBase {
 
 class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `mlp-${randomString()}` })
+        super({ name: `mlp-${randomString()}`, ...config })
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
@@ -429,11 +429,11 @@ class MultiLayerPerceptron extends LayerBase {
         this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
-        this._trainableWeights = [
-            ...this.inProj.trainableWeights,
-            ...this.outProj.trainableWeights,
-            ...this.layernorm.trainableWeights
-        ]
+        // this._trainableWeights = [
+        //     ...this.inProj.trainableWeights,
+        //     ...this.outProj.trainableWeights,
+        //     ...this.layernorm.trainableWeights
+        // ]
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
@@ -481,7 +481,7 @@ class MultiLayerPerceptron extends LayerBase {
 
 class GatedLinearUnit extends MultiLayerPerceptron {
     constructor(config) {
-        super({ ...config, name: `glu-${randomString()}` })
+        super({ name: `glu-${randomString()}`, ...config })
     }
 
     build(inputShape) {
@@ -514,12 +514,12 @@ class GatedLinearUnit extends MultiLayerPerceptron {
         this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
-        this._trainableWeights = [
-            ...this.inProj.trainableWeights,
-            ...this.gateProj.trainableWeights,
-            ...this.outProj.trainableWeights,
-            ...this.layernorm.trainableWeights
-        ]
+        // this._trainableWeights = [
+        //     ...this.inProj.trainableWeights,
+        //     ...this.gateProj.trainableWeights,
+        //     ...this.outProj.trainableWeights,
+        //     ...this.layernorm.trainableWeights
+        // ]
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
@@ -552,15 +552,16 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     }
 }
 
-class CapNet extends LayerBase {
+class CapsNet extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `encap-mlp-${randomString()}` })
+        super({ name: `cap-${randomString()}`, ...config })
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
         this.epsilon = config?.epsilon || 1e-5
         this.numCapsules = config?.numCapsules || 8
         this.capsuleDim = config?.capsuleDim || 16
+        this.routingIterations = config?.routingIterations || 3
         if (config?.activation === 'gelu') {
             this.customActivation = new GELU()
             this.activation = 'linear'
@@ -592,7 +593,7 @@ class CapNet extends LayerBase {
         this.digitCaps = new DigitCaps({
             numCapsules: this.numCapsules,
             capsuleDim: this.capsuleDim,
-            routingIterations: 3
+            routingIterations: this.routingIterations
         })
 
         // Manually call build on layers to initialize weights
@@ -608,13 +609,13 @@ class CapNet extends LayerBase {
         this.layernorm.build(inputShape)
 
         // Collect all trainable weights from internal layers
-        this._trainableWeights = [
-            ...this.inProj.trainableWeights,
-            ...this.primaryCaps.trainableWeights,
-            ...this.digitCaps.trainableWeights,
-            ...this.outProj.trainableWeights,
-            ...this.layernorm.trainableWeights
-        ]
+        // this._trainableWeights = [
+        //     ...this.inProj.trainableWeights,
+        //     ...this.primaryCaps.trainableWeights,
+        //     ...this.digitCaps.trainableWeights,
+        //     ...this.outProj.trainableWeights,
+        //     ...this.layernorm.trainableWeights
+        // ]
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
@@ -672,13 +673,13 @@ class CapNet extends LayerBase {
     }
 
     static get className() {
-        return 'CapNet'
+        return 'CapsNet'
     }
 }
 
 class DigitCaps extends tf.layers.Layer {
     constructor(config) {
-        super(config)
+        super({ name: `dcap-${randomString()}`, ...config })
         this.numCapsules = config.numCapsules
         this.capsuleDim = config.capsuleDim
         this.routingIterations = config.routingIterations || 3
@@ -686,7 +687,7 @@ class DigitCaps extends tf.layers.Layer {
 
     build(inputShape) {
         this.W = this.addWeight(
-            'capsule_weights',
+            'capsules',
             [
                 1,
                 inputShape[1],
@@ -827,6 +828,63 @@ class DynamicRouting extends LayerBase {
 
     static get className() {
         return 'DynamicRouting'
+    }
+}
+
+class MixtureOfDepthsRouting extends LayerBase {
+    constructor(config) {
+        super({ ...config, name: `mod-${randomString()}` })
+        this.k = config.k
+        this.units = config.units
+    }
+
+    build(inputShape) {
+        this.routingWeights = this.addWeight(
+            'routingWeights',
+            [inputShape[inputShape.length - 1], 1],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const batchSize = inputs.shape[0]
+            const seqLength = inputs.shape[1]
+
+            const scores = tf.matMul(inputs, this.routingWeights.read())
+            const reshapedScores = tf.reshape(scores, [batchSize, seqLength])
+            const topkIndices = tf.topk(reshapedScores, this.k).indices
+
+            const batchIndices = tf
+                .range(0, batchSize)
+                .expandDims(1)
+                .tile([1, this.k])
+                .cast('int32')
+            const indices = tf.stack(
+                [batchIndices.flatten(), topkIndices.flatten()],
+                1
+            )
+
+            const selectedTokens = tf
+                .gather(inputs.reshape([batchSize * seqLength, -1]), indices)
+                .reshape([batchSize, this.k, -1])
+
+            return selectedTokens
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            k: this.k,
+            units: this.units
+        }
+    }
+
+    static get className() {
+        return 'MixtureOfDepthsRouting'
     }
 }
 
@@ -1394,13 +1452,13 @@ class LambdaLayer extends LayerBase {
 // https://github.com/iafarhan/causal-synthesizer-multihead-attention/blob/main/synthesizer.py
 class SynthesizerAttention extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `syn-${randomString()}` })
+        super({ name: `syn-${randomString()}`, ...config })
         this.units = config.units
         this.heads = config.heads
         this.blockSize = config.blockSize
         this.attnPdrop = config.dropout || 0.0
         this.residPdrop = config.dropout || 0.0
-        this.activation = config.activation || tf.relu
+        this.activation = tf.leakyRelu
         this.epsilon = config.epsilon || 1e-5
         this.alpha = config.alpha || 1
         this.depth = this.units / this.heads
@@ -1408,37 +1466,38 @@ class SynthesizerAttention extends LayerBase {
 
     build(inputShape) {
         this.w1 = this.addWeight(
-            `w1-${randomString()}`,
+            `w1`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.w2 = this.addWeight(
-            `w2-${randomString()}`,
+            `w2`,
             [this.units / this.heads, this.blockSize],
             'float32',
             tf.initializers.zeros()
         )
         this.b2 = this.addWeight(
-            `b2-${randomString()}`,
+            `b2`,
             [this.blockSize],
             'float32',
             tf.initializers.zeros()
         )
         this.value = this.addWeight(
-            `value-${randomString()}`,
+            `value`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.proj = this.addWeight(
-            `proj-${randomString()}`,
+            `proj`,
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
 
         this.layernorm = tf.layers.layerNormalization({
+            name: `norm`,
             epsilon: this.epsilon
         })
         this.layernorm.build(inputShape)
@@ -1552,7 +1611,10 @@ class SynthesizerAttention extends LayerBase {
             heads: this.heads,
             blockSize: this.blockSize,
             attnPdrop: this.dropout,
-            residPdrop: this.dropout
+            residPdrop: this.dropout,
+            epsilon: this.epsilon,
+            alpha: this.alpha,
+            depth: this.depth
         })
         return config
     }
@@ -2758,12 +2820,6 @@ class StructuredStateSpace extends tf.layers.Layer {
             'float32',
             tf.initializers.orthogonal({ gain: 1 })
         )
-        this.attentionKernel = this.addWeight(
-            'attentionKernel',
-            [this.units, this.units],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
         this.outputKernel = this.addWeight(
             'outputKernel',
             [this.innerDim, this.units],
@@ -2818,21 +2874,10 @@ class StructuredStateSpace extends tf.layers.Layer {
                     )
                     .reshape([batchSize * chunkLength, inputDim])
 
-                const attentionScores = tf.softmax(
-                    tf.matMul(inputChunk, this.attentionKernel.read())
-                )
-
-                const stableAttentionScores = tf.add(attentionScores, 1e-8)
-
-                const attendedInputChunk = tf.mul(
-                    inputChunk,
-                    stableAttentionScores
-                )
-
                 const innerStateChunk = tf.tanh(
                     tf.add(
                         tf.add(
-                            tf.matMul(attendedInputChunk, kernel),
+                            tf.matMul(inputChunk, kernel),
                             tf.matMul(
                                 tf.tile(state, [chunkLength, 1]),
                                 recurrentKernel
@@ -2895,7 +2940,7 @@ const exportedLayers = [
     ConvolutionalExpansionLayer,
     DebugLayer,
     DumbCompression,
-    CapNet,
+    CapsNet,
     LazyMixtureOfExperts,
     ChunkedStateSpace,
     GatedLinearUnit,
@@ -2903,6 +2948,7 @@ const exportedLayers = [
     HyperMixer,
     LambdaLayer,
     LearnedUpsampling,
+    MixtureOfDepthsRouting,
     MultiHeadAttention,
     MultiLayerPerceptron,
     NearestNeighborUpsampling,
