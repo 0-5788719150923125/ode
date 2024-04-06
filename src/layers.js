@@ -276,118 +276,6 @@ class SinusoidalPositionalEncoding extends LayerBase {
     }
 }
 
-class MultiHeadAttention extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.heads = config.heads
-        this.units = config.units
-        this.epsilon = config.epsilon || 1e-5
-        this.depth = this.units / this.heads
-        this.useCausalMask = config.useCausalMask || true
-    }
-
-    build(inputShape) {
-        this.queryDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform'
-        })
-        this.queryDense.build(inputShape)
-        this._trainableWeights.push(...this.queryDense.trainableWeights)
-
-        this.keyDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform'
-        })
-        this.keyDense.build(inputShape)
-        this._trainableWeights.push(...this.keyDense.trainableWeights)
-
-        this.valueDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform'
-        })
-        this.valueDense.build(inputShape)
-        this._trainableWeights.push(...this.valueDense.trainableWeights)
-
-        this.outputDense = tf.layers.dense({
-            units: this.units,
-            kernelInitializer: 'glorotUniform'
-        })
-        this.outputDense.build(inputShape)
-        this._trainableWeights.push(...this.outputDense.trainableWeights)
-
-        this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
-        this.layerNorm.build(inputShape)
-        this._trainableWeights.push(...this.layerNorm.trainableWeights)
-
-        super.build(inputShape)
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const training = kwargs['training'] || false
-            let q = this.queryDense.apply(inputs)
-            let k = this.keyDense.apply(inputs)
-            let v = this.valueDense.apply(inputs)
-
-            let batchSize = inputs.shape[0]
-            let seqLength = inputs.shape[1]
-            q = tf
-                .reshape(q, [batchSize, -1, this.heads, this.depth])
-                .transpose([0, 2, 1, 3])
-            k = tf
-                .reshape(k, [batchSize, -1, this.heads, this.depth])
-                .transpose([0, 2, 3, 1])
-            v = tf
-                .reshape(v, [batchSize, -1, this.heads, this.depth])
-                .transpose([0, 2, 1, 3])
-
-            let attentionScores = tf
-                .matMul(q, k)
-                .div(tf.sqrt(tf.scalar(this.depth)))
-
-            if (this.useCausalMask) {
-                const causalMask = tf.linalg
-                    .bandPart(tf.ones([seqLength, seqLength]), -1, 0)
-                    .expandDims(0)
-                    .expandDims(1)
-                attentionScores = tf.where(
-                    tf.equal(causalMask, 1),
-                    attentionScores,
-                    tf.fill(attentionScores.shape, -1e9)
-                )
-            }
-
-            let attentionWeights = tf.softmax(attentionScores, -1)
-            if (training) {
-                // Apply dropout to attentionWeights if training is true
-            }
-            let attentionOutput = tf
-                .matMul(attentionWeights, v)
-                .transpose([0, 2, 1, 3])
-                .reshape([batchSize, -1, this.units])
-
-            let output = this.outputDense.apply(attentionOutput)
-            output = tf.add(output, inputs) // Apply residual connection
-
-            return this.layerNorm.apply(output)
-        })
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            heads: this.heads,
-            units: this.units,
-            useCausalMask: this.useCausalMask
-        }
-    }
-
-    static get className() {
-        return 'MultiHeadAttention'
-    }
-}
-
 class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
         super({ name: `mlp-${randomString()}`, ...config })
@@ -753,87 +641,9 @@ class DigitCaps extends tf.layers.Layer {
     }
 }
 
-class DynamicRouting extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.numCapsules = config.numCapsules
-        this.dimensions = config.dimensions
-        // Assuming 'dimensions' represents the size of the output vectors from capsules
-    }
-
-    build(inputShape) {
-        // Simplified routing weights
-        this.routingWeights = this.addWeight(
-            'routingWeights',
-            [
-                this.numCapsules,
-                this.dimensions,
-                inputShape[inputShape.length - 1]
-            ],
-            'float32',
-            tf.initializers.randomNormal({ stddev: 0.1 })
-        )
-        super.build(inputShape)
-    }
-
-    // Assuming inputs have a shape of [batch_size, units, innerDim]
-    // and you wish to apply dynamic routing in a manner that involves smaller subnetworks or "capsules"
-
-    // First, ensure that your routing weights are initialized to match the operation.
-    // If your operation needs to be [batch_size, units*innerDim] @ [units*innerDim, some_dimension],
-    // then you must reshape or partition your inputs or weights accordingly.
-
-    // Here's a conceptual adjustment focusing on smaller, manageable parts of the dynamic layer:
-    call(inputs) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        // Flatten inputs to 2D for matMul compatibility, preserving batch information.
-        const batch_size = inputs.shape[0]
-        const flattenedInputs = tf.reshape(inputs, [batch_size, -1]) // Now [batch_size, units*innerDim]
-
-        // Instead of one massive weight, consider having smaller "capsule" weights
-        // For illustration, let's say we break it down into several smaller matrices
-        // Adjust the number of capsules and the dimensionality as needed
-        const numCapsules = this.numCapsules // e.g., much smaller like 10 or 20
-        const capsuleDimension = this.dimensions // Adjust based on what each capsule should output
-
-        // Initialize smaller capsule weights as part of the build process or here if dynamic
-        // Let's simplify and not show the initialization here for brevity
-
-        // Example loop over smaller capsule weights (assuming they are stored in an array this.capsuleWeights)
-        let capsuleOutputs = []
-        for (let i = 0; i < numCapsules; i++) {
-            let capsuleWeight = this.capsuleWeights[i] // Each with shape [units*innerDim/numCapsules, capsuleDimension]
-            let output = tf.matMul(flattenedInputs, capsuleWeight) // Outputs for each capsule
-            capsuleOutputs.push(output)
-        }
-
-        // Assuming you want to concatenate or somehow aggregate these outputs
-        let concatenatedOutputs = tf.concat(capsuleOutputs, 1) // Adjust axis as needed
-        // Now reshape or process concatenatedOutputs as needed to fit the next layer
-
-        return concatenatedOutputs // This needs to be reshaped or adjusted to match your model's expectations
-    }
-
-    computeOutputShape(inputShape) {
-        return [inputShape[0], this.numCapsules, this.dimensions]
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numCapsules: this.numCapsules,
-            dimensions: this.dimensions
-        }
-    }
-
-    static get className() {
-        return 'DynamicRouting'
-    }
-}
-
 class MixtureOfDepthsRouting extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `mod-${randomString()}` })
+        super({ name: `mod-${randomString()}`, ...config })
         this.k = config.k
         this.units = config.units
     }
@@ -888,37 +698,9 @@ class MixtureOfDepthsRouting extends LayerBase {
     }
 }
 
-class PassthroughLayer extends LayerBase {
-    constructor(config) {
-        super({ ...config, name: `pass-${randomString()}` })
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            console.log(inputs)
-            return inputs
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig()
-        }
-    }
-
-    static get className() {
-        return 'PassthroughLayer'
-    }
-}
-
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `moe-${randomString()}` })
+        super({ name: `moe-${randomString()}`, ...config })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 128
         this.experts = config.experts
@@ -1078,7 +860,7 @@ class SparseMixtureOfExperts extends LayerBase {
 
 class LazyMixtureOfExperts extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `lmoe-${randomString()}` })
+        super({ name: `lmoe-${randomString()}`, ...config })
         this.numRoutingIterations = config.numRoutingIterations || 3
         this.topK = config.topK || 2
         this.experts = config.experts
@@ -1206,7 +988,7 @@ class LazyMixtureOfExperts extends LayerBase {
 
 class ControlGate extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `gate-${randomString()}` })
+        super({ name: `gate-${randomString()}`, ...config })
         this.units = config.units || 64
         this.experts = config.experts // Array of expert layers
         this.numExperts = this.experts.length
@@ -1316,96 +1098,6 @@ class ResidualConnection extends LayerBase {
     static get className() {
         return 'ResidualConnection'
     }
-}
-
-class GaussianMixtureModel extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.numExperts = 4
-        this.hiddenSize = 256 // Assuming this is the desired hidden layer size.
-        this.temperature = config.temperature || 1.0
-
-        // Initialize weights
-        this.wGate = tf.variable(
-            tf.randomNormal([this.hiddenSize, this.numExperts])
-        )
-        this.expertCentroids = tf.variable(
-            tf.randomNormal([this.numExperts, this.hiddenSize])
-        )
-    }
-
-    call(inputs) {
-        inputs = Array.isArray(inputs) ? inputs[0] : inputs
-        const batchSize = inputs.shape[0]
-        const flattenedInput = inputs.reshape([batchSize, -1])
-
-        console.log(`flattenedInput shape: ${flattenedInput.shape}`)
-
-        // Dynamically calculate input dimension
-        const inputDim = flattenedInput.shape[1]
-
-        // Assuming the input needs to be projected to match the hiddenSize
-        const projectionMatrix = tf.variable(
-            tf.randomNormal([inputDim, this.hiddenSize])
-        )
-        const projectedInput = flattenedInput.matMul(projectionMatrix)
-
-        console.log(`projectedInput shape: ${projectedInput.shape}`)
-
-        // Linear transformation with wGate
-        const z = projectedInput.matMul(this.wGate)
-
-        console.log(`z shape: ${z.shape}`)
-
-        // Calculate log posterior probabilities
-        const logits = logGmmPosterior(
-            z,
-            this.expertCentroids,
-            this.temperature
-        )
-
-        // Example adjustment at the end of the GMM layer's call method
-        return logits.reshape([batchSize, -1]) // Adjust this line based on the actual expected shape
-    }
-
-    computeOutputShape(inputShape) {
-        // Output shape: batch_size x num_experts
-        return [inputShape[0], this.numExperts]
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            hiddenSize: this.hiddenSize,
-            temperature: this.temperature
-        }
-    }
-
-    static get className() {
-        return 'GaussianMixtureModel'
-    }
-}
-
-function logGmmPosterior(z, expertCentroids, temperature) {
-    // Assuming the need to compare z (shape: [2, 4]) with centroids ([4, 256]) requires adjustment.
-    // This example will adjust the operation to a more plausible comparison, given the shapes:
-    // Direct multiplication isn't compatible due to the shape mismatch, suggesting a different approach is needed.
-
-    // If expertCentroids were intended to be [numExperts, hiddenSize] = [4, 256],
-    // and we need to operate on z ([batchSize, numExperts] = [2, 4]),
-    // a valid operation might be to reshape or align dimensions for comparison differently.
-
-    // Here's a placeholder operation for demonstration, adjust according to your specific logic:
-    const reshapedCentroids = expertCentroids.reshape([1, 4, 256]) // Example reshape, adjust as needed.
-    const expandedZ = z.expandDims(2) // Expanding z for broadcasting, adjust logic as needed.
-    // Placeholder for intended comparison logic, e.g., calculating distances or similarities.
-
-    // Assuming a simpler operation for demonstration:
-    const similarity = expandedZ.mul(reshapedCentroids) // Example, adjust to match your intended logic.
-
-    // Apply temperature scaling to the result of your actual comparison logic
-    return similarity.mul(temperature)
 }
 
 // Originally adapted from:
@@ -1624,177 +1316,6 @@ class SynthesizerAttention extends LayerBase {
     }
 }
 
-class TransformerXLAttention extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.units = config.units
-        this.heads = config.heads
-        this.dropout = config.dropout || 0.0
-        this.epsilon = config.epsilon || 1e-6
-        this.queryDim = this.units / this.heads
-        this.memoryLength = config.memoryLength || 0
-    }
-
-    build(inputShape) {
-        const queryDim = this.units / this.heads
-        const valueDim = queryDim
-
-        this.queryDense = tf.layers.dense({
-            units: this.units,
-            activation: 'linear',
-            kernelInitializer: 'glorotNormal'
-        })
-        this.keyDense = tf.layers.dense({
-            units: this.units,
-            activation: 'linear',
-            kernelInitializer: 'glorotNormal'
-        })
-        this.valueDense = tf.layers.dense({
-            units: this.units,
-            activation: 'linear',
-            kernelInitializer: 'glorotNormal'
-        })
-        this.relativePositionEmbedding = this.addWeight(
-            'relativePositionEmbedding',
-            [this.heads, this.memoryLength + inputShape[1], queryDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-
-        this.dropout = tf.layers.dropout({ rate: this.dropout })
-        this.outputDense = tf.layers.dense({
-            units: this.units,
-            activation: 'linear',
-            kernelInitializer: 'glorotNormal'
-        })
-
-        this.layerNormalization = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-        this.layerNormalization.build(inputShape)
-    }
-
-    splitHeads(x, batchSize, numHeads, seqLength, depth) {
-        const reshaped = tf.reshape(x, [batchSize, seqLength, numHeads, depth])
-        return tf.transpose(reshaped, [0, 2, 1, 3])
-    }
-
-    relativePositionalEncoding(x) {
-        const [batchSize, numHeads, seqLength, depth] = x.shape
-        const positionEncodings = this.relativePositionEmbedding.read()
-        const slicedPositionEncodings = positionEncodings.slice(
-            [0, tf.backend().read(this.memoryLength), 0],
-            [numHeads, seqLength, depth]
-        )
-        return slicedPositionEncodings
-    }
-
-    call(inputs, kwargs) {
-        const x = inputs
-        const [batchSize, seqLength, depth] = x.shape
-        const recentMemory = kwargs['recentMemory'] || null
-
-        const q = this.queryDense.apply(x)
-        const k = this.keyDense.apply(x)
-        const v = this.valueDense.apply(x)
-
-        const queryHeads = this.splitHeads(
-            q,
-            batchSize,
-            this.heads,
-            seqLength,
-            this.queryDim
-        )
-        const keyHeads = this.splitHeads(
-            k,
-            batchSize,
-            this.heads,
-            seqLength,
-            this.queryDim
-        )
-        const valueHeads = this.splitHeads(
-            v,
-            batchSize,
-            this.heads,
-            seqLength,
-            this.queryDim
-        )
-
-        let attention
-        if (recentMemory === null) {
-            const relativePositionEncodings =
-                this.relativePositionalEncoding(queryHeads)
-            const positionWeights = tf.einsum(
-                'bhqd,bhkd->bhqk',
-                queryHeads,
-                relativePositionEncodings
-            )
-            const contentWeights = tf.einsum(
-                'bhqd,bhkd->bhqk',
-                queryHeads,
-                keyHeads
-            )
-            const weights = tf.add(contentWeights, positionWeights)
-            attention = tf.softmax(weights, -1)
-        } else {
-            const combinedKeys = tf.concat([recentMemory.keys, keyHeads], 2)
-            const combinedValues = tf.concat(
-                [recentMemory.values, valueHeads],
-                2
-            )
-            const relativePositionEncodings =
-                this.relativePositionalEncoding(queryHeads)
-            const positionWeights = tf.einsum(
-                'bhqd,bhkd->bhqk',
-                queryHeads,
-                relativePositionEncodings
-            )
-            const contentWeights = tf.einsum(
-                'bhqd,bhkd->bhqk',
-                queryHeads,
-                combinedKeys
-            )
-            const weights = tf.add(contentWeights, positionWeights)
-            attention = tf.softmax(weights, -1)
-        }
-
-        attention = this.dropout.apply(attention)
-        let attended
-        if (recentMemory === null) {
-            attended = tf.einsum('bhqk,bhkd->bhqd', attention, valueHeads)
-        } else {
-            attended = tf.einsum('bhqk,bhkd->bhqd', attention, combinedValues)
-        }
-        attended = tf.transpose(attended, [0, 2, 1, 3])
-        attended = tf.reshape(attended, [batchSize, seqLength, this.units])
-
-        const output = this.outputDense.apply(attended)
-        const normalizedOutput = this.layerNormalization.apply(output)
-
-        return normalizedOutput
-    }
-
-    computeOutputShape(inputShape) {
-        return [inputShape[0], inputShape[1], this.units]
-    }
-
-    getConfig() {
-        const config = super.getConfig()
-        Object.assign(config, {
-            units: this.units,
-            heads: this.heads,
-            dropout: this.dropout,
-            epsilon: this.epsilon,
-            memoryLength: this.memoryLength
-        })
-        return config
-    }
-
-    static get className() {
-        return 'TransformerXLAttention'
-    }
-}
-
 class Antirectifier extends LayerBase {
     constructor() {
         super({})
@@ -1855,7 +1376,7 @@ class Antirectifier extends LayerBase {
 
 class RotaryPositionalEncoding extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `rot-${randomString()}` })
+        super({ name: `rot-${randomString()}`, ...config })
         this.units = config.units
         this.blockSize = config.blockSize
         this.posEncoding = null
@@ -1962,7 +1483,7 @@ class RotaryPositionalEncoding extends LayerBase {
 
 class CompressorHead extends LayerBase {
     constructor(config) {
-        super({ ...config, name: `compressor-${randomString()}` })
+        super({ name: `compressor-${randomString()}`, ...config })
         this.operations = config.operations || 3
         this.compressionFactor = config.compressionFactor || 2
         this.epsilon = config.epsilon || 1e-8
@@ -2483,71 +2004,9 @@ class LearnedUpsampling extends LayerBase {
     }
 }
 
-// https://arxiv.org/abs/2203.03691
-class HyperMixer extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.units = config.units
-    }
-
-    build(inputShape) {
-        // Assuming inputShape is [batchSize, numTokens, featureSize]
-        const featureSize = inputShape[2]
-
-        // Hypernetwork that generates weights for the main MLP dynamically
-        // This can be a simple MLP itself or something more sophisticated
-        this.dynamicWeightGenerator = tf.layers.dense({
-            units: this.units * featureSize,
-            activation: 'linear', // Or consider other activation functions
-            useBias: true // Depending on whether you want biases in the weight generator
-        })
-
-        // Main MLP weights and bias, initialized here but will be generated dynamically
-        // Note: These are placeholders; actual dynamic weights are generated per input
-        this.kernel = tf.zeros([featureSize, this.units])
-        this.bias = tf.zeros([this.units])
-
-        super.build(inputShape) // Must call super.build() at the end
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Generate dynamic weights and biases from the input
-            const weightBiasVector = this.dynamicWeightGenerator.apply(inputs)
-            const dynamicWeights = weightBiasVector
-                .slice([0, 0], [-1, this.units * inputs.shape[2]])
-                .reshape([-1, inputs.shape[2], this.units])
-            const dynamicBiases = weightBiasVector
-                .slice([0, this.units * inputs.shape[2]], [-1, this.units])
-                .reshape([-1, this.units])
-
-            // Apply the dynamically generated weights and biases
-            const output = tf.dot(inputs, dynamicWeights).add(dynamicBiases)
-            return output
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        // Output shape changes to [batchSize, numTokens, this.units]
-        return [inputShape[0], inputShape[1], this.units]
-    }
-
-    getConfig() {
-        const config = super.getConfig()
-        config.units = this.units
-        return config
-    }
-
-    static get className() {
-        return 'HyperMixer'
-    }
-}
-
 class StateSpace extends tf.layers.Layer {
     constructor(config) {
-        super({ ...config, name: `ssm-${randomString()}` })
+        super({ name: `ssm-${randomString()}`, ...config })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
@@ -2659,7 +2118,7 @@ class StateSpace extends tf.layers.Layer {
 
 class ChunkedStateSpace extends tf.layers.Layer {
     constructor(config) {
-        super({ ...config, name: `ssm-${randomString()}` })
+        super({ name: `ssm-${randomString()}`, ...config })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
@@ -2798,7 +2257,7 @@ class ChunkedStateSpace extends tf.layers.Layer {
 
 class StructuredStateSpace extends tf.layers.Layer {
     constructor(config) {
-        super({ ...config, name: `ssm-${randomString()}` })
+        super({ name: `sss-${randomString()}`, ...config })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
@@ -2944,15 +2403,11 @@ const exportedLayers = [
     LazyMixtureOfExperts,
     ChunkedStateSpace,
     GatedLinearUnit,
-    GaussianMixtureModel,
-    HyperMixer,
     LambdaLayer,
     LearnedUpsampling,
     MixtureOfDepthsRouting,
-    MultiHeadAttention,
     MultiLayerPerceptron,
     NearestNeighborUpsampling,
-    PassthroughLayer,
     Range,
     ResidualConnection,
     RotaryPositionalEncoding,
@@ -2961,8 +2416,7 @@ const exportedLayers = [
     SparseMixtureOfExperts,
     StateSpace,
     StructuredStateSpace,
-    SynthesizerAttention,
-    TransformerXLAttention
+    SynthesizerAttention
 ]
 
 exportedLayers.forEach((LayerClass) => {
