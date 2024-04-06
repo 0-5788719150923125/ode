@@ -11,7 +11,7 @@ export default class OrthogonalDecayedExponent extends OpportunisticDialogueEnco
         this.units = 512
         this.innerDim = this.units * 4
         this.chunkSize = 8
-        this.epsilon = 1e-6
+        this.epsilon = 1e-5
     }
 
     defineBuild() {

@@ -2777,12 +2777,12 @@ class StructuredStateSpace extends tf.layers.Layer {
             tf.initializers.zeros()
         )
 
-        // this.layernorm = tf.layers.layerNormalization({
-        //     epsilon: this.epsilon
-        // })
-        // this.layernorm.build(inputShape)
+        this.layernorm = tf.layers.layerNormalization({
+            epsilon: this.epsilon
+        })
+        this.layernorm.build(inputShape)
 
-        // this._trainableWeights.push(...this.layernorm.trainableWeights)
+        this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
     }
@@ -2829,10 +2829,7 @@ class StructuredStateSpace extends tf.layers.Layer {
                     stableAttentionScores
                 )
 
-                // let activation = tf.tanh
-                // if (c % 2 !== 0) activation = tf.selu
-
-                const innerStateChunk = tf.selu(
+                const innerStateChunk = tf.tanh(
                     tf.add(
                         tf.add(
                             tf.matMul(attendedInputChunk, kernel),
@@ -2861,7 +2858,7 @@ class StructuredStateSpace extends tf.layers.Layer {
                 ? tf.concat(outputs, 1)
                 : outputs[outputs.length - 1]
 
-            // output = this.layernorm.apply(output)
+            output = this.layernorm.apply(output)
 
             return this.residual.apply([inputs, output])
         })
