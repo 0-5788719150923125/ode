@@ -17,26 +17,33 @@ const options = {
     debug: false
 }
 
-// Get the command-line arguments
-const args = process.argv.slice(2)
+// If running in Node.js
+if (process) {
+    // Get the command-line arguments
+    const args = process.argv.slice(2)
 
-// Parse the named arguments
-for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith('--')) {
-        const key = args[i].slice(2)
-        const value = args[i + 1]
+    // Parse the named arguments
+    for (let i = 0; i < args.length; i++) {
+        if (args[i].startsWith('--')) {
+            const key = args[i].slice(2)
+            const value = args[i + 1]
 
-        // Check if the value is a number
-        if (/^\d+$/.test(value)) {
-            options[key] = parseInt(value, 10)
-        } else if (/^\d+\.\d+$/.test(value)) {
-            options[key] = parseFloat(value)
-        } else {
-            options[key] = value
+            // Check if the value is a number
+            if (/^\d+$/.test(value)) {
+                options[key] = parseInt(value, 10)
+            } else if (/^\d+\.\d+$/.test(value)) {
+                options[key] = parseFloat(value)
+            } else {
+                options[key] = value
+            }
+
+            i++
         }
-
-        i++
     }
+}
+// If running in the browser
+else {
+    options.backend = 'cpu'
 }
 
 // Load the model and do things with it
@@ -48,7 +55,7 @@ async function orchestrate(options) {
     })
 
     let corpus
-    if (options?.corpus) {
+    if (options.corpus) {
         console.log('nope')
         const gun = net.ode.samplers.gunSampler()
         await gun.init()
@@ -56,7 +63,7 @@ async function orchestrate(options) {
         corpus = await gun.getDataset('custom')
     }
 
-    if (['continue', 'infer'].includes(options.mode)) {
+    if (['infer', 'continue'].includes(options.mode)) {
         await net.load()
     } else {
         await net.init()

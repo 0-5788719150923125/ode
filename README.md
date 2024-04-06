@@ -4,7 +4,7 @@ omniscient deterministic engine
 
 # usage
 
-See: [dev.js](./dev.js)
+See: [cli.js](./cli.js)
 
 # serial experiments
 
