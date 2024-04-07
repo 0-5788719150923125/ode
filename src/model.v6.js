@@ -4,7 +4,7 @@ import ODE from './model.v3.js'
  * An experimental language model.
  * @extends ODE
  */
-export default class OscillatingDecayedExponent extends ODE {
+export default class OscilloscopingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 23
@@ -24,34 +24,40 @@ export default class OscillatingDecayedExponent extends ODE {
             shape: [null]
         })
 
-        const tokenEmbeddings = this.ode.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform'
-            })
-            .apply(inputs)
-
         // const tokenEmbeddings = this.ode.layers
-        //     .DeterministicEmbedding({
+        //     .embedding({
         //         inputDim: this.tokenizer.getLength(),
-        //         outputDim: this.units
+        //         outputDim: this.units,
+        //         embeddingsInitializer: 'glorotUniform'
         //     })
         //     .apply(inputs)
 
-        const range = this.ode.layers.Range().apply(inputs)
+        // const range = this.ode.layers.Range().apply(inputs)
 
-        const positionalEmbeddings = this.ode.layers
-            .embedding({
-                inputDim: this.config.contextLength,
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotNormal'
+        // const positionalEmbeddings = this.ode.layers
+        //     .embedding({
+        //         inputDim: this.config.contextLength,
+        //         outputDim: this.units,
+        //         embeddingsInitializer: 'glorotNormal'
+        //     })
+        //     .apply(range)
+
+        // let outputs = this.tf.layers
+        //     .add()
+        //     .apply([tokenEmbeddings, positionalEmbeddings])
+
+        const tokenEmbeddings = this.ode.layers
+            .DeterministicEmbedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.units
             })
-            .apply(range)
+            .apply(inputs)
 
-        let outputs = this.tf.layers
-            .add()
-            .apply([tokenEmbeddings, positionalEmbeddings])
+        let outputs = this.ode.layers
+            .SinusoidalPositionalEncoding({
+                units: this.units
+            })
+            .apply(tokenEmbeddings)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

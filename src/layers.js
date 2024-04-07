@@ -230,7 +230,7 @@ class CausalSelfAttention extends LayerBase {
 
 class SinusoidalPositionalEncoding extends LayerBase {
     constructor({ units, reverse = false }) {
-        super()
+        super({ name: `enc-${randomString()}`, ...config })
         this.units = units // Dimensionality of the positional encoding
         this.reverse = reverse // Flag to toggle the order of sine and cosine
     }
@@ -239,8 +239,10 @@ class SinusoidalPositionalEncoding extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
+            const range = customLayers.Range().apply(inputs)
+
             // Determine the sequence length from the input shape
-            const seqLength = inputs.shape[1]
+            const seqLength = range.shape[1]
 
             // Compute the positional encodings (2D tensor of shape [seqLength, this.units])
             const positionalEncoding = tf.tensor2d(
@@ -263,7 +265,13 @@ class SinusoidalPositionalEncoding extends LayerBase {
                     })
                 })
             )
-            return positionalEncoding
+
+            // Broadcast the positional encoding to match the shape of the inputs
+            const broadcastedPositionalEncoding = positionalEncoding
+                .expandDims(0)
+                .tile([inputs.shape[0], 1, 1])
+
+            return inputs.add(broadcastedPositionalEncoding)
         })
     }
 
@@ -2540,7 +2548,7 @@ class ToOneHot extends tf.layers.Layer {
 
 class DeterministicEmbedding extends tf.layers.Layer {
     constructor(config) {
-        super(config)
+        super(super({ name: `emb-${randomString()}`, ...config }))
         this.inputDim = config.inputDim
         this.outputDim = config.outputDim
     }
