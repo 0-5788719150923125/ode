@@ -2419,6 +2419,8 @@ class Vectorrent extends LayerBase {
             'float32',
             tf.initializers.glorotUniform()
         )
+
+        this.residual = new ResidualConnection()
     }
 
     computeOutputShape(inputShape) {
@@ -2438,9 +2440,12 @@ class Vectorrent extends LayerBase {
             for (let i = 0; i < this.routingIterations; i++) {
                 const routedOutputs = outputs.matMul(this.router.read())
 
-                const gateValues = tf.tanh(routedOutputs.mul(this.gate.read()))
+                const gateValues = tf.leakyRelu(
+                    routedOutputs.mul(this.gate.read()),
+                    0.666
+                )
 
-                const updatedRoutes = routes.add(routedOutputs.mul(gateValues))
+                const updatedRoutes = routes.add(gateValues)
 
                 routes.assign(tf.selu(updatedRoutes))
 
@@ -2457,7 +2462,7 @@ class Vectorrent extends LayerBase {
 
             tf.dispose([routes])
 
-            return outputs
+            return this.residual.apply([inputs, outputs])
         })
     }
 
@@ -2626,36 +2631,86 @@ class ToOneHot extends tf.layers.Layer {
     }
 }
 
+// class DeterministicEmbedding extends tf.layers.Layer {
+//     constructor(config) {
+//         super({ name: `emb-${randomString()}`, ...config })
+//         this.outputDim = config.outputDim
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape, this.outputDim]
+//     }
+
+//     call(inputs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             const tokenIds = inputs.cast('int32')
+//             const positions = tf
+//                 .range(0, inputs.shape[1])
+//                 .expandDims(0)
+//                 .cast('int32')
+
+//             const tokenEncodings = tf
+//                 .oneHot(tokenIds, this.outputDim)
+//                 .cast('float32')
+//             const positionEncodings = tf
+//                 .oneHot(positions, this.outputDim)
+//                 .cast('float32')
+
+//             const encodings = tokenEncodings.add(positionEncodings)
+//             const normalizedEncodings = encodings.div(
+//                 tf.sqrt(tf.scalar(this.outputDim))
+//             )
+//             normalizedEncodings.print()
+//             return normalizedEncodings
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             outputDim: this.outputDim
+//         }
+//     }
+
+//     static get className() {
+//         return 'DeterministicEmbedding'
+//     }
+// }
+
 class DeterministicEmbedding extends tf.layers.Layer {
     constructor(config) {
         super({ name: `emb-${randomString()}`, ...config })
-        this.inputDim = config.inputDim
         this.outputDim = config.outputDim
-    }
-
-    build(inputShape) {
-        this.embeddings = tf
-            .range(0, this.inputDim)
-            .expandDims(1)
-            .tile([1, this.outputDim])
-        this.built = true
-    }
-
-    call(inputs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            return tf.gather(this.embeddings, inputs.cast('int32'))
-        })
     }
 
     computeOutputShape(inputShape) {
         return [...inputShape, this.outputDim]
     }
 
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const tokenIds = inputs.cast('int32')
+            const positions = tf.range(0, inputs.shape[1]).expandDims(0)
+
+            const tokenEncodings = tf.cast(tokenIds, 'float32').expandDims(-1)
+            const positionEncodings = tf
+                .cast(positions, 'float32')
+                .expandDims(-1)
+
+            const encodings = tokenEncodings.add(positionEncodings)
+            const normalizedEncodings = encodings.div(
+                tf.sqrt(tf.scalar(this.outputDim))
+            )
+            normalizedEncodings.print()
+            return normalizedEncodings
+        })
+    }
+
     getConfig() {
         return {
             ...super.getConfig(),
-            inputDim: this.inputDim,
             outputDim: this.outputDim
         }
     }

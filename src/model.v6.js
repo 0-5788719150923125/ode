@@ -8,7 +8,7 @@ export default class OscillatingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 9
-        this.units = 256
+        this.units = 64
         this.routingIterations = 9
         this.decayRate = 0.9
     }
@@ -24,18 +24,7 @@ export default class OscillatingDecayedExponent extends ODE {
             shape: [null]
         })
 
-        // const embeddings = this.ode.layers.DeterministicEmbedding({
-        //     inputDim: this.tokenizer.getLength(),
-        //     outputDim: this.units
-        // })
-
-        // const encoding = this.ode.layers.SinusoidalPositionalEncoding({
-        //     units: this.units
-        // })
-
-        // let outputs = encoding.apply(embeddings.apply(inputs))
-
-        const tokenEmbeddings = this.ode.layers
+        const embeddings = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
@@ -45,7 +34,7 @@ export default class OscillatingDecayedExponent extends ODE {
 
         const range = this.ode.layers.Range().apply(inputs)
 
-        const positionalEmbeddings = this.ode.layers
+        const encoding = this.ode.layers
             .embedding({
                 inputDim: this.config.contextLength,
                 outputDim: this.units,
@@ -53,9 +42,7 @@ export default class OscillatingDecayedExponent extends ODE {
             })
             .apply(range)
 
-        let outputs = this.ode.layers
-            .add()
-            .apply([tokenEmbeddings, positionalEmbeddings])
+        let outputs = this.ode.layers.add().apply([embeddings, encoding])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
