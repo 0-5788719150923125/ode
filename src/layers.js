@@ -2538,6 +2538,45 @@ class ToOneHot extends tf.layers.Layer {
     }
 }
 
+class DeterministicEmbedding extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.inputDim = config.inputDim
+        this.outputDim = config.outputDim
+    }
+
+    build(inputShape) {
+        this.embeddings = tf
+            .range(0, this.inputDim)
+            .expandDims(1)
+            .tile([1, this.outputDim])
+        this.built = true
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            return tf.gather(this.embeddings, inputs.cast('int32'))
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return [...inputShape, this.outputDim]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            inputDim: this.inputDim,
+            outputDim: this.outputDim
+        }
+    }
+
+    static get className() {
+        return 'DeterministicEmbedding'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -2546,6 +2585,7 @@ const exportedLayers = [
     ControlGate,
     ConvolutionalExpansionLayer,
     DebugLayer,
+    DeterministicEmbedding,
     DumbCompression,
     CapsNet,
     LazyMixtureOfExperts,

@@ -24,20 +24,25 @@ export default class OscillatingDecayedExponent extends ODE {
             shape: [null]
         })
 
-        const tokenEmbeddings = this.tf.layers
+        const tokenEmbeddings = this.ode.layers
             .embedding({
-                name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
+        // const tokenEmbeddings = this.ode.layers
+        //     .DeterministicEmbedding({
+        //         inputDim: this.tokenizer.getLength(),
+        //         outputDim: this.units
+        //     })
+        //     .apply(inputs)
+
         const range = this.ode.layers.Range().apply(inputs)
 
-        const positionalEmbeddings = this.tf.layers
+        const positionalEmbeddings = this.ode.layers
             .embedding({
-                name: 'wpe',
                 inputDim: this.config.contextLength,
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotNormal'
