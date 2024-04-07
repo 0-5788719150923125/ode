@@ -2401,14 +2401,21 @@ class StructuredStateSpace extends tf.layers.Layer {
 class Vectorrent extends LayerBase {
     constructor(config) {
         super({ name: `vec-${randomString()}`, ...config })
-        this.routingIterations = config?.routingIterations || 3
         this.units = config?.units || 64
+        this.maxDecisions = config?.maxDecisions || 3
         this.kernelSize = config?.kernelSize || 3
+        this.toolbox = [
+            'createVariable',
+            'replaceVariable',
+            'updateVariable',
+            'deleteVariable',
+            'shiftVariable'
+        ]
     }
 
     build(inputShape) {
         this.router = this.addWeight(
-            'routingVector',
+            'routingMatrix',
             [inputShape[inputShape.length - 1], this.units],
             'float32',
             tf.initializers.leCunNormal()
@@ -2430,8 +2437,8 @@ class Vectorrent extends LayerBase {
             useBias: false
         })
 
-        const alpha = 0.666
-        this.valve = tf.variable(tf.scalar(alpha))
+        const initialAlpha = 0.666
+        this.valve = tf.variable(tf.scalar(initialAlpha))
 
         this.residual = new ResidualConnection()
     }
@@ -2448,9 +2455,11 @@ class Vectorrent extends LayerBase {
 
             const routes = tf.variable(tf.zerosLike(outputs))
 
-            for (let i = 0; i < this.routingIterations; i++) {
+            for (let i = 0; i < this.maxDecisions; i++) {
                 const convOutputs = this.lens.apply(outputs)
-                const routingLogits = convOutputs.matMul(this.router.read())
+                const routingLogits = convOutputs
+                    .matMul(this.router.read())
+                    .selu()
 
                 this.valve.assign(
                     this.valve
@@ -2460,14 +2469,13 @@ class Vectorrent extends LayerBase {
                         .neg()
                 )
 
+                const alpha = this.valve.dataSync()[0]
                 const gateValues = tf.leakyRelu(
                     routingLogits.mul(this.gate.read()),
-                    this.valve.dataSync()[0]
+                    alpha
                 )
 
-                const updatedRoutes = routes.add(gateValues)
-
-                routes.assign(updatedRoutes)
+                routes.assign(routes.add(gateValues))
 
                 outputs = routes
             }
@@ -2481,8 +2489,8 @@ class Vectorrent extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            routingIterations: this.routingIterations,
             units: this.units,
+            maxDecisions: this.maxDecisions,
             kernelSize: this.kernelSize
         }
     }

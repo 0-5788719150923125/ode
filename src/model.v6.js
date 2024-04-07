@@ -9,8 +9,8 @@ export default class OscillatingDecayedExponent extends ODE {
         super(config)
         this.layers = 9
         this.units = 128
-        this.routingIterations = 9
-        this.kernelSize = 3
+        this.maxDecisions = 9
+        this.kernelSize = 6
     }
 
     async defineTokenizer() {
@@ -47,7 +47,7 @@ export default class OscillatingDecayedExponent extends ODE {
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .Vectorrent({
-                    routingIterations: this.routingIterations,
+                    maxDecisions: this.maxDecisions,
                     kernelSize: this.kernelSize,
                     units: this.units
                 })
