@@ -4,7 +4,7 @@ import ODE from './model.v3.js'
  * An experimental, deterministic language model with next to 0 trainable parameters.
  * @extends ODE
  */
-export default class OscillatingDecayedExponent extends ODE {
+export default class OscilloscopingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 9

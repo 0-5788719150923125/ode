@@ -2684,7 +2684,7 @@ class Vectorrent extends LayerBase {
 //     }
 // }
 
-class CollapseOneHot extends tf.layers.Layer {
+class CollapseOneHot extends LayerBase {
     constructor(config) {
         super(config)
     }
@@ -2705,7 +2705,7 @@ class CollapseOneHot extends tf.layers.Layer {
     }
 }
 
-class ToOneHot extends tf.layers.Layer {
+class ToOneHot extends LayerBase {
     constructor(config) {
         super(config)
         this.depth = config.depth
@@ -2733,7 +2733,7 @@ class ToOneHot extends tf.layers.Layer {
     }
 }
 
-// class DeterministicEmbedding extends tf.layers.Layer {
+// class DeterministicEmbedding extends LayerBase {
 //     constructor(config) {
 //         super({ name: `emb-${randomString()}`, ...config })
 //         this.outputDim = config.outputDim
@@ -2780,7 +2780,7 @@ class ToOneHot extends tf.layers.Layer {
 //     }
 // }
 
-class DeterministicEmbedding extends tf.layers.Layer {
+class DeterministicEmbedding extends LayerBase {
     constructor(config) {
         super({ name: `emb-${randomString()}`, ...config })
         this.outputDim = config.outputDim
@@ -2822,6 +2822,176 @@ class DeterministicEmbedding extends tf.layers.Layer {
     }
 }
 
+class PerformerAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `perf-${randomString()}`, ...config })
+        this.numHeads = config.numHeads
+        this.keyDim = config.keyDim
+        this.projectionDim = config.projectionDim
+    }
+
+    build(inputShape) {
+        const [batchSize, sequenceLength, inputDim] = inputShape
+        this.queryDense = tf.layers.dense({
+            units: this.numHeads * this.keyDim,
+            activation: 'linear',
+            useBias: false
+        })
+        this.keyDense = tf.layers.dense({
+            units: this.numHeads * this.keyDim,
+            activation: 'linear',
+            useBias: false
+        })
+        this.valueDense = tf.layers.dense({
+            units: this.numHeads * this.projectionDim,
+            activation: 'linear',
+            useBias: false
+        })
+        this.outputDense = tf.layers.dense({
+            units: inputDim,
+            activation: 'linear',
+            useBias: false
+        })
+        this.attentionWeights = []
+        this.attentionOutputs = []
+    }
+
+    call(inputs, mask = null) {
+        const [queries, keys, values] = inputs
+        const [batchSize, sequenceLength, inputDim] = queries.shape
+
+        const queriesHeads = this.queryDense.apply(queries)
+        const keysHeads = this.keyDense.apply(keys)
+        const valuesHeads = this.valueDense.apply(values)
+
+        const queriesReshaped = tf.reshape(queriesHeads, [
+            batchSize,
+            sequenceLength,
+            this.numHeads,
+            this.keyDim
+        ])
+        const keysReshaped = tf.reshape(keysHeads, [
+            batchSize,
+            sequenceLength,
+            this.numHeads,
+            this.keyDim
+        ])
+        const valuesReshaped = tf.reshape(valuesHeads, [
+            batchSize,
+            sequenceLength,
+            this.numHeads,
+            this.projectionDim
+        ])
+
+        const queriesPerHead = queriesReshaped.transpose([0, 2, 1, 3])
+        const keysPerHead = keysReshaped.transpose([0, 2, 1, 3])
+        const valuesPerHead = valuesReshaped.transpose([0, 2, 1, 3])
+
+        const attentionScores = this.favorAttention(queriesPerHead, keysPerHead)
+        const attentionWeights = this.applyMask(attentionScores, mask)
+        const attentionOutputs = tf.einsum(
+            'bhqk,bhkd->bhqd',
+            attentionWeights,
+            valuesPerHead
+        )
+
+        const outputTransposed = attentionOutputs.transpose([0, 2, 1, 3])
+        const concatOutput = tf.reshape(outputTransposed, [
+            batchSize,
+            sequenceLength,
+            this.numHeads * this.projectionDim
+        ])
+        const output = this.outputDense.apply(concatOutput)
+
+        return output
+    }
+
+    favorAttention(queries, keys) {
+        const [batchSize, numHeads, sequenceLength, keyDim] = queries.shape
+        const numRandomFeatures = Math.floor(sequenceLength / 2) + 1
+
+        const randomMatrices = []
+        for (let i = 0; i < numHeads; i++) {
+            const randomMatrix = tf.randomNormal([keyDim, numRandomFeatures])
+            randomMatrices.push(randomMatrix)
+        }
+
+        const randomFeatures = []
+        for (let i = 0; i < numHeads; i++) {
+            const queryRandomFeatures = tf.einsum(
+                'bqd,dr->bqr',
+                queries.gather(i),
+                randomMatrices[i]
+            )
+            const keyRandomFeatures = tf.einsum(
+                'bkd,dr->bkr',
+                keys.gather(i),
+                randomMatrices[i]
+            )
+
+            const queryRandomFeaturesExp = queryRandomFeatures.exp()
+            const keyRandomFeaturesExp = keyRandomFeatures.exp()
+
+            randomFeatures.push({
+                queries: queryRandomFeaturesExp,
+                keys: keyRandomFeaturesExp
+            })
+        }
+
+        const attentionScores = []
+        for (let i = 0; i < numHeads; i++) {
+            const queryRandomFeatures = randomFeatures[i].queries
+            const keyRandomFeatures = randomFeatures[i].keys
+
+            const dotProduct = tf.einsum(
+                'bqr,bkr->bqk',
+                queryRandomFeatures,
+                keyRandomFeatures
+            )
+            const scaledDotProduct = dotProduct.div(tf.sqrt(tf.scalar(keyDim)))
+
+            attentionScores.push(scaledDotProduct)
+        }
+
+        const attentionScoresStacked = tf.stack(attentionScores, 1)
+        return attentionScoresStacked
+    }
+
+    applyMask(attentionScores, mask) {
+        if (mask !== null) {
+            const expandedMask = mask.expandDims(1).expandDims(1)
+            const maskedAttentionScores = tf.where(
+                expandedMask,
+                attentionScores,
+                tf.scalar(-1e9)
+            )
+            const attentionWeights = tf.softmax(maskedAttentionScores, -1)
+            return attentionWeights
+        } else {
+            const attentionWeights = tf.softmax(attentionScores, -1)
+            return attentionWeights
+        }
+    }
+
+    computeOutputShape(inputShape) {
+        const [batchSize, sequenceLength, inputDim] = inputShape
+        return [batchSize, sequenceLength, inputDim]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numHeads: this.numHeads,
+            keyDim: this.keyDim,
+            projectionDim: this.projectionDim
+        }
+    }
+
+    static get className() {
+        return 'PerformerAttention'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -2841,6 +3011,7 @@ const exportedLayers = [
     MixtureOfDepthsRouting,
     MultiLayerPerceptron,
     NearestNeighborUpsampling,
+    PerformerAttention,
     Range,
     ResidualConnection,
     RotaryPositionalEncoding,
