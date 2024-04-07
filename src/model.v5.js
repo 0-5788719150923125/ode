@@ -4,7 +4,7 @@ import ODE from './model.v4.js'
  * A state space model.
  * @extends ODE
  */
-export default class OrthogonalDecayedExponent extends ODE {
+export default class OrthogonalDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
         this.layers = 4

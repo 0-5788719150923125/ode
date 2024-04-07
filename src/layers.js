@@ -2384,10 +2384,18 @@ class StructuredStateSpace extends tf.layers.Layer {
     }
 }
 
-class Vectorrent extends tf.layers.Layer {
+class Vectorrent extends LayerBase {
     constructor(config) {
-        super(config)
+        super({ name: `vec-${randomString()}`, ...config })
         this.routingIterations = config?.routingIterations || 3
+        this.decayRate = config?.decayRate || 0.1
+        this.toolbox = [
+            'createVariable',
+            'replaceVariable',
+            'updateVariable',
+            'deleteVariable',
+            'shiftVariable'
+        ]
     }
 
     build(inputShape) {
@@ -2395,7 +2403,7 @@ class Vectorrent extends tf.layers.Layer {
             'routingVector',
             [inputShape[inputShape.length - 1]],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.leCunNormal()
         )
     }
 
@@ -2409,45 +2417,33 @@ class Vectorrent extends tf.layers.Layer {
 
             let outputs = inputs
 
-            const shouldReturn = tf.variable(tf.scalar(0))
             const routes = tf.variable(tf.zerosLike(outputs))
+            const target = tf.variable(tf.scalar(0))
 
             for (let i = 0; i < this.routingIterations; i++) {
                 outputs = outputs.add(this.router.read())
 
-                let logits
-                if (i % 2 === 0) logits = routes.add(outputs)
-                else logits = routes.sub(outputs)
+                routes.assign(tf.selu(routes.add(outputs)))
 
-                // routes.assign(logits)
-                routes.assign(tf.tanh(logits))
+                target.assign(tf.sin(target.sub(routes.flatten().mean())))
 
-                // shouldReturn.assign(
-                //     shouldReturn.add(tf.sign(routes).flatten().sum())
-                // )
+                const progress = (i + 1) / this.routingIterations
+                const decayFactor = Math.exp(-this.decayRate * progress)
+                const shouldReturn = target
+                    .mul(tf.scalar(decayFactor))
+                    .dataSync()[0]
 
-                shouldReturn.assign(shouldReturn.add(routes.flatten().sum()))
+                if (Math.random() < 0.0001) console.log(shouldReturn)
 
-                const target = shouldReturn.dataSync()[0]
-
-                // console.log(target)
-                if (Math.random() < 0.001) console.log(target)
-
-                if (Math.abs(target) <= 1e-8) {
-                    console.log('neutral return')
+                if (Math.abs(shouldReturn) <= 1e-8) {
+                    console.log(`neutral return: ${shouldReturn}`)
                     break
                 }
-                if (target > 8888)
-                    outputs = this.shiftTokenPosition(outputs, true)
-                if (target < 8888)
-                    outputs = this.shiftTokenPosition(outputs, false)
-                if (i < Math.floor(this.routingIterations / 3)) continue
-                if (Math.abs(target) > 1) break
             }
 
-            tf.dispose([routes, shouldReturn])
+            tf.dispose([routes, target])
 
-            return outputs
+            return inputs.sub(outputs)
         })
     }
 

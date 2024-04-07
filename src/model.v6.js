@@ -4,12 +4,13 @@ import ODE from './model.v3.js'
  * An experimental language model.
  * @extends ODE
  */
-export default class OscillatingDepthwiseEntanglement extends ODE {
+export default class OscillatingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 23
-        this.units = 23
+        this.units = 64
         this.routingIterations = 27
+        this.decayRate = 0.9
     }
 
     async defineTokenizer() {
@@ -49,7 +50,10 @@ export default class OscillatingDepthwiseEntanglement extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .Vectorrent({ routingIterations: 9 })
+                .Vectorrent({
+                    routingIterations: this.routingIterations,
+                    decayRate: this.decayRate
+                })
                 .apply(outputs)
         }
 
