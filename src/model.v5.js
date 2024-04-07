@@ -1,10 +1,10 @@
-import OpportunisticDialogueEncoder from './model.v4.js'
+import ODE from './model.v4.js'
 
 /**
  * A state space model.
- * @extends OpportunisticDialogueEncoder
+ * @extends ODE
  */
-export default class OrthogonalDecayedExponent extends OpportunisticDialogueEncoder {
+export default class OrthogonalDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 4

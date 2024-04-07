@@ -1,10 +1,10 @@
-import OriginalDecoderEngine from './model.v3.js'
+import ODE from './model.v3.js'
 
 /**
  * A mixture of experts.
- * @extends OriginalDecoderEngine
+ * @extends ODE
  */
-export default class OmnipotentDeterministicEnsemble extends OriginalDecoderEngine {
+export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = 4

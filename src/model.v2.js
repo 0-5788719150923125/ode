@@ -1,13 +1,13 @@
-import ModelBase from './model.v0.js'
+import ODE from './model.v0.js'
 
 /**
  * A GRU-based RNN that uses a time-distributed, dense output
  * layer. This is quite different from common RNNs, in that it functions more
  * like a sequence-to-sequence model. Rather than training on a single label,
  * this model trains on vectors of them, shifted by one to the right.
- * @extends ModelBase
+ * @extends ODE
  */
-export default class OmnipresentDiabolicalErudite extends ModelBase {
+export default class OmnipresentDiabolicalErudite extends ODE {
     constructor(config) {
         super(config)
         this.layers = 3

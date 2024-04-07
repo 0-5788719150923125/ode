@@ -1,11 +1,11 @@
-import OriginalDecoderEngine from './model.v3.js'
+import ODE from './model.v3.js'
 
 /**
  * A small transformer with synthetic attention weights, GLU-based feedforward
  * networks, and rotary positional embeddings.
- * @extends OriginalDecoderEngine
+ * @extends ODE
  */
-export default class OscillatingDepthwiseEntanglement extends OriginalDecoderEngine {
+export default class OscillatingDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
         this.layers = 4

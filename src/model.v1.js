@@ -1,11 +1,11 @@
-import ModelBase from './model.v0.js'
+import ODE from './model.v0.js'
 
 /**
  * An extremely simple text-generation RNN, used for next-token prediction. You
  * will see versions of this model everywhere, in tutorials on the Internet.
- * @extends ModelBase
+ * @extends ODE
  */
-export default class OmnipotentDegenerateEntity extends ModelBase {
+export default class OmnipotentDegenerateEntity extends ODE {
     constructor(config) {
         super(config)
         this.layers = 3

@@ -17,33 +17,26 @@ const options = {
     debug: false
 }
 
-// If running in Node.js
-if (process) {
-    // Get the command-line arguments
-    const args = process.argv.slice(2)
+// Get the command-line arguments
+const args = process.argv.slice(2)
 
-    // Parse the named arguments
-    for (let i = 0; i < args.length; i++) {
-        if (args[i].startsWith('--')) {
-            const key = args[i].slice(2)
-            const value = args[i + 1]
+// Parse the named arguments
+for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('--')) {
+        const key = args[i].slice(2)
+        const value = args[i + 1]
 
-            // Check if the value is a number
-            if (/^\d+$/.test(value)) {
-                options[key] = parseInt(value, 10)
-            } else if (/^\d+\.\d+$/.test(value)) {
-                options[key] = parseFloat(value)
-            } else {
-                options[key] = value
-            }
-
-            i++
+        // Check if the value is a number
+        if (/^\d+$/.test(value)) {
+            options[key] = parseInt(value, 10)
+        } else if (/^\d+\.\d+$/.test(value)) {
+            options[key] = parseFloat(value)
+        } else {
+            options[key] = value
         }
+
+        i++
     }
-}
-// If running in the browser
-else {
-    options.backend = 'cpu'
 }
 
 // Load the model and do things with it
