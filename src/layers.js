@@ -2548,7 +2548,7 @@ class ToOneHot extends tf.layers.Layer {
 
 class DeterministicEmbedding extends tf.layers.Layer {
     constructor(config) {
-        super(super({ name: `emb-${randomString()}`, ...config }))
+        super({ name: `emb-${randomString()}`, ...config })
         this.inputDim = config.inputDim
         this.outputDim = config.outputDim
     }
