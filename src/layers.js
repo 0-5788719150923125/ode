@@ -52,7 +52,7 @@ class DebugLayer extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             console.log(inputs)
             inputs.print()
             console.log(inputs.dataSync())
@@ -159,7 +159,6 @@ class CausalSelfAttention extends LayerBase {
             if (Array.isArray(inputs)) {
                 inputs = inputs[0]
             }
-            this.invokeCallHook(inputs, kwargs)
 
             // Direct application of matMul to x and kernel throws:
             // > Error in gradient for op BatchMatMul.
@@ -348,7 +347,7 @@ class MultiLayerPerceptron extends LayerBase {
     call(inputs, kwargs, training = false) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             // Expand and contract projection via feedfoward layers
             let outputs = this.inProj.apply(inputs)
             if (this.customActivation) {
@@ -434,7 +433,7 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     call(inputs, kwargs, training = false) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             // Expand and contract projection via feedforward layers
             const proj = this.inProj.apply(inputs)
             const gate = this.gateProj.apply(inputs)
@@ -521,7 +520,7 @@ class CapsNet extends LayerBase {
     call(inputs, kwargs, training = false) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             // Expand and contract projection via feedforward layers
             let outputs = this.inProj.apply(inputs)
             if (this.customActivation) {
@@ -1091,7 +1090,6 @@ class ResidualConnection extends LayerBase {
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
-            this.invokeCallHook(inputs, kwargs)
             // inputs is an array where inputs[0] is the original input and inputs[1] is the output to be added to it.
             if (inputs.length !== 2) {
                 throw new Error('ResidualConnection expects 2 inputs.')
@@ -1218,7 +1216,7 @@ class SynthesizerAttention extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             const [batchSize, seqLen, embedSize] = inputs.shape
 
             const nonlinearOut = this.activation(
@@ -1359,7 +1357,7 @@ class Antirectifier extends LayerBase {
         if (Array.isArray(input)) {
             input = input[0]
         }
-        this.invokeCallHook(inputs, kwargs)
+
         const origShape = input.shape
         const flatShape = [
             origShape[0],
@@ -1405,7 +1403,7 @@ class RotaryPositionalEncoding extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             const batchSize = inputs.shape[0]
             const seqLen = inputs.shape[1]
             const paddedInputs = inputs.pad([
@@ -1541,7 +1539,7 @@ class CompressorHead extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             this.setMode()
 
             const [batchSize, seqLen, embedDim] = inputs.shape
@@ -2060,7 +2058,7 @@ class StateSpace extends tf.layers.Layer {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             const [batchSize, sequenceLength, inputDim] = inputs.shape
 
             let state = tf.zeros([batchSize, this.units])
@@ -2173,7 +2171,7 @@ class ChunkedStateSpace extends tf.layers.Layer {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             const [batchSize, sequenceLength, inputDim] = inputs.shape
 
             let state = tf.zeros([batchSize, this.units])
@@ -2312,7 +2310,7 @@ class StructuredStateSpace extends tf.layers.Layer {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            this.invokeCallHook(inputs, kwargs)
+
             const [batchSize, sequenceLength, inputDim] = inputs.shape
 
             let state = tf.zeros([batchSize, this.units])
@@ -2403,6 +2401,7 @@ class Vectorrent extends LayerBase {
         super({ name: `vec-${randomString()}`, ...config })
         this.routingIterations = config?.routingIterations || 3
         this.units = config?.units || 64
+        this.kernelSize = config?.kernelSize || 3
     }
 
     build(inputShape) {
@@ -2420,6 +2419,15 @@ class Vectorrent extends LayerBase {
             tf.initializers.glorotUniform()
         )
 
+        this.lens = tf.layers.conv1d({
+            filters: this.units,
+            kernelSize: this.kernelSize,
+            kernelInitializer: 'heNormal',
+            padding: 'same',
+            activation: 'swish',
+            useBias: false
+        })
+
         this.residual = new ResidualConnection()
     }
 
@@ -2431,14 +2439,13 @@ class Vectorrent extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const [batchSize, seqLength, inputDim] = inputs.shape
-
             let outputs = inputs
 
             const routes = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.routingIterations; i++) {
-                const routedOutputs = outputs.matMul(this.router.read())
+                const convOutputs = this.lens.apply(outputs)
+                const routedOutputs = convOutputs.matMul(this.router.read())
 
                 const gateValues = tf.leakyRelu(
                     routedOutputs.mul(this.gate.read()),
@@ -2447,17 +2454,9 @@ class Vectorrent extends LayerBase {
 
                 const updatedRoutes = routes.add(gateValues)
 
-                routes.assign(tf.selu(updatedRoutes))
+                routes.assign(updatedRoutes)
 
                 outputs = routes
-                    .slice([0, 1, 0], [batchSize, seqLength - 1, this.units])
-                    .concat(
-                        routes.slice(
-                            [0, seqLength - 1, 0],
-                            [batchSize, 1, this.units]
-                        ),
-                        1
-                    )
             }
 
             tf.dispose([routes])
@@ -2470,7 +2469,8 @@ class Vectorrent extends LayerBase {
         return {
             ...super.getConfig(),
             routingIterations: this.routingIterations,
-            units: this.units
+            units: this.units,
+            kernelSize: this.kernelSize
         }
     }
 
@@ -2478,6 +2478,87 @@ class Vectorrent extends LayerBase {
         return 'Vectorrent'
     }
 }
+
+// class Vectorrent extends LayerBase {
+//     constructor(config) {
+//         super({ name: `vec-${randomString()}`, ...config })
+//         this.routingIterations = config?.routingIterations || 3
+//         this.units = config?.units || 64
+//     }
+
+//     build(inputShape) {
+//         this.router = this.addWeight(
+//             'routingVector',
+//             [inputShape[inputShape.length - 1], this.units],
+//             'float32',
+//             tf.initializers.leCunNormal()
+//         )
+
+//         this.gate = this.addWeight(
+//             'gateVector',
+//             [this.units],
+//             'float32',
+//             tf.initializers.glorotUniform()
+//         )
+
+//         this.residual = new ResidualConnection()
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape.slice(0, -1), this.units]
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const [batchSize, seqLength, inputDim] = inputs.shape
+
+//             let outputs = inputs
+
+//             const routes = tf.variable(tf.zerosLike(outputs))
+
+//             for (let i = 0; i < this.routingIterations; i++) {
+//                 const routedOutputs = outputs.matMul(this.router.read())
+
+//                 const gateValues = tf.leakyRelu(
+//                     routedOutputs.mul(this.gate.read()),
+//                     0.666
+//                 )
+
+//                 const updatedRoutes = routes.add(gateValues)
+
+//                 routes.assign(tf.selu(updatedRoutes))
+
+//                 outputs = routes
+//                     .slice([0, 1, 0], [batchSize, seqLength - 1, this.units])
+//                     .concat(
+//                         routes.slice(
+//                             [0, seqLength - 1, 0],
+//                             [batchSize, 1, this.units]
+//                         ),
+//                         1
+//                     )
+//             }
+
+//             tf.dispose([routes])
+
+//             return this.residual.apply([inputs, outputs])
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             routingIterations: this.routingIterations,
+//             units: this.units
+//         }
+//     }
+
+//     static get className() {
+//         return 'Vectorrent'
+//     }
+// }
 
 // class Vectorrent extends LayerBase {
 //     constructor(config) {
