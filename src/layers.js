@@ -2733,53 +2733,6 @@ class ToOneHot extends LayerBase {
     }
 }
 
-// class DeterministicEmbedding extends LayerBase {
-//     constructor(config) {
-//         super({ name: `emb-${randomString()}`, ...config })
-//         this.outputDim = config.outputDim
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return [...inputShape, this.outputDim]
-//     }
-
-//     call(inputs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//             const tokenIds = inputs.cast('int32')
-//             const positions = tf
-//                 .range(0, inputs.shape[1])
-//                 .expandDims(0)
-//                 .cast('int32')
-
-//             const tokenEncodings = tf
-//                 .oneHot(tokenIds, this.outputDim)
-//                 .cast('float32')
-//             const positionEncodings = tf
-//                 .oneHot(positions, this.outputDim)
-//                 .cast('float32')
-
-//             const encodings = tokenEncodings.add(positionEncodings)
-//             const normalizedEncodings = encodings.div(
-//                 tf.sqrt(tf.scalar(this.outputDim))
-//             )
-//             normalizedEncodings.print()
-//             return normalizedEncodings
-//         })
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             outputDim: this.outputDim
-//         }
-//     }
-
-//     static get className() {
-//         return 'DeterministicEmbedding'
-//     }
-// }
-
 class DeterministicEmbedding extends LayerBase {
     constructor(config) {
         super({ name: `emb-${randomString()}`, ...config })
@@ -2794,18 +2747,22 @@ class DeterministicEmbedding extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const tokenIds = inputs.cast('int32')
-            const positions = tf.range(0, inputs.shape[1]).expandDims(0)
+            const positions = tf
+                .range(0, inputs.shape[1])
+                .expandDims(0)
+                .cast('int32')
 
-            const tokenEncodings = tf.cast(tokenIds, 'float32').expandDims(-1)
+            const tokenEncodings = tf
+                .oneHot(tokenIds, this.outputDim)
+                .cast('float32')
             const positionEncodings = tf
-                .cast(positions, 'float32')
-                .expandDims(-1)
+                .oneHot(positions, this.outputDim)
+                .cast('float32')
 
             const encodings = tokenEncodings.add(positionEncodings)
             const normalizedEncodings = encodings.div(
                 tf.sqrt(tf.scalar(this.outputDim))
             )
-            normalizedEncodings.print()
             return normalizedEncodings
         })
     }
@@ -2821,6 +2778,47 @@ class DeterministicEmbedding extends LayerBase {
         return 'DeterministicEmbedding'
     }
 }
+
+// class DeterministicEmbedding extends LayerBase {
+//     constructor(config) {
+//         super({ name: `emb-${randomString()}`, ...config })
+//         this.outputDim = config.outputDim
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape, this.outputDim]
+//     }
+
+//     call(inputs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             const tokenIds = inputs.cast('int32')
+//             const positions = tf.range(0, inputs.shape[1]).expandDims(0)
+
+//             const tokenEncodings = tf.cast(tokenIds, 'float32').expandDims(-1)
+//             const positionEncodings = tf
+//                 .cast(positions, 'float32')
+//                 .expandDims(-1)
+
+//             const encodings = tokenEncodings.add(positionEncodings)
+//             const normalizedEncodings = encodings.div(
+//                 tf.sqrt(tf.scalar(this.outputDim))
+//             )
+//             return normalizedEncodings
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             outputDim: this.outputDim
+//         }
+//     }
+
+//     static get className() {
+//         return 'DeterministicEmbedding'
+//     }
+// }
 
 class PerformerAttention extends LayerBase {
     constructor(config) {
@@ -2992,6 +2990,85 @@ class PerformerAttention extends LayerBase {
     }
 }
 
+class SharedEmbedding extends tf.layers.Layer {
+    constructor(config) {
+        super({ name: `emb-${randomString()}`, ...config })
+        this.vocabSize = config.vocabSize
+        this.embeddingDim = config.embeddingDim
+    }
+
+    build(inputShape) {
+        this.embeddings = this.addWeight(
+            'embeddings',
+            [this.vocabSize, this.embeddingDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.built = true
+    }
+
+    computeOutputShape(inputShape) {
+        if (inputShape.length === 2) {
+            // Input embedding
+            return [inputShape[0], inputShape[1], this.embeddingDim]
+        } else if (inputShape.length === 3) {
+            // Output projection
+            return [inputShape[0], inputShape[1], this.vocabSize]
+        } else {
+            throw new Error('Invalid input shape for TiedEmbedding layer.')
+        }
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            if (inputs.shape.length === 2) {
+                // Input embedding
+                const flatInputs = tf.reshape(inputs, [-1])
+                const embeddings = tf.gather(
+                    this.embeddings.read(),
+                    flatInputs.cast('int32')
+                )
+                return tf.reshape(embeddings, [
+                    inputs.shape[0],
+                    inputs.shape[1],
+                    this.embeddingDim
+                ])
+            } else if (inputs.shape.length === 3) {
+                // Output projection
+                const denseOutput = tf.matMul(
+                    tf.reshape(inputs, [-1, this.embeddingDim]),
+                    this.embeddings.read(),
+                    false,
+                    true
+                )
+                return tf.reshape(denseOutput, [
+                    inputs.shape[0],
+                    inputs.shape[1],
+                    this.vocabSize
+                ])
+            } else {
+                throw new Error(
+                    'Invalid input shape for SharedEmbedding layer.'
+                )
+            }
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            vocabSize: this.vocabSize,
+            embeddingDim: this.embeddingDim
+        }
+    }
+
+    static get className() {
+        return 'SharedEmbedding'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
@@ -3021,6 +3098,7 @@ const exportedLayers = [
     StateSpace,
     StructuredStateSpace,
     SynthesizerAttention,
+    SharedEmbedding,
     ToOneHot,
     Vectorrent
 ]

@@ -8,7 +8,7 @@ export default class OscilloscopingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 9
-        this.units = 128
+        this.units = 256
         this.maxDecisions = 9
         this.kernelSize = 6
     }
@@ -24,25 +24,17 @@ export default class OscilloscopingDecayedExponent extends ODE {
             shape: [null]
         })
 
-        const embeddings = this.ode.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform'
-            })
-            .apply(inputs)
+        const embeddings = this.ode.layers.SharedEmbedding({
+            vocabSize: this.tokenizer.getLength(),
+            embeddingDim: this.units
+        })
 
-        const range = this.ode.layers.Range().apply(inputs)
+        const encoding = this.ode.layers.RotaryPositionalEncoding({
+            blockSize: this.config.contextLength,
+            units: this.units
+        })
 
-        const encoding = this.ode.layers
-            .embedding({
-                inputDim: this.config.contextLength,
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotNormal'
-            })
-            .apply(range)
-
-        let outputs = this.ode.layers.add().apply([embeddings, encoding])
+        let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -54,12 +46,7 @@ export default class OscilloscopingDecayedExponent extends ODE {
                 .apply(outputs)
         }
 
-        outputs = this.ode.layers
-            .dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
-            })
-            .apply(outputs)
+        outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }
