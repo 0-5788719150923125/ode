@@ -1324,8 +1324,8 @@ class SynthesizerAttention extends LayerBase {
 }
 
 class Antirectifier extends LayerBase {
-    constructor() {
-        super({})
+    constructor(config) {
+        super({ name: `anti-${randomString()}`, ...config })
         // TODO(bileschi): Can we point to documentation on masking here?
         this.supportsMasking = true
     }
@@ -2430,6 +2430,9 @@ class Vectorrent extends LayerBase {
             useBias: false
         })
 
+        const alpha = 0.666
+        this.valve = tf.variable(tf.scalar(alpha))
+
         this.residual = new ResidualConnection()
     }
 
@@ -2447,11 +2450,19 @@ class Vectorrent extends LayerBase {
 
             for (let i = 0; i < this.routingIterations; i++) {
                 const convOutputs = this.lens.apply(outputs)
-                const routedOutputs = convOutputs.matMul(this.router.read())
+                const routingLogits = convOutputs.matMul(this.router.read())
+
+                this.valve.assign(
+                    this.valve
+                        .add(routingLogits.flatten().mean())
+                        .sin()
+                        .abs()
+                        .neg()
+                )
 
                 const gateValues = tf.leakyRelu(
-                    routedOutputs.mul(this.gate.read()),
-                    0.666
+                    routingLogits.mul(this.gate.read()),
+                    this.valve.dataSync()[0]
                 )
 
                 const updatedRoutes = routes.add(gateValues)
