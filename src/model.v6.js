@@ -24,16 +24,38 @@ export default class OscillatingDecayedExponent extends ODE {
             shape: [null]
         })
 
-        const embeddings = this.ode.layers.DeterministicEmbedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.units
-        })
+        // const embeddings = this.ode.layers.DeterministicEmbedding({
+        //     inputDim: this.tokenizer.getLength(),
+        //     outputDim: this.units
+        // })
 
-        const encoding = this.ode.layers.SinusoidalPositionalEncoding({
-            units: this.units
-        })
+        // const encoding = this.ode.layers.SinusoidalPositionalEncoding({
+        //     units: this.units
+        // })
 
-        let outputs = encoding.apply(embeddings.apply(inputs))
+        // let outputs = encoding.apply(embeddings.apply(inputs))
+
+        const tokenEmbeddings = this.ode.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform'
+            })
+            .apply(inputs)
+
+        const range = this.ode.layers.Range().apply(inputs)
+
+        const positionalEmbeddings = this.ode.layers
+            .embedding({
+                inputDim: this.config.contextLength,
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotNormal'
+            })
+            .apply(range)
+
+        let outputs = this.ode.layers
+            .add()
+            .apply([tokenEmbeddings, positionalEmbeddings])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

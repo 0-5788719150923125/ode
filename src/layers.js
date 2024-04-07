@@ -3,6 +3,8 @@ import { GELU } from './activations.js'
 import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {
+    add: (config) =>
+        tf.layers.add({ name: `add-${randomString()}`, ...config }),
     dense: (config) =>
         tf.layers.dense({ name: `ffd-${randomString()}`, ...config }),
     embedding: (config) =>
@@ -65,6 +67,10 @@ class DebugLayer extends LayerBase {
 }
 
 class Range extends LayerBase {
+    constructor(config) {
+        super({ name: `ran-${randomString()}`, ...config })
+    }
+
     computeOutputShape(inputShape) {
         return inputShape
     }
