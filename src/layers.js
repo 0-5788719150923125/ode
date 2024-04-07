@@ -5,6 +5,8 @@ import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 const customLayers = {
     add: (config) =>
         tf.layers.add({ name: `add-${randomString()}`, ...config }),
+    conv1d: (config) =>
+        tf.layers.conv1d({ name: `c1d-${randomString()}`, ...config }),
     dense: (config) =>
         tf.layers.dense({ name: `ffd-${randomString()}`, ...config }),
     embedding: (config) =>
@@ -2419,7 +2421,7 @@ class Vectorrent extends LayerBase {
             tf.initializers.glorotUniform()
         )
 
-        this.lens = tf.layers.conv1d({
+        this.lens = customLayers.conv1d({
             filters: this.units,
             kernelSize: this.kernelSize,
             kernelInitializer: 'heNormal',

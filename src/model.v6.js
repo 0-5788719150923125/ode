@@ -8,7 +8,7 @@ export default class OscillatingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 9
-        this.units = 64
+        this.units = 128
         this.routingIterations = 9
         this.kernelSize = 3
     }

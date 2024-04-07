@@ -20,7 +20,17 @@ const options = {
 // Get the command-line arguments
 const args = process.argv.slice(2)
 
-// Parse the named arguments
+// Do nothing is no arguments are provided
+if (args.length === 0) {
+    console.error('ERROR: You must pass at least 1 argument to this script!')
+    console.log('node cli.js \\')
+    for (const [key, value] of Object.entries(options)) {
+        console.log(`  --${key} ${value} \\`)
+    }
+    process.exit()
+}
+
+// Parse named arguments
 for (let i = 0; i < args.length; i++) {
     if (args[i].startsWith('--')) {
         const key = args[i].slice(2)
