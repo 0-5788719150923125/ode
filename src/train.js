@@ -21,6 +21,7 @@ export async function startTraining(dataGenerator, args) {
         predictLength: 50,
         clipValue: 1.0,
         mode: this.config.mode || 'timeDistributed',
+        encoding: this.config.encoding || 'oneHot',
         debug: false,
         ...args
     }
@@ -39,7 +40,8 @@ export async function startTraining(dataGenerator, args) {
         this.tokenizer,
         trainArgs.batchSize,
         trainArgs.sampleLength,
-        trainArgs.mode
+        trainArgs.mode,
+        trainArgs.encoding
     )
 
     // a custom train loop
@@ -344,7 +346,8 @@ function* batchGenerator(
     tokenizer,
     batchSize,
     inputLength,
-    mode = 'timeDistributed'
+    mode = 'timeDistributed',
+    encoding = 'oneHot'
 ) {
     while (true) {
         let xsArray = []
@@ -382,19 +385,34 @@ function* batchGenerator(
         const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
         const ysTensor = tf.tidy(() => {
-            // Output labels should have a sequence length of just 1
-            if (mode === 'oneLabel') {
-                return tf.oneHot(
-                    tf.tensor1d(ysArray.flat(), 'int32'),
-                    tokenizer.getLength()
-                )
-            }
-            // Output labels should match the length of xs sequences
-            else {
-                return tf
-                    .tensor2d(ysArray, [batchSize, inputLength], 'int32')
-                    .oneHot(tokenizer.getLength())
-                    .reshape([batchSize, inputLength, tokenizer.getLength()])
+            if (encoding === 'integer') {
+                // Output labels as integers
+                if (mode === 'oneLabel') {
+                    return tf.tensor1d(ysArray.flat(), 'int32')
+                } else {
+                    return tf.tensor2d(
+                        ysArray,
+                        [batchSize, inputLength],
+                        'int32'
+                    )
+                }
+            } else {
+                // Output labels as one-hot encoded
+                if (mode === 'oneLabel') {
+                    return tf.oneHot(
+                        tf.tensor1d(ysArray.flat(), 'int32'),
+                        tokenizer.getLength()
+                    )
+                } else {
+                    return tf
+                        .tensor2d(ysArray, [batchSize, inputLength], 'int32')
+                        .oneHot(tokenizer.getLength())
+                        .reshape([
+                            batchSize,
+                            inputLength,
+                            tokenizer.getLength()
+                        ])
+                }
             }
         })
 
@@ -438,7 +456,10 @@ async function predictionSampler(
             const endTime = performance.now()
             console.log('#######################')
             console.log(
-                `KWARGS: ${JSON.stringify(args)}, RATE: ${((endTime - startTime) / (maxLength - seedLength)).toFixed(2)} ms/token`
+                `KWARGS: ${JSON.stringify(args)}, RATE: ${(
+                    (endTime - startTime) /
+                    (maxLength - seedLength)
+                ).toFixed(2)} ms/token`
             )
             console.log(
                 color + prompt + white + output.slice(prompt.length, -1)
@@ -486,7 +507,18 @@ class ConsoleLogger {
         const elapsed = this.timer.next().value
         this.totalElapsed += elapsed
         console.log(
-            `STEP=${step}, BATCH=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${coloredLoss.old}${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(5)}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(elapsed / 1000).toFixed(1)}s, TOTAL=${((Date.now() - this.startTime) / 1000 / 60 / 60).toFixed(3)}h`
+            `STEP=${step}, BATCH=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${
+                coloredLoss.old
+            }${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(
+                5
+            )}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(
+                elapsed / 1000
+            ).toFixed(1)}s, TOTAL=${(
+                (Date.now() - this.startTime) /
+                1000 /
+                60 /
+                60
+            ).toFixed(3)}h`
         )
     }
 }

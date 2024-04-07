@@ -4,11 +4,13 @@ import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {
     dense: (config) =>
-        tf.layers.dense({ ...config, name: `ffd-${randomString()}` }),
+        tf.layers.dense({ name: `ffd-${randomString()}`, ...config }),
     embedding: (config) =>
-        tf.layers.embedding({ ...config, name: `emb-${randomString()}` }),
+        tf.layers.embedding({ name: `emb-${randomString()}`, ...config }),
     input: (config) =>
-        tf.layers.input({ ...config, name: `inp-${randomString()}` })
+        tf.layers.input({ name: `inp-${randomString()}`, ...config }),
+    timeDistributed: (config) =>
+        tf.layers.timeDistributed({ name: `time-${randomString()}`, ...config })
 }
 export default customLayers
 
@@ -2382,9 +2384,160 @@ class StructuredStateSpace extends tf.layers.Layer {
     }
 }
 
+class Vectorrent extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.routingIterations = config?.routingIterations || 3
+    }
+
+    build(inputShape) {
+        this.router = this.addWeight(
+            'routingVector',
+            [inputShape[inputShape.length - 1]],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            let outputs = inputs
+
+            const shouldReturn = tf.variable(tf.scalar(0))
+            const routingLogits = tf.variable(tf.zerosLike(outputs))
+
+            for (let i = 0; i < this.routingIterations; i++) {
+                outputs = outputs.add(this.router.read())
+                routingLogits.assign(routingLogits.add(outputs))
+
+                shouldReturn.assign(tf.sign(routingLogits).flatten().sum())
+
+                const target = shouldReturn.dataSync()[0]
+                if (target === 0) {
+                    console.log('neutral return')
+                    break
+                }
+                if (target === 1) {
+                    outputs = this.shiftTensor(outputs, true)
+                    console.log('shifted left')
+                }
+                if (target === -1) {
+                    outputs = this.shiftTensor(outputs, false)
+                    console.log('shifted right')
+                }
+                if (i < 3) continue
+                if (target > 1) break
+                if (i < 9) continue
+                if (target < -1) break
+            }
+
+            tf.dispose([routingLogits, shouldReturn])
+
+            return outputs
+        })
+    }
+
+    shiftTensor(tensor, shiftLeft = true) {
+        return tf.tidy(() => {
+            const [batchSize, sequenceLength, vocabSize] = tensor.shape
+
+            if (shiftLeft) {
+                // Shift the first token to the end
+                const firstToken = tensor.slice(
+                    [0, 0, 0],
+                    [batchSize, 1, vocabSize]
+                )
+                const remainingTokens = tensor.slice(
+                    [0, 1, 0],
+                    [batchSize, sequenceLength - 1, vocabSize]
+                )
+                return tf.concat([remainingTokens, firstToken], 1)
+            } else {
+                // Shift the last token to the front
+                const lastToken = tensor.slice(
+                    [0, sequenceLength - 1, 0],
+                    [batchSize, 1, vocabSize]
+                )
+                const remainingTokens = tensor.slice(
+                    [0, 0, 0],
+                    [batchSize, sequenceLength - 1, vocabSize]
+                )
+                return tf.concat([lastToken, remainingTokens], 1)
+            }
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            routingIterations: this.routingIterations
+        }
+    }
+
+    static get className() {
+        return 'Vectorrent'
+    }
+}
+
+class CollapseOneHot extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape.slice(0, -1)
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            return tf.cast(inputs, 'int32')
+        })
+    }
+
+    static get className() {
+        return 'CollapseOneHot'
+    }
+}
+
+class ToOneHot extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.depth = config.depth
+    }
+
+    computeOutputShape(inputShape) {
+        return [...inputShape.slice(0, -1), this.depth]
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            return tf.oneHot(inputs.cast('int32'), this.depth)
+        })
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, { depth: this.depth })
+        return config
+    }
+
+    static get className() {
+        return 'ToOneHot'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CausalSelfAttention,
+    CollapseOneHot,
     CompressorHead,
     ControlGate,
     ConvolutionalExpansionLayer,
@@ -2407,7 +2560,9 @@ const exportedLayers = [
     SparseMixtureOfExperts,
     StateSpace,
     StructuredStateSpace,
-    SynthesizerAttention
+    SynthesizerAttention,
+    ToOneHot,
+    Vectorrent
 ]
 
 exportedLayers.forEach((LayerClass) => {

@@ -49,7 +49,6 @@ async function orchestrate(options) {
 
     let corpus
     if (options.corpus) {
-        console.log('nope')
         const gun = net.ode.samplers.gunSampler()
         await gun.init()
         await gun.uploadDirectory('custom', options.corpus)

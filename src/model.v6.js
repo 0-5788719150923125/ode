@@ -1,19 +1,15 @@
 import ODE from './model.v3.js'
 
 /**
- * A small transformer with synthetic attention weights, GLU-based feedforward
- * networks, and rotary positional embeddings.
+ * An experimental language model.
  * @extends ODE
  */
 export default class OscillatingDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.heads = 4
-        this.units = 256
-        this.innerDim = this.units * 4
-        this.epsilon = 1e-5
-        this.alpha = 0.22
+        this.layers = 9
+        this.units = 33
+        this.routingIterations = 27
     }
 
     async defineTokenizer() {
@@ -27,43 +23,33 @@ export default class OscillatingDepthwiseEntanglement extends ODE {
             shape: [null]
         })
 
-        let outputs = this.ode.layers
+        const tokenEmbeddings = this.tf.layers
             .embedding({
+                name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
-        outputs = this.ode.layers
-            .RotaryPositionalEncoding({
-                blockSize: this.config.contextLength,
-                units: this.units
+        const range = this.ode.layers.Range().apply(inputs)
+
+        const positionalEmbeddings = this.tf.layers
+            .embedding({
+                name: 'wpe',
+                inputDim: this.config.contextLength,
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotNormal'
             })
-            .apply(outputs)
+            .apply(range)
+
+        let outputs = this.tf.layers
+            .add()
+            .apply([tokenEmbeddings, positionalEmbeddings])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SynthesizerAttention({
-                    units: this.units,
-                    blockSize: this.config.contextLength,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    alpha: this.alpha
-                })
-                .apply(outputs)
-
-            outputs = this.ode.layers
-                .CapsNet({
-                    units: this.units,
-                    innerDim: this.innerDim,
-                    heads: this.heads,
-                    epsilon: this.epsilon,
-                    numCapsules: 8,
-                    capsuleDim: 16,
-                    routingIterations: 9,
-                    activation: 'swish'
-                })
+                .Vectorrent({ routingIterations: 9 })
                 .apply(outputs)
         }
 
