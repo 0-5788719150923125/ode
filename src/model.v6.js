@@ -7,9 +7,9 @@ import ODE from './model.v3.js'
 export default class OscillatingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 23
-        this.units = 64
-        this.routingIterations = 27
+        this.layers = 9
+        this.units = 256
+        this.routingIterations = 9
         this.decayRate = 0.9
     }
 
@@ -61,7 +61,8 @@ export default class OscillatingDecayedExponent extends ODE {
             outputs = this.ode.layers
                 .Vectorrent({
                     routingIterations: this.routingIterations,
-                    decayRate: this.decayRate
+                    decayRate: this.decayRate,
+                    units: this.units
                 })
                 .apply(outputs)
         }

@@ -38,6 +38,8 @@ class AdamW extends tf.AdamOptimizer {
     }
 }
 
+tf.serialization.registerClass(AdamW)
+
 class Prodigy extends tf.SGDOptimizer {
     constructor({
         learningRate = 1.0,
@@ -205,6 +207,8 @@ class Prodigy extends tf.SGDOptimizer {
     }
 }
 
+tf.serialization.registerClass(Prodigy)
+
 class Lion extends tf.SGDOptimizer {
     constructor({
         learningRate = 1e-4,
@@ -320,6 +324,8 @@ class Lion extends tf.SGDOptimizer {
         return 'Lion'
     }
 }
+
+tf.serialization.registerClass(Lion)
 
 function shouldExcludeFromWeightDecay(name) {
     const lowerCaseName = name.toLowerCase()

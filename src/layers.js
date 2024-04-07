@@ -2402,99 +2402,70 @@ class Vectorrent extends LayerBase {
     constructor(config) {
         super({ name: `vec-${randomString()}`, ...config })
         this.routingIterations = config?.routingIterations || 3
-        this.decayRate = config?.decayRate || 0.1
-        this.toolbox = [
-            'createVariable',
-            'replaceVariable',
-            'updateVariable',
-            'deleteVariable',
-            'shiftVariable'
-        ]
+        this.units = config?.units || 64
     }
 
     build(inputShape) {
         this.router = this.addWeight(
             'routingVector',
-            [inputShape[inputShape.length - 1]],
+            [inputShape[inputShape.length - 1], this.units],
             'float32',
             tf.initializers.leCunNormal()
+        )
+
+        this.gate = this.addWeight(
+            'gateVector',
+            [this.units],
+            'float32',
+            tf.initializers.glorotUniform()
         )
     }
 
     computeOutputShape(inputShape) {
-        return inputShape
+        return [...inputShape.slice(0, -1), this.units]
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
+            const [batchSize, seqLength, inputDim] = inputs.shape
+
             let outputs = inputs
 
             const routes = tf.variable(tf.zerosLike(outputs))
-            const target = tf.variable(tf.scalar(0))
 
             for (let i = 0; i < this.routingIterations; i++) {
-                outputs = outputs.add(this.router.read())
+                const routedOutputs = outputs.matMul(this.router.read())
 
-                routes.assign(tf.selu(routes.add(outputs)))
+                const gateValues = tf.tanh(routedOutputs.mul(this.gate.read()))
 
-                target.assign(tf.sin(target.sub(routes.flatten().mean())))
+                const updatedRoutes = routes.add(routedOutputs.mul(gateValues))
 
-                const progress = (i + 1) / this.routingIterations
-                const decayFactor = Math.exp(-this.decayRate * progress)
-                const shouldReturn = target
-                    .mul(tf.scalar(decayFactor))
-                    .dataSync()[0]
+                routes.assign(tf.selu(updatedRoutes))
 
-                if (Math.random() < 0.0001) console.log(shouldReturn)
-
-                if (Math.abs(shouldReturn) <= 1e-8) {
-                    console.log(`neutral return: ${shouldReturn}`)
-                    break
-                }
+                outputs = routes
+                    .slice([0, 1, 0], [batchSize, seqLength - 1, this.units])
+                    .concat(
+                        routes.slice(
+                            [0, seqLength - 1, 0],
+                            [batchSize, 1, this.units]
+                        ),
+                        1
+                    )
             }
 
-            tf.dispose([routes, target])
+            tf.dispose([routes])
 
-            return inputs.sub(outputs)
-        })
-    }
-
-    shiftTokenPosition(tensor, shiftLeft = true) {
-        return tf.tidy(() => {
-            const [batchSize, sequenceLength, vocabSize] = tensor.shape
-
-            if (shiftLeft) {
-                // Shift the first token to the end
-                const firstToken = tensor.slice(
-                    [0, 0, 0],
-                    [batchSize, 1, vocabSize]
-                )
-                const remainingTokens = tensor.slice(
-                    [0, 1, 0],
-                    [batchSize, sequenceLength - 1, vocabSize]
-                )
-                return tf.concat([remainingTokens, firstToken], 1)
-            } else {
-                // Shift the last token to the front
-                const lastToken = tensor.slice(
-                    [0, sequenceLength - 1, 0],
-                    [batchSize, 1, vocabSize]
-                )
-                const remainingTokens = tensor.slice(
-                    [0, 0, 0],
-                    [batchSize, sequenceLength - 1, vocabSize]
-                )
-                return tf.concat([lastToken, remainingTokens], 1)
-            }
+            return outputs
         })
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            routingIterations: this.routingIterations
+            routingIterations: this.routingIterations,
+            units: this.units
         }
     }
 
@@ -2502,6 +2473,109 @@ class Vectorrent extends LayerBase {
         return 'Vectorrent'
     }
 }
+
+// class Vectorrent extends LayerBase {
+//     constructor(config) {
+//         super({ name: `vec-${randomString()}`, ...config })
+//         this.routingIterations = config?.routingIterations || 3
+//         this.decayRate = config?.decayRate || 0.1
+//         this.toolbox = [
+//             'createVariable',
+//             'replaceVariable',
+//             'updateVariable',
+//             'deleteVariable',
+//             'shiftVariable'
+//         ]
+//     }
+
+//     build(inputShape) {
+//         this.router = this.addWeight(
+//             'routingVector',
+//             [inputShape[inputShape.length - 1]],
+//             'float32',
+//             tf.initializers.leCunNormal()
+//         )
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             let outputs = inputs
+
+//             const routes = tf.variable(tf.zerosLike(outputs))
+//             const target = tf.variable(tf.scalar(0))
+
+//             for (let i = 0; i < this.routingIterations; i++) {
+//                 outputs = outputs.add(this.router.read())
+
+//                 routes.assign(tf.selu(routes.add(outputs)))
+
+//                 target.assign(tf.sin(target.sub(routes.flatten().mean())))
+
+//                 const progress = (i + 1) / this.routingIterations
+//                 const decayFactor = Math.exp(-this.decayRate * progress)
+//                 const shouldReturn = target
+//                     .mul(tf.scalar(decayFactor))
+//                     .dataSync()[0]
+
+//                 if (Math.abs(shouldReturn) <= 1e-8) {
+//                     console.log(`neutral return: ${shouldReturn}`)
+//                     break
+//                 }
+//             }
+
+//             tf.dispose([routes, target])
+
+//             return inputs.sub(outputs)
+//         })
+//     }
+
+//     // shiftTokenPosition(tensor, shiftLeft = true) {
+//     //     return tf.tidy(() => {
+//     //         const [batchSize, sequenceLength, vocabSize] = tensor.shape
+
+//     //         if (shiftLeft) {
+//     //             // Shift the first token to the end
+//     //             const firstToken = tensor.slice(
+//     //                 [0, 0, 0],
+//     //                 [batchSize, 1, vocabSize]
+//     //             )
+//     //             const remainingTokens = tensor.slice(
+//     //                 [0, 1, 0],
+//     //                 [batchSize, sequenceLength - 1, vocabSize]
+//     //             )
+//     //             return tf.concat([remainingTokens, firstToken], 1)
+//     //         } else {
+//     //             // Shift the last token to the front
+//     //             const lastToken = tensor.slice(
+//     //                 [0, sequenceLength - 1, 0],
+//     //                 [batchSize, 1, vocabSize]
+//     //             )
+//     //             const remainingTokens = tensor.slice(
+//     //                 [0, 0, 0],
+//     //                 [batchSize, sequenceLength - 1, vocabSize]
+//     //             )
+//     //             return tf.concat([lastToken, remainingTokens], 1)
+//     //         }
+//     //     })
+//     // }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             routingIterations: this.routingIterations
+//         }
+//     }
+
+//     static get className() {
+//         return 'Vectorrent'
+//     }
+// }
 
 class CollapseOneHot extends tf.layers.Layer {
     constructor(config) {
