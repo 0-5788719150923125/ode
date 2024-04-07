@@ -229,10 +229,10 @@ class CausalSelfAttention extends LayerBase {
 }
 
 class SinusoidalPositionalEncoding extends LayerBase {
-    constructor({ units, reverse = false }) {
+    constructor(config) {
         super({ name: `enc-${randomString()}`, ...config })
-        this.units = units // Dimensionality of the positional encoding
-        this.reverse = reverse // Flag to toggle the order of sine and cosine
+        this.units = config.units || 64
+        this.reverse = config.reverse || false
     }
 
     call(inputs, kwargs) {

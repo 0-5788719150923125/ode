@@ -1,10 +1,10 @@
 import ODE from './model.v3.js'
 
 /**
- * An experimental language model.
+ * An experimental, deterministic language model with next to 0 trainable parameters.
  * @extends ODE
  */
-export default class OscilloscopingDecayedExponent extends ODE {
+export default class OscillatingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 23
@@ -24,40 +24,16 @@ export default class OscilloscopingDecayedExponent extends ODE {
             shape: [null]
         })
 
-        // const tokenEmbeddings = this.ode.layers
-        //     .embedding({
-        //         inputDim: this.tokenizer.getLength(),
-        //         outputDim: this.units,
-        //         embeddingsInitializer: 'glorotUniform'
-        //     })
-        //     .apply(inputs)
+        const embeddings = this.ode.layers.DeterministicEmbedding({
+            inputDim: this.tokenizer.getLength(),
+            outputDim: this.units
+        })
 
-        // const range = this.ode.layers.Range().apply(inputs)
+        const encoding = this.ode.layers.SinusoidalPositionalEncoding({
+            units: this.units
+        })
 
-        // const positionalEmbeddings = this.ode.layers
-        //     .embedding({
-        //         inputDim: this.config.contextLength,
-        //         outputDim: this.units,
-        //         embeddingsInitializer: 'glorotNormal'
-        //     })
-        //     .apply(range)
-
-        // let outputs = this.tf.layers
-        //     .add()
-        //     .apply([tokenEmbeddings, positionalEmbeddings])
-
-        const tokenEmbeddings = this.ode.layers
-            .DeterministicEmbedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.units
-            })
-            .apply(inputs)
-
-        let outputs = this.ode.layers
-            .SinusoidalPositionalEncoding({
-                units: this.units
-            })
-            .apply(tokenEmbeddings)
+        let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
