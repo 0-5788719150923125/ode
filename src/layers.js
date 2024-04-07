@@ -2410,40 +2410,48 @@ class Vectorrent extends tf.layers.Layer {
             let outputs = inputs
 
             const shouldReturn = tf.variable(tf.scalar(0))
-            const routingLogits = tf.variable(tf.zerosLike(outputs))
+            const routes = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.routingIterations; i++) {
                 outputs = outputs.add(this.router.read())
-                routingLogits.assign(routingLogits.add(outputs))
 
-                shouldReturn.assign(tf.sign(routingLogits).flatten().sum())
+                let logits
+                if (i % 2 === 0) logits = routes.add(outputs)
+                else logits = routes.sub(outputs)
+
+                // routes.assign(logits)
+                routes.assign(tf.tanh(logits))
+
+                // shouldReturn.assign(
+                //     shouldReturn.add(tf.sign(routes).flatten().sum())
+                // )
+
+                shouldReturn.assign(shouldReturn.add(routes.flatten().sum()))
 
                 const target = shouldReturn.dataSync()[0]
-                if (target === 0) {
+
+                // console.log(target)
+                if (Math.random() < 0.001) console.log(target)
+
+                if (Math.abs(target) <= 1e-8) {
                     console.log('neutral return')
                     break
                 }
-                if (target === 1) {
-                    outputs = this.shiftTensor(outputs, true)
-                    console.log('shifted left')
-                }
-                if (target === -1) {
-                    outputs = this.shiftTensor(outputs, false)
-                    console.log('shifted right')
-                }
-                if (i < 3) continue
-                if (target > 1) break
-                if (i < 9) continue
-                if (target < -1) break
+                if (target > 8888)
+                    outputs = this.shiftTokenPosition(outputs, true)
+                if (target < 8888)
+                    outputs = this.shiftTokenPosition(outputs, false)
+                if (i < Math.floor(this.routingIterations / 3)) continue
+                if (Math.abs(target) > 1) break
             }
 
-            tf.dispose([routingLogits, shouldReturn])
+            tf.dispose([routes, shouldReturn])
 
             return outputs
         })
     }
 
-    shiftTensor(tensor, shiftLeft = true) {
+    shiftTokenPosition(tensor, shiftLeft = true) {
         return tf.tidy(() => {
             const [batchSize, sequenceLength, vocabSize] = tensor.shape
 

@@ -7,8 +7,8 @@ import ODE from './model.v3.js'
 export default class OscillatingDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 9
-        this.units = 33
+        this.layers = 23
+        this.units = 23
         this.routingIterations = 27
     }
 

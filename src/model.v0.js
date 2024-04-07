@@ -314,13 +314,13 @@ function applyTopP(logits, p) {
         const scatterIndices = tf
             .range(0, topPIndices.shape[0], 1, 'int32')
             .reshape([-1, 1])
-        const updateValues = tf.onesLike(topPIndices)
+        const updateValues = tf.gather(logitsFlat, topPIndices) // Fix: Use the original logits values
         const updatedMask = tf.scatterND(
             scatterIndices,
             updateValues,
             topPMask.shape
         )
-        const maskedLogits = updatedMask.mul(logitsFlat).reshape(logitsShape)
+        const maskedLogits = updatedMask.reshape(logitsShape)
         return maskedLogits
     })
 }
