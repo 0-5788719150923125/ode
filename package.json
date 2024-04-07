@@ -7,10 +7,7 @@
     "main": "dist/main.js",
     "module": "dist/module.js",
     "scripts": {
-        "start": "npm run start:browser",
-        "start:browser": "parcel dev.html --https",
-        "start:node": "node dev.js",
-        "build": "parcel build",
+        "start:node": "node cli.js",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests"
     },
     "repository": {
@@ -36,10 +33,5 @@
     },
     "jest": {
         "testEnvironment": "node"
-    },
-    "alias": {
-        "aws-sdk": {
-            "global": "{}"
-        }
     }
 }
