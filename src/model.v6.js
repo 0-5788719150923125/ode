@@ -1,4 +1,4 @@
-import ODE from './model.v3.js'
+import ODE from './model.v4.js'
 
 /**
  * An experimental, deterministic language model with next to 0 trainable parameters.
@@ -12,12 +12,6 @@ export default class OscilloscopingDecayedExponent extends ODE {
         this.embeddings = 64
         this.maxDecisions = 9
         this.kernelSize = 6
-    }
-
-    async defineTokenizer() {
-        await super.defineTokenizer({
-            model: 'OriginalDesign/frame'
-        })
     }
 
     defineBuild() {

@@ -1463,11 +1463,10 @@ class RotaryPositionalEncoding extends LayerBase {
     }
 
     getConfig() {
-        const config = super.getConfig()
-        Object.assign(config, {
+        return {
+            ...super.getConfig(),
             blockSize: this.blockSize
-        })
-        return config
+        }
     }
 
     static get className() {

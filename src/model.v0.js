@@ -99,6 +99,7 @@ export default class ModelBase {
     }
 
     compile() {
+        // this.model = enableGradientCheckpointing(this.model)
         this.model.compile({
             optimizer: this.optimizers[0],
             loss: this.lossFunctions[0].function
@@ -388,4 +389,43 @@ function applyRepetitionPenalty(logits, idx, repetitionPenalty) {
 
         return updatedLogits
     })
+}
+
+function enableGradientCheckpointing(model) {
+    model.layers.forEach((layer) => {
+        const originalCall = layer.call
+        layer.call = function (inputs, kwargs) {
+            const inputTensors = Array.isArray(inputs) ? inputs : [inputs]
+
+            const output = tf.customGrad((inputs, save) => {
+                inputs = Array.isArray(inputs) ? inputs : [inputs]
+
+                save(inputs)
+
+                const output = originalCall.apply(layer, [inputs, kwargs])
+
+                save([output])
+
+                return {
+                    value: output,
+                    gradFunc: (dy, saved) => {
+                        const savedTensors = saved([])
+
+                        const inputs = savedTensors.slice(0, inputs.length)
+
+                        const gradients = tf.grads((outputs) => outputs[0])(
+                            inputs,
+                            dy
+                        )
+
+                        return gradients
+                    }
+                }
+            })(...inputTensors)
+
+            return output
+        }
+    })
+
+    return model
 }
