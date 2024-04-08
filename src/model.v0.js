@@ -409,7 +409,7 @@ function enableGradientCheckpointing(model) {
                 return {
                     value: output,
                     gradFunc: (dy, saved) => {
-                        const savedTensors = saved([])
+                        const savedTensors = saved[0]
 
                         const inputs = savedTensors.slice(0, inputs.length)
 

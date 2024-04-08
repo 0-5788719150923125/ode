@@ -47,10 +47,17 @@ export default class OscilloscopingDecayedExponent extends ODE {
                 .apply(outputs)
         }
 
+        // outputs = this.ode.layers
+        //     .bottleneck({
+        //         units: this.embeddings,
+        //         activation: 'linear'
+        //     })
+        //     .apply(outputs)
+
         outputs = this.ode.layers
-            .bottleneck({
+            .StaticProjection({
                 units: this.embeddings,
-                activation: 'softsign'
+                activation: 'linear'
             })
             .apply(outputs)
 

@@ -2464,6 +2464,12 @@ class Vectorrent extends LayerBase {
                 routes.assign(routes.add(gateValues))
 
                 outputs = routes
+
+                // tf.step()
+                // Computes step of the input tf.Tensor element-wise: x > 0 ? 1 : alpha
+
+                // tf.linspace()
+                // Return an evenly spaced sequence of numbers over the given interval.
             }
 
             tf.dispose([routes])
@@ -3126,6 +3132,60 @@ class Expansion extends LayerBase {
     }
 }
 
+class StaticProjection extends LayerBase {
+    constructor(config) {
+        super({ name: `proj-${randomString()}`, ...config })
+        this.units = config.units
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.units]
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const inputShape = inputs.shape
+            const dimensions = inputShape[2]
+            const chunkSize = Math.floor(dimensions / this.units)
+            const paddedDimensions = chunkSize * this.units
+            const paddedInputs = inputs.pad([
+                [0, 0],
+                [0, 0],
+                [0, paddedDimensions - dimensions]
+            ])
+            const reshapedInputs = paddedInputs.reshape([
+                inputShape[0],
+                inputShape[1],
+                this.units,
+                chunkSize
+            ])
+
+            const chunks = []
+            for (let i = 0; i < this.units; i++) {
+                const chunk = reshapedInputs
+                    .slice([0, 0, i, 0], [-1, -1, 1, -1])
+                    .squeeze([2])
+                const activated = tf.tanh(chunk)
+                const reduced = activated.sum([2], true)
+                chunks.push(reduced)
+            }
+            return tf.concat(chunks, 2)
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units
+        }
+    }
+
+    static get className() {
+        return 'StaticProjection'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CapsNet,
@@ -3155,6 +3215,7 @@ const exportedLayers = [
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
     StateSpace,
+    StaticProjection,
     StructuredStateSpace,
     SynthesizerAttention,
     SharedEmbedding,
