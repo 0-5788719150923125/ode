@@ -5,6 +5,8 @@ import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 const customLayers = {
     add: (config) =>
         tf.layers.add({ name: `add-${randomString()}`, ...config }),
+    bottleneck: (config) =>
+        tf.layers.dense({ name: `bot-${randomString()}`, ...config }),
     conv1d: (config) =>
         tf.layers.conv1d({ name: `c1d-${randomString()}`, ...config }),
     dense: (config) =>
@@ -1384,22 +1386,7 @@ class Antirectifier extends LayerBase {
 class RotaryPositionalEncoding extends LayerBase {
     constructor(config) {
         super({ name: `rot-${randomString()}`, ...config })
-        this.units = config.units
         this.blockSize = config.blockSize
-        this.posEncoding = null
-    }
-
-    build(inputShape) {
-        const outputDim = inputShape[inputShape.length - 1]
-        if (outputDim !== this.units) {
-            throw new Error(
-                `Embedding dimension mismatch. Expected ${this.units}, got ${outputDim}.`
-            )
-        }
-        this.posEncoding = this.getRotaryPositionalEmbedding(
-            this.blockSize,
-            this.units
-        )
     }
 
     call(inputs, kwargs) {
@@ -1408,15 +1395,16 @@ class RotaryPositionalEncoding extends LayerBase {
 
             const batchSize = inputs.shape[0]
             const seqLen = inputs.shape[1]
+            const embeddingDim = inputs.shape[2]
             const paddedInputs = inputs.pad([
                 [0, 0],
                 [0, Math.max(this.blockSize - seqLen, 0)],
                 [0, 0]
             ])
             const paddedSeqLen = paddedInputs.shape[1]
-            const posEncoding = this.posEncoding.slice(
-                [0, 0],
-                [paddedSeqLen, this.units]
+            const posEncoding = this.getRotaryPositionalEmbedding(
+                paddedSeqLen,
+                embeddingDim
             )
             const output = this.applyRotaryPositionalEmbedding(
                 paddedInputs,
@@ -1424,7 +1412,7 @@ class RotaryPositionalEncoding extends LayerBase {
             )
             return output.slice(
                 [0, 0, 0],
-                [batchSize, this.blockSize, this.units]
+                [batchSize, this.blockSize, embeddingDim]
             )
         })
     }
@@ -1471,13 +1459,12 @@ class RotaryPositionalEncoding extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], this.blockSize, this.units]
+        return [inputShape[0], this.blockSize, inputShape[2]]
     }
 
     getConfig() {
         const config = super.getConfig()
         Object.assign(config, {
-            units: this.units,
             blockSize: this.blockSize
         })
         return config
@@ -3069,8 +3056,80 @@ class SharedEmbedding extends tf.layers.Layer {
     }
 }
 
+class FourierFeaturePositionalEncoding extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.numFeatures = config.numFeatures
+        this.scale = config.scale || 1.0
+    }
+
+    call(inputs) {
+        const position = tf.range(0, inputs.shape[1], 1, 'float32')
+        const angles = tf.mul(
+            position,
+            tf.pow(10000.0, tf.linspace(0.0, 1.0, this.numFeatures))
+        )
+        const cosFeatures = tf.cos(angles)
+        const sinFeatures = tf.sin(angles)
+        const features = tf.stack([cosFeatures, sinFeatures], -1)
+        const flattened = tf.reshape(features, [1, -1, this.numFeatures * 2])
+        const scaled = tf.mul(flattened, this.scale)
+        return tf.add(inputs, scaled)
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            numFeatures: this.numFeatures,
+            scale: this.scale
+        })
+        return config
+    }
+
+    static get className() {
+        return 'FourierFeaturePositionalEncoding'
+    }
+}
+
+class Expansion extends LayerBase {
+    constructor(config) {
+        super({ name: `exp-${randomString()}`, ...config })
+        this.units = config.units
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.units]
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const repeatTimes = Math.floor(this.units / inputs.shape[2])
+            const repeatedInputs = tf.tile(inputs, [1, 1, repeatTimes])
+            const paddedInputs = tf.pad(repeatedInputs, [
+                [0, 0],
+                [0, 0],
+                [0, this.units - repeatTimes * inputs.shape[2]]
+            ])
+            return paddedInputs
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units
+        }
+    }
+
+    static get className() {
+        return 'Expansion'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
+    CapsNet,
     CausalSelfAttention,
     CollapseOneHot,
     CompressorHead,
@@ -3079,7 +3138,8 @@ const exportedLayers = [
     DebugLayer,
     DeterministicEmbedding,
     DumbCompression,
-    CapsNet,
+    Expansion,
+    FourierFeaturePositionalEncoding,
     LazyMixtureOfExperts,
     ChunkedStateSpace,
     GatedLinearUnit,
