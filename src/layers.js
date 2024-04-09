@@ -2942,11 +2942,12 @@ class FourierFeaturePositionalEncoding extends tf.layers.Layer {
     }
 }
 
-class Expansion extends LayerBase {
+class DimensionExpansion extends LayerBase {
     constructor(config) {
         super({ name: `exp-${randomString()}`, ...config })
         this.units = config.units
         this.activation = config.activation || 'tanh'
+        this.method = config.method || ['fluid', 'tiled'][0]
     }
 
     build(inputShape) {
@@ -2962,57 +2963,65 @@ class Expansion extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const repeatTimes = Math.floor(this.units / inputs.shape[2])
+            const iterations = Math.floor(this.units / inputs.shape[2])
 
-            const activatedTiles = []
-
-            for (let i = 0; i < repeatTimes; i++) {
-                const alpha = this.valve.dataSync()[0]
-
-                // console.log(alpha)
-                if (Math.random() < 0.0001) console.log(alpha)
-
-                if (i === 0) {
-                    activatedTiles.push(inputs)
-                    continue
-                }
-
-                const flow = tf.leakyRelu(inputs.add(i), alpha)
-                this.valve.assign(
-                    this.valve
-                        .add(flow.flatten().norm())
-                        .sin()
-                        .clipByValue(this.lowerAlpha, this.upperAlpha)
-                )
-
-                const activatedTile = tf[this.activation](inputs.mul(i))
-                activatedTiles.push(activatedTile)
+            let outputs
+            if (this.method === 'fluid') {
+                outputs = this.fluidExpansion(inputs, iterations)
+            } else {
+                outputs = this.tiledExpansion(inputs, iterations)
             }
 
-            const repeatedInputs = tf.concat(activatedTiles, 2)
-            const paddedInputs = tf.pad(repeatedInputs, [
-                [0, 0],
-                [0, 0],
-                [0, this.units - repeatTimes * inputs.shape[2]]
-            ])
-
-            return paddedInputs
+            return outputs
         })
     }
 
-    // call(inputs, kwargs) {
-    //     return tf.tidy(() => {
-    //         inputs = Array.isArray(inputs) ? inputs[0] : inputs
-    //         const repeatTimes = Math.floor(this.units / inputs.shape[2])
-    //         const repeatedInputs = tf.tile(inputs, [1, 1, repeatTimes])
-    //         const paddedInputs = tf.pad(repeatedInputs, [
-    //             [0, 0],
-    //             [0, 0],
-    //             [0, this.units - repeatTimes * inputs.shape[2]]
-    //         ])
-    //         return paddedInputs
-    //     })
-    // }
+    fluidExpansion(inputs, iterations) {
+        const activatedTiles = []
+
+        for (let i = 0; i < iterations; i++) {
+            const alpha = this.valve.dataSync()[0]
+
+            // console.log(alpha)
+            if (Math.random() < 0.001) console.log(alpha)
+
+            if (i === 0) {
+                activatedTiles.push(inputs)
+                continue
+            }
+
+            const pressure = tf.leakyRelu(inputs.add(i), alpha).flatten().norm()
+
+            this.valve.assign(
+                this.valve
+                    .add(pressure)
+                    .sin()
+                    .clipByValue(this.lowerAlpha, this.upperAlpha)
+            )
+
+            const activatedTile = tf[this.activation](inputs.mul(i))
+            activatedTiles.push(activatedTile)
+        }
+
+        const repeatedInputs = tf.concat(activatedTiles, 2)
+        const paddedInputs = tf.pad(repeatedInputs, [
+            [0, 0],
+            [0, 0],
+            [0, this.units - iterations * inputs.shape[2]]
+        ])
+
+        return paddedInputs
+    }
+
+    tiledExpansion(inputs, iterations) {
+        const repeatedInputs = tf.tile(inputs, [1, 1, iterations])
+        const paddedInputs = tf.pad(repeatedInputs, [
+            [0, 0],
+            [0, 0],
+            [0, this.units - iterations * inputs.shape[2]]
+        ])
+        return paddedInputs
+    }
 
     getConfig() {
         return {
@@ -3022,11 +3031,11 @@ class Expansion extends LayerBase {
     }
 
     static get className() {
-        return 'Expansion'
+        return 'DimensionExpansion'
     }
 }
 
-class Contraction extends LayerBase {
+class DimensionContraction extends LayerBase {
     constructor(config) {
         super({ name: `con-${randomString()}`, ...config })
         this.units = config.units
@@ -3078,7 +3087,7 @@ class Contraction extends LayerBase {
     }
 
     static get className() {
-        return 'Contraction'
+        return 'DimensionContraction'
     }
 }
 
@@ -3093,7 +3102,7 @@ const exportedLayers = [
     DebugLayer,
     DeterministicEmbedding,
     DumbCompression,
-    Expansion,
+    DimensionExpansion,
     FourierFeaturePositionalEncoding,
     LazyMixtureOfExperts,
     ChunkedStateSpace,
@@ -3111,7 +3120,7 @@ const exportedLayers = [
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
     StateSpace,
-    Contraction,
+    DimensionContraction,
     StructuredStateSpace,
     SynthesizerAttention,
     SharedEmbedding,

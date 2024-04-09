@@ -9,7 +9,7 @@ export default class OscilloscopingDecayedExponent extends ODE {
         super(config)
         this.layers = 9
         this.units = 512
-        this.embeddings = 64
+        this.embeddings = 128
         this.maxDecisions = 9
         this.kernelSize = 6
     }
@@ -32,9 +32,10 @@ export default class OscilloscopingDecayedExponent extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         outputs = this.ode.layers
-            .Expansion({
+            .DimensionExpansion({
                 units: this.units,
-                activation: 'relu6'
+                activation: 'relu6',
+                method: 'fluid'
             })
             .apply(outputs)
 
@@ -48,15 +49,8 @@ export default class OscilloscopingDecayedExponent extends ODE {
                 .apply(outputs)
         }
 
-        // outputs = this.ode.layers
-        //     .bottleneck({
-        //         units: this.embeddings,
-        //         activation: 'linear'
-        //     })
-        //     .apply(outputs)
-
         outputs = this.ode.layers
-            .Contraction({
+            .DimensionContraction({
                 units: this.embeddings,
                 activation: 'tanh'
             })
