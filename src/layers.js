@@ -2478,6 +2478,36 @@ class Vectorrent extends LayerBase {
         })
     }
 
+    // shiftTokenPosition(tensor, shiftLeft = true) {
+    //     return tf.tidy(() => {
+    //         const [batchSize, sequenceLength, vocabSize] = tensor.shape
+
+    //         if (shiftLeft) {
+    //             // Shift the first token to the end
+    //             const firstToken = tensor.slice(
+    //                 [0, 0, 0],
+    //                 [batchSize, 1, vocabSize]
+    //             )
+    //             const remainingTokens = tensor.slice(
+    //                 [0, 1, 0],
+    //                 [batchSize, sequenceLength - 1, vocabSize]
+    //             )
+    //             return tf.concat([remainingTokens, firstToken], 1)
+    //         } else {
+    //             // Shift the last token to the front
+    //             const lastToken = tensor.slice(
+    //                 [0, sequenceLength - 1, 0],
+    //                 [batchSize, 1, vocabSize]
+    //             )
+    //             const remainingTokens = tensor.slice(
+    //                 [0, 0, 0],
+    //                 [batchSize, sequenceLength - 1, vocabSize]
+    //             )
+    //             return tf.concat([lastToken, remainingTokens], 1)
+    //         }
+    //     })
+    // }
+
     getConfig() {
         return {
             ...super.getConfig(),
@@ -2491,190 +2521,6 @@ class Vectorrent extends LayerBase {
         return 'Vectorrent'
     }
 }
-
-// class Vectorrent extends LayerBase {
-//     constructor(config) {
-//         super({ name: `vec-${randomString()}`, ...config })
-//         this.routingIterations = config?.routingIterations || 3
-//         this.units = config?.units || 64
-//     }
-
-//     build(inputShape) {
-//         this.router = this.addWeight(
-//             'routingVector',
-//             [inputShape[inputShape.length - 1], this.units],
-//             'float32',
-//             tf.initializers.leCunNormal()
-//         )
-
-//         this.gate = this.addWeight(
-//             'gateVector',
-//             [this.units],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-
-//         this.residual = new ResidualConnection()
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return [...inputShape.slice(0, -1), this.units]
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             const [batchSize, seqLength, inputDim] = inputs.shape
-
-//             let outputs = inputs
-
-//             const routes = tf.variable(tf.zerosLike(outputs))
-
-//             for (let i = 0; i < this.routingIterations; i++) {
-//                 const routedOutputs = outputs.matMul(this.router.read())
-
-//                 const gateValues = tf.leakyRelu(
-//                     routedOutputs.mul(this.gate.read()),
-//                     0.666
-//                 )
-
-//                 const updatedRoutes = routes.add(gateValues)
-
-//                 routes.assign(tf.selu(updatedRoutes))
-
-//                 outputs = routes
-//                     .slice([0, 1, 0], [batchSize, seqLength - 1, this.units])
-//                     .concat(
-//                         routes.slice(
-//                             [0, seqLength - 1, 0],
-//                             [batchSize, 1, this.units]
-//                         ),
-//                         1
-//                     )
-//             }
-
-//             tf.dispose([routes])
-
-//             return this.residual.apply([inputs, outputs])
-//         })
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             routingIterations: this.routingIterations,
-//             units: this.units
-//         }
-//     }
-
-//     static get className() {
-//         return 'Vectorrent'
-//     }
-// }
-
-// class Vectorrent extends LayerBase {
-//     constructor(config) {
-//         super({ name: `vec-${randomString()}`, ...config })
-//         this.routingIterations = config?.routingIterations || 3
-//         this.decayRate = config?.decayRate || 0.1
-//         this.toolbox = [
-//             'createVariable',
-//             'replaceVariable',
-//             'updateVariable',
-//             'deleteVariable',
-//             'shiftVariable'
-//         ]
-//     }
-
-//     build(inputShape) {
-//         this.router = this.addWeight(
-//             'routingVector',
-//             [inputShape[inputShape.length - 1]],
-//             'float32',
-//             tf.initializers.leCunNormal()
-//         )
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             let outputs = inputs
-
-//             const routes = tf.variable(tf.zerosLike(outputs))
-//             const target = tf.variable(tf.scalar(0))
-
-//             for (let i = 0; i < this.routingIterations; i++) {
-//                 outputs = outputs.add(this.router.read())
-
-//                 routes.assign(tf.selu(routes.add(outputs)))
-
-//                 target.assign(tf.sin(target.sub(routes.flatten().mean())))
-
-//                 const progress = (i + 1) / this.routingIterations
-//                 const decayFactor = Math.exp(-this.decayRate * progress)
-//                 const shouldReturn = target
-//                     .mul(tf.scalar(decayFactor))
-//                     .dataSync()[0]
-
-//                 if (Math.abs(shouldReturn) <= 1e-8) {
-//                     console.log(`neutral return: ${shouldReturn}`)
-//                     break
-//                 }
-//             }
-
-//             tf.dispose([routes, target])
-
-//             return inputs.sub(outputs)
-//         })
-//     }
-
-//     // shiftTokenPosition(tensor, shiftLeft = true) {
-//     //     return tf.tidy(() => {
-//     //         const [batchSize, sequenceLength, vocabSize] = tensor.shape
-
-//     //         if (shiftLeft) {
-//     //             // Shift the first token to the end
-//     //             const firstToken = tensor.slice(
-//     //                 [0, 0, 0],
-//     //                 [batchSize, 1, vocabSize]
-//     //             )
-//     //             const remainingTokens = tensor.slice(
-//     //                 [0, 1, 0],
-//     //                 [batchSize, sequenceLength - 1, vocabSize]
-//     //             )
-//     //             return tf.concat([remainingTokens, firstToken], 1)
-//     //         } else {
-//     //             // Shift the last token to the front
-//     //             const lastToken = tensor.slice(
-//     //                 [0, sequenceLength - 1, 0],
-//     //                 [batchSize, 1, vocabSize]
-//     //             )
-//     //             const remainingTokens = tensor.slice(
-//     //                 [0, 0, 0],
-//     //                 [batchSize, sequenceLength - 1, vocabSize]
-//     //             )
-//     //             return tf.concat([lastToken, remainingTokens], 1)
-//     //         }
-//     //     })
-//     // }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             routingIterations: this.routingIterations
-//         }
-//     }
-
-//     static get className() {
-//         return 'Vectorrent'
-//     }
-// }
 
 class CollapseOneHot extends LayerBase {
     constructor(config) {
@@ -3100,6 +2946,13 @@ class Expansion extends LayerBase {
     constructor(config) {
         super({ name: `exp-${randomString()}`, ...config })
         this.units = config.units
+        this.activation = config.activation || 'tanh'
+    }
+
+    build(inputShape) {
+        this.upperAlpha = 0.88888888
+        this.lowerAlpha = 0.00000008
+        this.valve = tf.variable(tf.scalar(this.upperAlpha))
     }
 
     computeOutputShape(inputShape) {
@@ -3110,15 +2963,56 @@ class Expansion extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const repeatTimes = Math.floor(this.units / inputs.shape[2])
-            const repeatedInputs = tf.tile(inputs, [1, 1, repeatTimes])
+
+            const activatedTiles = []
+
+            for (let i = 0; i < repeatTimes; i++) {
+                const alpha = this.valve.dataSync()[0]
+
+                // console.log(alpha)
+                if (Math.random() < 0.0001) console.log(alpha)
+
+                if (i === 0) {
+                    activatedTiles.push(inputs)
+                    continue
+                }
+
+                const flow = tf.leakyRelu(inputs.add(i), alpha)
+                this.valve.assign(
+                    this.valve
+                        .add(flow.flatten().norm())
+                        .sin()
+                        .clipByValue(this.lowerAlpha, this.upperAlpha)
+                )
+
+                const activatedTile = tf[this.activation](inputs.mul(i))
+                activatedTiles.push(activatedTile)
+            }
+
+            const repeatedInputs = tf.concat(activatedTiles, 2)
             const paddedInputs = tf.pad(repeatedInputs, [
                 [0, 0],
                 [0, 0],
                 [0, this.units - repeatTimes * inputs.shape[2]]
             ])
+
             return paddedInputs
         })
     }
+
+    // call(inputs, kwargs) {
+    //     return tf.tidy(() => {
+    //         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+    //         const repeatTimes = Math.floor(this.units / inputs.shape[2])
+    //         const repeatedInputs = tf.tile(inputs, [1, 1, repeatTimes])
+    //         const paddedInputs = tf.pad(repeatedInputs, [
+    //             [0, 0],
+    //             [0, 0],
+    //             [0, this.units - repeatTimes * inputs.shape[2]]
+    //         ])
+    //         return paddedInputs
+    //     })
+    // }
 
     getConfig() {
         return {
@@ -3132,17 +3026,18 @@ class Expansion extends LayerBase {
     }
 }
 
-class StaticProjection extends LayerBase {
+class Contraction extends LayerBase {
     constructor(config) {
-        super({ name: `proj-${randomString()}`, ...config })
+        super({ name: `con-${randomString()}`, ...config })
         this.units = config.units
+        this.activation = config.activation || 'tanh'
     }
 
     computeOutputShape(inputShape) {
         return [inputShape[0], inputShape[1], this.units]
     }
 
-    call(inputs) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const inputShape = inputs.shape
@@ -3166,7 +3061,7 @@ class StaticProjection extends LayerBase {
                 const chunk = reshapedInputs
                     .slice([0, 0, i, 0], [-1, -1, 1, -1])
                     .squeeze([2])
-                const activated = tf.tanh(chunk)
+                const activated = tf[this.activation](chunk)
                 const reduced = activated.sum([2], true)
                 chunks.push(reduced)
             }
@@ -3177,12 +3072,13 @@ class StaticProjection extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            units: this.units
+            units: this.units,
+            activation: this.activation
         }
     }
 
     static get className() {
-        return 'StaticProjection'
+        return 'Contraction'
     }
 }
 
@@ -3215,7 +3111,7 @@ const exportedLayers = [
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
     StateSpace,
-    StaticProjection,
+    Contraction,
     StructuredStateSpace,
     SynthesizerAttention,
     SharedEmbedding,

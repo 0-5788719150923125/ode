@@ -33,7 +33,8 @@ export default class OscilloscopingDecayedExponent extends ODE {
 
         outputs = this.ode.layers
             .Expansion({
-                units: this.units
+                units: this.units,
+                activation: 'relu6'
             })
             .apply(outputs)
 
@@ -55,9 +56,9 @@ export default class OscilloscopingDecayedExponent extends ODE {
         //     .apply(outputs)
 
         outputs = this.ode.layers
-            .StaticProjection({
+            .Contraction({
                 units: this.embeddings,
-                activation: 'linear'
+                activation: 'tanh'
             })
             .apply(outputs)
 
