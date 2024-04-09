@@ -34,7 +34,7 @@ export default class OscilloscopingDecayedExponent extends ODE {
         outputs = this.ode.layers
             .DimensionExpansion({
                 units: this.units,
-                activation: 'relu6',
+                // activation: 'tanh',
                 method: 'fluid'
             })
             .apply(outputs)

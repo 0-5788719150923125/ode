@@ -2472,7 +2472,7 @@ class Vectorrent extends LayerBase {
                 // Return an evenly spaced sequence of numbers over the given interval.
             }
 
-            tf.dispose([routes])
+            routes.dispose()
 
             return this.residual.apply([inputs, outputs])
         })
@@ -2964,19 +2964,11 @@ class DimensionExpansion extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const iterations = Math.floor(this.units / inputs.shape[2])
-
-            let outputs
-            if (this.method === 'fluid') {
-                outputs = this.fluidExpansion(inputs, iterations)
-            } else {
-                outputs = this.tiledExpansion(inputs, iterations)
-            }
-
-            return outputs
+            return this[this.method](inputs, iterations)
         })
     }
 
-    fluidExpansion(inputs, iterations) {
+    fluid(inputs, iterations) {
         const activatedTiles = []
 
         for (let i = 0; i < iterations; i++) {
@@ -2990,17 +2982,16 @@ class DimensionExpansion extends LayerBase {
                 continue
             }
 
-            const pressure = tf.leakyRelu(inputs.add(i), alpha).flatten().norm()
-
-            this.valve.assign(
-                this.valve
-                    .add(pressure)
-                    .sin()
-                    .clipByValue(this.lowerAlpha, this.upperAlpha)
-            )
-
-            const activatedTile = tf[this.activation](inputs.mul(i))
+            const activatedTile = tf[this.activation](inputs.mul(inputs.sub(i)))
             activatedTiles.push(activatedTile)
+
+            const pressure = tf
+                .leakyRelu(inputs, alpha)
+                .add(activatedTile, false, true)
+                .clipByValue(this.lowerAlpha, this.upperAlpha)
+                .mean()
+
+            this.valve.assign(pressure)
         }
 
         const repeatedInputs = tf.concat(activatedTiles, 2)
@@ -3013,7 +3004,7 @@ class DimensionExpansion extends LayerBase {
         return paddedInputs
     }
 
-    tiledExpansion(inputs, iterations) {
+    tiled(inputs, iterations) {
         const repeatedInputs = tf.tile(inputs, [1, 1, iterations])
         const paddedInputs = tf.pad(repeatedInputs, [
             [0, 0],
