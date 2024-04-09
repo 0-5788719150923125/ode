@@ -2946,13 +2946,13 @@ class DimensionExpansion extends LayerBase {
     constructor(config) {
         super({ name: `exp-${randomString()}`, ...config })
         this.units = config.units
-        this.activation = config.activation || 'tanh'
         this.method = config.method || ['fluid', 'tiled'][0]
     }
 
     build(inputShape) {
         this.upperAlpha = 0.88888888
         this.lowerAlpha = 0.00000008
+        this.current = tf.variable(tf.scalar(1.0))
         this.valve = tf.variable(tf.scalar(this.upperAlpha))
     }
 
@@ -2969,32 +2969,43 @@ class DimensionExpansion extends LayerBase {
     }
 
     fluid(inputs, iterations) {
-        const activatedTiles = []
+        const tiles = []
+        const weights = inputs.softmax()
 
         for (let i = 0; i < iterations; i++) {
-            const alpha = this.valve.dataSync()[0]
+            const alphaCurrent = this.current
+                .sigmoid()
+                .mul(this.upperAlpha - this.lowerAlpha)
+                .add(this.lowerAlpha)
+            const alphaWeight = this.valve
+                .mul(alphaCurrent)
+                .clipByValue(this.lowerAlpha, this.upperAlpha)
 
-            // console.log(alpha)
+            const alpha = alphaWeight.dataSync()[0]
+
             if (Math.random() < 0.001) console.log(alpha)
 
             if (i === 0) {
-                activatedTiles.push(inputs)
+                tiles.push(inputs)
                 continue
             }
 
-            const activatedTile = tf[this.activation](inputs.mul(inputs.sub(i)))
-            activatedTiles.push(activatedTile)
+            const tile = tf.leakyRelu(inputs.mul(i), alpha)
+            tiles.push(tile)
 
-            const pressure = tf
-                .leakyRelu(inputs, alpha)
-                .add(activatedTile, false, true)
-                .clipByValue(this.lowerAlpha, this.upperAlpha)
-                .mean()
+            const weight = tile.mul(weights).sum().div(weights.sum())
 
-            this.valve.assign(pressure)
+            this.valve.assign(weight)
+            this.current.assign(
+                this.current.add(
+                    alphaWeight
+                        .sub(this.lowerAlpha)
+                        .div(this.upperAlpha - this.lowerAlpha)
+                )
+            )
         }
 
-        const repeatedInputs = tf.concat(activatedTiles, 2)
+        const repeatedInputs = tf.concat(tiles, 2)
         const paddedInputs = tf.pad(repeatedInputs, [
             [0, 0],
             [0, 0],
