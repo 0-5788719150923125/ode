@@ -240,8 +240,7 @@ class CausalSelfAttention extends LayerBase {
 class SinusoidalPositionalEncoding extends LayerBase {
     constructor(config) {
         super({ name: `enc-${randomString()}`, ...config })
-        this.units = config.units || 64
-        this.reverse = config.reverse || false
+        this.reverse = config?.reverse || false
     }
 
     call(inputs, kwargs) {
@@ -256,10 +255,10 @@ class SinusoidalPositionalEncoding extends LayerBase {
             // Compute the positional encodings (2D tensor of shape [seqLength, this.units])
             const positionalEncoding = tf.tensor2d(
                 Array.from({ length: seqLength }, (_, pos) => {
-                    return Array.from({ length: this.units }, (_, i) => {
+                    return Array.from({ length: inputs.shape[2] }, (_, i) => {
                         const divTerm = Math.pow(
                             10000,
-                            (2 * (i / 2)) / this.units
+                            (2 * (i / 2)) / inputs.shape[2]
                         )
                         // Switch between sine and cosine based on the flag
                         if (this.reverse) {
@@ -285,9 +284,7 @@ class SinusoidalPositionalEncoding extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        // Input shape is [batch_size, sequence_length]
-        // Output shape is [batch_size, sequence_length, this.units]
-        return [inputShape[0], inputShape[1], this.units]
+        return inputShape
     }
 
     static get className() {
@@ -575,7 +572,7 @@ class CapsNet extends LayerBase {
     }
 }
 
-class DigitCaps extends tf.layers.Layer {
+class DigitCaps extends LayerBase {
     constructor(config) {
         super({ name: `dcap-${randomString()}`, ...config })
         this.numCapsules = config.numCapsules
@@ -2472,36 +2469,6 @@ class Vectorrent extends LayerBase {
         })
     }
 
-    // shiftTokenPosition(tensor, shiftLeft = true) {
-    //     return tf.tidy(() => {
-    //         const [batchSize, sequenceLength, vocabSize] = tensor.shape
-
-    //         if (shiftLeft) {
-    //             // Shift the first token to the end
-    //             const firstToken = tensor.slice(
-    //                 [0, 0, 0],
-    //                 [batchSize, 1, vocabSize]
-    //             )
-    //             const remainingTokens = tensor.slice(
-    //                 [0, 1, 0],
-    //                 [batchSize, sequenceLength - 1, vocabSize]
-    //             )
-    //             return tf.concat([remainingTokens, firstToken], 1)
-    //         } else {
-    //             // Shift the last token to the front
-    //             const lastToken = tensor.slice(
-    //                 [0, sequenceLength - 1, 0],
-    //                 [batchSize, 1, vocabSize]
-    //             )
-    //             const remainingTokens = tensor.slice(
-    //                 [0, 0, 0],
-    //                 [batchSize, sequenceLength - 1, vocabSize]
-    //             )
-    //             return tf.concat([lastToken, remainingTokens], 1)
-    //         }
-    //     })
-    // }
-
     getConfig() {
         return {
             ...super.getConfig(),
@@ -2822,7 +2789,7 @@ class PerformerAttention extends LayerBase {
     }
 }
 
-class SharedEmbedding extends tf.layers.Layer {
+class SharedEmbedding extends LayerBase {
     constructor(config) {
         super({ name: `emb-${randomString()}`, ...config })
         this.vocabSize = config.vocabSize
@@ -2901,7 +2868,7 @@ class SharedEmbedding extends tf.layers.Layer {
     }
 }
 
-class FourierFeaturePositionalEncoding extends tf.layers.Layer {
+class FourierFeaturePositionalEncoding extends LayerBase {
     constructor(config) {
         super(config)
         this.numFeatures = config.numFeatures

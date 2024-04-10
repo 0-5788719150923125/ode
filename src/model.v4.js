@@ -1,8 +1,8 @@
 import ODE from './model.v3.js'
 
 /**
- * A small transformer with synthetic attention weights, GLU-based feedforward
- * networks, and rotary positional embeddings.
+ * A small transformer with synthetic attention, GLU-based feedforward
+ * networks, and sinusoidal positional embeddings.
  * @extends ODE
  */
 export default class OpportunisticDialogueEncoder extends ODE {
@@ -35,11 +35,7 @@ export default class OpportunisticDialogueEncoder extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.ode.layers
-            .RotaryPositionalEncoding({
-                blockSize: this.config.contextLength
-            })
-            .apply(outputs)
+        outputs = this.ode.layers.SinusoidalPositionalEncoding().apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

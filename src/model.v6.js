@@ -1,7 +1,7 @@
 import ODE from './model.v4.js'
 
 /**
- * An experimental, fast language model with limited memory footprint.
+ * An experimental language model with limited memory footprint.
  * @extends ODE
  */
 export default class OscilloscopingDecayedExponent extends ODE {
