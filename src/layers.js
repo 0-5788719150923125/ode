@@ -2438,11 +2438,11 @@ class Vectorrent extends LayerBase {
             const targets = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.maxDecisions; i++) {
-                const attentionValues = this.lens.apply(outputs)
+                const convolutionValues = this.lens.apply(outputs)
 
                 // const attended = this.se.apply(attentionValues)
 
-                const routeValues = attentionValues
+                const routeValues = convolutionValues
                     .matMul(this.router.read())
                     .selu()
 

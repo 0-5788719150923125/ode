@@ -4,13 +4,13 @@ import ODE from './model.v4.js'
  * An experimental language model with limited memory footprint.
  * @extends ODE
  */
-export default class OscilloscopingDecayedExponent extends ODE {
+export default class OscillometricDecayedExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = 12
         this.units = 256
         this.maxDecisions = 9
-        this.kernelSize = 3
+        this.kernelSize = 6
         this.dilation = 3
     }
 
