@@ -2415,14 +2415,16 @@ class Vectorrent extends LayerBase {
             useBias: true
         })
 
-        // this.se = new SqueezeAndExcitation({
+        // this.attention = new SqueezeAndExcitation({
         //     ratio: 16
         // })
+
+        // this.attention = customLayers.EfficientChannelAttention({ gamma: 2 })
 
         const initialAlpha = 0.666
         this.targetAlpha = tf.variable(tf.scalar(initialAlpha))
 
-        this.residual = new ResidualConnection()
+        this.residual = customLayers.ResidualConnection()
     }
 
     computeOutputShape(inputShape) {
@@ -2440,7 +2442,7 @@ class Vectorrent extends LayerBase {
             for (let i = 0; i < this.maxDecisions; i++) {
                 const convolutionValues = this.lens.apply(outputs)
 
-                // const attended = this.se.apply(attentionValues)
+                // const attentionValues = this.attention.apply(convolutionValues)
 
                 const routeValues = convolutionValues
                     .matMul(this.router.read())
@@ -2532,6 +2534,54 @@ class SqueezeAndExcitation extends LayerBase {
 
     static get className() {
         return 'SqueezeAndExcitation'
+    }
+}
+
+class EfficientChannelAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `eca-${randomString()}`, ...config })
+        this.gamma = config.gamma || 2
+    }
+
+    build(inputShape) {
+        this.channels = inputShape[inputShape.length - 1]
+        this.kernelSize = Math.max(1, Math.floor(this.channels / this.gamma))
+
+        this.conv1d = customLayers.conv1d({
+            filters: 1,
+            kernelSize: this.kernelSize,
+            strides: 1,
+            padding: 'same',
+            activation: 'sigmoid',
+            kernelInitializer: 'ones',
+            useBias: false
+        })
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const avgPool = tf.mean(inputs, [1], true)
+            const attention = this.conv1d.apply(avgPool)
+
+            return inputs.mul(attention)
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            gamma: this.gamma
+        }
+    }
+
+    static get className() {
+        return 'EfficientChannelAttention'
     }
 }
 
@@ -3106,6 +3156,7 @@ const exportedLayers = [
     DeterministicEmbedding,
     DumbCompression,
     DimensionExpansion,
+    EfficientChannelAttention,
     FourierFeaturePositionalEncoding,
     LazyMixtureOfExperts,
     ChunkedStateSpace,

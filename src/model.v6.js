@@ -36,6 +36,7 @@ export default class OscillometricDecayedExponent extends ODE {
                 .Vectorrent({
                     maxDecisions: this.maxDecisions,
                     kernelSize: this.kernelSize,
+                    dilation: this.dilation,
                     units: this.units
                 })
                 .apply(outputs)
