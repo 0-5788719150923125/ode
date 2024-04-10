@@ -13,6 +13,7 @@ const options = {
     generateEvery: 256,
     sampleLength: 256,
     predictLength: 128,
+    saveEvery: 0,
     corpus: null,
     debug: false
 }

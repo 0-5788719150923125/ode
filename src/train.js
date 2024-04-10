@@ -19,6 +19,7 @@ export async function startTraining(dataGenerator, args) {
         sampleLength: 64,
         generateEvery: 64,
         predictLength: 50,
+        saveEvery: 0,
         clipValue: 1.0,
         labels: this.config.labels || 'timeDistributed',
         encoding: this.config.encoding || 'oneHot',
@@ -46,6 +47,7 @@ export async function startTraining(dataGenerator, args) {
 
     // a custom train loop
     try {
+        let savedAt = 0
         while (true) {
             batch++
             if (batch % trainArgs.gradientAccumulationSteps === 0) {
@@ -74,6 +76,17 @@ export async function startTraining(dataGenerator, args) {
                 trainArgs.generateEvery,
                 trainArgs.predictLength
             )
+
+            if (
+                !isBrowser &&
+                trainArgs.saveEvery !== 0 &&
+                step !== 0 &&
+                step % trainArgs.saveEvery === 0 &&
+                step !== savedAt
+            ) {
+                await this.save()
+                savedAt = step
+            }
         }
     } catch (err) {
         console.error(err, 'Oof!')
@@ -434,8 +447,6 @@ async function predictionSampler(
         if (isBrowser) {
             white = ''
             color = ''
-        } else {
-            await this.save()
         }
 
         const seedLength = randomBetween(16, maxLength - 16)
