@@ -10,7 +10,8 @@ export default class OscilloscopingDecayedExponent extends ODE {
         this.layers = 12
         this.units = 256
         this.maxDecisions = 9
-        this.kernelSize = 5
+        this.kernelSize = 3
+        this.dilation = 3
     }
 
     defineBuild() {

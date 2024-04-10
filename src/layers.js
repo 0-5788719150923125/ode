@@ -2387,6 +2387,7 @@ class Vectorrent extends LayerBase {
         this.units = config?.units || 64
         this.maxDecisions = config?.maxDecisions || 3
         this.kernelSize = config?.kernelSize || 3
+        this.dilation = config?.dilation || 1
     }
 
     build(inputShape) {
@@ -2408,14 +2409,14 @@ class Vectorrent extends LayerBase {
             filters: this.units,
             kernelSize: this.kernelSize,
             kernelInitializer: 'heNormal',
-            dilationRate: 2,
+            dilationRate: this.dilation,
             padding: 'same',
             activation: 'swish',
             useBias: true
         })
 
         const initialAlpha = 0.666
-        this.prism = tf.variable(tf.scalar(initialAlpha))
+        this.targetAlpha = tf.variable(tf.scalar(initialAlpha))
 
         this.residual = new ResidualConnection()
     }
@@ -2439,18 +2440,26 @@ class Vectorrent extends LayerBase {
                     .matMul(this.router.read())
                     .selu()
 
-                this.prism.assign(
-                    this.prism
-                        .add(routeValues.flatten().mean())
+                // this.goal.assign(
+                //     this.goal
+                //         .add(routeValues.flatten().mean())
+                //         .sin()
+                //         .abs()
+                //         .neg()
+                // )
+                this.targetAlpha.assign(
+                    this.targetAlpha
+                        .sub(routeValues.flatten().mean())
                         .sin()
                         .abs()
-                        .neg()
                 )
 
-                const alpha = this.prism.dataSync()[0]
-                const gateValues = tf.leakyRelu(
+                if (Math.random() < 0.0001)
+                    console.log(this.targetAlpha.dataSync()[0])
+
+                const gateValues = tf.prelu(
                     routeValues.mul(this.gate.read()),
-                    alpha
+                    this.targetAlpha
                 )
 
                 targets.assign(targets.add(gateValues))

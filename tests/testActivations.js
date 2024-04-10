@@ -83,4 +83,5 @@ import * as tf from '@tensorflow/tfjs'
 
 // console.log(compute(tensor).arraySync())
 
-console.log(tf.leakyRelu(-0.3).arraySync())
+console.log(tf.leakyRelu(-18, 0.1).arraySync())
+console.log(tf.prelu(-18, tf.scalar(0.1)).arraySync())
