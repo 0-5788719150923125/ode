@@ -2415,7 +2415,7 @@ class Vectorrent extends LayerBase {
         })
 
         const initialAlpha = 0.666
-        this.valve = tf.variable(tf.scalar(initialAlpha))
+        this.prism = tf.variable(tf.scalar(initialAlpha))
 
         this.residual = new ResidualConnection()
     }
@@ -2439,15 +2439,15 @@ class Vectorrent extends LayerBase {
                     .matMul(this.router.read())
                     .selu()
 
-                this.valve.assign(
-                    this.valve
+                this.prism.assign(
+                    this.prism
                         .add(routeValues.flatten().mean())
                         .sin()
                         .abs()
                         .neg()
                 )
 
-                const alpha = this.valve.dataSync()[0]
+                const alpha = this.prism.dataSync()[0]
                 const gateValues = tf.leakyRelu(
                     routeValues.mul(this.gate.read()),
                     alpha

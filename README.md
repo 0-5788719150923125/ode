@@ -21,10 +21,10 @@ This library implements:
 -   custom optimizers, including AdamW, Lion, and Prodigy (broken)
 -   learning rate schedulers
 -   custom loss functions
--   a custom training loop, with gradient checkpointing, L2-normalized gradient clipping
+-   a custom training loop, with gradient checkpointing (broken), L2-normalized gradient clipping
 -   custom tokenizers, including support for all Huggingface Tokenizers models
 -   dataset management via generator functions and custom sampling strategies
--   support for one-label, multi-label and sparsely-encoded datasets
+-   support for one-label, multi-label, one-hot and integer-encoded datasets
 -   a number of text-decoding strategies, including greedy (argmax), temperature, top-k and top-p sampling
 -   object-oriented, extensible design
 -   tons more
