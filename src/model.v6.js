@@ -1,17 +1,16 @@
 import ODE from './model.v4.js'
 
 /**
- * An experimental, deterministic language model with next to 0 trainable parameters.
+ * An experimental, fast language model with limited memory footprint.
  * @extends ODE
  */
 export default class OscilloscopingDecayedExponent extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 9
-        this.units = 512
-        this.embeddings = 128
+        this.layers = 12
+        this.units = 256
         this.maxDecisions = 9
-        this.kernelSize = 6
+        this.kernelSize = 9
     }
 
     defineBuild() {
@@ -21,7 +20,7 @@ export default class OscilloscopingDecayedExponent extends ODE {
 
         const embeddings = this.ode.layers.embedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.embeddings,
+            outputDim: this.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -30,13 +29,6 @@ export default class OscilloscopingDecayedExponent extends ODE {
         })
 
         let outputs = encoding.apply(embeddings.apply(inputs))
-
-        outputs = this.ode.layers
-            .DimensionExpansion({
-                units: this.units,
-                method: 'fluid'
-            })
-            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -47,13 +39,6 @@ export default class OscilloscopingDecayedExponent extends ODE {
                 })
                 .apply(outputs)
         }
-
-        outputs = this.ode.layers
-            .DimensionContraction({
-                units: this.embeddings,
-                activation: 'tanh'
-            })
-            .apply(outputs)
 
         outputs = this.ode.layers
             .dense({

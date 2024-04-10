@@ -38,8 +38,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .RotaryPositionalEncoding({
-                blockSize: this.config.contextLength,
-                units: this.units
+                blockSize: this.config.contextLength
             })
             .apply(outputs)
 

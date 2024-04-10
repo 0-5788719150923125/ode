@@ -2464,12 +2464,6 @@ class Vectorrent extends LayerBase {
                 routes.assign(routes.add(gateValues))
 
                 outputs = routes
-
-                // tf.step()
-                // Computes step of the input tf.Tensor element-wise: x > 0 ? 1 : alpha
-
-                // tf.linspace()
-                // Return an evenly spaced sequence of numbers over the given interval.
             }
 
             routes.dispose()
@@ -2964,7 +2958,13 @@ class DimensionExpansion extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const iterations = Math.floor(this.units / inputs.shape[2])
-            return this[this.method](inputs, iterations)
+            const repeatedInputs = this[this.method](inputs, iterations)
+            const paddedOutputs = tf.pad(repeatedInputs, [
+                [0, 0],
+                [0, 0],
+                [0, this.units - iterations * inputs.shape[2]]
+            ])
+            return paddedOutputs
         })
     }
 
@@ -2985,12 +2985,8 @@ class DimensionExpansion extends LayerBase {
 
             if (Math.random() < 0.001) console.log(alpha)
 
-            if (i === 0) {
-                tiles.push(inputs)
-                continue
-            }
-
-            const tile = tf.leakyRelu(inputs.mul(i), alpha)
+            let tile = inputs
+            if (i !== 0) tile = tf.leakyRelu(inputs.mul(i), alpha)
             tiles.push(tile)
 
             const weight = tile.mul(weights).sum().div(weights.sum())
@@ -3004,25 +3000,11 @@ class DimensionExpansion extends LayerBase {
                 )
             )
         }
-
-        const repeatedInputs = tf.concat(tiles, 2)
-        const paddedInputs = tf.pad(repeatedInputs, [
-            [0, 0],
-            [0, 0],
-            [0, this.units - iterations * inputs.shape[2]]
-        ])
-
-        return paddedInputs
+        return tf.concat(tiles, 2)
     }
 
     tiled(inputs, iterations) {
-        const repeatedInputs = tf.tile(inputs, [1, 1, iterations])
-        const paddedInputs = tf.pad(repeatedInputs, [
-            [0, 0],
-            [0, 0],
-            [0, this.units - iterations * inputs.shape[2]]
-        ])
-        return paddedInputs
+        return tf.tile(inputs, [1, 1, iterations])
     }
 
     getConfig() {
