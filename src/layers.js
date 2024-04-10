@@ -2415,6 +2415,10 @@ class Vectorrent extends LayerBase {
             useBias: true
         })
 
+        // this.se = new SqueezeAndExcitation({
+        //     ratio: 16
+        // })
+
         const initialAlpha = 0.666
         this.targetAlpha = tf.variable(tf.scalar(initialAlpha))
 
@@ -2436,26 +2440,18 @@ class Vectorrent extends LayerBase {
             for (let i = 0; i < this.maxDecisions; i++) {
                 const attentionValues = this.lens.apply(outputs)
 
+                // const attended = this.se.apply(attentionValues)
+
                 const routeValues = attentionValues
                     .matMul(this.router.read())
                     .selu()
 
-                // this.goal.assign(
-                //     this.goal
-                //         .add(routeValues.flatten().mean())
-                //         .sin()
-                //         .abs()
-                //         .neg()
-                // )
                 this.targetAlpha.assign(
                     this.targetAlpha
                         .sub(routeValues.flatten().mean())
                         .sin()
                         .abs()
                 )
-
-                if (Math.random() < 0.0001)
-                    console.log(this.targetAlpha.dataSync()[0])
 
                 const gateValues = tf.prelu(
                     routeValues.mul(this.gate.read()),
@@ -2483,6 +2479,59 @@ class Vectorrent extends LayerBase {
 
     static get className() {
         return 'Vectorrent'
+    }
+}
+
+// https://arxiv.org/abs/1709.01507
+class SqueezeAndExcitation extends LayerBase {
+    constructor(config) {
+        super({ name: `se-${randomString()}`, ...config })
+        this.ratio = config.ratio
+    }
+
+    build(inputShape) {
+        this.units = inputShape[inputShape.length - 1]
+
+        this.squeeze = tf.layers.globalAveragePooling1d()
+
+        this.exciteDense1 = customLayers.dense({
+            units: Math.max(1, Math.floor(this.units / this.ratio)),
+            activation: 'relu',
+            kernelInitializer: 'heNormal',
+            useBias: false
+        })
+
+        this.exciteDense2 = customLayers.dense({
+            units: this.units,
+            activation: 'sigmoid',
+            kernelInitializer: 'heNormal',
+            useBias: false
+        })
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const squeezed = this.squeeze.apply(inputs)
+            const excited = this.exciteDense1.apply(squeezed)
+            const excitedOutput = this.exciteDense2.apply(excited)
+            return inputs.mul(excitedOutput.expandDims(-2))
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            ratio: this.ratio
+        }
+    }
+
+    static get className() {
+        return 'SqueezeAndExcitation'
     }
 }
 
@@ -3073,6 +3122,7 @@ const exportedLayers = [
     SequenceExpansionLayer,
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
+    SqueezeAndExcitation,
     StateSpace,
     DimensionContraction,
     StructuredStateSpace,
