@@ -220,8 +220,8 @@ async function generateText({
             } else {
                 const idxNextExpanded = idxNext.expandDims(1)
                 const idxNew = this.tf.concat([inputs, idxNextExpanded], 1)
-                this.tf.dispose([inputs, idxNext])
-                inputs = this.tf.keep(idxNew)
+                this.tf.dispose([inputs, idxNext, idxNextExpanded])
+                inputs = idxNew
             }
         }
         this.tf.dispose([inputs])

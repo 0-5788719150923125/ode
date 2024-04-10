@@ -20,7 +20,7 @@ export async function startTraining(dataGenerator, args) {
         generateEvery: 64,
         predictLength: 50,
         clipValue: 1.0,
-        mode: this.config.mode || 'timeDistributed',
+        labels: this.config.labels || 'timeDistributed',
         encoding: this.config.encoding || 'oneHot',
         debug: false,
         ...args
@@ -40,7 +40,7 @@ export async function startTraining(dataGenerator, args) {
         this.tokenizer,
         trainArgs.batchSize,
         trainArgs.sampleLength,
-        trainArgs.mode,
+        trainArgs.labels,
         trainArgs.encoding
     )
 
@@ -347,7 +347,7 @@ function* batchGenerator(
     tokenizer,
     batchSize,
     inputLength,
-    mode = 'timeDistributed',
+    labels = 'timeDistributed',
     encoding = 'oneHot'
 ) {
     while (true) {
@@ -371,7 +371,7 @@ function* batchGenerator(
             let ys
 
             // Output sequence for singleLabel (just the next token)
-            if (mode === 'oneLabel') {
+            if (labels === 'oneLabel') {
                 ys = [textIndices[inputLength]]
             }
             // Output sequence for timeDistributed (the entire sequence shifted by one position to the right)
@@ -399,7 +399,7 @@ function* batchGenerator(
                 }
             } else {
                 // Output labels as one-hot encoded
-                if (mode === 'oneLabel') {
+                if (labels === 'oneLabel') {
                     return tf.oneHot(
                         tf.tensor1d(ysArray.flat(), 'int32'),
                         tokenizer.getLength()
@@ -442,11 +442,11 @@ async function predictionSampler(
         const prompt = dataGenerator.next().value.slice(1, seedLength)
 
         for (const args of [
-            { doSample: false, repetitionPenalty: 1 },
-            { doSample: true, temperature: 0.3 },
-            { doSample: true, temperature: 1.1 },
-            { doSample: true, temperature: 0.7, topK: 4 },
-            { doSample: true, temperature: 0.7, topP: 0.8 }
+            // { doSample: false, repetitionPenalty: 1 },
+            { doSample: true, temperature: 0.3 }
+            // { doSample: true, temperature: 1.1 },
+            // { doSample: true, temperature: 0.7, topK: 4 },
+            // { doSample: true, temperature: 0.7, topP: 0.8 }
         ]) {
             const startTime = performance.now()
             const output = await this.generate({

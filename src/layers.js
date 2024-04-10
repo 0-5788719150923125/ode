@@ -2387,13 +2387,6 @@ class Vectorrent extends LayerBase {
         this.units = config?.units || 64
         this.maxDecisions = config?.maxDecisions || 3
         this.kernelSize = config?.kernelSize || 3
-        this.toolbox = [
-            'createVariable',
-            'replaceVariable',
-            'updateVariable',
-            'deleteVariable',
-            'shiftVariable'
-        ]
     }
 
     build(inputShape) {
@@ -2415,9 +2408,10 @@ class Vectorrent extends LayerBase {
             filters: this.units,
             kernelSize: this.kernelSize,
             kernelInitializer: 'heNormal',
+            dilationRate: 2,
             padding: 'same',
             activation: 'swish',
-            useBias: false
+            useBias: true
         })
 
         const initialAlpha = 0.666
@@ -2436,17 +2430,18 @@ class Vectorrent extends LayerBase {
 
             let outputs = inputs
 
-            const routes = tf.variable(tf.zerosLike(outputs))
+            const targets = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.maxDecisions; i++) {
-                const convOutputs = this.lens.apply(outputs)
-                const routingLogits = convOutputs
+                const attentionValues = this.lens.apply(outputs)
+
+                const routeValues = attentionValues
                     .matMul(this.router.read())
                     .selu()
 
                 this.valve.assign(
                     this.valve
-                        .add(routingLogits.flatten().mean())
+                        .add(routeValues.flatten().mean())
                         .sin()
                         .abs()
                         .neg()
@@ -2454,16 +2449,15 @@ class Vectorrent extends LayerBase {
 
                 const alpha = this.valve.dataSync()[0]
                 const gateValues = tf.leakyRelu(
-                    routingLogits.mul(this.gate.read()),
+                    routeValues.mul(this.gate.read()),
                     alpha
                 )
 
-                routes.assign(routes.add(gateValues))
-
-                outputs = routes
+                targets.assign(targets.add(gateValues))
+                outputs = targets
             }
 
-            routes.dispose()
+            targets.dispose()
 
             return this.residual.apply([inputs, outputs])
         })
