@@ -10,8 +10,9 @@ export default class OscillometricDecayedExponent extends ODE {
         this.layers = 12
         this.units = 256
         this.maxDecisions = 9
-        this.kernelSize = 6
+        this.kernelSize = 3
         this.dilation = 3
+        this.gamma = 3
     }
 
     defineBuild() {
@@ -37,7 +38,8 @@ export default class OscillometricDecayedExponent extends ODE {
                     maxDecisions: this.maxDecisions,
                     kernelSize: this.kernelSize,
                     dilation: this.dilation,
-                    units: this.units
+                    units: this.units,
+                    gamma: this.gamma
                 })
                 .apply(outputs)
         }

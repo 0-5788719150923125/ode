@@ -2388,6 +2388,7 @@ class Vectorrent extends LayerBase {
         this.maxDecisions = config?.maxDecisions || 3
         this.kernelSize = config?.kernelSize || 3
         this.dilation = config?.dilation || 1
+        this.gamma = config?.gamma || 2
     }
 
     build(inputShape) {
@@ -2415,10 +2416,19 @@ class Vectorrent extends LayerBase {
             useBias: true
         })
 
-        this.attention = customLayers.EfficientChannelAttention({ gamma: 3 })
+        // this.dense = customLayers.dense({
+        //     units: this.units / 4,
+        //     activation: 'relu',
+        //     kernelInitializer: 'heNormal',
+        //     useBias: true
+        // })
+
+        this.attention = customLayers.EfficientChannelAttention({
+            gamma: this.gamma
+        })
 
         const initialAlpha = 0.666
-        this.targetAlpha = tf.variable(tf.scalar(initialAlpha))
+        this.alpha = tf.variable(tf.scalar(initialAlpha))
 
         this.residual = customLayers.ResidualConnection()
     }
@@ -2436,27 +2446,44 @@ class Vectorrent extends LayerBase {
             const targets = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.maxDecisions; i++) {
-                const filteredValues = this.lens.apply(outputs)
+                const filtered = this.lens.apply(outputs)
+                const intention = this.attention.apply(filtered)
 
-                const attentionValues = this.attention.apply(filteredValues)
+                const routes = intention.matMul(this.router.read()).selu()
 
-                const routeValues = attentionValues
-                    .matMul(this.router.read())
-                    .selu()
-
-                this.targetAlpha.assign(
-                    this.targetAlpha
-                        .sub(routeValues.flatten().mean())
-                        .sin()
-                        .abs()
+                this.alpha.assign(
+                    this.alpha.sub(routes.flatten().mean()).sin().abs()
                 )
 
-                const gateValues = tf.prelu(
-                    routeValues.mul(this.gate.read()),
-                    this.targetAlpha
+                const gates = tf.prelu(routes.mul(this.gate.read()), this.alpha)
+
+                // const gateChunks = []
+                // const chunkSize = 64
+                // for (let i = 0; i < this.units; i += chunkSize) {
+                //     const chunk = gateValues.slice(
+                //         [0, 0, i],
+                //         [-1, -1, Math.min(chunkSize, this.units - i)]
+                //     )
+                //     const denseOutput = this.dense.apply(chunk)
+                //     gateChunks.push(denseOutput)
+                // }
+
+                // const reducedGateValues = tf.concat(gateChunks, -1)
+
+                const scores = tf.matMul(
+                    inputs.transpose([0, 2, 1]),
+                    gates.transpose([0, 2, 1]),
+                    true
                 )
 
-                targets.assign(targets.add(gateValues))
+                const weights = tf.softmax(scores, -1)
+
+                const direction = tf
+                    .matMul(gates.transpose([0, 2, 1]), weights)
+                    .transpose([0, 2, 1])
+
+                targets.assign(targets.add(direction))
+
                 outputs = targets
             }
 
@@ -2471,7 +2498,9 @@ class Vectorrent extends LayerBase {
             ...super.getConfig(),
             units: this.units,
             maxDecisions: this.maxDecisions,
-            kernelSize: this.kernelSize
+            kernelSize: this.kernelSize,
+            dilation: this.dilation,
+            gamma: this.gamma
         }
     }
 
@@ -2548,8 +2577,8 @@ class EfficientChannelAttention extends LayerBase {
             kernelSize: this.kernelSize,
             strides: 1,
             padding: 'same',
-            activation: 'softsign',
-            kernelInitializer: 'heNormal',
+            activation: 'sigmoid',
+            kernelInitializer: 'ones',
             useBias: false
         })
     }
