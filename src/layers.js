@@ -2415,11 +2415,7 @@ class Vectorrent extends LayerBase {
             useBias: true
         })
 
-        // this.attention = new SqueezeAndExcitation({
-        //     ratio: 16
-        // })
-
-        // this.attention = customLayers.EfficientChannelAttention({ gamma: 2 })
+        this.attention = customLayers.EfficientChannelAttention({ gamma: 3 })
 
         const initialAlpha = 0.666
         this.targetAlpha = tf.variable(tf.scalar(initialAlpha))
@@ -2440,11 +2436,11 @@ class Vectorrent extends LayerBase {
             const targets = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.maxDecisions; i++) {
-                const convolutionValues = this.lens.apply(outputs)
+                const filteredValues = this.lens.apply(outputs)
 
-                // const attentionValues = this.attention.apply(convolutionValues)
+                const attentionValues = this.attention.apply(filteredValues)
 
-                const routeValues = convolutionValues
+                const routeValues = attentionValues
                     .matMul(this.router.read())
                     .selu()
 
@@ -2552,8 +2548,8 @@ class EfficientChannelAttention extends LayerBase {
             kernelSize: this.kernelSize,
             strides: 1,
             padding: 'same',
-            activation: 'sigmoid',
-            kernelInitializer: 'ones',
+            activation: 'softsign',
+            kernelInitializer: 'heNormal',
             useBias: false
         })
     }
