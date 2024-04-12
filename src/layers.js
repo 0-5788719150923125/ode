@@ -2446,8 +2446,9 @@ class Vectorrent extends LayerBase {
             const targets = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.maxDecisions; i++) {
-                const filtered = this.lens.apply(outputs)
-                const intention = this.attention.apply(filtered)
+                const focus = this.lens.apply(outputs)
+
+                const intention = this.attention.apply(focus)
 
                 const routes = intention.matMul(this.router.read()).selu()
 
@@ -2455,7 +2456,9 @@ class Vectorrent extends LayerBase {
                     this.alpha.sub(routes.flatten().mean()).sin().abs()
                 )
 
-                const gates = tf.prelu(routes.mul(this.gate.read()), this.alpha)
+                const gates = tf
+                    .prelu(routes.mul(this.gate.read()), this.alpha)
+                    .transpose([0, 2, 1])
 
                 // const gateChunks = []
                 // const chunkSize = 64
@@ -2472,15 +2475,13 @@ class Vectorrent extends LayerBase {
 
                 const scores = tf.matMul(
                     inputs.transpose([0, 2, 1]),
-                    gates.transpose([0, 2, 1]),
+                    gates,
                     true
                 )
 
                 const weights = tf.softmax(scores, -1)
 
-                const direction = tf
-                    .matMul(gates.transpose([0, 2, 1]), weights)
-                    .transpose([0, 2, 1])
+                const direction = tf.matMul(gates, weights).transpose([0, 2, 1])
 
                 targets.assign(targets.add(direction))
 
