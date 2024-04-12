@@ -2438,6 +2438,11 @@ class Vectorrent extends LayerBase {
 
             const targets = tf.variable(tf.zerosLike(outputs))
 
+            const seqLength = inputs.shape[1]
+            const mask = tf.linalg
+                .bandPart(tf.ones([seqLength, seqLength]), -1, 0)
+                .expandDims(0)
+
             for (let i = 0; i < this.maxDecisions; i++) {
                 const focus = this.lens.apply(outputs)
 
@@ -2459,7 +2464,13 @@ class Vectorrent extends LayerBase {
                     true
                 )
 
-                const weights = tf.softmax(scores, -1)
+                const masked = tf.where(
+                    tf.equal(mask, 0),
+                    tf.onesLike(scores).mul(tf.scalar(-1e10)),
+                    scores
+                )
+
+                const weights = tf.softmax(masked, -1)
 
                 const direction = tf.matMul(gates, weights).transpose([0, 2, 1])
 
