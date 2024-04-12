@@ -77,12 +77,7 @@ function compute(x) {
     })
 }
 
-const tensor = tf.tensor3d([
-    [
-        [0, 1, 3, 9],
-        [0, 1, 3, 9]
-    ]
-])
+const tensor = tf.tensor1d([-1, -1, -1, -1])
 
 console.log(compute(tensor).arraySync())
 

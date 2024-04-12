@@ -2416,13 +2416,6 @@ class Vectorrent extends LayerBase {
             useBias: true
         })
 
-        // this.dense = customLayers.dense({
-        //     units: this.units / 4,
-        //     activation: 'relu',
-        //     kernelInitializer: 'heNormal',
-        //     useBias: true
-        // })
-
         this.attention = customLayers.EfficientChannelAttention({
             gamma: this.gamma
         })
@@ -2459,19 +2452,6 @@ class Vectorrent extends LayerBase {
                 const gates = tf
                     .prelu(routes.mul(this.gate.read()), this.alpha)
                     .transpose([0, 2, 1])
-
-                // const gateChunks = []
-                // const chunkSize = 64
-                // for (let i = 0; i < this.units; i += chunkSize) {
-                //     const chunk = gateValues.slice(
-                //         [0, 0, i],
-                //         [-1, -1, Math.min(chunkSize, this.units - i)]
-                //     )
-                //     const denseOutput = this.dense.apply(chunk)
-                //     gateChunks.push(denseOutput)
-                // }
-
-                // const reducedGateValues = tf.concat(gateChunks, -1)
 
                 const scores = tf.matMul(
                     inputs.transpose([0, 2, 1]),
