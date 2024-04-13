@@ -9,6 +9,8 @@ const customLayers = {
         tf.layers.dense({ name: `bot-${randomString()}`, ...config }),
     conv1d: (config) =>
         tf.layers.conv1d({ name: `c1d-${randomString()}`, ...config }),
+    conv2d: (config) =>
+        tf.layers.conv2d({ name: `c2d-${randomString()}`, ...config }),
     dense: (config) =>
         tf.layers.dense({ name: `ffd-${randomString()}`, ...config }),
     embedding: (config) =>
@@ -743,16 +745,16 @@ class SparseMixtureOfExperts extends LayerBase {
         const hiddenShape = this.hiddenGate.computeOutputShape(gateShape)
         this.outGate.build(hiddenShape)
 
-        this._trainableWeights = [
-            ...this.inGate.trainableWeights,
-            ...this.hiddenGate.trainableWeights,
-            ...this.outGate.trainableWeights
-        ]
+        // this._trainableWeights = [
+        //     ...this.inGate.trainableWeights,
+        //     ...this.hiddenGate.trainableWeights,
+        //     ...this.outGate.trainableWeights
+        // ]
 
         // Build each expert layer
         this.experts.forEach((expert) => {
             expert.build(inputShape)
-            this._trainableWeights.push(...expert.trainableWeights)
+            // this._trainableWeights.push(...expert.trainableWeights)
         })
 
         super.build(inputShape)
@@ -878,7 +880,7 @@ class LazyMixtureOfExperts extends LayerBase {
     build(inputShape) {
         this.experts.forEach((expert) => {
             expert.build(inputShape)
-            this._trainableWeights.push(...expert.trainableWeights)
+            // this._trainableWeights.push(...expert.trainableWeights)
         })
         super.build(inputShape)
     }
@@ -1021,15 +1023,15 @@ class ControlGate extends LayerBase {
         let gateOutputShape = this.in_gate.computeOutputShape(inputShape)
         this.out_gate.build(gateOutputShape)
 
-        this._trainableWeights = [
-            ...this.in_gate.trainableWeights,
-            ...this.out_gate.trainableWeights
-        ]
+        // this._trainableWeights = [
+        //     ...this.in_gate.trainableWeights,
+        //     ...this.out_gate.trainableWeights
+        // ]
 
         // Build each expert layer
         this.experts.forEach((expert) => {
             expert.build(inputShape)
-            this._trainableWeights.push(...expert.trainableWeights)
+            // this._trainableWeights.push(...expert.trainableWeights)
         })
 
         super.build(inputShape)
@@ -1199,7 +1201,7 @@ class SynthesizerAttention extends LayerBase {
             epsilon: this.epsilon
         })
         this.layernorm.build(inputShape)
-        this._trainableWeights.push(...this.layernorm.trainableWeights)
+        // this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
 
@@ -2035,7 +2037,7 @@ class StateSpace extends tf.layers.Layer {
         })
         this.layernorm.build(inputShape)
 
-        this._trainableWeights.push(...this.layernorm.trainableWeights)
+        // this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
     }
@@ -2148,7 +2150,7 @@ class ChunkedStateSpace extends tf.layers.Layer {
         })
         this.layernorm.build(inputShape)
 
-        this._trainableWeights.push(...this.layernorm.trainableWeights)
+        // this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
     }
@@ -2287,7 +2289,7 @@ class StructuredStateSpace extends tf.layers.Layer {
         })
         this.layernorm.build(inputShape)
 
-        this._trainableWeights.push(...this.layernorm.trainableWeights)
+        // this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
     }
@@ -2434,21 +2436,26 @@ class Vectorrent extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            let outputs = inputs
+            const batchSize = inputs.shape[0]
+            const seqLength = inputs.shape[1]
+            const dimension = inputs.shape[2]
+            const mask = tf.linalg
+                .bandPart(tf.ones([seqLength, dimension]), 0, -1)
+                .expandDims(0)
+                .tile([batchSize, 1, 1])
+
+            const masked = inputs.mul(mask)
+
+            let outputs = masked
 
             const targets = tf.variable(tf.zerosLike(outputs))
-
-            const seqLength = inputs.shape[1]
-            const mask = tf.linalg
-                .bandPart(tf.ones([seqLength, seqLength]), -1, 0)
-                .expandDims(0)
 
             for (let i = 0; i < this.maxDecisions; i++) {
                 const focus = this.lens.apply(outputs)
 
-                const intention = this.attention.apply(focus)
+                const intents = this.attention.apply(focus)
 
-                const routes = intention.matMul(this.router.read()).selu()
+                const routes = intents.matMul(this.router.read()).selu()
 
                 this.alpha.assign(
                     this.alpha.sub(routes.flatten().mean()).sin().abs()
@@ -2459,18 +2466,12 @@ class Vectorrent extends LayerBase {
                     .transpose([0, 2, 1])
 
                 const scores = tf.matMul(
-                    inputs.transpose([0, 2, 1]),
+                    masked.transpose([0, 2, 1]),
                     gates,
                     true
                 )
 
-                const masked = tf.where(
-                    tf.equal(mask, 0),
-                    tf.onesLike(scores).mul(tf.scalar(-1e10)),
-                    scores
-                )
-
-                const weights = tf.softmax(masked, -1)
+                const weights = tf.softmax(scores, -1)
 
                 const direction = tf.matMul(gates, weights).transpose([0, 2, 1])
 
