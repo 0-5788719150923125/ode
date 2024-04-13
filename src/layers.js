@@ -2436,19 +2436,18 @@ class Vectorrent extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const batchSize = inputs.shape[0]
-            const seqLength = inputs.shape[1]
-            const dimension = inputs.shape[2]
+            const targets = tf.variable(
+                tf.randomUniform(outputs.shape, -0.01, 0.01)
+            )
+
             const mask = tf.linalg
-                .bandPart(tf.ones([seqLength, dimension]), 0, -1)
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[2]]), 0, -1)
                 .expandDims(0)
-                .tile([batchSize, 1, 1])
+                .tile([inputs.shape[0], 1, 1])
 
             const masked = inputs.mul(mask)
 
             let outputs = masked
-
-            const targets = tf.variable(tf.zerosLike(outputs))
 
             for (let i = 0; i < this.maxDecisions; i++) {
                 const focus = this.lens.apply(outputs)
