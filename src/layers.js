@@ -2429,7 +2429,7 @@ class Vectorrent extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        return [...inputShape.slice(0, -1), this.units]
+        return inputShape
     }
 
     call(inputs, kwargs) {
@@ -2466,7 +2466,7 @@ class Vectorrent extends LayerBase {
                     .transpose([0, 2, 1])
 
                 const scores = tf.matMul(
-                    masked.transpose([0, 2, 1]),
+                    outputs.transpose([0, 2, 1]),
                     gates,
                     true
                 )
