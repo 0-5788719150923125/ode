@@ -52,7 +52,6 @@ export default class OpportunisticDialogueEncoder extends ODE {
                 .GatedLinearUnit({
                     units: this.units,
                     innerDim: this.innerDim,
-                    heads: this.heads,
                     epsilon: this.epsilon,
                     activation: 'swish'
                 })

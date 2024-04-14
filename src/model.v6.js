@@ -7,8 +7,8 @@ import ODE from './model.v4.js'
 export default class OscillometricDecayedExponent extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 12
-        this.units = 256
+        this.layers = 8
+        this.units = 512
         this.maxDecisions = 9
         this.kernelSize = 3
         this.dilation = 3
@@ -40,6 +40,16 @@ export default class OscillometricDecayedExponent extends ODE {
                     dilation: this.dilation,
                     units: this.units,
                     gamma: this.gamma
+                })
+                .apply(outputs)
+
+            outputs = this.ode.layers
+                .Diabolo({
+                    units: this.units,
+                    innerDim: this.units * 4,
+                    bottleneck: this.units / 4,
+                    encoderActivation: 'tanh',
+                    decoderActivation: 'softsign'
                 })
                 .apply(outputs)
         }

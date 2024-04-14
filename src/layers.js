@@ -300,7 +300,7 @@ class MultiLayerPerceptron extends LayerBase {
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
-        this.epsilon = config?.epsilon || 1e-5
+        this.epsilon = config?.epsilon || false
         if (config?.activation === 'gelu') {
             this.customActivation = new GELU()
             this.activation = 'linear'
@@ -317,27 +317,21 @@ class MultiLayerPerceptron extends LayerBase {
             inputDim: this.units,
             activation: this.activation
         })
-        // We shouldn't use 2 dense layers here, since kernel names will conflict during serialization to disk
         this.outProj = tf.layers.dense({
             units: this.units,
             inputDim: inputShape,
             activation: 'linear'
         })
 
-        // Manually call build on dense layers to initialize weights
-        this.inProj.build(inputShape)
-        this.outProj.build([inputShape[0], this.innerDim])
-
         // Initialize layer normalization
-        this.layernorm = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-        this.layernorm.build(inputShape)
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
-
-        super.build(inputShape)
     }
 
     call(inputs, kwargs, training = false) {
@@ -355,7 +349,7 @@ class MultiLayerPerceptron extends LayerBase {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
             // Apply layer norm
-            outputs = this.layernorm.apply(outputs)
+            if (this.layernorm) outputs = this.layernorm.apply(outputs)
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
@@ -401,29 +395,15 @@ class GatedLinearUnit extends MultiLayerPerceptron {
             activation: 'linear'
         })
 
-        // Manually call build on dense layers to initialize weights
-        this.inProj.build(inputShape)
-        this.gateProj.build(inputShape)
-        this.outProj.build([inputShape[0], this.innerDim])
-
         // Initialize layer normalization
-        this.layernorm = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-        this.layernorm.build(inputShape)
-
-        // Collect all trainable weights from internal layers
-        // this._trainableWeights = [
-        //     ...this.inProj.trainableWeights,
-        //     ...this.gateProj.trainableWeights,
-        //     ...this.outProj.trainableWeights,
-        //     ...this.layernorm.trainableWeights
-        // ]
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
 
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
-
-        super.build(inputShape)
     }
 
     call(inputs, kwargs, training = false) {
@@ -440,7 +420,7 @@ class GatedLinearUnit extends MultiLayerPerceptron {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
             // Apply layer norm
-            outputs = this.layernorm.apply(outputs)
+            if (this.layernorm) outputs = this.layernorm.apply(outputs)
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
@@ -448,6 +428,86 @@ class GatedLinearUnit extends MultiLayerPerceptron {
 
     static get className() {
         return 'GatedLinearUnit'
+    }
+}
+
+class Diabolo extends LayerBase {
+    constructor(config) {
+        super({ name: `dia-${randomString()}`, ...config })
+        this.units = config?.units || 256
+        this.innerDim = config?.innerDim || 1024
+        this.bottleneck = config?.bottleneck || 128
+        this.decoderActivation = config?.encoderActivation || 'relu'
+        this.decoderActivation = config?.decoderActivation || 'relu'
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        // Initialize dense layers for encoder
+        this.encoder = tf.sequential()
+        this.encoder.add(
+            tf.layers.dense({
+                units: this.innerDim,
+                inputShape: inputShape,
+                activation: this.encoderActivation
+            })
+        )
+        this.encoder.add(
+            tf.layers.dense({
+                units: this.bottleneck,
+                activation: 'linear'
+            })
+        )
+
+        // Initialize dense layers for decoder
+        this.decoder = tf.sequential()
+        this.decoder.add(
+            tf.layers.dense({
+                units: this.innerDim,
+                inputShape: [this.bottleneck],
+                activation: this.decoderActivation
+            })
+        )
+        this.decoder.add(
+            tf.layers.dense({
+                units: this.units,
+                activation: 'linear'
+            })
+        )
+
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Encode the inputs to the bottleneck representation
+            let outputs = this.encoder.apply(inputs)
+            // Decode the bottleneck representation back to the original dimensionality
+            outputs = this.decoder.apply(outputs)
+            // Apply skip connection
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            units: this.units,
+            innerDim: this.innerDim,
+            bottleneck: this.bottleneck,
+            encoderActivation: this.encoderActivation,
+            decoderActivation: this.decoderActivation
+        }
+    }
+
+    static get className() {
+        return 'Diabolo'
     }
 }
 
@@ -2501,6 +2561,207 @@ class Vectorrent extends LayerBase {
     }
 }
 
+class TemporalPooling extends LayerBase {
+    constructor(config) {
+        super({ name: `con-${randomString()}`, ...config })
+        this.minKernelSize = config.minKernelSize || 2
+        this.maxKernelSize = config.maxKernelSize || 5
+        this.poolingFunction = config.poolingFunction || 'max'
+        this.padding = config.padding || 'valid'
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+        this.kernelSizes = []
+
+        for (
+            let size = this.minKernelSize;
+            size <= this.maxKernelSize;
+            size++
+        ) {
+            const kernelSize = size
+            this.kernelSizes.push(kernelSize)
+        }
+
+        this.numKernels = this.kernelSizes.length
+
+        this.kernels = []
+        for (let i = 0; i < this.numKernels; i++) {
+            const kernel = this.addWeight(
+                `kernel_${i}`,
+                [this.kernelSizes[i], inputDim, inputDim],
+                'float32',
+                tf.initializers.glorotUniform()
+            )
+            this.kernels.push(kernel)
+        }
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            const convResults = []
+
+            for (let i = 0; i < this.numKernels; i++) {
+                const convResult = tf.tidy(() => {
+                    const kernel = this.kernels[i].read()
+                    const conv = tf.conv1d(inputs, kernel, 1, this.padding)
+                    return conv
+                })
+                convResults.push(convResult)
+            }
+
+            const pooledResults = []
+            for (let i = 0; i < this.numKernels; i++) {
+                const pooled = tf.tidy(() => {
+                    if (this.poolingFunction === 'max') {
+                        return tf.max(convResults[i], 1, true)
+                    } else if (this.poolingFunction === 'avg') {
+                        return tf.mean(convResults[i], 1, true)
+                    }
+                })
+                pooledResults.push(pooled)
+            }
+
+            const concatenated = tf.concat(pooledResults, -1)
+            const output = tf.reshape(concatenated, inputs.shape)
+
+            return output
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            minKernelSize: this.minKernelSize,
+            maxKernelSize: this.maxKernelSize,
+            poolingFunction: this.poolingFunction,
+            padding: this.padding
+        }
+    }
+
+    static get className() {
+        return 'TemporalPooling'
+    }
+}
+
+class QuantumSpace extends LayerBase {
+    constructor(config) {
+        super({ name: `qua-${randomString()}`, ...config })
+        this.units = config.units
+        this.numQubits = config.numQubits || 4
+        this.entanglementStrength = config.entanglementStrength || 0.8
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+        this.quantumWeights = this.addWeight(
+            'quantumWeights',
+            [inputDim, this.numQubits],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.entanglementMatrix = this.addWeight(
+            'entanglementMatrix',
+            [this.numQubits, this.numQubits],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.quantumGates = this.addWeight(
+            'quantumGates',
+            [this.numQubits, this.numQubits],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.classicalWeights = this.addWeight(
+            'classicalWeights',
+            [this.numQubits, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const batchSize = inputs.shape[0]
+            const sequenceLength = inputs.shape[1]
+
+            // Prepare quantum states from inputs
+            const flattenedInputs = inputs.reshape([
+                batchSize * sequenceLength,
+                -1
+            ])
+            const quantumStates = tf
+                .einsum(
+                    'bi,ij->bj',
+                    flattenedInputs,
+                    this.quantumWeights.read()
+                )
+                .reshape([batchSize, sequenceLength, this.numQubits])
+
+            // Apply quantum entanglement
+            const entangledStates = tf.einsum(
+                'bij,jk->bik',
+                quantumStates,
+                this.entanglementMatrix.read()
+            )
+            const entangledStrengths = tf
+                .sigmoid(entangledStates)
+                .mul(this.entanglementStrength)
+            const entangledQuantumStates = quantumStates.mul(entangledStrengths)
+
+            // Apply quantum gates
+            const transformedStates = tf.einsum(
+                'bij,jk->bik',
+                entangledQuantumStates,
+                this.quantumGates.read()
+            )
+
+            // Perform measurement and collapse
+            const probabilities = tf.pow(tf.abs(transformedStates), 2)
+            const measurementOutcomes = tf
+                .multinomial(
+                    probabilities.reshape([
+                        batchSize * sequenceLength,
+                        this.numQubits
+                    ]),
+                    1,
+                    false
+                )
+                .reshape([batchSize * sequenceLength, this.numQubits])
+
+            // Classical post-processing
+            const classicalOutputs = tf
+                .matMul(measurementOutcomes, this.classicalWeights.read())
+                .reshape([batchSize, sequenceLength, this.units])
+
+            return classicalOutputs
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.units]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            numQubits: this.numQubits,
+            entanglementStrength: this.entanglementStrength
+        }
+    }
+
+    static get className() {
+        return 'QuantumSpace'
+    }
+}
+
 // https://arxiv.org/abs/1709.01507
 class SqueezeAndExcitation extends LayerBase {
     constructor(config) {
@@ -3161,41 +3422,202 @@ class DimensionContraction extends LayerBase {
     }
 }
 
+class DepthwiseSeparableConvolution extends LayerBase {
+    constructor(config) {
+        super({ name: `con-${randomString()}`, ...config })
+        this.units = config?.units || 256
+        // this.dropout = config?.dropout || 0
+        // this.epsilon = config?.epsilon || 1e-5
+        this.activation = config?.activation || 'relu'
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+
+        // Initialize depthwise convolution layer
+        this.depthwiseConv = tf.layers.depthwiseConv2d({
+            kernelSize: [1, 1],
+            depthMultiplier: 1,
+            activation: this.activation,
+            useBias: false,
+            dataFormat: 'channelsLast'
+        })
+
+        // Initialize pointwise convolution layer
+        this.pointwiseConv = tf.layers.conv2d({
+            filters: this.units,
+            kernelSize: [1, 1],
+            activation: 'linear',
+            useBias: false,
+            dataFormat: 'channelsLast'
+        })
+
+        // Initialize layer normalization
+        // this.layernorm = tf.layers.layerNormalization({
+        //     epsilon: this.epsilon
+        // })
+
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Expand dimensions to match the expected input shape of depthwiseConv2d
+            const expandedInputs = inputs.expandDims(2)
+
+            // Apply depthwise convolution
+            let outputs = this.depthwiseConv.apply(expandedInputs)
+
+            // Apply pointwise convolution
+            outputs = this.pointwiseConv.apply(outputs)
+
+            // Squeeze dimensions to match the original input shape
+            outputs = outputs.squeeze([2])
+
+            // If training, apply residual dropout
+            // outputs = kwargs['training']
+            //     ? tf.dropout(outputs, this.dropout)
+            //     : outputs
+
+            // Apply layer norm
+            // outputs = this.layernorm.apply(outputs)
+
+            // Apply skip connection
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            units: this.units,
+            activation: this.activation
+            // dropout: this.dropout
+        }
+    }
+
+    static get className() {
+        return 'DepthwiseSeparableConvolution'
+    }
+}
+
+class VectorLayerWithMixing extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.units = config.units
+        this.mixingSize = config.mixingSize
+    }
+
+    build(inputShape) {
+        this.kernel = this.addWeight(
+            'kernel',
+            [inputShape[inputShape.length - 1]],
+            'float32',
+            tf.initializers.randomNormal()
+        )
+        this.bias = this.addWeight(
+            'bias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+    }
+
+    call(inputs) {
+        // Apply token mixing to the input
+        const mixedInput = this.applyMixing(inputs)
+
+        // Perform element-wise multiplication with the weight vector
+        const dotProduct = tf.mul(mixedInput, this.kernel)
+
+        // Apply token mixing to the intermediate state
+        const mixedIntermediate = this.applyMixing(dotProduct)
+
+        // Add the bias vector
+        const output = tf.add(mixedIntermediate, this.bias)
+
+        return output
+    }
+
+    applyMixing(tensor) {
+        const shape = tensor.shape
+        const [batchSize, sequenceLength, depth] = shape
+
+        // Reshape the tensor to a matrix
+        const matrix = tf.reshape(tensor, [batchSize * sequenceLength, depth])
+
+        // Split the matrix into chunks
+        const chunks = tf.split(matrix, this.mixingSize, 1)
+
+        // Shuffle the chunks along the depth dimension
+        const shuffledChunks = tf.stack(tf.shuffle(chunks))
+
+        // Reshape the shuffled chunks back to the original tensor shape
+        const reshapedTensor = tf.reshape(shuffledChunks, shape)
+
+        return reshapedTensor
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, {
+            units: this.units,
+            mixingSize: this.mixingSize
+        })
+        return config
+    }
+
+    static get className() {
+        return 'VectorLayerWithMixing'
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CapsNet,
     CausalSelfAttention,
+    ChunkedStateSpace,
     CollapseOneHot,
     CompressorHead,
     ControlGate,
     ConvolutionalExpansionLayer,
     DebugLayer,
+    DepthwiseSeparableConvolution,
     DeterministicEmbedding,
-    DumbCompression,
+    Diabolo,
+    DimensionContraction,
     DimensionExpansion,
+    DumbCompression,
     EfficientChannelAttention,
     FourierFeaturePositionalEncoding,
-    LazyMixtureOfExperts,
-    ChunkedStateSpace,
     GatedLinearUnit,
     LambdaLayer,
+    LazyMixtureOfExperts,
     LearnedUpsampling,
     MixtureOfDepthsRouting,
     MultiLayerPerceptron,
     NearestNeighborUpsampling,
     PerformerAttention,
+    QuantumSpace,
     Range,
     ResidualConnection,
     RotaryPositionalEncoding,
     SequenceExpansionLayer,
+    SharedEmbedding,
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
     SqueezeAndExcitation,
     StateSpace,
-    DimensionContraction,
     StructuredStateSpace,
     SynthesizerAttention,
-    SharedEmbedding,
+    TemporalPooling,
     ToOneHot,
     Vectorrent
 ]
