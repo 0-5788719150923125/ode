@@ -49,6 +49,7 @@ function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
     })
 }
 
+// https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py
 function categoricalFocalCrossEntropy(
     yTrue,
     yPred,

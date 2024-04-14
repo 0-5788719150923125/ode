@@ -23,7 +23,7 @@ export default class OscillometricDecayedExponent extends ODE {
         const embeddings = this.ode.layers.embedding({
             inputDim: this.tokenizer.getLength(),
             outputDim: this.units,
-            embeddingsInitializer: 'glorotNormal'
+            embeddingsInitializer: 'glorotUniform'
         })
 
         const encoding = this.ode.layers.RotaryPositionalEncoding({
