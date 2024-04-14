@@ -334,13 +334,6 @@ class MultiLayerPerceptron extends LayerBase {
         })
         this.layernorm.build(inputShape)
 
-        // Collect all trainable weights from internal layers
-        // this._trainableWeights = [
-        //     ...this.inProj.trainableWeights,
-        //     ...this.outProj.trainableWeights,
-        //     ...this.layernorm.trainableWeights
-        // ]
-
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
 
@@ -2401,20 +2394,13 @@ class Vectorrent extends LayerBase {
             tf.initializers.leCunNormal()
         )
 
-        this.gate = this.addWeight(
-            'gateVector',
-            [this.units],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
-
         this.lens = customLayers.conv1d({
             filters: this.units,
             kernelSize: this.kernelSize,
             kernelInitializer: 'heNormal',
             dilationRate: this.dilation,
             padding: 'same',
-            activation: 'swish',
+            activation: 'mish',
             useBias: true
         })
 
@@ -2422,10 +2408,27 @@ class Vectorrent extends LayerBase {
             gamma: this.gamma
         })
 
-        const initialAlpha = 0.666
-        this.alpha = tf.variable(tf.scalar(initialAlpha))
+        this.gate = this.addWeight(
+            'gateVector',
+            [this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        this.focus = this.addWeight(
+            'focusVector',
+            [this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+
+        this.alpha = tf.variable(tf.scalar(0.5))
 
         this.residual = customLayers.ResidualConnection()
+
+        this.mask = tf.linalg
+            .bandPart(tf.ones([inputShape[1], inputShape[2]]), 0, -1)
+            .expandDims(0)
     }
 
     computeOutputShape(inputShape) {
@@ -2437,15 +2440,10 @@ class Vectorrent extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             const targets = tf.variable(
-                tf.randomUniform(outputs.shape, -0.01, 0.01)
+                tf.randomUniform(inputs.shape, -0.0001, 0.0001)
             )
 
-            const mask = tf.linalg
-                .bandPart(tf.ones([inputs.shape[1], inputs.shape[2]]), 0, -1)
-                .expandDims(0)
-                .tile([inputs.shape[0], 1, 1])
-
-            const masked = inputs.mul(mask)
+            const masked = inputs.mul(this.mask.tile([inputs.shape[0], 1, 1]))
 
             let outputs = masked
 
@@ -2457,22 +2455,24 @@ class Vectorrent extends LayerBase {
                 const routes = intents.matMul(this.router.read()).selu()
 
                 this.alpha.assign(
-                    this.alpha.sub(routes.flatten().mean()).sin().abs()
+                    tf.sigmoid(routes.mul(this.focus.read())).mean()
                 )
 
-                const gates = tf
+                const transitions = tf
                     .prelu(routes.mul(this.gate.read()), this.alpha)
                     .transpose([0, 2, 1])
 
                 const scores = tf.matMul(
                     outputs.transpose([0, 2, 1]),
-                    gates,
+                    transitions,
                     true
                 )
 
                 const weights = tf.softmax(scores, -1)
 
-                const direction = tf.matMul(gates, weights).transpose([0, 2, 1])
+                const direction = tf
+                    .matMul(transitions, weights)
+                    .transpose([0, 2, 1])
 
                 targets.assign(targets.add(direction))
 
