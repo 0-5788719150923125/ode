@@ -54,9 +54,7 @@ export default class OscillometricDecayedExponent extends ODE {
             outputs = this.ode.layers
                 .PseudoQuantumState({
                     units: this.units,
-                    qubits: 7,
-                    strength: 0.8,
-                    expansion: 4
+                    qubits: 23
                 })
                 .apply(outputs)
         }

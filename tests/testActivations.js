@@ -84,5 +84,5 @@ import * as tf from '@tensorflow/tfjs'
 // console.log(tf.leakyRelu(-18, 0.1).arraySync())
 // console.log(tf.prelu(-18, tf.scalar(0.1)).arraySync())
 
-const gumbel = tf.randomUniform([1], 0, 1, 'float32', 2.11)
+const gumbel = tf.elu(-50)
 console.log(gumbel.dataSync()[0])

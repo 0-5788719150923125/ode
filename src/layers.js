@@ -2662,8 +2662,6 @@ class PseudoQuantumState extends LayerBase {
         super({ name: `qua-${randomString()}`, ...config })
         this.units = config.units
         this.qubits = config.qubits || 4
-        this.strength = config.strength || 0.8
-        this.expansion = config.expansion || 2
     }
 
     build(inputShape) {
@@ -2679,27 +2677,15 @@ class PseudoQuantumState extends LayerBase {
             'float32',
             tf.initializers.heNormal()
         )
-        this.quantumGates = this.addWeight(
-            'quantumGates',
-            [this.qubits, this.qubits],
-            'float32',
-            tf.initializers.heNormal()
-        )
         this.classicalWeights = this.addWeight(
             'classicalWeights',
             [this.qubits, this.units],
             'float32',
             tf.initializers.glorotUniform()
         )
-        this.projectionMatrix = this.addWeight(
-            'projectionMatrix',
-            [this.qubits, this.qubits * this.expansion],
-            'float32',
-            tf.initializers.randomNormal({ mean: 0, stddev: 1 })
-        )
         this.seedVector = this.addWeight(
             'seedVector',
-            [inputShape[inputShape.length - 1]],
+            [this.units],
             'float32',
             tf.initializers.randomNormal({ mean: 0, stddev: 1 })
         )
@@ -2714,101 +2700,55 @@ class PseudoQuantumState extends LayerBase {
             const inputDim = inputs.shape[2]
 
             // Generate seed value based on inputs and seed vector
-            const flattenedInputs = tf.reshape(inputs, [-1, inputDim])
-            const seedWeights = tf.dot(flattenedInputs, this.seedVector.read())
+            const reshaped = tf.reshape(inputs, [-1, inputDim])
+            const seedWeights = tf.dot(reshaped, this.seedVector.read())
             const seed = tf.mean(seedWeights).dataSync()[0]
 
             // Prepare quantum states from inputs
-            const quantumStates = tf.reshape(
-                tf.matMul(flattenedInputs, this.quantumWeights.read()),
-                [batchSize, sequenceLength, this.qubits]
-            )
+            const initialStates = tf
+                .reshape(
+                    tf.matMul(
+                        tf.reshape(inputs, [-1, inputDim]),
+                        this.quantumWeights.read()
+                    ),
+                    [batchSize, sequenceLength, this.qubits]
+                )
+                .tanh()
 
             // Apply quantum entanglement
             const entangledStates = tf.reshape(
                 tf.matMul(
-                    tf.reshape(quantumStates, [-1, this.qubits]),
+                    tf.reshape(initialStates, [-1, this.qubits]),
                     this.entanglementMatrix.read()
                 ),
                 [batchSize, sequenceLength, this.qubits]
             )
-            const entangledQuantumStates = tf.mul(
-                quantumStates,
-                tf.sigmoid(entangledStates).mul(this.strength)
-            )
 
-            // Apply quantum gates
-            const transformedStates = tf.reshape(
-                tf.matMul(
-                    tf.reshape(entangledQuantumStates, [-1, this.qubits]),
-                    this.quantumGates.read()
-                ),
-                [batchSize, sequenceLength, this.qubits]
-            )
-
-            // Expand the random state to a higher-dimensional space
-            const expandedShape = [
-                transformedStates.shape[0],
-                transformedStates.shape[1],
-                this.qubits * this.expansion
-            ]
-            const expandedState = tf.randomUniform(
-                expandedShape,
+            // Perform measurement and collapse using Gumbel-Softmax trick
+            const temperature = 1.0
+            const state = tf.randomUniform(
+                entangledStates.shape,
                 0,
                 1,
                 'float32',
                 seed
             )
-
-            // Project the expanded state using random projection
-            const projectedState = tf.reshape(
-                tf.matMul(
-                    tf.reshape(expandedState, [
-                        -1,
-                        this.qubits * this.expansion
-                    ]),
-                    this.projectionMatrix.read(),
-                    false,
-                    true
-                ),
-                [
-                    transformedStates.shape[0],
-                    transformedStates.shape[1],
-                    this.qubits
-                ]
-            )
-
-            // Perform measurement and collapse using Gumbel-Softmax trick
-            const temperature = 1.0
-            const gumbel = tf.add(
-                tf.log(tf.abs(projectedState)),
-                tf.randomUniform(
-                    projectedState.shape,
-                    0,
-                    0.000001,
-                    'float32',
-                    seed
-                )
-            )
             const noisyLogits = tf.add(
-                tf.log(tf.abs(transformedStates)),
-                gumbel
+                tf.log(tf.abs(tf.norm(entangledStates, 'euclidean'))),
+                state
             )
             const samples = tf.softmax(tf.div(noisyLogits, temperature))
-            const measurementOutcomes = tf.argMax(samples, -1)
+            const measurements = tf.argMax(samples, -1)
 
             // Classical post-processing
-            const oneHotOutcomes = tf.oneHot(
-                measurementOutcomes.flatten(),
-                this.qubits
-            )
+            const outcomes = tf.oneHot(measurements.flatten(), this.qubits)
 
-            let classicalOutputs = tf.reshape(
-                tf.matMul(oneHotOutcomes, this.classicalWeights.read()),
+            const outputs = tf.reshape(
+                tf.matMul(outcomes, this.classicalWeights.read()),
                 [batchSize, sequenceLength, this.units]
             )
 
-            return classicalOutputs
+            return outputs
         })
     }
 
@@ -2820,9 +2760,7 @@ class PseudoQuantumState extends LayerBase {
         return {
             ...super.getConfig(),
             units: this.units,
-            qubits: this.qubits,
-            strength: this.strength,
-            expansion: this.expansion
+            qubits: this.qubits
         }
     }
 
@@ -2830,6 +2768,180 @@ class PseudoQuantumState extends LayerBase {
         return 'PseudoQuantumState'
     }
 }
+
+// class PseudoQuantumState extends LayerBase {
+//     constructor(config) {
+//         super({ name: `qua-${randomString()}`, ...config })
+//         this.units = config.units
+//         this.qubits = config.qubits || 4
+//         this.strength = config.strength || 0.8
+//         this.expansion = config.expansion || 2
+//     }
+
+//     build(inputShape) {
+//         this.quantumWeights = this.addWeight(
+//             'quantumWeights',
+//             [this.units, this.qubits],
+//             'float32',
+//             tf.initializers.heNormal()
+//         )
+//         this.entanglementMatrix = this.addWeight(
+//             'entanglementMatrix',
+//             [this.qubits, this.qubits],
+//             'float32',
+//             tf.initializers.heNormal()
+//         )
+//         this.quantumGates = this.addWeight(
+//             'quantumGates',
+//             [this.qubits, this.qubits],
+//             'float32',
+//             tf.initializers.heNormal()
+//         )
+//         this.classicalWeights = this.addWeight(
+//             'classicalWeights',
+//             [this.qubits, this.units],
+//             'float32',
+//             tf.initializers.glorotUniform()
+//         )
+//         this.projectionMatrix = this.addWeight(
+//             'projectionMatrix',
+//             [this.qubits, this.qubits * this.expansion],
+//             'float32',
+//             tf.initializers.randomNormal({ mean: 0, stddev: 1 })
+//         )
+//         this.seedVector = this.addWeight(
+//             'seedVector',
+//             [inputShape[inputShape.length - 1]],
+//             'float32',
+//             tf.initializers.randomNormal({ mean: 0, stddev: 1 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const batchSize = inputs.shape[0]
+//             const sequenceLength = inputs.shape[1]
+//             const inputDim = inputs.shape[2]
+
+//             // Generate seed value based on inputs and seed vector
+//             const flattenedInputs = tf.reshape(inputs, [-1, inputDim])
+//             const seedWeights = tf.dot(flattenedInputs, this.seedVector.read())
+//             const seed = tf.mean(seedWeights).dataSync()[0]
+
+//             // Prepare quantum states from inputs
+//             const quantumStates = tf.reshape(
+//                 tf.matMul(flattenedInputs, this.quantumWeights.read()),
+//                 [batchSize, sequenceLength, this.qubits]
+//             )
+
+//             // Apply quantum entanglement
+//             const entangledStates = tf.reshape(
+//                 tf.matMul(
+//                     tf.reshape(quantumStates, [-1, this.qubits]),
+//                     this.entanglementMatrix.read()
+//                 ),
+//                 [batchSize, sequenceLength, this.qubits]
+//             )
+//             const entangledQuantumStates = tf.mul(
+//                 quantumStates,
+//                 tf.sigmoid(entangledStates).mul(this.strength)
+//             )
+
+//             // Apply quantum gates
+//             const transformedStates = tf.reshape(
+//                 tf.matMul(
+//                     tf.reshape(entangledQuantumStates, [-1, this.qubits]),
+//                     this.quantumGates.read()
+//                 ),
+//                 [batchSize, sequenceLength, this.qubits]
+//             )
+
+//             // Expand the random state to a higher-dimensional space
+//             const expandedShape = [
+//                 transformedStates.shape[0],
+//                 transformedStates.shape[1],
+//                 this.qubits * this.expansion
+//             ]
+//             const expandedState = tf.randomUniform(
+//                 expandedShape,
+//                 0,
+//                 1,
+//                 'float32',
+//                 seed
+//             )
+
+//             // Project the expanded state using random projection
+//             const projectedState = tf.reshape(
+//                 tf.matMul(
+//                     tf.reshape(expandedState, [
+//                         -1,
+//                         this.qubits * this.expansion
+//                     ]),
+//                     this.projectionMatrix.read(),
+//                     false,
+//                     true
+//                 ),
+//                 [
+//                     transformedStates.shape[0],
+//                     transformedStates.shape[1],
+//                     this.qubits
+//                 ]
+//             )
+
+//             // Perform measurement and collapse using Gumbel-Softmax trick
+//             const temperature = 1.0
+//             const gumbel = tf.add(
+//                 tf.log(tf.abs(projectedState)),
+//                 tf.randomUniform(
+//                     projectedState.shape,
+//                     0,
+//                     0.000001,
+//                     'float32',
+//                     seed
+//                 )
+//             )
+//             const noisyLogits = tf.add(
+//                 tf.log(tf.abs(transformedStates)),
+//                 gumbel
+//             )
+//             const samples = tf.softmax(tf.div(noisyLogits, temperature))
+//             const measurementOutcomes = tf.argMax(samples, -1)
+
+//             // Classical post-processing
+//             const oneHotOutcomes = tf.oneHot(
+//                 measurementOutcomes.flatten(),
+//                 this.qubits
+//             )
+
+//             let classicalOutputs = tf.reshape(
+//                 tf.matMul(oneHotOutcomes, this.classicalWeights.read()),
+//                 [batchSize, sequenceLength, this.units]
+//             )
+
+//             return classicalOutputs
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             qubits: this.qubits,
+//             strength: this.strength,
+//             expansion: this.expansion
+//         }
+//     }
+
+//     static get className() {
+//         return 'PseudoQuantumState'
+//     }
+// }
 
 // https://arxiv.org/abs/1709.01507
 class SqueezeAndExcitation extends LayerBase {
