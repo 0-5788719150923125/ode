@@ -2671,19 +2671,19 @@ class PseudoQuantumState extends LayerBase {
             'quantumWeights',
             [this.units, this.qubits],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.heNormal()
         )
         this.entanglementMatrix = this.addWeight(
             'entanglementMatrix',
             [this.qubits, this.qubits],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.heNormal()
         )
         this.quantumGates = this.addWeight(
             'quantumGates',
             [this.qubits, this.qubits],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.heNormal()
         )
         this.classicalWeights = this.addWeight(
             'classicalWeights',
@@ -2803,7 +2803,7 @@ class PseudoQuantumState extends LayerBase {
                 this.qubits
             )
 
-            const classicalOutputs = tf.reshape(
+            let classicalOutputs = tf.reshape(
                 tf.matMul(oneHotOutcomes, this.classicalWeights.read()),
                 [batchSize, sequenceLength, this.units]
             )

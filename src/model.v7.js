@@ -61,26 +61,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     activation: 'swish'
                 })
                 .apply(outputs)
-
-            // outputs = this.ode.layers
-            //     .SynthesizerAttention({
-            //         units: this.units,
-            //         blockSize: this.config.contextLength,
-            //         heads: this.heads,
-            //         epsilon: this.epsilon,
-            //         activation: this.tf.selu
-            //     })
-            //     .apply(outputs)
-
-            // outputs = this.ode.layers
-            //     .SparseMixtureOfExperts({
-            //         experts: this.createFeedforwardExperts(),
-            //         units: this.units,
-            //         innerDim: this.innerDim,
-            //         topK: this.topK,
-            //         loadBalancing: this.loadBalancing
-            //     })
-            //     .apply(outputs)
         }
 
         outputs = this.ode.layers
@@ -92,24 +72,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         this.model = this.tf.model({ inputs, outputs })
     }
-
-    // defineOptimizers() {
-    //     this.learningRate = 0.000333
-    //     this.optimizers = [
-    //         this.ode.optimizers.Lion({
-    //             learningRate: this.learningRate,
-    //             weightDecay: 0.01,
-    //             adaNorm: false,
-    //             useGc: false
-    //         })
-    //     ]
-    // }
-
-    // defineSchedulers() {
-    //     this.schedulers = [
-    //         this.ode.schedulers.constantScheduler(this.learningRate)
-    //     ]
-    // }
 
     createAttentionExperts() {
         return [
@@ -137,38 +99,4 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             })
         ]
     }
-
-    // createFeedforwardExperts() {
-    //     return [
-    //         this.ode.layers.MultiLayerPerceptron({
-    //             units: this.units,
-    //             innerDim: this.innerDim,
-    //             epsilon: this.epsilon,
-    //             activation: 'swish'
-    //         }),
-    //         this.ode.layers.MultiLayerPerceptron({
-    //             units: this.units,
-    //             innerDim: this.innerDim,
-    //             epsilon: this.epsilon,
-    //             activation: 'gelu'
-    //         }),
-    //         this.ode.layers.MultiLayerPerceptron({
-    //             units: this.units,
-    //             innerDim: this.innerDim,
-    //             epsilon: this.epsilon,
-    //             activation: 'tanh'
-    //         })
-    //     ]
-    // }
-
-    // defineLossFunctions() {
-    //     this.lossFunctions = [
-    //         {
-    //             function: this.ode.losses.categoricalFocalCrossEntropy,
-    //             alpha: 0.44,
-    //             gamma: 2.3,
-    //             fromLogits: true
-    //         }
-    //     ]
-    // }
 }
