@@ -4,7 +4,7 @@ import ODE from './model.v2.js'
  * A GPT-2 clone with causal attention and learned position embeddings.
  * @extends ODE
  */
-export default class OriginalDecoderEngine extends ODE {
+export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
         super(config)
         this.layers = 4

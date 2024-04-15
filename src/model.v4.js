@@ -5,7 +5,7 @@ import ODE from './model.v3.js'
  * networks, and sinusoidal positional embeddings.
  * @extends ODE
  */
-export default class OpportunisticDialogueEncoder extends ODE {
+export default class OpportunisticDialogueEngine extends ODE {
     constructor(config) {
         super(config)
         this.layers = 6
