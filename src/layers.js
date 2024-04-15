@@ -2657,7 +2657,7 @@ class TemporalPooling extends LayerBase {
     }
 }
 
-class QuantumSpace extends LayerBase {
+class PseudoQuantumState extends LayerBase {
     constructor(config) {
         super({ name: `qua-${randomString()}`, ...config })
         this.units = config.units
@@ -2666,10 +2666,9 @@ class QuantumSpace extends LayerBase {
     }
 
     build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
         this.quantumWeights = this.addWeight(
             'quantumWeights',
-            [inputDim, this.qubits],
+            [this.units, this.qubits],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -2702,51 +2701,35 @@ class QuantumSpace extends LayerBase {
             const inputDim = inputs.shape[2]
 
             // Prepare quantum states from inputs
-            const flattenedInputs = inputs.reshape([
-                batchSize * sequenceLength,
-                inputDim
-            ])
-            const quantumStates = tf
-                .matMul(flattenedInputs, this.quantumWeights.read())
-                .reshape([batchSize, sequenceLength, this.qubits])
+            const quantumStates = tf.reshape(
+                tf.matMul(
+                    tf.reshape(inputs, [-1, inputDim]),
+                    this.quantumWeights.read()
+                ),
+                [batchSize, sequenceLength, this.qubits]
+            )
 
             // Apply quantum entanglement
-            const expandedEntanglementMatrix = this.entanglementMatrix
-                .read()
-                .expandDims(0)
-                .expandDims(0)
-            const repeatedEntanglementMatrix = tf.tile(
-                expandedEntanglementMatrix,
-                [batchSize, sequenceLength, 1, 1]
+            const entangledStates = tf.reshape(
+                tf.matMul(
+                    tf.reshape(quantumStates, [-1, this.qubits]),
+                    this.entanglementMatrix.read()
+                ),
+                [batchSize, sequenceLength, this.qubits]
             )
-            const entangledStates = tf
-                .matMul(
-                    quantumStates.expandDims(-2),
-                    repeatedEntanglementMatrix
-                )
-                .squeeze(-2)
-            const entangledStrengths = tf
-                .sigmoid(entangledStates)
-                .mul(this.strength)
-            const entangledQuantumStates = quantumStates.mul(entangledStrengths)
+            const entangledQuantumStates = tf.mul(
+                quantumStates,
+                tf.sigmoid(entangledStates).mul(this.strength)
+            )
 
             // Apply quantum gates
-            const expandedQuantumGates = this.quantumGates
-                .read()
-                .expandDims(0)
-                .expandDims(0)
-            const repeatedQuantumGates = tf.tile(expandedQuantumGates, [
-                batchSize,
-                sequenceLength,
-                1,
-                1
-            ])
-            const transformedStates = tf
-                .matMul(
-                    entangledQuantumStates.expandDims(-2),
-                    repeatedQuantumGates
-                )
-                .squeeze(-2)
+            const transformedStates = tf.reshape(
+                tf.matMul(
+                    tf.reshape(entangledQuantumStates, [-1, this.qubits]),
+                    this.quantumGates.read()
+                ),
+                [batchSize, sequenceLength, this.qubits]
+            )
 
             // Perform measurement and collapse using Gumbel-Softmax trick
             const temperature = 1.0 // Temperature parameter for Gumbel-Softmax
@@ -2759,22 +2742,13 @@ class QuantumSpace extends LayerBase {
             const measurementOutcomes = tf.argMax(samples, -1)
 
             // Classical post-processing
-            const oneHotOutcomes = tf
-                .oneHot(measurementOutcomes.flatten(), this.qubits)
-                .reshape([batchSize, sequenceLength, this.qubits])
-            const transposedOutcomes = tf.transpose(oneHotOutcomes, [0, 2, 1])
-            const expandedClassicalWeights = this.classicalWeights
-                .read()
-                .expandDims(0)
-            const repeatedClassicalWeights = tf.tile(expandedClassicalWeights, [
-                batchSize,
-                1,
-                1
-            ])
-            const classicalOutputs = tf.matMul(
-                transposedOutcomes,
-                repeatedClassicalWeights,
-                true
+            const oneHotOutcomes = tf.oneHot(
+                measurementOutcomes.flatten(),
+                this.qubits
+            )
+            const classicalOutputs = tf.reshape(
+                tf.matMul(oneHotOutcomes, this.classicalWeights.read()),
+                [batchSize, sequenceLength, this.units]
             )
 
             return classicalOutputs
@@ -2795,7 +2769,7 @@ class QuantumSpace extends LayerBase {
     }
 
     static get className() {
-        return 'QuantumSpace'
+        return 'PseudoQuantumState'
     }
 }
 
@@ -3642,7 +3616,7 @@ const exportedLayers = [
     MultiLayerPerceptron,
     NearestNeighborUpsampling,
     PerformerAttention,
-    QuantumSpace,
+    PseudoQuantumState,
     Range,
     ResidualConnection,
     RotaryPositionalEncoding,

@@ -44,8 +44,10 @@ export default class OscillometricDecayedExponent extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .QuantumSpace({
-                    units: this.units
+                .PseudoQuantumState({
+                    units: this.units,
+                    qubits: 23,
+                    strength: 0.8
                 })
                 .apply(outputs)
 
