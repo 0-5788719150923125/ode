@@ -2701,47 +2701,52 @@ class QuantumSpace extends LayerBase {
             const sequenceLength = inputs.shape[1]
             const inputDim = inputs.shape[2]
 
-            console.log('Input shape:', inputs.shape)
-
             // Prepare quantum states from inputs
             const flattenedInputs = inputs.reshape([
                 batchSize * sequenceLength,
                 inputDim
             ])
             const quantumStates = tf
-                .einsum(
-                    'bi,ij->bj',
-                    flattenedInputs,
-                    this.quantumWeights.read()
-                )
+                .matMul(flattenedInputs, this.quantumWeights.read())
                 .reshape([batchSize, sequenceLength, this.numQubits])
 
-            console.log('Quantum states shape:', quantumStates.shape)
-
             // Apply quantum entanglement
-            const entangledStates = tf.einsum(
-                'bij,jk->bik',
-                quantumStates,
-                this.entanglementMatrix.read()
+            const expandedEntanglementMatrix = this.entanglementMatrix
+                .read()
+                .expandDims(0)
+                .expandDims(0)
+            const repeatedEntanglementMatrix = tf.tile(
+                expandedEntanglementMatrix,
+                [batchSize, sequenceLength, 1, 1]
             )
+            const entangledStates = tf
+                .matMul(
+                    quantumStates.expandDims(-2),
+                    repeatedEntanglementMatrix
+                )
+                .squeeze(-2)
             const entangledStrengths = tf
                 .sigmoid(entangledStates)
                 .mul(this.entanglementStrength)
             const entangledQuantumStates = quantumStates.mul(entangledStrengths)
 
-            console.log(
-                'Entangled quantum states shape:',
-                entangledQuantumStates.shape
-            )
-
             // Apply quantum gates
-            const transformedStates = tf.einsum(
-                'bij,jk->bik',
-                entangledQuantumStates,
-                this.quantumGates.read()
-            )
-
-            console.log('Transformed states shape:', transformedStates.shape)
+            const expandedQuantumGates = this.quantumGates
+                .read()
+                .expandDims(0)
+                .expandDims(0)
+            const repeatedQuantumGates = tf.tile(expandedQuantumGates, [
+                batchSize,
+                sequenceLength,
+                1,
+                1
+            ])
+            const transformedStates = tf
+                .matMul(
+                    entangledQuantumStates.expandDims(-2),
+                    repeatedQuantumGates
+                )
+                .squeeze(-2)
 
             // Perform measurement and collapse using Gumbel-Softmax trick
             const temperature = 1.0 // Temperature parameter for Gumbel-Softmax
@@ -2752,15 +2757,6 @@ class QuantumSpace extends LayerBase {
             )
             const samples = tf.softmax(tf.div(noisy_logits, temperature))
             const measurementOutcomes = tf.argMax(samples, -1)
-
-            console.log(
-                'Measurement outcomes shape:',
-                measurementOutcomes.shape
-            )
-            console.log(
-                'Classical weights shape:',
-                this.classicalWeights.read().shape
-            )
 
             // Classical post-processing
             const oneHotOutcomes = tf
@@ -2781,54 +2777,7 @@ class QuantumSpace extends LayerBase {
                 true
             )
 
-            console.log('Classical outputs shape:', classicalOutputs.shape)
-
             return classicalOutputs
-
-            // // Perform measurement and collapse
-            // const probabilities = tf.pow(tf.abs(transformedStates), 2)
-            // const measurementOutcomes = tf
-            //     .multinomial(
-            //         probabilities.reshape([
-            //             batchSize * sequenceLength,
-            //             this.numQubits
-            //         ]),
-            //         1,
-            //         false
-            //     )
-            //     .reshape([batchSize, sequenceLength])
-
-            // console.log(
-            //     'Measurement outcomes shape:',
-            //     measurementOutcomes.shape
-            // )
-            // console.log(
-            //     'Classical weights shape:',
-            //     this.classicalWeights.read().shape
-            // )
-
-            // // Classical post-processing
-            // const oneHotOutcomes = tf
-            //     .oneHot(measurementOutcomes.flatten(), this.numQubits)
-            //     .reshape([batchSize, sequenceLength, this.numQubits])
-            // const transposedOutcomes = tf.transpose(oneHotOutcomes, [0, 2, 1])
-            // const expandedClassicalWeights = this.classicalWeights
-            //     .read()
-            //     .expandDims(0)
-            // const repeatedClassicalWeights = tf.tile(expandedClassicalWeights, [
-            //     batchSize,
-            //     1,
-            //     1
-            // ])
-            // const classicalOutputs = tf.matMul(
-            //     transposedOutcomes,
-            //     repeatedClassicalWeights,
-            //     true
-            // )
-
-            // console.log('Classical outputs shape:', classicalOutputs.shape)
-
-            // return classicalOutputs
         })
     }
 

@@ -43,22 +43,22 @@ export default class OscillometricDecayedExponent extends ODE {
                 })
                 .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .QuantumSpace({
-            //         units: this.units
-            //     })
-            //     .apply(outputs)
-
             outputs = this.ode.layers
-                .Autoencoder({
-                    units: this.units,
-                    innerDim: this.units * 4,
-                    bottleneck: this.units / 4,
-                    encoderActivation: 'softsign',
-                    decoderActivation: 'tanh',
-                    noise: 0.001
+                .QuantumSpace({
+                    units: this.units
                 })
                 .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .Autoencoder({
+            //         units: this.units,
+            //         innerDim: this.units * 4,
+            //         bottleneck: this.units / 4,
+            //         encoderActivation: 'swish',
+            //         decoderActivation: 'mish',
+            //         noise: 1e-6
+            //     })
+            //     .apply(outputs)
         }
 
         outputs = this.ode.layers
