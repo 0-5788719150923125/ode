@@ -2663,7 +2663,7 @@ class PseudoQuantumState extends LayerBase {
         this.units = config.units
         this.qubits = config.qubits || 4
         this.strength = config.strength || 0.8
-        // this.expansionFactor = config.expansionFactor || 2
+        this.expansion = config.expansion || 2
     }
 
     build(inputShape) {
@@ -2691,12 +2691,12 @@ class PseudoQuantumState extends LayerBase {
             'float32',
             tf.initializers.glorotUniform()
         )
-        // this.projectionMatrix = this.addWeight(
-        //     'projectionMatrix',
-        //     [this.qubits, this.qubits * this.expansionFactor],
-        //     'float32',
-        //     tf.initializers.randomNormal({ mean: 0, stddev: 1 })
-        // )
+        this.projectionMatrix = this.addWeight(
+            'projectionMatrix',
+            [this.qubits, this.qubits * this.expansion],
+            'float32',
+            tf.initializers.randomNormal({ mean: 0, stddev: 1 })
+        )
         this.seedVector = this.addWeight(
             'seedVector',
             [inputShape[inputShape.length - 1]],
@@ -2746,43 +2746,49 @@ class PseudoQuantumState extends LayerBase {
                 [batchSize, sequenceLength, this.qubits]
             )
 
-            // // Expand the random state to a higher-dimensional space
-            // const expandedShape = [
-            //     transformedStates.shape[0],
-            //     transformedStates.shape[1],
-            //     this.qubits * this.expansionFactor
-            // ]
-            // const expandedState = tf.randomUniform(
-            //     expandedShape,
-            //     0,
-            //     1,
-            //     'float32',
-            //     seed
-            // )
+            // Expand the random state to a higher-dimensional space
+            const expandedShape = [
+                transformedStates.shape[0],
+                transformedStates.shape[1],
+                this.qubits * this.expansion
+            ]
+            const expandedState = tf.randomUniform(
+                expandedShape,
+                0,
+                1,
+                'float32',
+                seed
+            )
 
-            // // Project the expanded state using random projection
-            // const projectedState = tf.reshape(
-            //     tf.matMul(
-            //         tf.reshape(expandedState, [
-            //             -1,
-            //             this.qubits * this.expansionFactor
-            //         ]),
-            //         this.projectionMatrix.read()
-            //     ),
-            //     [
-            //         transformedStates.shape[0],
-            //         transformedStates.shape[1],
-            //         this.qubits
-            //     ]
-            // )
-
-            const projectedState = transformedStates
+            // Project the expanded state using random projection
+            const projectedState = tf.reshape(
+                tf.matMul(
+                    tf.reshape(expandedState, [
+                        -1,
+                        this.qubits * this.expansion
+                    ]),
+                    this.projectionMatrix.read(),
+                    false,
+                    true
+                ),
+                [
+                    transformedStates.shape[0],
+                    transformedStates.shape[1],
+                    this.qubits
+                ]
+            )
 
             // Perform measurement and collapse using Gumbel-Softmax trick
             const temperature = 1.0
             const gumbel = tf.add(
                 tf.log(tf.abs(projectedState)),
-                tf.randomUniform(projectedState.shape, 0, 1, 'float32', seed)
+                tf.randomUniform(
+                    projectedState.shape,
+                    0,
+                    0.000001,
+                    'float32',
+                    seed
+                )
             )
             const noisyLogits = tf.add(
                 tf.log(tf.abs(transformedStates)),
@@ -2796,6 +2802,7 @@ class PseudoQuantumState extends LayerBase {
                 measurementOutcomes.flatten(),
                 this.qubits
             )
+
             const classicalOutputs = tf.reshape(
                 tf.matMul(oneHotOutcomes, this.classicalWeights.read()),
                 [batchSize, sequenceLength, this.units]
@@ -2814,7 +2821,8 @@ class PseudoQuantumState extends LayerBase {
             ...super.getConfig(),
             units: this.units,
             qubits: this.qubits,
-            strength: this.strength
+            strength: this.strength,
+            expansion: this.expansion
         }
     }
 
