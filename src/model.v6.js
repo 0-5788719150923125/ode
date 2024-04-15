@@ -46,21 +46,10 @@ export default class OscillometricDecayedExponent extends ODE {
             outputs = this.ode.layers
                 .PseudoQuantumState({
                     units: this.units,
-                    qubits: 23,
+                    qubits: 8,
                     strength: 0.8
                 })
                 .apply(outputs)
-
-            // outputs = this.ode.layers
-            //     .Autoencoder({
-            //         units: this.units,
-            //         innerDim: this.units * 4,
-            //         bottleneck: this.units / 4,
-            //         encoderActivation: 'swish',
-            //         decoderActivation: 'mish',
-            //         noise: 1e-6
-            //     })
-            //     .apply(outputs)
         }
 
         outputs = this.ode.layers

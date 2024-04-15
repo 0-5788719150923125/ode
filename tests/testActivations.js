@@ -57,29 +57,32 @@ import * as tf from '@tensorflow/tfjs'
 //   }
 //   serialization.registerClass(GeluNew);
 
-function compute(x) {
-    return tf.tidy(() => {
-        return tf.mul(
-            0.5,
-            tf.mul(
-                x,
-                tf.add(
-                    1,
-                    tf.tanh(
-                        tf.mul(
-                            tf.sqrt(tf.div(2, Math.PI)),
-                            tf.add(x, tf.mul(0.044715, tf.pow(x, 3)))
-                        )
-                    )
-                )
-            )
-        )
-    })
-}
+// function compute(x) {
+//     return tf.tidy(() => {
+//         return tf.mul(
+//             0.5,
+//             tf.mul(
+//                 x,
+//                 tf.add(
+//                     1,
+//                     tf.tanh(
+//                         tf.mul(
+//                             tf.sqrt(tf.div(2, Math.PI)),
+//                             tf.add(x, tf.mul(0.044715, tf.pow(x, 3)))
+//                         )
+//                     )
+//                 )
+//             )
+//         )
+//     })
+// }
 
-const tensor = tf.tensor1d([-1, -1, -1, -1])
+// const tensor = tf.tensor1d([-1, -1, -1, -1])
 
-console.log(compute(tensor).arraySync())
+// console.log(compute(tensor).arraySync())
 
 // console.log(tf.leakyRelu(-18, 0.1).arraySync())
 // console.log(tf.prelu(-18, tf.scalar(0.1)).arraySync())
+
+const gumbel = tf.randomUniform([1], 0, 1, 'float32', 2.11)
+console.log(gumbel.dataSync()[0])
