@@ -431,15 +431,15 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     }
 }
 
-class Diabolo extends LayerBase {
+class Autoencoder extends LayerBase {
     constructor(config) {
         super({ name: `dia-${randomString()}`, ...config })
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.bottleneck = config?.bottleneck || 128
-        this.decoderActivation = config?.encoderActivation || 'relu'
+        this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
-        this.supportsMasking = true
+        this.noise = config?.noise || 0
     }
 
     build(inputShape) {
@@ -483,8 +483,16 @@ class Diabolo extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
+            let processed = inputs
+
+            if (this.noise > 0) {
+                processed = processed.add(
+                    tf.randomNormal(inputs.shape, 0, this.noise)
+                )
+            }
+
             // Encode the inputs to the bottleneck representation
-            let outputs = this.encoder.apply(inputs)
+            let outputs = this.encoder.apply(processed)
             // Decode the bottleneck representation back to the original dimensionality
             outputs = this.decoder.apply(outputs)
             // Apply skip connection
@@ -502,12 +510,13 @@ class Diabolo extends LayerBase {
             innerDim: this.innerDim,
             bottleneck: this.bottleneck,
             encoderActivation: this.encoderActivation,
-            decoderActivation: this.decoderActivation
+            decoderActivation: this.decoderActivation,
+            noise: this.noise
         }
     }
 
     static get className() {
-        return 'Diabolo'
+        return 'Autoencoder'
     }
 }
 
@@ -2690,11 +2699,14 @@ class QuantumSpace extends LayerBase {
 
             const batchSize = inputs.shape[0]
             const sequenceLength = inputs.shape[1]
+            const inputDim = inputs.shape[2]
+
+            console.log('Input shape:', inputs.shape)
 
             // Prepare quantum states from inputs
             const flattenedInputs = inputs.reshape([
                 batchSize * sequenceLength,
-                -1
+                inputDim
             ])
             const quantumStates = tf
                 .einsum(
@@ -2703,6 +2715,8 @@ class QuantumSpace extends LayerBase {
                     this.quantumWeights.read()
                 )
                 .reshape([batchSize, sequenceLength, this.numQubits])
+
+            console.log('Quantum states shape:', quantumStates.shape)
 
             // Apply quantum entanglement
             const entangledStates = tf.einsum(
@@ -2715,6 +2729,11 @@ class QuantumSpace extends LayerBase {
                 .mul(this.entanglementStrength)
             const entangledQuantumStates = quantumStates.mul(entangledStrengths)
 
+            console.log(
+                'Entangled quantum states shape:',
+                entangledQuantumStates.shape
+            )
+
             // Apply quantum gates
             const transformedStates = tf.einsum(
                 'bij,jk->bik',
@@ -2722,30 +2741,99 @@ class QuantumSpace extends LayerBase {
                 this.quantumGates.read()
             )
 
-            // Perform measurement and collapse
-            const probabilities = tf.pow(tf.abs(transformedStates), 2)
-            const measurementOutcomes = tf
-                .multinomial(
-                    probabilities.reshape([
-                        batchSize * sequenceLength,
-                        this.numQubits
-                    ]),
-                    1,
-                    false
-                )
-                .reshape([batchSize * sequenceLength, this.numQubits])
+            console.log('Transformed states shape:', transformedStates.shape)
+
+            // Perform measurement and collapse using Gumbel-Softmax trick
+            const temperature = 1.0 // Temperature parameter for Gumbel-Softmax
+            const gumbel = tf.randomUniform(transformedStates.shape, 0, 1)
+            const noisy_logits = tf.add(
+                tf.log(tf.abs(transformedStates)),
+                gumbel
+            )
+            const samples = tf.softmax(tf.div(noisy_logits, temperature))
+            const measurementOutcomes = tf.argMax(samples, -1)
+
+            console.log(
+                'Measurement outcomes shape:',
+                measurementOutcomes.shape
+            )
+            console.log(
+                'Classical weights shape:',
+                this.classicalWeights.read().shape
+            )
 
             // Classical post-processing
-            const classicalOutputs = tf
-                .matMul(measurementOutcomes, this.classicalWeights.read())
-                .reshape([batchSize, sequenceLength, this.units])
+            const oneHotOutcomes = tf
+                .oneHot(measurementOutcomes.flatten(), this.numQubits)
+                .reshape([batchSize, sequenceLength, this.numQubits])
+            const transposedOutcomes = tf.transpose(oneHotOutcomes, [0, 2, 1])
+            const expandedClassicalWeights = this.classicalWeights
+                .read()
+                .expandDims(0)
+            const repeatedClassicalWeights = tf.tile(expandedClassicalWeights, [
+                batchSize,
+                1,
+                1
+            ])
+            const classicalOutputs = tf.matMul(
+                transposedOutcomes,
+                repeatedClassicalWeights,
+                true
+            )
+
+            console.log('Classical outputs shape:', classicalOutputs.shape)
 
             return classicalOutputs
+
+            // // Perform measurement and collapse
+            // const probabilities = tf.pow(tf.abs(transformedStates), 2)
+            // const measurementOutcomes = tf
+            //     .multinomial(
+            //         probabilities.reshape([
+            //             batchSize * sequenceLength,
+            //             this.numQubits
+            //         ]),
+            //         1,
+            //         false
+            //     )
+            //     .reshape([batchSize, sequenceLength])
+
+            // console.log(
+            //     'Measurement outcomes shape:',
+            //     measurementOutcomes.shape
+            // )
+            // console.log(
+            //     'Classical weights shape:',
+            //     this.classicalWeights.read().shape
+            // )
+
+            // // Classical post-processing
+            // const oneHotOutcomes = tf
+            //     .oneHot(measurementOutcomes.flatten(), this.numQubits)
+            //     .reshape([batchSize, sequenceLength, this.numQubits])
+            // const transposedOutcomes = tf.transpose(oneHotOutcomes, [0, 2, 1])
+            // const expandedClassicalWeights = this.classicalWeights
+            //     .read()
+            //     .expandDims(0)
+            // const repeatedClassicalWeights = tf.tile(expandedClassicalWeights, [
+            //     batchSize,
+            //     1,
+            //     1
+            // ])
+            // const classicalOutputs = tf.matMul(
+            //     transposedOutcomes,
+            //     repeatedClassicalWeights,
+            //     true
+            // )
+
+            // console.log('Classical outputs shape:', classicalOutputs.shape)
+
+            // return classicalOutputs
         })
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], this.units]
+        return [inputShape[0], inputShape[1], this.units]
     }
 
     getConfig() {
@@ -3591,7 +3679,7 @@ const exportedLayers = [
     DebugLayer,
     DepthwiseSeparableConvolution,
     DeterministicEmbedding,
-    Diabolo,
+    Autoencoder,
     DimensionContraction,
     DimensionExpansion,
     DumbCompression,

@@ -43,10 +43,7 @@ export default class ModelBase {
     }
 
     async init({ corpus = null } = {}) {
-        // console.log(corpus.slice(0, 300))
-        if (corpus) {
-            this.config.corpus = corpus
-        }
+        if (corpus) this.config.corpus = corpus
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
         await this.defineTokenizer()
@@ -391,41 +388,41 @@ function applyRepetitionPenalty(logits, idx, repetitionPenalty) {
     })
 }
 
-function enableGradientCheckpointing(model) {
-    model.layers.forEach((layer) => {
-        const originalCall = layer.call
-        layer.call = function (inputs, kwargs) {
-            const inputTensors = Array.isArray(inputs) ? inputs : [inputs]
+// function enableGradientCheckpointing(model) {
+//     model.layers.forEach((layer) => {
+//         const originalCall = layer.call
+//         layer.call = function (inputs, kwargs) {
+//             const inputTensors = Array.isArray(inputs) ? inputs : [inputs]
 
-            const output = tf.customGrad((inputs, save) => {
-                inputs = Array.isArray(inputs) ? inputs : [inputs]
+//             const output = tf.customGrad((inputs, save) => {
+//                 inputs = Array.isArray(inputs) ? inputs : [inputs]
 
-                save(inputs)
+//                 save(inputs)
 
-                const output = originalCall.apply(layer, [inputs, kwargs])
+//                 const output = originalCall.apply(layer, [inputs, kwargs])
 
-                save([output])
+//                 save([output])
 
-                return {
-                    value: output,
-                    gradFunc: (dy, saved) => {
-                        const savedTensors = saved[0]
+//                 return {
+//                     value: output,
+//                     gradFunc: (dy, saved) => {
+//                         const savedTensors = saved[0]
 
-                        const inputs = savedTensors.slice(0, inputs.length)
+//                         const inputs = savedTensors.slice(0, inputs.length)
 
-                        const gradients = tf.grads((outputs) => outputs[0])(
-                            inputs,
-                            dy
-                        )
+//                         const gradients = tf.grads((outputs) => outputs[0])(
+//                             inputs,
+//                             dy
+//                         )
 
-                        return gradients
-                    }
-                }
-            })(...inputTensors)
+//                         return gradients
+//                     }
+//                 }
+//             })(...inputTensors)
 
-            return output
-        }
-    })
+//             return output
+//         }
+//     })
 
-    return model
-}
+//     return model
+// }
