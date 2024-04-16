@@ -34,7 +34,7 @@ export default class OscillometricDecayedExponent extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .LookingGlass({
+                .Interrogator({
                     maxDecisions: this.maxDecisions,
                     kernelSize: this.kernelSize,
                     dilation: this.dilation,
@@ -42,15 +42,6 @@ export default class OscillometricDecayedExponent extends ODE {
                     gamma: this.gamma
                 })
                 .apply(outputs)
-
-            // outputs = this.ode.layers
-            //     .MultiLayerPerceptron({
-            //         units: this.units,
-            //         innerDim: this.units * 4,
-            //         // epsilon: 1e-5,
-            //         activation: 'mish'
-            //     })
-            //     .apply(outputs)
 
             outputs = this.ode.layers
                 .QuantumStateMachine({

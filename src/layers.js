@@ -2444,9 +2444,9 @@ class StructuredStateSpace extends tf.layers.Layer {
     }
 }
 
-class LookingGlass extends LayerBase {
+class Interrogator extends LayerBase {
     constructor(config) {
-        super({ name: `look-${randomString()}`, ...config })
+        super({ name: `int-${randomString()}`, ...config })
         this.units = config?.units || 64
         this.maxDecisions = config?.maxDecisions || 3
         this.kernelSize = config?.kernelSize || 3
@@ -2565,7 +2565,7 @@ class LookingGlass extends LayerBase {
     }
 
     static get className() {
-        return 'LookingGlass'
+        return 'Interrogator'
     }
 }
 
@@ -2842,49 +2842,30 @@ class QuantumStateMachine extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const batchSize = inputs.shape[0]
-            const seqLength = inputs.shape[1]
-            const inputDim = inputs.shape[2]
-
-            const qubitShape = [batchSize, seqLength, this.qubits]
-
             // Transform the input into quantum states
-            let quantumStates = tf.matMul(
-                tf.reshape(inputs, [-1, inputDim]),
-                this.entryWeights.read()
-            )
+            let evolvingStates = tf
+                .matMul(
+                    tf.reshape(inputs, [-1, inputs.shape[2]]),
+                    this.entryWeights.read()
+                )
+                .reshape([-1, this.qubits])
 
             for (let i = 0; i < this.iterations; i++) {
                 // Apply quantum gates (non-linear activation)
-                quantumStates = tf
-                    .reshape(
-                        tf.matMul(
-                            tf.reshape(quantumStates, [-1, this.qubits]),
-                            this.quantumGates[i].read()
-                        ),
-                        qubitShape
-                    )
-                    .selu()
+                evolvingStates = tf
+                    .matMul(evolvingStates, this.quantumGates[i].read())
                     .mul(this.expansionFactor[i].read())
+                    .selu()
 
                 // Apply quantum weights (linear transformation)
-                quantumStates = tf
-                    .reshape(
-                        tf.matMul(
-                            tf.reshape(quantumStates, [-1, this.qubits]),
-                            this.quantumWeights[i].read()
-                        ),
-                        qubitShape
-                    )
-                    .div(this.collapseFactor[i].read())
+                evolvingStates = tf
+                    .matMul(evolvingStates, this.quantumWeights[i].read())
+                    .mul(this.collapseFactor[i].read().neg()) // division
             }
 
             // Classical post-processing
             const outputs = tf.reshape(
-                tf.matMul(
-                    tf.reshape(quantumStates, [-1, this.qubits]),
-                    this.classicalWeights.read()
-                ),
+                tf.matMul(evolvingStates, this.classicalWeights.read()),
                 inputs.shape
             )
 
@@ -2909,226 +2890,6 @@ class QuantumStateMachine extends LayerBase {
         return 'QuantumStateMachine'
     }
 }
-
-// class QuantumStateMachine extends LayerBase {
-//     constructor(config) {
-//         super({ name: `qsm-${randomString()}`, ...config })
-//         this.units = config.units
-//         this.qubits = config.qubits || 4
-//         this.iterations = config.iterations || 1
-//     }
-
-//     build(inputShape) {
-//         this.entryWeights = this.addWeight(
-//             `entryWeights`,
-//             [this.units, this.qubits],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-
-//         this.quantumWeights = []
-//         this.quantumGates = []
-
-//         for (let i = 0; i < this.iterations; i++) {
-//             this.quantumGates.push(
-//                 this.addWeight(
-//                     `quantumGates${i}`,
-//                     [this.qubits, this.qubits],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.quantumWeights.push(
-//                 this.addWeight(
-//                     `quantumWeights${i}`,
-//                     [this.qubits, this.qubits],
-//                     'float32',
-//                     tf.initializers.orthogonal({ gain: 1 })
-//                 )
-//             )
-//         }
-
-//         this.classicalWeights = this.addWeight(
-//             `classicalWeights`,
-//             [this.qubits, this.units],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             const batchSize = inputs.shape[0]
-//             const seqLength = inputs.shape[1]
-//             const inputDim = inputs.shape[2]
-
-//             const qubitShape = [batchSize, seqLength, this.qubits]
-
-//             // Transform the input into quantum states
-//             let quantumStates = tf.matMul(
-//                 tf.reshape(inputs, [-1, inputDim]),
-//                 this.entryWeights.read()
-//             )
-
-//             for (let i = 0; i < this.iterations; i++) {
-//                 // Apply quantum gates (non-linear activation)
-//                 quantumStates = tf
-//                     .reshape(
-//                         tf.matMul(
-//                             tf.reshape(quantumStates, [-1, this.qubits]),
-//                             this.quantumGates[i].read()
-//                         ),
-//                         qubitShape
-//                     )
-//                     .selu()
-
-//                 // Apply quantum weights (linear transformation)
-//                 quantumStates = tf.reshape(
-//                     tf.matMul(
-//                         tf.reshape(quantumStates, [-1, this.qubits]),
-//                         this.quantumWeights[i].read()
-//                     ),
-//                     qubitShape
-//                 )
-//             }
-
-//             // Classical post-processing
-//             const outputs = tf.reshape(
-//                 tf.matMul(
-//                     tf.reshape(quantumStates, [-1, this.qubits]),
-//                     this.classicalWeights.read()
-//                 ),
-//                 inputs.shape
-//             )
-
-//             return outputs
-//         })
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             units: this.units,
-//             qubits: this.qubits,
-//             iterations: this.iterations
-//         }
-//     }
-
-//     static get className() {
-//         return 'QuantumStateMachine'
-//     }
-// }
-
-// class QuantumStateMachine extends LayerBase {
-//     constructor(config) {
-//         super({ name: `qsm-${randomString()}`, ...config })
-//         this.units = config.units
-//         this.qubits = config.qubits || 4
-//         this.iterations = config.iterations || 1
-//     }
-
-//     build(inputShape) {
-//         this.entryWeights = this.addWeight(
-//             `entryWeights`,
-//             [this.units, this.qubits],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-
-//         this.quantumWeights = []
-//         this.quantumGates = []
-
-//         for (let i = 0; i < this.iterations; i++) {
-//             this.quantumWeights.push(
-//                 this.addWeight(
-//                     `quantumWeights${i}`,
-//                     [this.qubits, this.qubits],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.quantumGates.push(
-//                 this.addWeight(
-//                     `quantumGates${i}`,
-//                     [this.qubits, this.qubits],
-//                     'float32',
-//                     tf.initializers.orthogonal({ gain: 1 })
-//                 )
-//             )
-//         }
-
-//         this.classicalWeights = this.addWeight(
-//             `classicalWeights`,
-//             [this.qubits, this.units],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             // Reduce the dimensions of the input using a dense layer
-//             let quantumStates = tf
-//                 .matMul(
-//                     inputs.reshape([-1, this.units]),
-//                     this.entryWeights.read()
-//                 )
-//                 .tanh()
-
-//             for (let i = 0; i < this.iterations; i++) {
-//                 // Apply quantum gates to evolve the quantum states
-//                 const evolvedStates = tf.matMul(
-//                     quantumStates,
-//                     this.quantumWeights[i].read()
-//                 )
-
-//                 // Simulate quantum measurements to collapse the quantum states
-//                 const collapsedStates = tf.mul(
-//                     evolvedStates,
-//                     tf.sigmoid(evolvedStates)
-//                 )
-
-//                 // Update the quantum states for the next iteration
-//                 quantumStates = collapsedStates
-//             }
-
-//             // Classical post-processing
-//             const outputs = tf
-//                 .reshape(
-//                     tf.matMul(quantumStates, this.classicalWeights.read()),
-//                     inputs.shape
-//                 )
-//                 .tanh()
-
-//             return outputs
-//         })
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             units: this.units,
-//             qubits: this.qubits,
-//             iterations: this.iterations
-//         }
-//     }
-
-//     static get className() {
-//         return 'QuantumStateMachine'
-//     }
-// }
 
 // https://arxiv.org/abs/1709.01507
 class SqueezeAndExcitation extends LayerBase {
@@ -3988,7 +3749,7 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    LookingGlass
+    Interrogator
 ]
 
 exportedLayers.forEach((LayerClass) => {
