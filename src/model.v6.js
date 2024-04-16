@@ -43,18 +43,11 @@ export default class OscillometricDecayedExponent extends ODE {
                 })
                 .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .MultiLayerPerceptron({
-            //         units: this.units,
-            //         innerDim: this.units * 4,
-            //         activation: 'mish'
-            //     })
-            //     .apply(outputs)
-
             outputs = this.ode.layers
-                .PseudoQuantumState({
+                .QuantumStateMachine({
                     units: this.units,
-                    qubits: 23
+                    qubits: 64,
+                    iterations: 2
                 })
                 .apply(outputs)
         }
