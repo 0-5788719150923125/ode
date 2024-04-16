@@ -2777,7 +2777,7 @@ class PseudoQuantumState extends LayerBase {
 class QuantumStateMachine extends LayerBase {
     constructor(config) {
         super({ name: `qsm-${randomString()}`, ...config })
-        this.units = config.units
+        this.units = config.units || 64
         this.qubits = config.qubits || 4
         this.iterations = config.iterations || 1
     }
@@ -2864,12 +2864,10 @@ class QuantumStateMachine extends LayerBase {
             }
 
             // Classical post-processing
-            const outputs = tf.reshape(
+            return tf.reshape(
                 tf.matMul(evolvingStates, this.classicalWeights.read()),
                 inputs.shape
             )
-
-            return outputs
         })
     }
 
