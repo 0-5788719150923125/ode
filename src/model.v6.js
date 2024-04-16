@@ -34,7 +34,7 @@ export default class OscillometricDecayedExponent extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .Vectorrent({
+                .LookingGlass({
                     maxDecisions: this.maxDecisions,
                     kernelSize: this.kernelSize,
                     dilation: this.dilation,

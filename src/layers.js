@@ -2445,9 +2445,9 @@ class StructuredStateSpace extends tf.layers.Layer {
     }
 }
 
-class Vectorrent extends LayerBase {
+class LookingGlass extends LayerBase {
     constructor(config) {
-        super({ name: `vec-${randomString()}`, ...config })
+        super({ name: `look-${randomString()}`, ...config })
         this.units = config?.units || 64
         this.maxDecisions = config?.maxDecisions || 3
         this.kernelSize = config?.kernelSize || 3
@@ -3738,7 +3738,7 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    Vectorrent
+    LookingGlass
 ]
 
 exportedLayers.forEach((LayerClass) => {
