@@ -2566,7 +2566,7 @@ class LookingGlass extends LayerBase {
     }
 
     static get className() {
-        return 'Vectorrent'
+        return 'LookingGlass'
     }
 }
 
