@@ -43,6 +43,15 @@ export default class OscillometricDecayedExponent extends ODE {
                 })
                 .apply(outputs)
 
+            // outputs = this.ode.layers
+            //     .MultiLayerPerceptron({
+            //         units: this.units,
+            //         innerDim: this.units * 4,
+            //         // epsilon: 1e-5,
+            //         activation: 'mish'
+            //     })
+            //     .apply(outputs)
+
             outputs = this.ode.layers
                 .QuantumStateMachine({
                     units: this.units,
@@ -60,5 +69,11 @@ export default class OscillometricDecayedExponent extends ODE {
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineSchedulers() {
+        const learningRate = 0.001
+        this.optimizers[0].learningRate = learningRate
+        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 }
