@@ -40,7 +40,7 @@ class LayerBase extends tf.layers.Layer {
     }
 
     static get className() {
-        return 'LayerBase'
+        return this.name
     }
 }
 
@@ -428,6 +428,88 @@ class GatedLinearUnit extends MultiLayerPerceptron {
 
     static get className() {
         return 'GatedLinearUnit'
+    }
+}
+
+class DenseMultiLayerPerceptron extends LayerBase {
+    constructor(config) {
+        super({ name: `mlp-${randomString()}`, ...config })
+        this.units = config?.units || 256
+        this.innerDim = config?.innerDim || 1024
+        this.dropout = config?.dropout || 0
+        this.epsilon = config?.epsilon || false
+        this.activation = config?.activation || 'gelu'
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        // Initialize dense layers for projection
+        this.inProj = tf.layers.dense({
+            units: this.innerDim,
+            inputShape: inputShape,
+            activation: 'linear'
+        })
+        this.denseHTo4H = tf.layers.dense({
+            units: this.innerDim * 4,
+            inputShape: [this.innerDim],
+            activation: this.activation
+        })
+        this.dense4HToH = tf.layers.dense({
+            units: this.innerDim,
+            inputShape: [this.innerDim * 4],
+            activation: 'linear'
+        })
+        this.outProj = tf.layers.dense({
+            units: this.units,
+            inputShape: [this.innerDim],
+            activation: 'linear'
+        })
+
+        // Initialize layer normalization
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
+
+        // Residual connections/skip connections are critical here
+        this.residual = new ResidualConnection()
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Expand and contract projection via feedforward layers
+            let outputs = this.inProj.apply(inputs)
+            outputs = this.denseHTo4H.apply(outputs)
+            outputs = this.dense4HToH.apply(outputs)
+            outputs = this.outProj.apply(outputs)
+            // If training, apply residual dropout
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+            // Apply layer norm
+            if (this.layernorm) outputs = this.layernorm.apply(outputs)
+            // Apply skip connection
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            units: this.units,
+            innerDim: this.innerDim,
+            dropout: this.dropout
+        }
+    }
+
+    static get className() {
+        return 'DenseMultiLayerPerceptron'
     }
 }
 
@@ -2058,7 +2140,7 @@ class LearnedUpsampling extends LayerBase {
     }
 }
 
-class StateSpace extends tf.layers.Layer {
+class StateSpace extends LayerBase {
     constructor(config) {
         super({ name: `ssm-${randomString()}`, ...config })
         this.units = config.units || 64
@@ -2153,23 +2235,17 @@ class StateSpace extends tf.layers.Layer {
     }
 
     getConfig() {
-        const config = {
+        return {
+            ...super.getConfig(),
             units: this.units,
             innerDim: this.innerDim,
             returnSequences: this.returnSequences,
             epsilon: this.epsilon
         }
-        const baseConfig = super.getConfig()
-        Object.assign(config, baseConfig)
-        return config
-    }
-
-    static get className() {
-        return 'StateSpace'
     }
 }
 
-class ChunkedStateSpace extends tf.layers.Layer {
+class ChunkedStateSpace extends LayerBase {
     constructor(config) {
         super({ name: `ssm-${randomString()}`, ...config })
         this.units = config.units || 64
@@ -2308,13 +2384,13 @@ class ChunkedStateSpace extends tf.layers.Layer {
     }
 }
 
-class StructuredStateSpace extends tf.layers.Layer {
+class StructuredStateSpace extends LayerBase {
     constructor(config) {
         super({ name: `sss-${randomString()}`, ...config })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
-        this.epsilon = config.epsilon || 1e-5
+        this.epsilon = config.epsilon || false
         this.chunkSize = config.chunkSize || 4
     }
 
@@ -2345,12 +2421,11 @@ class StructuredStateSpace extends tf.layers.Layer {
             tf.initializers.zeros()
         )
 
-        this.layernorm = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-        this.layernorm.build(inputShape)
-
-        // this._trainableWeights.push(...this.layernorm.trainableWeights)
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
 
         this.residual = new ResidualConnection()
     }
@@ -2415,7 +2490,7 @@ class StructuredStateSpace extends tf.layers.Layer {
                 ? tf.concat(outputs, 1)
                 : outputs[outputs.length - 1]
 
-            output = this.layernorm.apply(output)
+            if (this.layernorm) output = this.layernorm.apply(output)
 
             return this.residual.apply([inputs, output])
         })
@@ -3730,6 +3805,7 @@ const exportedLayers = [
     LearnedUpsampling,
     MixtureOfDepthsRouting,
     MultiLayerPerceptron,
+    DenseMultiLayerPerceptron,
     NearestNeighborUpsampling,
     PerformerAttention,
     PseudoQuantumState,

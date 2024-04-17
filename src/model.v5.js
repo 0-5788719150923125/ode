@@ -29,11 +29,11 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .StructuredStateSpace({
+                .StateSpace({
                     units: this.units,
                     innerDim: this.innerDim,
-                    chunkSize: this.chunkSize,
-                    epsilon: this.epsilon,
+                    // chunkSize: this.chunkSize,
+                    // epsilon: this.epsilon,
                     returnSequences: true
                 })
                 .apply(outputs)

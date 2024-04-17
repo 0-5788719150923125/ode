@@ -51,7 +51,7 @@ export default class OscillometricDecayedExponent extends ODE {
                 .MultiLayerPerceptron({
                     units: this.units,
                     innerDim: this.units * 4,
-                    activation: 'selu'
+                    activation: 'mish'
                 })
                 .apply(outputs)
 
