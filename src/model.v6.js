@@ -15,9 +15,9 @@ export default class OscillometricDecayedExponent extends ODE {
         this.gamma = 3
     }
 
-    async defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
-    }
+    // async defineTokenizer(config) {
+    //     this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+    // }
 
     defineBuild() {
         const inputs = this.ode.layers.input({
@@ -48,12 +48,20 @@ export default class OscillometricDecayedExponent extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .QuantumStateMachine({
+                .MultiLayerPerceptron({
                     units: this.units,
-                    qubits: 64,
-                    iterations: 1
+                    innerDim: this.units * 4,
+                    activation: 'selu'
                 })
                 .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .QuantumStateMachine({
+            //         units: this.units,
+            //         qubits: 256,
+            //         iterations: 1
+            //     })
+            //     .apply(outputs)
         }
 
         outputs = this.ode.layers

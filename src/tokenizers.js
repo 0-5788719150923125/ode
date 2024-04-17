@@ -97,6 +97,7 @@ env.allowLocalModels = false
 import { AutoTokenizer } from '@xenova/transformers'
 class XenovaTokenizer extends TokenizerBase {
     constructor(config) {
+        super(config)
         this.model = config.model || 'openai-community/gpt2'
         this.tokenizer
     }
@@ -124,6 +125,7 @@ class BasicSubwordTokenizer extends TokenizerBase {
         trainIterations = 50_000_000,
         corpus = shaks13
     ) {
+        super()
         this.maxVocabSize = maxVocabSize
         const initialVocab =
             `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `.split(
