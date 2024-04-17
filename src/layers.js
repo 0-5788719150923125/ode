@@ -66,10 +66,6 @@ class DebugLayer extends LayerBase {
             return inputs
         })
     }
-
-    static get className() {
-        return 'DebugLayer'
-    }
 }
 
 class Range extends LayerBase {
@@ -91,10 +87,6 @@ class Range extends LayerBase {
             const range = tf.reshape(tf.range(0, T, 1, 'int32'), [1, T]) // .tile([B, 1])
             return range
         })
-    }
-
-    static get className() {
-        return 'Range'
     }
 }
 
@@ -233,10 +225,6 @@ class CausalSelfAttention extends LayerBase {
             return tf.layers.add().apply([inputs, outputs])
         })
     }
-
-    static get className() {
-        return 'CausalSelfAttention'
-    }
 }
 
 class SinusoidalPositionalEncoding extends LayerBase {
@@ -287,10 +275,6 @@ class SinusoidalPositionalEncoding extends LayerBase {
 
     computeOutputShape(inputShape) {
         return inputShape
-    }
-
-    static get className() {
-        return 'SinusoidalPositionalEncoding'
     }
 }
 
@@ -366,10 +350,6 @@ class MultiLayerPerceptron extends LayerBase {
             dropout: this.dropout
         }
     }
-
-    static get className() {
-        return 'MultiLayerPerceptron'
-    }
 }
 
 class GatedLinearUnit extends MultiLayerPerceptron {
@@ -424,10 +404,6 @@ class GatedLinearUnit extends MultiLayerPerceptron {
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
-    }
-
-    static get className() {
-        return 'GatedLinearUnit'
     }
 }
 
@@ -506,10 +482,6 @@ class DenseMultiLayerPerceptron extends LayerBase {
             innerDim: this.innerDim,
             dropout: this.dropout
         }
-    }
-
-    static get className() {
-        return 'DenseMultiLayerPerceptron'
     }
 }
 
@@ -595,10 +567,6 @@ class Autoencoder extends LayerBase {
             decoderActivation: this.decoderActivation,
             noise: this.noise
         }
-    }
-
-    static get className() {
-        return 'Autoencoder'
     }
 }
 
@@ -712,10 +680,6 @@ class CapsNet extends LayerBase {
             capsuleDim: this.capsuleDim
         }
     }
-
-    static get className() {
-        return 'CapsNet'
-    }
 }
 
 class DigitCaps extends LayerBase {
@@ -788,10 +752,6 @@ class DigitCaps extends LayerBase {
         }
         return config
     }
-
-    static get className() {
-        return 'DigitCaps'
-    }
 }
 
 class MixtureOfDepthsRouting extends LayerBase {
@@ -844,10 +804,6 @@ class MixtureOfDepthsRouting extends LayerBase {
             k: this.k,
             units: this.units
         }
-    }
-
-    static get className() {
-        return 'MixtureOfDepthsRouting'
     }
 }
 
@@ -1005,10 +961,6 @@ class SparseMixtureOfExperts extends LayerBase {
             loadBalancing: this.loadBalancing
         }
     }
-
-    static get className() {
-        return 'SparseMixtureOfExperts'
-    }
 }
 
 class LazyMixtureOfExperts extends LayerBase {
@@ -1133,10 +1085,6 @@ class LazyMixtureOfExperts extends LayerBase {
             topK: this.topK
         }
     }
-
-    static get className() {
-        return 'LazyMixtureOfExperts'
-    }
 }
 
 class ControlGate extends LayerBase {
@@ -1219,10 +1167,6 @@ class ControlGate extends LayerBase {
             numExperts: this.numExperts
         }
     }
-
-    static get className() {
-        return 'ControlGate'
-    }
 }
 
 class ResidualConnection extends LayerBase {
@@ -1245,10 +1189,6 @@ class ResidualConnection extends LayerBase {
             const [originalInput, blockOutput] = inputs
             return tf.add(originalInput, blockOutput)
         })
-    }
-
-    static get className() {
-        return 'ResidualConnection'
     }
 }
 
@@ -1286,9 +1226,6 @@ class LambdaLayer extends LayerBase {
             lambdaOutputShape: this.lambdaOutputShape
         })
         return config
-    }
-    static get className() {
-        return 'LambdaLayer'
     }
 }
 
@@ -1462,10 +1399,6 @@ class SynthesizerAttention extends LayerBase {
         })
         return config
     }
-
-    static get className() {
-        return 'SynthesizerAttention'
-    }
 }
 
 class Antirectifier extends LayerBase {
@@ -1515,14 +1448,6 @@ class Antirectifier extends LayerBase {
         const pos = centered.relu().reshape(origShape)
         const neg = centered.neg().relu().reshape(origShape)
         return tf.concat([pos, neg], 3)
-    }
-
-    /**
-     * If a custom layer class is to support serialization, it must implement
-     * the `className` static getter.
-     */
-    static get className() {
-        return 'Antirectifier'
     }
 }
 
@@ -1610,10 +1535,6 @@ class RotaryPositionalEncoding extends LayerBase {
             ...super.getConfig(),
             blockSize: this.blockSize
         }
-    }
-
-    static get className() {
-        return 'RotaryPositionalEncoding'
     }
 }
 
@@ -1794,10 +1715,6 @@ class CompressorHead extends LayerBase {
             operations: this.operations
         })
     }
-
-    static get className() {
-        return 'CompressorHead'
-    }
 }
 
 class DumbCompression extends LayerBase {
@@ -1884,10 +1801,6 @@ class DumbCompression extends LayerBase {
         })
         return config
     }
-
-    static get className() {
-        return 'DumbCompression'
-    }
 }
 
 class ConvolutionalExpansionLayer extends LayerBase {
@@ -1969,10 +1882,6 @@ class ConvolutionalExpansionLayer extends LayerBase {
         })
         return config
     }
-
-    static get className() {
-        return 'ConvolutionalExpansionLayer'
-    }
 }
 
 class SequenceExpansionLayer extends LayerBase {
@@ -2009,10 +1918,6 @@ class SequenceExpansionLayer extends LayerBase {
 
     computeOutputShape(inputShape) {
         return [inputShape[0], this.seqLen, inputShape[2]]
-    }
-
-    static get className() {
-        return 'SequenceExpansionLayer'
     }
 }
 
@@ -2055,10 +1960,6 @@ class NearestNeighborUpsampling extends LayerBase {
             upsamplingFactor: this.upsamplingFactor
         })
         return config
-    }
-
-    static get className() {
-        return 'NearestNeighborUpsampling'
     }
 }
 
@@ -2133,10 +2034,6 @@ class LearnedUpsampling extends LayerBase {
             activation: this.activation
         })
         return config
-    }
-
-    static get className() {
-        return 'LearnedUpsampling'
     }
 }
 
@@ -2285,9 +2182,6 @@ class ChunkedStateSpace extends LayerBase {
         this.layernorm = tf.layers.layerNormalization({
             epsilon: this.epsilon
         })
-        this.layernorm.build(inputShape)
-
-        // this._trainableWeights.push(...this.layernorm.trainableWeights)
 
         this.residual = new ResidualConnection()
     }
@@ -2377,10 +2271,6 @@ class ChunkedStateSpace extends LayerBase {
             epsilon: this.epsilon,
             chunkSize: this.chunkSize
         }
-    }
-
-    static get className() {
-        return 'ChunkedStateSpace'
     }
 }
 
@@ -2513,10 +2403,6 @@ class StructuredStateSpace extends LayerBase {
             chunkSize: this.chunkSize
         }
     }
-
-    static get className() {
-        return 'StructuredStateSpace'
-    }
 }
 
 class Interrogator extends LayerBase {
@@ -2638,10 +2524,6 @@ class Interrogator extends LayerBase {
             gamma: this.gamma
         }
     }
-
-    static get className() {
-        return 'Interrogator'
-    }
 }
 
 class TemporalPooling extends LayerBase {
@@ -2724,10 +2606,6 @@ class TemporalPooling extends LayerBase {
             poolingFunction: this.poolingFunction,
             padding: this.padding
         }
-    }
-
-    static get className() {
-        return 'TemporalPooling'
     }
 }
 
@@ -2843,10 +2721,6 @@ class PseudoQuantumState extends LayerBase {
             qubits: this.qubits
         }
     }
-
-    static get className() {
-        return 'PseudoQuantumState'
-    }
 }
 
 class QuantumStateMachine extends LayerBase {
@@ -2958,10 +2832,6 @@ class QuantumStateMachine extends LayerBase {
             iterations: this.iterations
         }
     }
-
-    static get className() {
-        return 'QuantumStateMachine'
-    }
 }
 
 // https://arxiv.org/abs/1709.01507
@@ -3011,10 +2881,6 @@ class SqueezeAndExcitation extends LayerBase {
             ratio: this.ratio
         }
     }
-
-    static get className() {
-        return 'SqueezeAndExcitation'
-    }
 }
 
 class EfficientChannelAttention extends LayerBase {
@@ -3059,10 +2925,6 @@ class EfficientChannelAttention extends LayerBase {
             gamma: this.gamma
         }
     }
-
-    static get className() {
-        return 'EfficientChannelAttention'
-    }
 }
 
 class CollapseOneHot extends LayerBase {
@@ -3079,10 +2941,6 @@ class CollapseOneHot extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             return tf.cast(inputs, 'int32')
         })
-    }
-
-    static get className() {
-        return 'CollapseOneHot'
     }
 }
 
@@ -3107,10 +2965,6 @@ class ToOneHot extends LayerBase {
         const config = super.getConfig()
         Object.assign(config, { depth: this.depth })
         return config
-    }
-
-    static get className() {
-        return 'ToOneHot'
     }
 }
 
@@ -3154,52 +3008,7 @@ class DeterministicEmbedding extends LayerBase {
             outputDim: this.outputDim
         }
     }
-
-    static get className() {
-        return 'DeterministicEmbedding'
-    }
 }
-
-// class DeterministicEmbedding extends LayerBase {
-//     constructor(config) {
-//         super({ name: `emb-${randomString()}`, ...config })
-//         this.outputDim = config.outputDim
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return [...inputShape, this.outputDim]
-//     }
-
-//     call(inputs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-//             const tokenIds = inputs.cast('int32')
-//             const positions = tf.range(0, inputs.shape[1]).expandDims(0)
-
-//             const tokenEncodings = tf.cast(tokenIds, 'float32').expandDims(-1)
-//             const positionEncodings = tf
-//                 .cast(positions, 'float32')
-//                 .expandDims(-1)
-
-//             const encodings = tokenEncodings.add(positionEncodings)
-//             const normalizedEncodings = encodings.div(
-//                 tf.sqrt(tf.scalar(this.outputDim))
-//             )
-//             return normalizedEncodings
-//         })
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             outputDim: this.outputDim
-//         }
-//     }
-
-//     static get className() {
-//         return 'DeterministicEmbedding'
-//     }
-// }
 
 class PerformerAttention extends LayerBase {
     constructor(config) {
@@ -3365,10 +3174,6 @@ class PerformerAttention extends LayerBase {
             projectionDim: this.projectionDim
         }
     }
-
-    static get className() {
-        return 'PerformerAttention'
-    }
 }
 
 class SharedEmbedding extends LayerBase {
@@ -3444,10 +3249,6 @@ class SharedEmbedding extends LayerBase {
             embeddingDim: this.embeddingDim
         }
     }
-
-    static get className() {
-        return 'SharedEmbedding'
-    }
 }
 
 class FourierFeaturePositionalEncoding extends LayerBase {
@@ -3478,10 +3279,6 @@ class FourierFeaturePositionalEncoding extends LayerBase {
             scale: this.scale
         })
         return config
-    }
-
-    static get className() {
-        return 'FourierFeaturePositionalEncoding'
     }
 }
 
@@ -3562,10 +3359,6 @@ class DimensionExpansion extends LayerBase {
             units: this.units
         }
     }
-
-    static get className() {
-        return 'DimensionExpansion'
-    }
 }
 
 class DimensionContraction extends LayerBase {
@@ -3617,10 +3410,6 @@ class DimensionContraction extends LayerBase {
             units: this.units,
             activation: this.activation
         }
-    }
-
-    static get className() {
-        return 'DimensionContraction'
     }
 }
 
@@ -3704,13 +3493,9 @@ class DepthwiseSeparableConvolution extends LayerBase {
             // dropout: this.dropout
         }
     }
-
-    static get className() {
-        return 'DepthwiseSeparableConvolution'
-    }
 }
 
-class VectorLayerWithMixing extends tf.layers.Layer {
+class VectorLayerWithMixing extends LayerBase {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -3774,10 +3559,6 @@ class VectorLayerWithMixing extends tf.layers.Layer {
             mixingSize: this.mixingSize
         })
         return config
-    }
-
-    static get className() {
-        return 'VectorLayerWithMixing'
     }
 }
 
