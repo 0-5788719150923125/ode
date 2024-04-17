@@ -1,6 +1,28 @@
 // import pako from 'pako'
 import { shaks13 } from './data.js'
 
+class TokenizerBase {
+    constructor() {
+        // pass
+    }
+
+    getLength() {
+        return this.vocab.length
+    }
+
+    encode(string) {
+        // not implemented
+    }
+
+    decode(array) {
+        // not implemented
+    }
+
+    writeVocabularyToFile(path) {
+        // skip
+    }
+}
+
 // class CompressedBinaryTokenizer {
 //     constructor({
 //         minLength = 1,
@@ -249,8 +271,9 @@ import { shaks13 } from './data.js'
 //     }
 // }
 
-class CharacterTokenizer {
+class CharacterTokenizer extends TokenizerBase {
     constructor() {
+        super()
         this.padToken = '�'
         this.vocab = Array.from(
             new Set(
@@ -265,15 +288,20 @@ class CharacterTokenizer {
     }
 
     encode(string) {
-        // not implemented
+        return Array.from(string).map((char) => {
+            const index = this.vocab.indexOf(char)
+            return index !== -1 ? index : this.vocab.indexOf(this.padToken)
+        })
     }
 
     decode(array) {
-        // not implemented
-    }
-
-    writeVocabularyToFile(path) {
-        // skip
+        return array
+            .map((index) => {
+                return index >= 0 && index < this.vocab.length
+                    ? this.vocab[index]
+                    : this.padToken
+            })
+            .join('')
     }
 }
 

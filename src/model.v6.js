@@ -15,6 +15,10 @@ export default class OscillometricDecayedExponent extends ODE {
         this.gamma = 3
     }
 
+    async defineTokenizer(config) {
+        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+    }
+
     defineBuild() {
         const inputs = this.ode.layers.input({
             shape: [null]
@@ -47,7 +51,7 @@ export default class OscillometricDecayedExponent extends ODE {
                 .QuantumStateMachine({
                     units: this.units,
                     qubits: 64,
-                    iterations: 2
+                    iterations: 1
                 })
                 .apply(outputs)
         }
