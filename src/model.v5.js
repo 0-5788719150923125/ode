@@ -8,10 +8,8 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
         this.layers = 4
-        this.units = 256
+        this.units = 512
         this.innerDim = this.units * 4
-        this.chunkSize = 4
-        this.epsilon = 1e-5
     }
 
     defineBuild() {
@@ -32,8 +30,6 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
                 .StateSpace({
                     units: this.units,
                     innerDim: this.innerDim,
-                    // chunkSize: this.chunkSize,
-                    // epsilon: this.epsilon,
                     returnSequences: true
                 })
                 .apply(outputs)

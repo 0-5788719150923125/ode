@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import { GELU } from './activations.js'
+import customOps from './ops.js'
 import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {
@@ -2723,6 +2724,171 @@ class PseudoQuantumState extends LayerBase {
     }
 }
 
+class QuantumSimulator extends LayerBase {
+    constructor(config) {
+        super({ name: `qs-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.qubits = config.qubits || 4
+        this.iterations = config.iterations || 1
+    }
+
+    build(inputShape) {
+        this.entryWeights = this.addWeight(
+            `entryWeights`,
+            [this.units, this.qubits],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        this.quantumWeights = []
+        this.quantumGates = []
+        this.expansionFactor = []
+        this.collapseFactor = []
+        this.expansionBias = []
+        this.collapseBias = []
+        this.upperMagnitude = []
+        this.lowerMagnitude = []
+        this.alpha = []
+
+        for (let i = 0; i < this.iterations; i++) {
+            this.quantumGates.push(
+                this.addWeight(
+                    `quantumGates${i}`,
+                    [this.qubits, this.qubits],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.quantumWeights.push(
+                this.addWeight(
+                    `quantumWeights${i}`,
+                    [this.qubits, this.qubits],
+                    'float32',
+                    tf.initializers.orthogonal({ gain: 1 })
+                )
+            )
+            this.expansionFactor.push(
+                this.addWeight(
+                    `expansionFactor${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.ones()
+                )
+            )
+            this.expansionBias.push(
+                this.addWeight(
+                    `expansionBias${i}`,
+                    [this.qubits],
+                    'float32',
+                    tf.initializers.zeros()
+                )
+            )
+            this.collapseFactor.push(
+                this.addWeight(
+                    `collapseFactor${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.ones()
+                )
+            )
+            this.collapseBias.push(
+                this.addWeight(
+                    `collapseBias${i}`,
+                    [this.qubits],
+                    'float32',
+                    tf.initializers.zeros()
+                )
+            )
+            this.upperMagnitude.push(
+                this.addWeight(
+                    `upperMagnitude${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.ones()
+                )
+            )
+            this.lowerMagnitude.push(
+                this.addWeight(
+                    `lowerMagnitude${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.zeros()
+                )
+            )
+            this.alpha.push(
+                this.addWeight(
+                    `alpha${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.constant({ value: 0.22 })
+                )
+            )
+        }
+
+        this.classicalWeights = this.addWeight(
+            `classicalWeights`,
+            [this.qubits, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Transform the input into quantum states
+            let evolvingStates = tf
+                .matMul(
+                    tf.reshape(inputs, [-1, inputs.shape[2]]),
+                    this.entryWeights.read()
+                )
+                .reshape([-1, this.qubits])
+
+            for (let i = 0; i < this.iterations; i++) {
+                // Apply quantum gates (non-linear activation)
+                evolvingStates = tf
+                    .matMul(evolvingStates, this.quantumGates[i].read())
+                    .mul(
+                        customOps.subliminalSpace(
+                            this.lowerMagnitude[i].read(),
+                            this.upperMagnitude[i].read(),
+                            evolvingStates.shape[1]
+                        )
+                    )
+                    .mul(this.expansionFactor[i].read())
+                    .add(this.expansionBias[i].read())
+                    .prelu(this.alpha[i].read())
+
+                // Apply quantum weights (linear transformation)
+                evolvingStates = tf
+                    .matMul(evolvingStates, this.quantumWeights[i].read())
+                    .mul(this.collapseFactor[i].read().neg()) // division
+                    .sub(this.collapseBias[i].read())
+            }
+
+            // Classical post-processing
+            return tf.reshape(
+                tf.matMul(evolvingStates, this.classicalWeights.read()),
+                inputs.shape
+            )
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            qubits: this.qubits,
+            iterations: this.iterations
+        }
+    }
+}
+
 class QuantumStateMachine extends LayerBase {
     constructor(config) {
         super({ name: `qsm-${randomString()}`, ...config })
@@ -2998,6 +3164,7 @@ class DeterministicEmbedding extends LayerBase {
             const normalizedEncodings = encodings.div(
                 tf.sqrt(tf.scalar(this.outputDim))
             )
+
             return normalizedEncodings
         })
     }
@@ -3604,7 +3771,8 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    Interrogator
+    Interrogator,
+    QuantumSimulator
 ]
 
 exportedLayers.forEach((LayerClass) => {
