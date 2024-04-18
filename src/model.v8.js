@@ -30,7 +30,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         outputs = this.ode.layers
-            .QuantumSimulator({
+            .Collideoscope({
                 units: this.units,
                 qubits: 256,
                 iterations: 9

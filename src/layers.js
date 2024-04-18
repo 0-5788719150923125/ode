@@ -2724,7 +2724,7 @@ class PseudoQuantumState extends LayerBase {
     }
 }
 
-class QuantumSimulator extends LayerBase {
+class Collideoscope extends LayerBase {
     constructor(config) {
         super({ name: `qs-${randomString()}`, ...config })
         this.units = config.units || 64
@@ -2735,7 +2735,21 @@ class QuantumSimulator extends LayerBase {
     build(inputShape) {
         this.entryWeights = this.addWeight(
             `entryWeights`,
-            [this.units, this.qubits],
+            [inputShape[2], this.qubits],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        this.transitions = this.addWeight(
+            `transitions`,
+            [inputShape[2] + this.qubits, this.qubits * 4],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        this.bias = this.addWeight(
+            `bias`,
+            [this.qubits * 4],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -2749,6 +2763,7 @@ class QuantumSimulator extends LayerBase {
         this.upperMagnitude = []
         this.lowerMagnitude = []
         this.alpha = []
+        this.prism = []
 
         for (let i = 0; i < this.iterations; i++) {
             this.quantumGates.push(
@@ -2823,6 +2838,14 @@ class QuantumSimulator extends LayerBase {
                     tf.initializers.constant({ value: 0.22 })
                 )
             )
+            this.prism.push(
+                this.addWeight(
+                    `prism${i}`,
+                    [2],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
         }
 
         this.classicalWeights = this.addWeight(
@@ -2838,12 +2861,19 @@ class QuantumSimulator extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Transform the input into quantum states
-            let evolvingStates = tf
+            const initialStates = tf
                 .matMul(
                     tf.reshape(inputs, [-1, inputs.shape[2]]),
                     this.entryWeights.read()
                 )
                 .reshape([-1, this.qubits])
+
+            let evolvingStates = initialStates
+
+            let c = tf.zeros([evolvingStates.shape[0], this.qubits])
+            let h = tf.zeros([evolvingStates.shape[0], this.qubits])
+
+            let v = tf.randomUniform([1], 0, 1)
 
             for (let i = 0; i < this.iterations; i++) {
                 // Apply quantum gates (non-linear activation)
@@ -2860,18 +2890,34 @@ class QuantumSimulator extends LayerBase {
                     .add(this.expansionBias[i].read())
                     .prelu(this.alpha[i].read())
 
+                // Apply a transition function
+                v = tf.concat([this.prism[i].read(), v])
+                ;[c, h] = tf.basicLSTMCell(
+                    v.mean(),
+                    this.transitions.read(),
+                    this.bias.read(),
+                    tf.concat([evolvingStates, h], 1),
+                    c,
+                    h
+                )
+
                 // Apply quantum weights (linear transformation)
                 evolvingStates = tf
-                    .matMul(evolvingStates, this.quantumWeights[i].read())
+                    .matMul(h, this.quantumWeights[i].read())
                     .mul(this.collapseFactor[i].read().neg()) // division
                     .sub(this.collapseBias[i].read())
+
+                // Apply residual connection
+                evolvingStates = tf.add(initialStates, evolvingStates)
             }
 
             // Classical post-processing
-            return tf.reshape(
+            const output = tf.reshape(
                 tf.matMul(evolvingStates, this.classicalWeights.read()),
                 inputs.shape
             )
+
+            return output
         })
     }
 
@@ -3772,7 +3818,7 @@ const exportedLayers = [
     TemporalPooling,
     ToOneHot,
     Interrogator,
-    QuantumSimulator
+    Collideoscope
 ]
 
 exportedLayers.forEach((LayerClass) => {
