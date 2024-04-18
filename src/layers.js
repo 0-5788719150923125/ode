@@ -2735,14 +2735,14 @@ class Collideoscope extends LayerBase {
     build(inputShape) {
         this.entryWeights = this.addWeight(
             `entryWeights`,
-            [inputShape[2], this.qubits],
+            [this.units, this.qubits],
             'float32',
             tf.initializers.glorotUniform()
         )
 
         this.transitions = this.addWeight(
             `transitions`,
-            [inputShape[2] + this.qubits, this.qubits * 4],
+            [this.units + this.qubits, this.qubits * 4],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -2751,13 +2751,13 @@ class Collideoscope extends LayerBase {
             `bias`,
             [this.qubits * 4],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.zeros()
         )
 
-        this.quantumWeights = []
-        this.quantumGates = []
+        this.propulsion = []
+        this.collapse = []
         this.expansionFactor = []
-        this.collapseFactor = []
+        this.attractionFactor = []
         this.expansionBias = []
         this.collapseBias = []
         this.upperMagnitude = []
@@ -2766,17 +2766,17 @@ class Collideoscope extends LayerBase {
         this.prism = []
 
         for (let i = 0; i < this.iterations; i++) {
-            this.quantumGates.push(
+            this.propulsion.push(
                 this.addWeight(
-                    `quantumGates${i}`,
+                    `propulsion${i}`,
                     [this.qubits, this.qubits],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
             )
-            this.quantumWeights.push(
+            this.collapse.push(
                 this.addWeight(
-                    `quantumWeights${i}`,
+                    `collapse${i}`,
                     [this.qubits, this.qubits],
                     'float32',
                     tf.initializers.orthogonal({ gain: 1 })
@@ -2798,9 +2798,9 @@ class Collideoscope extends LayerBase {
                     tf.initializers.zeros()
                 )
             )
-            this.collapseFactor.push(
+            this.attractionFactor.push(
                 this.addWeight(
-                    `collapseFactor${i}`,
+                    `attractionFactor${i}`,
                     [],
                     'float32',
                     tf.initializers.ones()
@@ -2876,9 +2876,9 @@ class Collideoscope extends LayerBase {
             let v = tf.randomUniform([1], 0, 1)
 
             for (let i = 0; i < this.iterations; i++) {
-                // Apply quantum gates (non-linear activation)
+                // Simulate quantum expansion (non-linear activation)
                 evolvingStates = tf
-                    .matMul(evolvingStates, this.quantumGates[i].read())
+                    .matMul(evolvingStates, this.propulsion[i].read())
                     .mul(
                         customOps.subliminalSpace(
                             this.lowerMagnitude[i].read(),
@@ -2891,9 +2891,10 @@ class Collideoscope extends LayerBase {
                     .prelu(this.alpha[i].read())
 
                 // Apply a transition function
-                v = tf.concat([this.prism[i].read(), v])
+                const p = this.prism[i].read()
+                v = tf.concat([p, v])
                 ;[c, h] = tf.basicLSTMCell(
-                    v.mean(),
+                    tf.outerProduct(p, v).max(),
                     this.transitions.read(),
                     this.bias.read(),
                     tf.concat([evolvingStates, h], 1),
@@ -2901,13 +2902,13 @@ class Collideoscope extends LayerBase {
                     h
                 )
 
-                // Apply quantum weights (linear transformation)
+                // Simulate quantum collapse (linear transformation)
                 evolvingStates = tf
-                    .matMul(h, this.quantumWeights[i].read())
-                    .mul(this.collapseFactor[i].read().neg()) // division
+                    .matMul(h, this.collapse[i].read())
                     .sub(this.collapseBias[i].read())
+                    .mul(this.attractionFactor[i].read().neg()) // division
 
-                // Apply residual connection
+                // Carry information via residual connections
                 evolvingStates = tf.add(initialStates, evolvingStates)
             }
 
