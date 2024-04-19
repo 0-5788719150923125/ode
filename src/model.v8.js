@@ -34,7 +34,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             outputs = this.ode.layers
                 .LinearAttention({
                     units: this.units,
-                    blockSize: this.config.contextLength
+                    projection: this.units * 4
                 })
                 .apply(outputs)
 
