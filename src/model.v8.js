@@ -7,7 +7,8 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.units = 512
+        this.layers = 6
+        this.units = 256
     }
 
     async defineTokenizer(config) {
@@ -29,13 +30,23 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        outputs = this.ode.layers
-            .Collideoscope({
-                units: this.units,
-                qubits: 256,
-                iterations: 9
-            })
-            .apply(outputs)
+        for (let i = 0; i < this.layers; i++) {
+            outputs = this.ode.layers
+                .SynthesizerAttention({
+                    units: this.units,
+                    blockSize: this.config.contextLength,
+                    heads: 4
+                })
+                .apply(outputs)
+
+            outputs = this.ode.layers
+                .MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.units * 4,
+                    activation: 'mish'
+                })
+                .apply(outputs)
+        }
 
         outputs = this.ode.layers
             .dense({
@@ -48,8 +59,19 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineSchedulers() {
-        const learningRate = 0.001
-        this.optimizers[0].learningRate = learningRate
-        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
+        this.learningRate = 0.00022
+        this.optimizers[0].learningRate = this.learningRate
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
+    }
+
+    defineOptimizers() {
+        this.optimizers = [
+            this.ode.optimizers.Lion({
+                learningRate: this.learningRate,
+                weightDecay: 0.001
+            })
+        ]
     }
 }

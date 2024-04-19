@@ -1241,7 +1241,7 @@ class SynthesizerAttention extends LayerBase {
         this.attnPdrop = config.dropout || 0.0
         this.residPdrop = config.dropout || 0.0
         this.activation = tf.leakyRelu
-        this.epsilon = config.epsilon || 1e-5
+        this.epsilon = config.epsilon || false
         this.alpha = config.alpha || 1
         this.depth = this.units / this.heads
     }
@@ -1278,12 +1278,11 @@ class SynthesizerAttention extends LayerBase {
             tf.initializers.glorotNormal()
         )
 
-        this.layernorm = tf.layers.layerNormalization({
-            name: `norm`,
-            epsilon: this.epsilon
-        })
-        this.layernorm.build(inputShape)
-        // this._trainableWeights.push(...this.layernorm.trainableWeights)
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
 
         this.residual = new ResidualConnection()
 
@@ -1368,12 +1367,12 @@ class SynthesizerAttention extends LayerBase {
                 embedSize
             ])
 
-            const output = this.synthesize(yReshaped, this.proj.read())
+            let output = this.synthesize(yReshaped, this.proj.read())
 
-            const residOutput = this.residDropout.apply(output)
-            const normalized = this.layernorm.apply(residOutput)
+            output = this.residDropout.apply(output)
+            if (this.layernorm) output = this.layernorm.apply(output)
 
-            return this.residual.apply([inputs, normalized])
+            return this.residual.apply([inputs, output])
         })
     }
 
@@ -2726,215 +2725,386 @@ class PseudoQuantumState extends LayerBase {
 
 class Collideoscope extends LayerBase {
     constructor(config) {
-        super({ name: `qs-${randomString()}`, ...config })
-        this.units = config.units || 64
-        this.qubits = config.qubits || 4
-        this.iterations = config.iterations || 1
+        super({ name: `att-${randomString()}`, ...config })
+        this.units = config.units
+        this.blockSize = config.blockSize
     }
 
     build(inputShape) {
-        this.entryWeights = this.addWeight(
-            `entryWeights`,
-            [this.units, this.qubits],
+        console.log('Input shape:', inputShape)
+        console.log('Units:', this.units)
+        console.log('Block size:', this.blockSize)
+
+        this.queryWeights = this.addWeight(
+            'query',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.keyWeights = this.addWeight(
+            'key',
+            [this.units, this.units],
             'float32',
             tf.initializers.glorotUniform()
         )
 
-        this.transitions = this.addWeight(
-            `transitions`,
-            [this.units + this.qubits, this.qubits * 4],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
+        console.log('Query weights shape:', this.queryWeights.shape)
+        console.log('Key weights shape:', this.keyWeights.shape)
+    }
 
-        this.bias = this.addWeight(
-            `bias`,
-            [this.qubits * 4],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        this.propulsion = []
-        this.collapse = []
-        this.expansionFactor = []
-        this.attractionFactor = []
-        this.expansionBias = []
-        this.collapseBias = []
-        this.upperMagnitude = []
-        this.lowerMagnitude = []
-        this.alpha = []
-        this.prism = []
-
-        for (let i = 0; i < this.iterations; i++) {
-            this.propulsion.push(
-                this.addWeight(
-                    `propulsion${i}`,
-                    [this.qubits, this.qubits],
-                    'float32',
-                    tf.initializers.glorotUniform()
-                )
-            )
-            this.collapse.push(
-                this.addWeight(
-                    `collapse${i}`,
-                    [this.qubits, this.qubits],
-                    'float32',
-                    tf.initializers.orthogonal({ gain: 1 })
-                )
-            )
-            this.expansionFactor.push(
-                this.addWeight(
-                    `expansionFactor${i}`,
-                    [],
-                    'float32',
-                    tf.initializers.ones()
-                )
-            )
-            this.expansionBias.push(
-                this.addWeight(
-                    `expansionBias${i}`,
-                    [this.qubits],
-                    'float32',
-                    tf.initializers.zeros()
-                )
-            )
-            this.attractionFactor.push(
-                this.addWeight(
-                    `attractionFactor${i}`,
-                    [],
-                    'float32',
-                    tf.initializers.ones()
-                )
-            )
-            this.collapseBias.push(
-                this.addWeight(
-                    `collapseBias${i}`,
-                    [this.qubits],
-                    'float32',
-                    tf.initializers.zeros()
-                )
-            )
-            this.upperMagnitude.push(
-                this.addWeight(
-                    `upperMagnitude${i}`,
-                    [],
-                    'float32',
-                    tf.initializers.ones()
-                )
-            )
-            this.lowerMagnitude.push(
-                this.addWeight(
-                    `lowerMagnitude${i}`,
-                    [],
-                    'float32',
-                    tf.initializers.zeros()
-                )
-            )
-            this.alpha.push(
-                this.addWeight(
-                    `alpha${i}`,
-                    [],
-                    'float32',
-                    tf.initializers.constant({ value: 0.22 })
-                )
-            )
-            this.prism.push(
-                this.addWeight(
-                    `prism${i}`,
-                    [2],
-                    'float32',
-                    tf.initializers.glorotUniform()
-                )
-            )
-        }
-
-        this.classicalWeights = this.addWeight(
-            `classicalWeights`,
-            [this.qubits, this.units],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.blockSize, this.units]
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Transform the input into quantum states
-            const initialStates = tf
-                .matMul(
-                    tf.reshape(inputs, [-1, inputs.shape[2]]),
-                    this.entryWeights.read()
-                )
-                .reshape([-1, this.qubits])
+            console.log('Input tensor shape:', inputs.shape)
 
-            let evolvingStates = initialStates
+            const transformedQuery = tf.matMul(inputs, this.queryWeights.read())
+            const transformedKey = tf.matMul(inputs, this.keyWeights.read())
 
-            let c = tf.zeros([evolvingStates.shape[0], this.qubits])
-            let h = tf.zeros([evolvingStates.shape[0], this.qubits])
+            console.log('Transformed query shape:', transformedQuery.shape)
+            console.log('Transformed key shape:', transformedKey.shape)
 
-            let v = tf.randomUniform([1], 0, 1)
-
-            for (let i = 0; i < this.iterations; i++) {
-                // Simulate quantum expansion (non-linear activation)
-                evolvingStates = tf
-                    .matMul(evolvingStates, this.propulsion[i].read())
-                    .mul(
-                        customOps.subliminalSpace(
-                            this.lowerMagnitude[i].read(),
-                            this.upperMagnitude[i].read(),
-                            evolvingStates.shape[1]
-                        )
-                    )
-                    .mul(this.expansionFactor[i].read())
-                    .add(this.expansionBias[i].read())
-                    .prelu(this.alpha[i].read())
-
-                // Apply a transition function
-                const p = this.prism[i].read()
-                v = tf.concat([p, v])
-                ;[c, h] = tf.basicLSTMCell(
-                    tf.outerProduct(p, v).max(),
-                    this.transitions.read(),
-                    this.bias.read(),
-                    tf.concat([evolvingStates, h], 1),
-                    c,
-                    h
-                )
-
-                // Simulate quantum collapse (linear transformation)
-                evolvingStates = tf
-                    .matMul(h, this.collapse[i].read())
-                    .sub(this.collapseBias[i].read())
-                    .mul(this.attractionFactor[i].read().neg()) // division
-
-                // Carry information via residual connections
-                evolvingStates = tf.add(initialStates, evolvingStates)
-            }
-
-            // Classical post-processing
-            const output = tf.reshape(
-                tf.matMul(evolvingStates, this.classicalWeights.read()),
-                inputs.shape
+            const scores = tf.matMul(
+                transformedQuery,
+                transformedKey,
+                false,
+                true
             )
+            const attentionWeights = tf.softmax(scores, -1)
 
-            return output
+            console.log('Attention weights shape:', attentionWeights.shape)
+
+            const outputTensor = tf.matMul(attentionWeights, inputs)
+
+            console.log('Output tensor shape:', outputTensor.shape)
+
+            return outputTensor
         })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
             units: this.units,
-            qubits: this.qubits,
-            iterations: this.iterations
+            blockSize: this.blockSize
         }
     }
 }
+
+// class Collideoscope extends LayerBase {
+//     constructor(config) {
+//         super({ name: `ssm-${randomString()}`, ...config })
+//         this.units = config.units || 64
+//         this.innerDim = config.innerDim || 256
+//         this.returnSequences = config.returnSequences || false
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[2]
+//         this.kernel = this.addWeight(
+//             'kernel',
+//             [inputDim, this.innerDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.recurrentKernel = this.addWeight(
+//             'recurrentKernel',
+//             [this.units, this.innerDim],
+//             'float32',
+//             tf.initializers.orthogonal({ gain: 1 })
+//         )
+//         this.outputKernel = this.addWeight(
+//             'outputKernel',
+//             [this.innerDim, this.units],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.bias = this.addWeight(
+//             'bias',
+//             [this.innerDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+
+//         this.residual = new ResidualConnection()
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const [batchSize, sequenceLength, inputDim] = inputs.shape
+
+//             let state = tf.zeros([batchSize, this.units])
+//             const outputs = []
+
+//             const kernel = this.kernel.read()
+//             const recurrentKernel = this.recurrentKernel.read()
+//             const outputKernel = this.outputKernel.read()
+//             const bias = this.bias.read()
+
+//             for (let t = 0; t < sequenceLength; t++) {
+//                 const input = inputs
+//                     .slice([0, t, 0], [batchSize, 1, inputDim])
+//                     .reshape([batchSize, inputDim])
+//                 const innerState = tf
+//                     .add(
+//                         tf.matMul(input, kernel),
+//                         tf.matMul(state, recurrentKernel)
+//                     )
+//                     .add(bias)
+//                     .tanh()
+//                 const newState = tf.matMul(innerState, outputKernel)
+//                 outputs.push(newState)
+//                 state = newState
+//             }
+
+//             let output = this.returnSequences
+//                 ? tf.stack(outputs, 1)
+//                 : outputs[outputs.length - 1]
+
+//             return this.residual.apply([inputs, output])
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         const outputShape = this.returnSequences
+//             ? [inputShape[0], inputShape[1], this.units]
+//             : [inputShape[0], this.units]
+//         return outputShape
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             returnSequences: this.returnSequences
+//         }
+//     }
+// }
+
+// class Collideoscope extends LayerBase {
+//     constructor(config) {
+//         super({ name: `qs-${randomString()}`, ...config })
+//         this.units = config.units || 64
+//         this.qubits = config.qubits || 4
+//         this.iterations = config.iterations || 1
+//     }
+
+//     build(inputShape) {
+//         this.entryWeights = this.addWeight(
+//             `entryWeights`,
+//             [this.units, this.qubits],
+//             'float32',
+//             tf.initializers.glorotUniform()
+//         )
+
+//         this.transitions = this.addWeight(
+//             `transitions`,
+//             [this.units + this.qubits, this.qubits * 4],
+//             'float32',
+//             tf.initializers.glorotUniform()
+//         )
+
+//         this.bias = this.addWeight(
+//             `bias`,
+//             [this.qubits * 4],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+
+//         this.propulsion = []
+//         this.collapse = []
+//         this.expansionFactor = []
+//         this.attractionFactor = []
+//         this.expansionBias = []
+//         this.collapseBias = []
+//         this.upperMagnitude = []
+//         this.lowerMagnitude = []
+//         this.alpha = []
+//         this.prism = []
+
+//         for (let i = 0; i < this.iterations; i++) {
+//             this.propulsion.push(
+//                 this.addWeight(
+//                     `propulsion${i}`,
+//                     [this.qubits, this.qubits],
+//                     'float32',
+//                     tf.initializers.glorotUniform()
+//                 )
+//             )
+//             this.collapse.push(
+//                 this.addWeight(
+//                     `collapse${i}`,
+//                     [this.qubits, this.qubits],
+//                     'float32',
+//                     tf.initializers.orthogonal({ gain: 1 })
+//                 )
+//             )
+//             this.expansionFactor.push(
+//                 this.addWeight(
+//                     `expansionFactor${i}`,
+//                     [],
+//                     'float32',
+//                     tf.initializers.ones()
+//                 )
+//             )
+//             this.expansionBias.push(
+//                 this.addWeight(
+//                     `expansionBias${i}`,
+//                     [this.qubits],
+//                     'float32',
+//                     tf.initializers.zeros()
+//                 )
+//             )
+//             this.attractionFactor.push(
+//                 this.addWeight(
+//                     `attractionFactor${i}`,
+//                     [],
+//                     'float32',
+//                     tf.initializers.ones()
+//                 )
+//             )
+//             this.collapseBias.push(
+//                 this.addWeight(
+//                     `collapseBias${i}`,
+//                     [this.qubits],
+//                     'float32',
+//                     tf.initializers.zeros()
+//                 )
+//             )
+//             this.upperMagnitude.push(
+//                 this.addWeight(
+//                     `upperMagnitude${i}`,
+//                     [],
+//                     'float32',
+//                     tf.initializers.ones()
+//                 )
+//             )
+//             this.lowerMagnitude.push(
+//                 this.addWeight(
+//                     `lowerMagnitude${i}`,
+//                     [],
+//                     'float32',
+//                     tf.initializers.zeros()
+//                 )
+//             )
+//             this.alpha.push(
+//                 this.addWeight(
+//                     `alpha${i}`,
+//                     [],
+//                     'float32',
+//                     tf.initializers.constant({ value: 0.22 })
+//                 )
+//             )
+//             this.prism.push(
+//                 this.addWeight(
+//                     `prism${i}`,
+//                     [2],
+//                     'float32',
+//                     tf.initializers.glorotUniform()
+//                 )
+//             )
+//         }
+
+//         this.exitWeights = this.addWeight(
+//             `exitWeights`,
+//             [this.qubits, this.units],
+//             'float32',
+//             tf.initializers.glorotUniform()
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             this.mask = tf.linalg
+//                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[2]]), 0, -1)
+//                 .expandDims(0)
+
+//             const masked = inputs.mul(this.mask.tile([inputs.shape[0], 1, 1]))
+
+//             // Transform the input into quantum states
+//             const initialStates = tf
+//                 .matMul(
+//                     tf.reshape(masked, [-1, inputs.shape[2]]),
+//                     this.entryWeights.read()
+//                 )
+//                 .reshape([-1, this.qubits])
+
+//             let evolvingStates = initialStates
+
+//             let c = tf.zeros([evolvingStates.shape[0], this.qubits])
+//             let h = tf.zeros([evolvingStates.shape[0], this.qubits])
+
+//             let v = tf.randomUniform([1], 0, 1)
+
+//             for (let i = 0; i < this.iterations; i++) {
+//                 // Simulate quantum expansion (non-linear activation)
+//                 evolvingStates = tf
+//                     .matMul(evolvingStates, this.propulsion[i].read())
+//                     .mul(
+//                         customOps.subliminalSpace(
+//                             this.lowerMagnitude[i].read(),
+//                             this.upperMagnitude[i].read(),
+//                             evolvingStates.shape[1]
+//                         )
+//                     )
+//                     .mul(this.expansionFactor[i].read())
+//                     .add(this.expansionBias[i].read())
+//                     .prelu(this.alpha[i].read())
+
+//                 // Apply a transition function
+//                 const p = this.prism[i].read()
+//                 v = tf.concat([p, v])
+//                 ;[c, h] = tf.basicLSTMCell(
+//                     tf.outerProduct(p, v).mean(),
+//                     this.transitions.read(),
+//                     this.bias.read(),
+//                     tf.concat([evolvingStates, h], 1),
+//                     c,
+//                     h
+//                 )
+
+//                 // Simulate quantum collapse (linear transformation)
+//                 evolvingStates = tf
+//                     .matMul(h, this.collapse[i].read())
+//                     .sub(this.collapseBias[i].read())
+//                     .mul(this.attractionFactor[i].read().neg()) // division
+
+//                 // Carry information via residual connections
+//                 evolvingStates = tf.add(initialStates, evolvingStates)
+//             }
+
+//             // Classical post-processing
+//             const output = tf.reshape(
+//                 tf.matMul(evolvingStates, this.exitWeights.read()),
+//                 inputs.shape
+//             )
+
+//             return output
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             qubits: this.qubits,
+//             iterations: this.iterations
+//         }
+//     }
+// }
 
 class QuantumStateMachine extends LayerBase {
     constructor(config) {
@@ -3227,85 +3397,104 @@ class DeterministicEmbedding extends LayerBase {
 class PerformerAttention extends LayerBase {
     constructor(config) {
         super({ name: `perf-${randomString()}`, ...config })
-        this.numHeads = config.numHeads
-        this.keyDim = config.keyDim
+        this.heads = config.heads
+        this.units = config.units
         this.projectionDim = config.projectionDim
     }
 
     build(inputShape) {
         const [batchSize, sequenceLength, inputDim] = inputShape
-        this.queryDense = tf.layers.dense({
-            units: this.numHeads * this.keyDim,
-            activation: 'linear',
-            useBias: false
-        })
-        this.keyDense = tf.layers.dense({
-            units: this.numHeads * this.keyDim,
-            activation: 'linear',
-            useBias: false
-        })
-        this.valueDense = tf.layers.dense({
-            units: this.numHeads * this.projectionDim,
-            activation: 'linear',
-            useBias: false
-        })
-        this.outputDense = tf.layers.dense({
-            units: inputDim,
-            activation: 'linear',
-            useBias: false
-        })
+        this.queryKernel = this.addWeight(
+            'queryKernel',
+            [inputDim, this.heads * this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.keyKernel = this.addWeight(
+            'keyKernel',
+            [inputDim, this.heads * this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.valueKernel = this.addWeight(
+            'valueKernel',
+            [inputDim, this.heads * this.projectionDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.heads * this.projectionDim, inputDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
         this.attentionWeights = []
         this.attentionOutputs = []
     }
 
-    call(inputs, mask = null) {
-        const [queries, keys, values] = inputs
-        const [batchSize, sequenceLength, inputDim] = queries.shape
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-        const queriesHeads = this.queryDense.apply(queries)
-        const keysHeads = this.keyDense.apply(keys)
-        const valuesHeads = this.valueDense.apply(values)
+            const [batchSize, sequenceLength, inputDim] = inputs.shape
 
-        const queriesReshaped = tf.reshape(queriesHeads, [
-            batchSize,
-            sequenceLength,
-            this.numHeads,
-            this.keyDim
-        ])
-        const keysReshaped = tf.reshape(keysHeads, [
-            batchSize,
-            sequenceLength,
-            this.numHeads,
-            this.keyDim
-        ])
-        const valuesReshaped = tf.reshape(valuesHeads, [
-            batchSize,
-            sequenceLength,
-            this.numHeads,
-            this.projectionDim
-        ])
+            const queries = tf.matMul(inputs, this.queryKernel.read())
+            const keys = tf.matMul(inputs, this.keyKernel.read())
+            const values = tf.matMul(inputs, this.valueKernel.read())
 
-        const queriesPerHead = queriesReshaped.transpose([0, 2, 1, 3])
-        const keysPerHead = keysReshaped.transpose([0, 2, 1, 3])
-        const valuesPerHead = valuesReshaped.transpose([0, 2, 1, 3])
+            const queriesReshaped = tf.reshape(queries, [
+                batchSize,
+                sequenceLength,
+                this.heads,
+                this.units
+            ])
+            const keysReshaped = tf.reshape(keys, [
+                batchSize,
+                sequenceLength,
+                this.heads,
+                this.units
+            ])
+            const valuesReshaped = tf.reshape(values, [
+                batchSize,
+                sequenceLength,
+                this.heads,
+                this.projectionDim
+            ])
 
-        const attentionScores = this.favorAttention(queriesPerHead, keysPerHead)
-        const attentionWeights = this.applyMask(attentionScores, mask)
-        const attentionOutputs = tf.einsum(
-            'bhqk,bhkd->bhqd',
-            attentionWeights,
-            valuesPerHead
-        )
+            const queriesPerHead = queriesReshaped.transpose([0, 2, 1, 3])
+            const keysPerHead = keysReshaped.transpose([0, 2, 1, 3])
+            const valuesPerHead = valuesReshaped.transpose([0, 2, 1, 3])
 
-        const outputTransposed = attentionOutputs.transpose([0, 2, 1, 3])
-        const concatOutput = tf.reshape(outputTransposed, [
-            batchSize,
-            sequenceLength,
-            this.numHeads * this.projectionDim
-        ])
-        const output = this.outputDense.apply(concatOutput)
+            console.log('queriesPerHead shape:', queriesPerHead.shape)
+            console.log('keysPerHead shape:', keysPerHead.shape)
+            console.log('valuesPerHead shape:', valuesPerHead.shape)
 
-        return output
+            const attentionScores = this.favorAttention(
+                queriesPerHead,
+                keysPerHead
+            )
+            console.log('attentionScores shape:', attentionScores.shape)
+
+            const attentionWeights = this.applyMask(attentionScores)
+            console.log('attentionWeights shape:', attentionWeights.shape)
+            console.log('valuesPerHead shape:', valuesPerHead.shape)
+
+            const attentionOutputs = tf.matMul(
+                attentionWeights.transpose([0, 1, 3, 2]),
+                valuesPerHead
+            )
+            console.log('attentionOutputs shape:', attentionOutputs.shape)
+
+            const outputTransposed = attentionOutputs.transpose([0, 2, 1, 3])
+            const concatOutput = tf.reshape(outputTransposed, [
+                batchSize,
+                sequenceLength,
+                this.heads * this.projectionDim
+            ])
+            const output = tf.matMul(concatOutput, this.outputKernel.read())
+
+            return output
+        })
     }
 
     favorAttention(queries, keys) {
@@ -3320,14 +3509,12 @@ class PerformerAttention extends LayerBase {
 
         const randomFeatures = []
         for (let i = 0; i < numHeads; i++) {
-            const queryRandomFeatures = tf.einsum(
-                'bqd,dr->bqr',
-                queries.gather(i),
+            const queryRandomFeatures = tf.matMul(
+                queries.gather([i], 1).squeeze([1]),
                 randomMatrices[i]
             )
-            const keyRandomFeatures = tf.einsum(
-                'bkd,dr->bkr',
-                keys.gather(i),
+            const keyRandomFeatures = tf.matMul(
+                keys.gather([i], 1).squeeze([1]),
                 randomMatrices[i]
             )
 
@@ -3345,10 +3532,11 @@ class PerformerAttention extends LayerBase {
             const queryRandomFeatures = randomFeatures[i].queries
             const keyRandomFeatures = randomFeatures[i].keys
 
-            const dotProduct = tf.einsum(
-                'bqr,bkr->bqk',
+            const dotProduct = tf.matMul(
                 queryRandomFeatures,
-                keyRandomFeatures
+                keyRandomFeatures,
+                false,
+                true
             )
             const scaledDotProduct = dotProduct.div(tf.sqrt(tf.scalar(keyDim)))
 
@@ -3359,32 +3547,20 @@ class PerformerAttention extends LayerBase {
         return attentionScoresStacked
     }
 
-    applyMask(attentionScores, mask) {
-        if (mask !== null) {
-            const expandedMask = mask.expandDims(1).expandDims(1)
-            const maskedAttentionScores = tf.where(
-                expandedMask,
-                attentionScores,
-                tf.scalar(-1e9)
-            )
-            const attentionWeights = tf.softmax(maskedAttentionScores, -1)
-            return attentionWeights
-        } else {
-            const attentionWeights = tf.softmax(attentionScores, -1)
-            return attentionWeights
-        }
+    applyMask(attentionScores) {
+        const attentionWeights = tf.softmax(attentionScores, -1)
+        return attentionWeights
     }
 
     computeOutputShape(inputShape) {
-        const [batchSize, sequenceLength, inputDim] = inputShape
-        return [batchSize, sequenceLength, inputDim]
+        return inputShape
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            numHeads: this.numHeads,
-            keyDim: this.keyDim,
+            heads: this.heads,
+            units: this.units,
             projectionDim: this.projectionDim
         }
     }

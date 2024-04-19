@@ -43,7 +43,7 @@ export default class OpportunisticDialogueEngine extends ODE {
                     units: this.units,
                     blockSize: this.config.contextLength,
                     heads: this.heads,
-                    epsilon: this.epsilon,
+                    // epsilon: this.epsilon,
                     alpha: this.alpha
                 })
                 .apply(outputs)
@@ -52,8 +52,8 @@ export default class OpportunisticDialogueEngine extends ODE {
                 .GatedLinearUnit({
                     units: this.units,
                     innerDim: this.innerDim,
-                    epsilon: this.epsilon,
-                    activation: 'swish'
+                    // epsilon: this.epsilon,
+                    activation: 'mish'
                 })
                 .apply(outputs)
         }
@@ -66,5 +66,13 @@ export default class OpportunisticDialogueEngine extends ODE {
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineSchedulers() {
+        this.learningRate = 0.001
+        this.optimizers[0].learningRate = this.learningRate
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
     }
 }

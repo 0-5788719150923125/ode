@@ -10,8 +10,7 @@ function subliminalSpace(start, end, dimensions) {
     const customLinspace = tf.customGrad((start, end) => {
         const startScalar = start.dataSync()[0]
         const endScalar = end.dataSync()[0]
-        const linspace = tf.linspace(startScalar, endScalar, dimensions)
-        const value = linspace
+        const value = tf.linspace(startScalar, endScalar, dimensions)
         const gradFunc = (dy) => {
             const grads = linspaceGrad(dy)
             return grads
@@ -22,7 +21,6 @@ function subliminalSpace(start, end, dimensions) {
     return customLinspace(start, end)
 }
 
-const ops = {
+export default {
     subliminalSpace
 }
-export default ops
