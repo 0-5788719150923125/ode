@@ -1566,7 +1566,7 @@ class LinearAttention extends LayerBase {
             units: this.units,
             activation: 'linear',
             useBias: false,
-            kernelInitializer: tf.initializers.glorotUniform()
+            kernelInitializer: tf.initializers.orthogonal({ gain: 1 })
         })
         this.valueDense = tf.layers.dense({
             units: this.units,

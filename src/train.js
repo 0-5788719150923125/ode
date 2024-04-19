@@ -466,7 +466,6 @@ async function predictionSampler(
                 ...args
             })
             const endTime = performance.now()
-            console.log('------>')
             console.log(
                 `KWARGS: ${JSON.stringify(args)}, RATE: ${(
                     (endTime - startTime) /

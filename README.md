@@ -28,3 +28,7 @@ This library implements:
 -   a number of text-decoding strategies, including greedy (argmax), temperature, top-k and top-p sampling
 -   object-oriented, extensible design
 -   tons more
+
+# notes
+
+-   in cross attention, queries are generated from one embedding, and keys/values from another (partnership)

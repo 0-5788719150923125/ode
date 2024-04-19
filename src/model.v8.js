@@ -1,7 +1,7 @@
 import ODE from './model.v4.js'
 
 /**
- * An experimental language model with limited memory footprint.
+ * An boring transformer.
  * @extends ODE
  */
 export default class OmniscientDeterministicEngine extends ODE {
