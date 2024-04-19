@@ -7,8 +7,8 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 6
-        this.units = 256
+        this.layers = 8
+        this.units = 16
     }
 
     async defineTokenizer(config) {
@@ -39,7 +39,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .SynthesizerAttention({
                     units: this.units,
                     blockSize: this.config.contextLength,
-                    heads: 8
+                    heads: 4
                 })
                 .apply(outputs)
 
