@@ -1,7 +1,7 @@
 import ODE from './model.v4.js'
 
 /**
- * An boring transformer.
+ * The most boring transformer you've ever seen.
  * @extends ODE
  */
 export default class OmniscientDeterministicEngine extends ODE {
