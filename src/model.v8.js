@@ -12,15 +12,19 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     async defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+        this.tokenizer = this.ode.tokenizers.BinaryTokenizer()
     }
+
+    // async defineTokenizer(config) {
+    //     this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+    // }
 
     defineBuild() {
         const inputs = this.ode.layers.input({
             shape: [null]
         })
 
-        const embeddings = this.ode.layers.embedding({
+        const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
             outputDim: this.units,
             embeddingsInitializer: 'glorotUniform'
@@ -35,9 +39,17 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .SynthesizerAttention({
                     units: this.units,
                     blockSize: this.config.contextLength,
-                    heads: 4
+                    heads: 8
                 })
                 .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .LinearAttention({
+            //         units: this.units
+            //         // heads: 8,
+            //         // topK: 4
+            //     })
+            //     .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
@@ -48,12 +60,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .apply(outputs)
         }
 
-        outputs = this.ode.layers
-            .dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
-            })
-            .apply(outputs)
+        outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

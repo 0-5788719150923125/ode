@@ -1401,6 +1401,371 @@ class SynthesizerAttention extends LayerBase {
     }
 }
 
+class SparseEstimatedAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `sea-${randomString()}`, ...config })
+        this.units = config.units
+        this.heads = config.heads
+        this.attnPdrop = config.attnPdrop || 0.0
+        this.residPdrop = config.residPdrop || 0.0
+        this.activation = config.activation || tf.leakyRelu
+        this.alpha = config.alpha || 0.2
+        this.depth = this.units / this.heads
+        this.topK = config.topK || null
+    }
+
+    build(inputShape) {
+        this.linearProj = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal',
+            useBias: false
+        })
+
+        this.value = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal',
+            useBias: false
+        })
+
+        this.proj = tf.layers.dense({
+            units: inputShape[2],
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal',
+            useBias: false
+        })
+
+        this.kernel = tf.layers.dense({
+            units: this.heads * this.depth,
+            activation: 'linear',
+            kernelInitializer: 'glorotNormal',
+            useBias: false
+        })
+
+        this.attnDropout = tf.layers.dropout({ rate: this.attnPdrop })
+        this.residDropout = tf.layers.dropout({ rate: this.residPdrop })
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const [batchSize, seqLen, embedSize] = inputs.shape
+
+            const linearOut = this.linearProj.apply(inputs)
+            const nonlinearOut = this.activation(linearOut, this.alpha)
+            const nonlinearReshaped = tf.transpose(
+                tf.reshape(nonlinearOut, [
+                    batchSize,
+                    seqLen,
+                    this.heads,
+                    this.depth
+                ]),
+                [0, 2, 1, 3]
+            )
+
+            const v = this.value.apply(inputs)
+            const vReshaped = tf.transpose(
+                tf.reshape(v, [batchSize, seqLen, this.heads, this.depth]),
+                [0, 2, 1, 3]
+            )
+
+            const kernelOut = this.kernel.apply(inputs)
+            const kernelReshaped = tf.reshape(kernelOut, [
+                batchSize,
+                seqLen,
+                this.heads,
+                this.depth
+            ])
+
+            const attnScores = tf.matMul(
+                tf.reshape(nonlinearReshaped, [
+                    batchSize * this.heads,
+                    seqLen,
+                    this.depth
+                ]),
+                tf.reshape(kernelReshaped, [
+                    batchSize * this.heads,
+                    this.depth,
+                    seqLen
+                ])
+            )
+            const attnMatrix = tf.reshape(attnScores, [
+                batchSize,
+                this.heads,
+                seqLen,
+                seqLen
+            ])
+
+            let sparseMask
+            if (this.topK) {
+                const { values, indices } = customOps.subliminalTopk(
+                    attnMatrix,
+                    this.topK
+                )
+                sparseMask = tf.oneHot(indices, seqLen).sum(3)
+                indices.dispose()
+            } else {
+                sparseMask = tf.ones([batchSize, this.heads, seqLen, seqLen])
+            }
+
+            const maskedAttn = tf.mul(attnMatrix, sparseMask)
+            const probAttn = tf.softmax(maskedAttn, -1)
+            const attnOutput = this.attnDropout.apply(probAttn)
+
+            const context = tf.matMul(attnOutput, vReshaped)
+
+            const contextTransposed = tf.transpose(context, [0, 2, 1, 3])
+            const contextFlattened = tf.reshape(contextTransposed, [
+                batchSize,
+                seqLen,
+                this.units
+            ])
+
+            let output = this.proj.apply(contextFlattened)
+            output = this.residDropout.apply(output)
+
+            return output
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            heads: this.heads,
+            attnPdrop: this.attnPdrop,
+            residPdrop: this.residPdrop,
+            activation: this.activation,
+            alpha: this.alpha,
+            depth: this.depth,
+            topK: this.topK
+        }
+    }
+}
+
+class LinearAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `attn-${randomString()}`, ...config })
+        this.units = config.units || 64
+        // Use GlorotUniform initialization for stability
+        this.initializer = tf.initializers.glorotUniform()
+    }
+
+    build(inputShape) {
+        this.queryDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            useBias: false,
+            kernelInitializer: this.initializer
+        })
+        this.keyDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            useBias: false,
+            kernelInitializer: this.initializer
+        })
+        this.valueDense = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            useBias: false,
+            kernelInitializer: this.initializer
+        })
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const Q = this.queryDense.apply(inputs)
+            const K = this.keyDense.apply(inputs)
+            const V = this.valueDense.apply(inputs)
+
+            const batchSize = K.shape[0]
+            const seqLength = K.shape[1]
+            const numUnits = K.shape[2]
+
+            const reshapedK = tf.reshape(K, [batchSize, seqLength * numUnits])
+            const reshapedV = tf.reshape(V, [batchSize, seqLength * numUnits])
+
+            const cumulativeK = tf.reshape(tf.cumsum(reshapedK, 1), [
+                batchSize,
+                seqLength,
+                numUnits
+            ])
+            const cumulativeV = tf.reshape(tf.cumsum(reshapedV, 1), [
+                batchSize,
+                seqLength,
+                numUnits
+            ])
+
+            let scores = tf.matMul(Q, cumulativeK, false, true)
+
+            // Normalization for stability
+            scores = scores.div(tf.sqrt(tf.cast(numUnits, 'float32')))
+            scores = tf.sub(scores, tf.max(scores))
+            scores = tf.softmax(scores)
+
+            // Optional: Apply a mask if necessary
+            // scores = scores * mask
+
+            const output = tf.matMul(scores, cumulativeV)
+
+            return output
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units
+        }
+    }
+}
+
+// class LinearAttention extends LayerBase {
+//     constructor(config) {
+//         super({ name: `attn-${randomString()}`, ...config })
+//         this.units = config.units || 64
+//         // Use GlorotUniform initialization for stability
+//         this.initializer = tf.initializers.glorotUniform()
+//     }
+
+//     build(inputShape) {
+//         this.queryDense = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false,
+//             kernelInitializer: this.initializer
+//         })
+//         this.keyDense = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false,
+//             kernelInitializer: this.initializer
+//         })
+//         this.valueDense = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false,
+//             kernelInitializer: this.initializer
+//         })
+//     }
+
+//     call(inputs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const Q = this.queryDense.apply(inputs)
+//             const K = this.keyDense.apply(inputs)
+//             const V = this.valueDense.apply(inputs)
+
+//             const batchSize = K.shape[0]
+//             const seqLength = K.shape[1]
+//             const numUnits = K.shape[2]
+
+//             const reshapedK = tf.reshape(K, [batchSize, seqLength * numUnits])
+//             const reshapedV = tf.reshape(V, [batchSize, seqLength * numUnits])
+
+//             const cumulativeK = tf.reshape(tf.cumsum(reshapedK, 1), [
+//                 batchSize,
+//                 seqLength,
+//                 numUnits
+//             ])
+//             const cumulativeV = tf.reshape(tf.cumsum(reshapedV, 1), [
+//                 batchSize,
+//                 seqLength,
+//                 numUnits
+//             ])
+
+//             let scores = tf.matMul(Q, cumulativeK, false, true)
+
+//             scores = tf.softmax(scores)
+
+//             const output = tf.matMul(scores, cumulativeV)
+
+//             return output
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units
+//         }
+//     }
+// }
+
+// class LinearAttention extends LayerBase {
+//     constructor(config) {
+//         super({ name: `attn-${randomString()}`, ...config })
+//         this.units = config.units || 64
+//     }
+
+//     build(inputShape) {
+//         this.queryDense = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false
+//         })
+//         this.keyDense = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false
+//         })
+//         this.valueDense = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false
+//         })
+//     }
+
+//     call(inputs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             console.log('Input shape:', inputs.shape)
+
+//             const Q = this.queryDense.apply(inputs)
+//             const K = this.keyDense.apply(inputs)
+//             const V = this.valueDense.apply(inputs)
+
+//             console.log('Query shape:', Q.shape)
+//             console.log('Key shape:', K.shape)
+//             console.log('Value shape:', V.shape)
+
+//             const cumulativeK = tf.cumsum(K, 1)
+//             const cumulativeV = tf.cumsum(V, 1)
+
+//             console.log('Cumulative Key shape:', cumulativeK.shape)
+//             console.log('Cumulative Value shape:', cumulativeV.shape)
+
+//             let scores = tf.matMul(Q, cumulativeK, false, true)
+//             console.log('Scores shape:', scores.shape)
+
+//             scores = tf.softmax(scores)
+//             console.log('Softmax scores shape:', scores.shape)
+
+//             const output = tf.matMul(scores, cumulativeV)
+//             console.log('Output shape:', output.shape)
+
+//             return output
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units
+//         }
+//     }
+// }
+
 class Antirectifier extends LayerBase {
     constructor(config) {
         super({ name: `anti-${randomString()}`, ...config })
@@ -3569,16 +3934,18 @@ class PerformerAttention extends LayerBase {
 class SharedEmbedding extends LayerBase {
     constructor(config) {
         super({ name: `emb-${randomString()}`, ...config })
-        this.vocabSize = config.vocabSize
-        this.embeddingDim = config.embeddingDim
+        this.inputDim = config.inputDim
+        this.outputDim = config.outputDim
+        this.embeddingsInitializer =
+            config.embeddingsInitializer || 'glorotUniform'
     }
 
     build(inputShape) {
         this.embeddings = this.addWeight(
             'embeddings',
-            [this.vocabSize, this.embeddingDim],
+            [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers[this.embeddingsInitializer]()
         )
         this.built = true
     }
@@ -3586,10 +3953,10 @@ class SharedEmbedding extends LayerBase {
     computeOutputShape(inputShape) {
         if (inputShape.length === 2) {
             // Input embedding
-            return [inputShape[0], inputShape[1], this.embeddingDim]
+            return [inputShape[0], inputShape[1], this.outputDim]
         } else if (inputShape.length === 3) {
             // Output projection
-            return [inputShape[0], inputShape[1], this.vocabSize]
+            return [inputShape[0], inputShape[1], this.inputDim]
         } else {
             throw new Error('Invalid input shape for TiedEmbedding layer.')
         }
@@ -3609,12 +3976,12 @@ class SharedEmbedding extends LayerBase {
                 return tf.reshape(embeddings, [
                     inputs.shape[0],
                     inputs.shape[1],
-                    this.embeddingDim
+                    this.outputDim
                 ])
             } else if (inputs.shape.length === 3) {
                 // Output projection
                 const denseOutput = tf.matMul(
-                    tf.reshape(inputs, [-1, this.embeddingDim]),
+                    tf.reshape(inputs, [-1, this.outputDim]),
                     this.embeddings.read(),
                     false,
                     true
@@ -3622,7 +3989,7 @@ class SharedEmbedding extends LayerBase {
                 return tf.reshape(denseOutput, [
                     inputs.shape[0],
                     inputs.shape[1],
-                    this.vocabSize
+                    this.inputDim
                 ])
             } else {
                 throw new Error(
@@ -3635,8 +4002,8 @@ class SharedEmbedding extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            vocabSize: this.vocabSize,
-            embeddingDim: this.embeddingDim
+            inputDim: this.inputDim,
+            outputDim: this.outputDim
         }
     }
 }
@@ -3995,7 +4362,9 @@ const exportedLayers = [
     TemporalPooling,
     ToOneHot,
     Interrogator,
-    Collideoscope
+    Collideoscope,
+    SparseEstimatedAttention,
+    LinearAttention
 ]
 
 exportedLayers.forEach((LayerClass) => {

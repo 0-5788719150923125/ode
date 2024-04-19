@@ -28,20 +28,29 @@ class BinaryTokenizer extends TokenizerBase {
         this.padToken = '00000000' // Represents a zero-filled byte for padding.
     }
 
+    getLength() {
+        return 2 // '0' and '1'
+    }
+
     encode(string) {
         let binaryOutput = []
         for (const char of string) {
-            // Convert each character to its UTF-16 code unit values.
-            const codeUnits = char.charCodeAt(0)
-            if (char.length === 1) {
-                // Convert code unit to binary and pad to ensure it is 16 bits long.
-                binaryOutput.push(codeUnits.toString(2).padStart(16, '0'))
-            } else {
+            // Convert each character's UTF-16 code unit to a binary string, padded to 16 bits.
+            const binary = char.charCodeAt(0).toString(2).padStart(16, '0')
+            // Convert each bit from string to number and add to the output array.
+            for (let bit of binary) {
+                binaryOutput.push(parseInt(bit, 10)) // Convert '0' or '1' string to numeric 0 or 1.
+            }
+
+            if (char.length > 1) {
                 // Handle surrogate pairs (characters outside the BMP).
-                binaryOutput.push(codeUnits.toString(2).padStart(16, '0'))
-                binaryOutput.push(
-                    char.charCodeAt(1).toString(2).padStart(16, '0')
-                )
+                const highSurrogate = char
+                    .charCodeAt(1)
+                    .toString(2)
+                    .padStart(16, '0')
+                for (let bit of highSurrogate) {
+                    binaryOutput.push(parseInt(bit, 10)) // Convert and add each bit as a number.
+                }
             }
         }
         return binaryOutput
@@ -49,11 +58,11 @@ class BinaryTokenizer extends TokenizerBase {
 
     decode(binaryArray) {
         let chars = []
-        binaryArray.forEach((binary) => {
-            // Convert each binary string back to a character.
-            const charCode = parseInt(binary, 2)
+        for (let i = 0; i < binaryArray.length; i += 16) {
+            // Combine every 16 bits back to a character.
+            const charCode = parseInt(binaryArray.slice(i, i + 16).join(''), 2)
             chars.push(String.fromCharCode(charCode))
-        })
+        }
         return chars.join('')
     }
 }

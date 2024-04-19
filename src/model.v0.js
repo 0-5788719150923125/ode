@@ -190,7 +190,7 @@ async function generateText({
             inputs = prepareInputs.call(this, this.tokenizer.encode(prompt))
         }
 
-        let tokenIndices = this.tokenizer.encode(prompt)
+        let tokenIndices = []
 
         let decodedText
         for (let step = 0; step < maxNewTokens; step++) {
