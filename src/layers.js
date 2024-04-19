@@ -1553,8 +1553,6 @@ class LinearAttention extends LayerBase {
     constructor(config) {
         super({ name: `attn-${randomString()}`, ...config })
         this.units = config.units || 64
-        // Use GlorotUniform initialization for stability
-        this.initializer = tf.initializers.glorotUniform()
     }
 
     build(inputShape) {
@@ -1562,19 +1560,19 @@ class LinearAttention extends LayerBase {
             units: this.units,
             activation: 'linear',
             useBias: false,
-            kernelInitializer: this.initializer
+            kernelInitializer: tf.initializers.glorotUniform()
         })
         this.keyDense = tf.layers.dense({
             units: this.units,
             activation: 'linear',
             useBias: false,
-            kernelInitializer: this.initializer
+            kernelInitializer: tf.initializers.glorotUniform()
         })
         this.valueDense = tf.layers.dense({
             units: this.units,
             activation: 'linear',
             useBias: false,
-            kernelInitializer: this.initializer
+            kernelInitializer: tf.initializers.glorotUniform()
         })
     }
 
@@ -1582,13 +1580,19 @@ class LinearAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const Q = this.queryDense.apply(inputs)
-            const K = this.keyDense.apply(inputs)
-            const V = this.valueDense.apply(inputs)
+            const batchSize = inputs.shape[0]
+            const seqLength = inputs.shape[1]
+            const numUnits = inputs.shape[2]
 
-            const batchSize = K.shape[0]
-            const seqLength = K.shape[1]
-            const numUnits = K.shape[2]
+            const mask = tf.linalg
+                .bandPart(tf.ones([seqLength, this.units]), 0, -1)
+                .expandDims(0)
+
+            const masked = inputs.mul(mask)
+
+            const Q = this.queryDense.apply(masked)
+            const K = this.keyDense.apply(masked)
+            const V = this.valueDense.apply(masked)
 
             const reshapedK = tf.reshape(K, [batchSize, seqLength * numUnits])
             const reshapedV = tf.reshape(V, [batchSize, seqLength * numUnits])
@@ -1604,17 +1608,17 @@ class LinearAttention extends LayerBase {
                 numUnits
             ])
 
-            let scores = tf.matMul(Q, cumulativeK, false, true)
+            const normFactorK = cumulativeK.sum(1, true)
+            const normFactorV = cumulativeV.sum(1, true)
 
-            // Normalization for stability
-            scores = scores.div(tf.sqrt(tf.cast(numUnits, 'float32')))
-            scores = tf.sub(scores, tf.max(scores))
-            scores = tf.softmax(scores)
+            const normalizedCumulativeK = cumulativeK.div(normFactorK)
+            const normalizedCumulativeV = cumulativeV.div(normFactorV)
 
-            // Optional: Apply a mask if necessary
-            // scores = scores * mask
+            const scores = tf
+                .matMul(Q, normalizedCumulativeK, false, true)
+                .softmax()
 
-            const output = tf.matMul(scores, cumulativeV)
+            const output = tf.matMul(scores, normalizedCumulativeV)
 
             return output
         })
@@ -1627,144 +1631,6 @@ class LinearAttention extends LayerBase {
         }
     }
 }
-
-// class LinearAttention extends LayerBase {
-//     constructor(config) {
-//         super({ name: `attn-${randomString()}`, ...config })
-//         this.units = config.units || 64
-//         // Use GlorotUniform initialization for stability
-//         this.initializer = tf.initializers.glorotUniform()
-//     }
-
-//     build(inputShape) {
-//         this.queryDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: this.initializer
-//         })
-//         this.keyDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: this.initializer
-//         })
-//         this.valueDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: this.initializer
-//         })
-//     }
-
-//     call(inputs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             const Q = this.queryDense.apply(inputs)
-//             const K = this.keyDense.apply(inputs)
-//             const V = this.valueDense.apply(inputs)
-
-//             const batchSize = K.shape[0]
-//             const seqLength = K.shape[1]
-//             const numUnits = K.shape[2]
-
-//             const reshapedK = tf.reshape(K, [batchSize, seqLength * numUnits])
-//             const reshapedV = tf.reshape(V, [batchSize, seqLength * numUnits])
-
-//             const cumulativeK = tf.reshape(tf.cumsum(reshapedK, 1), [
-//                 batchSize,
-//                 seqLength,
-//                 numUnits
-//             ])
-//             const cumulativeV = tf.reshape(tf.cumsum(reshapedV, 1), [
-//                 batchSize,
-//                 seqLength,
-//                 numUnits
-//             ])
-
-//             let scores = tf.matMul(Q, cumulativeK, false, true)
-
-//             scores = tf.softmax(scores)
-
-//             const output = tf.matMul(scores, cumulativeV)
-
-//             return output
-//         })
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             units: this.units
-//         }
-//     }
-// }
-
-// class LinearAttention extends LayerBase {
-//     constructor(config) {
-//         super({ name: `attn-${randomString()}`, ...config })
-//         this.units = config.units || 64
-//     }
-
-//     build(inputShape) {
-//         this.queryDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false
-//         })
-//         this.keyDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false
-//         })
-//         this.valueDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false
-//         })
-//     }
-
-//     call(inputs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             console.log('Input shape:', inputs.shape)
-
-//             const Q = this.queryDense.apply(inputs)
-//             const K = this.keyDense.apply(inputs)
-//             const V = this.valueDense.apply(inputs)
-
-//             console.log('Query shape:', Q.shape)
-//             console.log('Key shape:', K.shape)
-//             console.log('Value shape:', V.shape)
-
-//             const cumulativeK = tf.cumsum(K, 1)
-//             const cumulativeV = tf.cumsum(V, 1)
-
-//             console.log('Cumulative Key shape:', cumulativeK.shape)
-//             console.log('Cumulative Value shape:', cumulativeV.shape)
-
-//             let scores = tf.matMul(Q, cumulativeK, false, true)
-//             console.log('Scores shape:', scores.shape)
-
-//             scores = tf.softmax(scores)
-//             console.log('Softmax scores shape:', scores.shape)
-
-//             const output = tf.matMul(scores, cumulativeV)
-//             console.log('Output shape:', output.shape)
-
-//             return output
-//         })
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             units: this.units
-//         }
-//     }
-// }
 
 class Antirectifier extends LayerBase {
     constructor(config) {

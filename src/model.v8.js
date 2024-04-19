@@ -7,17 +7,13 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 8
-        this.units = 16
+        this.layers = 6
+        this.units = 256
     }
 
     async defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.BinaryTokenizer()
+        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     }
-
-    // async defineTokenizer(config) {
-    //     this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
-    // }
 
     defineBuild() {
         const inputs = this.ode.layers.input({
@@ -36,20 +32,11 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SynthesizerAttention({
+                .LinearAttention({
                     units: this.units,
-                    blockSize: this.config.contextLength,
-                    heads: 4
+                    blockSize: this.config.contextLength
                 })
                 .apply(outputs)
-
-            // outputs = this.ode.layers
-            //     .LinearAttention({
-            //         units: this.units
-            //         // heads: 8,
-            //         // topK: 4
-            //     })
-            //     .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
