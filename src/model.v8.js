@@ -32,7 +32,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .LinearAttention({
+                .SelfAttention({
                     units: this.units,
                     projection: this.units * 4
                 })

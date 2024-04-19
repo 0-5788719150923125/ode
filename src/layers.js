@@ -1549,115 +1549,76 @@ class SparseEstimatedAttention extends LayerBase {
     }
 }
 
-// class LinearAttention extends LayerBase {
-//     constructor(config) {
-//         super({ name: `attn-${randomString()}`, ...config })
-//         this.units = config.units || 64
-//         this.numHeads = config.numHeads || 8
-//         this.projection = config.projection || 64
-//     }
-
-//     build(inputShape) {
-//         const projectedSize = this.projection * this.numHeads
-
-//         this.queryDense = tf.layers.dense({
-//             units: projectedSize,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: tf.initializers.glorotUniform()
-//         })
-//         this.keyDense = tf.layers.dense({
-//             units: projectedSize,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: tf.initializers.glorotUniform()
-//         })
-//         this.valueDense = tf.layers.dense({
-//             units: projectedSize,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: tf.initializers.glorotUniform()
-//         })
-
-//         this.outputDense = tf.layers.dense({
-//             units: this.units,
-//             activation: 'linear',
-//             useBias: false,
-//             kernelInitializer: tf.initializers.glorotUniform()
-//         })
-//     }
-
-//     call(inputs) {
-//         const projectedSize = this.projection * this.numHeads
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             const batchSize = inputs.shape[0]
-//             const seqLen = inputs.shape[1]
-
-//             const query = this.queryDense.apply(inputs)
-//             const key = this.keyDense.apply(inputs)
-//             const value = this.valueDense.apply(inputs)
-
-//             const reshapedQuery = query.reshape([
-//                 batchSize,
-//                 seqLen,
-//                 this.numHeads,
-//                 this.projection
-//             ])
-//             const reshapedKey = key.reshape([
-//                 batchSize,
-//                 seqLen,
-//                 this.numHeads,
-//                 this.projection
-//             ])
-//             const reshapedValue = value.reshape([
-//                 batchSize,
-//                 seqLen,
-//                 this.numHeads,
-//                 this.projection
-//             ])
-
-//             const transposedQuery = reshapedQuery.transpose([0, 2, 1, 3])
-//             const transposedKey = reshapedKey.transpose([0, 2, 3, 1])
-
-//             const scores = tf
-//                 .matMul(transposedQuery, transposedKey)
-//                 .div(tf.scalar(Math.sqrt(this.projection)))
-
-//             const mask = tf.linalg
-//                 .bandPart(tf.ones([seqLen, seqLen]), 0, -1)
-//                 .sub(tf.eye(seqLen))
-//                 .mul(tf.scalar(-1e9))
-//                 .expandDims(0)
-//                 .expandDims(0)
-
-//             const maskedScores = scores.add(mask)
-
-//             const weights = maskedScores.softmax()
-
-//             const attentionOutput = tf
-//                 .matMul(weights, reshapedValue.transpose([0, 2, 1, 3]))
-//                 .transpose([0, 2, 1, 3])
-//                 .reshape([batchSize, seqLen, projectedSize])
-
-//             const output = this.outputDense.apply(attentionOutput)
-
-//             return output
-//         })
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             units: this.units,
-//             numHeads: this.numHeads,
-//             projection: this.projection
-//         }
-//     }
-// }
-
 class LinearAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `attn-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.projection = config.projection || 256
+        this.numFeatures = config.numFeatures || 256
+    }
+
+    build(inputShape) {
+        this.query = tf.layers.dense({
+            units: this.projection,
+            activation: 'linear',
+            useBias: false,
+            kernelInitializer: tf.initializers.glorotUniform()
+        })
+        this.key = tf.layers.dense({
+            units: this.projection,
+            activation: 'linear',
+            useBias: false,
+            kernelInitializer: tf.initializers.glorotUniform()
+        })
+        this.value = tf.layers.dense({
+            units: this.units,
+            activation: 'linear',
+            useBias: false,
+            kernelInitializer: tf.initializers.glorotUniform()
+        })
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const Q = this.query.apply(inputs)
+            const K = this.key.apply(inputs)
+            const V = this.value.apply(inputs)
+
+            const Qp = this.generateRandomFeatures(Q)
+            const Kp = this.generateRandomFeatures(K)
+
+            const scores = tf.matMul(Qp, Kp, false, true)
+
+            const weights = scores.div(tf.scalar(this.numFeatures))
+
+            const outputs = tf.matMul(weights, V)
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    generateRandomFeatures(inputs) {
+        const dims = inputs.shape[inputs.shape.length - 1]
+        const W = tf.randomNormal([dims, this.numFeatures])
+        const b = tf.randomUniform([this.numFeatures], 0, 2 * Math.PI)
+        const features = tf.matMul(inputs, W).add(b).cos()
+        return features
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            projection: this.projection,
+            numFeatures: this.numFeatures
+        }
+    }
+}
+
+class SelfAttention extends LayerBase {
     constructor(config) {
         super({ name: `attn-${randomString()}`, ...config })
         this.units = config.units || 64
@@ -4308,6 +4269,7 @@ const exportedLayers = [
     RotaryPositionalEncoding,
     SequenceExpansionLayer,
     SharedEmbedding,
+    SelfAttention,
     SinusoidalPositionalEncoding,
     SparseMixtureOfExperts,
     SqueezeAndExcitation,
