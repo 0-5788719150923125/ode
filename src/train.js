@@ -8,11 +8,9 @@ import {
 } from './utils.js'
 
 let tf
-let isBrowser = true
 
 export async function startTraining(dataGenerator, args) {
     tf = this.tf
-    isBrowser = this.isBrowser
     const trainArgs = {
         batchSize: 32,
         gradientAccumulationSteps: 1,
@@ -23,13 +21,12 @@ export async function startTraining(dataGenerator, args) {
         clipValue: 1.0,
         labels: this.config.labels || 'timeDistributed',
         encoding: this.config.encoding || 'oneHot',
-        debug: false,
         ...args
     }
 
     let batch = 0
     let step = 0
-    const logger = new ConsoleLogger()
+
     const accumulator = new GradientAccumulator(
         this,
         trainArgs.gradientAccumulationSteps,
@@ -45,9 +42,14 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.encoding
     )
 
-    // a custom train loop
+    const callbacks = [
+        new ConsoleLogger(),
+        new PredictionSampler(this),
+        new ModelSaver(this)
+    ]
+
+    // a custom training loop
     try {
-        let savedAt = 0
         while (true) {
             batch++
             if (batch % trainArgs.gradientAccumulationSteps === 0) {
@@ -57,35 +59,21 @@ export async function startTraining(dataGenerator, args) {
                     this.schedulers[0].next().value
             }
 
-            if (trainArgs.debug) console.log(tf.memory())
-
             // Fetch data and compute gradients
             const tensors = dataset.next().value
             await accumulator.compute(tensors.xs, tensors.ys)
             await accumulator.step(step, batch)
             const loss = accumulator.getLoss()
 
-            // Print logs
-            logger.log(batch, step, loss, this.model.optimizer.learningRate)
-
-            // Print sample text
-            await predictionSampler.call(
-                this,
-                batch,
-                dataGenerator,
-                trainArgs.generateEvery,
-                trainArgs.predictLength
-            )
-
-            if (
-                !isBrowser &&
-                trainArgs.saveEvery !== 0 &&
-                step !== 0 &&
-                step % trainArgs.saveEvery === 0 &&
-                step !== savedAt
-            ) {
-                await this.save()
-                savedAt = step
+            for (const callback of callbacks) {
+                await callback.step({
+                    batch,
+                    step,
+                    loss,
+                    dataGenerator,
+                    learningRate: this.model.optimizer.learningRate,
+                    ...trainArgs
+                })
             }
         }
     } catch (err) {
@@ -434,47 +422,68 @@ function* batchGenerator(
     }
 }
 
-async function predictionSampler(
-    batch,
-    dataGenerator,
-    generateEvery,
-    maxLength = 64
-) {
-    if (generateEvery > 0 && batch % generateEvery === 0 && batch !== 0) {
-        let white = colors.WHITE
-        let color = colors.BLUE
+class ModelSaver {
+    constructor(parent) {
+        this.parent = parent
+        this.savedAt = 0
+    }
 
-        if (isBrowser) {
-            white = ''
-            color = ''
+    async step(args) {
+        if (
+            args.saveEvery !== 0 &&
+            args.step !== 0 &&
+            args.step % args.saveEvery === 0 &&
+            args.step !== this.savedAt
+        ) {
+            await this.parent.save()
+            this.savedAt = args.step
         }
+    }
+}
 
-        const seedLength = randomBetween(16, maxLength - 16)
-        const prompt = dataGenerator.next().value.slice(1, seedLength)
+class PredictionSampler {
+    constructor(parent) {
+        this.parent = parent
+    }
 
-        for (const args of [
-            // { doSample: false, repetitionPenalty: 1 },
-            { doSample: true, temperature: 0.3 }
-            // { doSample: true, temperature: 1.1 },
-            // { doSample: true, temperature: 0.7, topK: 4 },
-            // { doSample: true, temperature: 0.7, topP: 0.8 }
-        ]) {
-            const startTime = performance.now()
-            const output = await this.generate({
-                prompt,
-                maxNewTokens: maxLength,
-                ...args
-            })
-            const endTime = performance.now()
-            console.log(
-                `KWARGS: ${JSON.stringify(args)}, RATE: ${(
-                    (endTime - startTime) /
-                    (maxLength - seedLength)
-                ).toFixed(2)} ms/token`
-            )
-            console.log(
-                color + prompt + white + output.slice(prompt.length, -1)
-            )
+    async step(args) {
+        if (
+            args.generateEvery > 0 &&
+            args.batch % args.generateEvery === 0 &&
+            args.batch !== 0
+        ) {
+            let white = colors.WHITE
+            let color = colors.BLUE
+
+            const maxLength = args.predictLength
+
+            const seedLength = randomBetween(16, maxLength - 16)
+            const prompt = args.dataGenerator.next().value.slice(1, seedLength)
+
+            for (const args of [
+                // { doSample: false, repetitionPenalty: 1 },
+                { doSample: true, temperature: 0.3 }
+                // { doSample: true, temperature: 1.1 },
+                // { doSample: true, temperature: 0.7, topK: 4 },
+                // { doSample: true, temperature: 0.7, topP: 0.8 }
+            ]) {
+                const startTime = performance.now()
+                const output = await this.parent.generate({
+                    prompt,
+                    maxNewTokens: maxLength,
+                    ...args
+                })
+                const endTime = performance.now()
+                console.log(
+                    `KWARGS: ${JSON.stringify(args)}, RATE: ${(
+                        (endTime - startTime) /
+                        (maxLength - seedLength)
+                    ).toFixed(2)} ms/token`
+                )
+                console.log(
+                    color + prompt + white + output.slice(prompt.length, -1)
+                )
+            }
         }
     }
 }
@@ -488,18 +497,19 @@ class ConsoleLogger {
         this.ema.next()
         this.previousLoss = 0
     }
-    log(batch, step, currentLoss, learningRate) {
-        const updatedEma = this.ema.next(currentLoss).value // Send new loss to generator and get updated EMA
+
+    step(args) {
+        const updatedEma = this.ema.next(args.loss).value // Send new loss to generator and get updated EMA
 
         let white = colors.WHITE
         let color = colors.BLUE
-        if (currentLoss > 20.0) color = colors.RED
+        if (args.loss > 20.0) color = colors.RED
 
         const coloredLoss = findMatches(
             this.previousLoss.toFixed(14).toString(),
-            currentLoss.toFixed(14).toString()
+            args.loss.toFixed(14).toString()
         )
-        this.previousLoss = currentLoss
+        this.previousLoss = args.loss
 
         let memory = tf.memory()
         const numTensors = memory.numTensors
@@ -510,17 +520,14 @@ class ConsoleLogger {
             memory = 'MEM=' + (memory.numBytes / 1_000_000_000).toFixed(4)
         }
 
-        if (isBrowser) {
-            white = ''
-            color = ''
-        }
-
         const elapsed = this.timer.next().value
         this.totalElapsed += elapsed
         console.log(
-            `STEP=${step}, BATCH=${batch}, EMA=${updatedEma.toFixed(4)}, LOSS=${
-                coloredLoss.old
-            }${color}${coloredLoss.new}${white}, LR=${learningRate.toFixed(
+            `STEP=${args.step}, BATCH=${args.batch}, EMA=${updatedEma.toFixed(
+                4
+            )}, LOSS=${coloredLoss.old}${color}${
+                coloredLoss.new
+            }${white}, LR=${args.learningRate.toFixed(
                 5
             )}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(
                 elapsed / 1000
