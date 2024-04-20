@@ -15,7 +15,7 @@ export default class OscillometricDecayedExponent extends ODE {
         this.gamma = 3
     }
 
-    // async defineTokenizer(config) {
+    // defineTokenizer(config) {
     //     this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     // }
 

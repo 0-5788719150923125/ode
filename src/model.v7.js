@@ -17,8 +17,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.loadBalancing = 1.0
     }
 
-    async defineTokenizer() {
-        await super.defineTokenizer({
+    defineTokenizer() {
+        super.defineTokenizer({
             model: 'mistralai/Mistral-7B-v0.1'
         })
     }

@@ -14,11 +14,10 @@ export default class OriginalDecoderEncoder extends ODE {
         this.epsilon = 1e-5
     }
 
-    async defineTokenizer(config) {
+    defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
             model: config?.model || 'openai-community/gpt2'
         })
-        await this.tokenizer.init()
     }
 
     defineBuild() {

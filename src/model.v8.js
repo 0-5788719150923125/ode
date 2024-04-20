@@ -7,13 +7,19 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 6
+        this.layers = 3
         this.units = 256
     }
 
-    async defineTokenizer(config) {
+    defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     }
+
+    // defineTokenizer(config) {
+    //     this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+    //         model: 'OriginalDesign/frame'
+    //     })
+    // }
 
     defineBuild() {
         const inputs = this.ode.layers.input({

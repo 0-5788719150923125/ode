@@ -47,6 +47,9 @@ export default class ModelBase {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
         await this.defineTokenizer()
+        if (typeof this.tokenizer.init === 'function') {
+            await this.tokenizer.init()
+        }
         this.defineLossFunctions()
         this.defineBuild()
         this.defineOptimizers()
@@ -55,7 +58,7 @@ export default class ModelBase {
         this.postInit()
     }
 
-    async defineTokenizer(config) {
+    defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
             config?.vocabSize || 6666,
             config?.numIterations || 30_000_000
@@ -148,6 +151,9 @@ export default class ModelBase {
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
         this.defineTokenizer()
+        if (typeof this.tokenizer.init === 'function') {
+            await this.tokenizer.init()
+        }
         this.defineLossFunctions()
         this.model = await tf.loadLayersModel(`file://${path}/model.json`, {
             strict: true

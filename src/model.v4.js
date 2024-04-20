@@ -16,8 +16,8 @@ export default class OpportunisticDialogueEngine extends ODE {
         this.alpha = 0.22
     }
 
-    async defineTokenizer() {
-        await super.defineTokenizer({
+    defineTokenizer() {
+        super.defineTokenizer({
             model: 'OriginalDesign/frame'
         })
     }

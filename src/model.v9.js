@@ -10,7 +10,7 @@ export default class ObjectivelyDumbExample extends ODE {
         this.units = 256
     }
 
-    async defineTokenizer(config) {
+    defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     }
 
