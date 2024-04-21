@@ -26,6 +26,8 @@
         "@tensorflow/tfjs-backend-wasm": "^4.17.0",
         "@tensorflow/tfjs-backend-webgl": "^4.17.0",
         "@tensorflow/tfjs-backend-webgpu": "^4.17.0",
+        "@tensorflow/tfjs-node": "^4.18.0",
+        "@tensorflow/tfjs-node-gpu": "^4.18.0",
         "@xenova/transformers": "^2.16.1"
     },
     "devDependencies": {
