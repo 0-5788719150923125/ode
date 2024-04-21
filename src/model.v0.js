@@ -1,4 +1,4 @@
-import * as tf from '@tensorflow/tfjs'
+import * as tfjs from '@tensorflow/tfjs'
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
@@ -11,6 +11,8 @@ import customSamplers from './samplers.js'
 import { trainModel } from './train.js'
 import { preprocessData } from './utils.js'
 
+let tf = tfjs
+
 /**
  * The base model class, which defines a standard that
  * must remain compatible across all model versions.
@@ -19,13 +21,6 @@ import { preprocessData } from './utils.js'
  */
 export default class ModelBase {
     constructor(config) {
-        // let tf = tfjs
-        // ;(async function () {
-        //     if (typeof window === 'undefined') {
-        //         tf = await import('@tensorflow/tfjs-node-gpu')
-        //     }
-        // })()
-        this.tf = tf
         this.ode = {
             layers: customLayers,
             losses: customLosses,
@@ -40,12 +35,14 @@ export default class ModelBase {
     }
 
     async init({ corpus = null } = {}) {
+        this.tf = tfjs
         if (this.config.backend === 'tensorflow') {
-            this.tf = await import('@tensorflow/tfjs-node-gpu')
+            tf = await eval(`import('@tensorflow/tfjs-node-gpu')`)
+            this.tf = tf
         }
         if (corpus) this.config.corpus = corpus
-        await tf.ready()
-        await tf.setBackend(this.config.backend || 'cpu')
+        await this.tf.ready()
+        await this.tf.setBackend(this.config.backend || 'cpu')
         this.defineTokenizer()
         if (typeof this.tokenizer.init === 'function') {
             await this.tokenizer.init()
@@ -68,10 +65,10 @@ export default class ModelBase {
     defineLossFunctions() {
         this.lossFunctions = [
             {
-                function: tf.losses.softmaxCrossEntropy,
+                function: this.tf.losses.softmaxCrossEntropy,
                 weights: null,
                 smoothing: null,
-                reduction: tf.Reduction.MEAN
+                reduction: this.tf.Reduction.MEAN
             }
         ]
     }
@@ -82,7 +79,7 @@ export default class ModelBase {
 
     defineOptimizers() {
         this.optimizers = [
-            tf.train.rmsprop(
+            this.tf.train.rmsprop(
                 this.config.learningRate || 1e-2,
                 this.config.decay || 0.9,
                 this.config.momentum || 0.01,
@@ -107,7 +104,7 @@ export default class ModelBase {
     }
 
     postInit() {
-        console.log('Backend:', tf.backend())
+        console.log('Backend:', this.tf.backend())
         console.log(this.model.optimizer)
         console.log(this.model.summary())
         console.log(`Loaded model: v${this.config.version}`)
@@ -148,16 +145,19 @@ export default class ModelBase {
     }
 
     async load(path = `data/models/ode`) {
-        await tf.ready()
-        await tf.setBackend(this.config.backend || 'cpu')
+        await this.tf.ready()
+        await this.tf.setBackend(this.config.backend || 'cpu')
         this.defineTokenizer()
         if (typeof this.tokenizer.init === 'function') {
             await this.tokenizer.init()
         }
         this.defineLossFunctions()
-        this.model = await tf.loadLayersModel(`file://${path}/model.json`, {
-            strict: true
-        })
+        this.model = await this.tf.loadLayersModel(
+            `file://${path}/model.json`,
+            {
+                strict: true
+            }
+        )
         console.log('successfully loaded model from disk')
         this.defineOptimizers()
         this.defineSchedulers()
