@@ -4235,7 +4235,7 @@ class VectorLayerWithMixing extends LayerBase {
     }
 }
 
-class InstanceNormalization extends tf.layers.Layer {
+class InstanceNormalization extends LayerBase {
     constructor(config) {
         super(config)
         this.epsilon = 1e-5
