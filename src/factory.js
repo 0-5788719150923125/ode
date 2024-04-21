@@ -12,19 +12,17 @@ import v9 from './model.v9.js'
 const modules = [v0, v1, v2, v3, v4, v5, v6, v7, v8, v9]
 
 export default async function loadModelVersion(args) {
-    const defaults = {
+    const config = {
+        backend: 'cpu',
         version: 3,
         ...args
     }
     try {
-        return new modules[defaults.version](args)
+        return new modules[config.version](args)
         // const module = await import(`./model.v${defaults.version}.js`)
         // return new module.default(args)
     } catch (error) {
-        console.error(
-            `Failed to load model version ${defaults.version}:`,
-            error
-        )
+        console.error(`Failed to load model version ${config.version}:`, error)
         throw error
     }
 }

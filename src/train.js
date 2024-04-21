@@ -42,7 +42,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         trainArgs.encoding
     )
 
-    const callbacks = [new ConsoleLogger(), new PredictionSampler(this)]
+    const callbacks = []
     for (const callback of extraCallbacks) {
         callbacks.push(new callback(this))
     }
@@ -433,7 +433,7 @@ export class ModelSaver {
     }
 }
 
-class PredictionSampler {
+export class PredictionSampler {
     constructor(parent) {
         this.parent = parent
     }
@@ -473,8 +473,9 @@ class PredictionSampler {
     }
 }
 
-class ConsoleLogger {
-    constructor() {
+export class ConsoleLogger {
+    constructor(parent) {
+        this.parent = parent
         this.timer = elapsedTimeGenerator()
         this.startTime = Date.now()
         this.totalElapsed = 0

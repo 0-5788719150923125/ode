@@ -1,10 +1,4 @@
-import * as tfjs from '@tensorflow/tfjs'
-let tf = tfjs
-;(async function () {
-    if (typeof window === 'undefined') {
-        tf = await import('@tensorflow/tfjs-node-gpu')
-    }
-})()
+import * as tf from '@tensorflow/tfjs'
 import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
@@ -25,6 +19,12 @@ import { preprocessData } from './utils.js'
  */
 export default class ModelBase {
     constructor(config) {
+        // let tf = tfjs
+        // ;(async function () {
+        //     if (typeof window === 'undefined') {
+        //         tf = await import('@tensorflow/tfjs-node-gpu')
+        //     }
+        // })()
         this.tf = tf
         this.ode = {
             layers: customLayers,
@@ -40,6 +40,9 @@ export default class ModelBase {
     }
 
     async init({ corpus = null } = {}) {
+        if (this.config.backend === 'tensorflow') {
+            this.tf = await import('@tensorflow/tfjs-node-gpu')
+        }
         if (corpus) this.config.corpus = corpus
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
