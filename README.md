@@ -29,6 +29,7 @@ This library implements:
 -   object-oriented, extensible design
 -   tons more
 
-# notes
+# todo
 
--   in cross attention, queries are generated from one embedding, and keys/values from another (A "pier" is all you need)
+-   [] in cross attention, queries are generated from one embedding, and keys/values from another (A "pier" is all you need)
+-   [] explore model parallelism, sharding, peer-to-peer capabilities

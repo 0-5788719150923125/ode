@@ -4235,6 +4235,45 @@ class VectorLayerWithMixing extends LayerBase {
     }
 }
 
+class InstanceNormalization extends tf.layers.Layer {
+    constructor(config) {
+        super(config)
+        this.epsilon = 1e-5
+    }
+
+    build(inputShape) {
+        const lastDim = inputShape[inputShape.length - 1]
+        this.gamma = this.addWeight(
+            'gamma',
+            [lastDim],
+            'float32',
+            tf.initializers.ones()
+        )
+        this.beta = this.addWeight(
+            'beta',
+            [lastDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+    }
+
+    call(inputs, kwargs) {
+        const mean = tf.mean(inputs, [1, 2], true)
+        const variance = tf.mean(tf.square(tf.sub(inputs, mean)), [1, 2], true)
+        const std = tf.sqrt(tf.add(variance, this.epsilon))
+        const outputs = tf.div(tf.sub(inputs, mean), std)
+        const gammaExpanded = tf.expandDims(tf.expandDims(this.gamma, 0), 0)
+        const betaExpanded = tf.expandDims(tf.expandDims(this.beta, 0), 0)
+        return tf.add(tf.mul(outputs, gammaExpanded), betaExpanded)
+    }
+
+    getConfig() {
+        const config = super.getConfig()
+        Object.assign(config, { epsilon: this.epsilon })
+        return config
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     CapsNet,
@@ -4253,6 +4292,7 @@ const exportedLayers = [
     DumbCompression,
     EfficientChannelAttention,
     FourierFeaturePositionalEncoding,
+    InstanceNormalization,
     GatedLinearUnit,
     LambdaLayer,
     LazyMixtureOfExperts,
