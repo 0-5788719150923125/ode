@@ -137,8 +137,8 @@ export default class ModelBase {
         })
     }
 
-    async train(dataGenerator, args) {
-        return await startTraining.call(this, dataGenerator, args)
+    async train(dataGenerator, args, callbacks) {
+        return await startTraining.call(this, dataGenerator, args, callbacks)
     }
 
     async save(path = `data/models/ode`) {

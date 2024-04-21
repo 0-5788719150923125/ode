@@ -78,7 +78,8 @@ async function orchestrate(options) {
             0,
             corpus
         )
-        await net.train(dataset, options)
+        const { ModelSaver } = await import('./src/train.js')
+        await net.train(dataset, options, [ModelSaver])
     } else if (options.mode === 'infer') {
         const readline = (await import('readline')).default
         async function interactiveSession() {

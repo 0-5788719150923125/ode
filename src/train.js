@@ -9,7 +9,7 @@ import {
 
 let tf
 
-export async function startTraining(dataGenerator, args) {
+export async function startTraining(dataGenerator, args, extraCallbacks) {
     tf = this.tf
     const trainArgs = {
         batchSize: 32,
@@ -42,11 +42,10 @@ export async function startTraining(dataGenerator, args) {
         trainArgs.encoding
     )
 
-    const callbacks = [
-        new ConsoleLogger(),
-        new PredictionSampler(this),
-        new ModelSaver(this)
-    ]
+    const callbacks = [new ConsoleLogger(), new PredictionSampler(this)]
+    for (const callback of extraCallbacks) {
+        callbacks.push(new callback(this))
+    }
 
     // a custom training loop
     try {
@@ -422,7 +421,7 @@ function* batchGenerator(
     }
 }
 
-class ModelSaver {
+export class ModelSaver {
     constructor(parent) {
         this.parent = parent
         this.savedAt = 0
