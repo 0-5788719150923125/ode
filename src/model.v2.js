@@ -65,7 +65,7 @@ export default class OmnipresentDiabolicalErudite extends ODE {
                 beta1: this.config.beta1 || 0.9,
                 beta2: this.config.beta2 || 0.999,
                 epsilon: this.config.epsilon || 1e-7,
-                decayRate: this.config.decayRate || 1e-1
+                weightDecay: this.config.weightDecay || 1e-1
             })
         ]
     }

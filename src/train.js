@@ -458,7 +458,7 @@ class PredictionSampler {
             })
             const endTime = performance.now()
             console.log(
-                `KWARGS: ${JSON.stringify(args)}, RATE: ${(
+                `KWARGS: ${JSON.stringify(params)}, RATE: ${(
                     (endTime - startTime) /
                     (maxLength - seedLength)
                 ).toFixed(2)} ms/token`

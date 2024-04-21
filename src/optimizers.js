@@ -6,11 +6,11 @@ class AdamW extends tf.AdamOptimizer {
         beta1 = 0.9,
         beta2 = 0.999,
         epsilon = 1e-7,
-        decayRate = 1e-4
+        weightDecay = 1e-4
     } = {}) {
         super(learningRate, beta1, beta2, epsilon)
         this.ENGINE = tf.engine()
-        this.decayRate = decayRate
+        this.weightDecay = weightDecay
     }
 
     applyGradients(variableGradients) {
@@ -24,7 +24,7 @@ class AdamW extends tf.AdamOptimizer {
                 const value = this.ENGINE.registeredVariables[name]
                 const newValue = tf.sub(
                     value,
-                    tf.mul(this.learningRate, tf.mul(value, this.decayRate))
+                    tf.mul(this.learningRate, tf.mul(value, this.weightDecay))
                 )
                 value.assign(newValue)
             })
