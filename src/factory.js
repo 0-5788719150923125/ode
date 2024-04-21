@@ -14,7 +14,7 @@ const modules = [v0, v1, v2, v3, v4, v5, v6, v7, v8, v9]
 export default async function loadModelVersion(args) {
     const config = {
         backend: 'cpu',
-        version: 3,
+        version: 8,
         ...args
     }
     try {

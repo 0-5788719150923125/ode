@@ -1,7 +1,7 @@
 import ODE from './model.v4.js'
 
 /**
- * The most boring transformer you've ever seen.
+ * The worst transformer on YouTube.
  * @extends ODE
  */
 export default class OmniscientDeterministicEngine extends ODE {
@@ -13,7 +13,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-            model: 'OriginalDesign/frame'
+            model: 'OriginalDesign/word'
         })
     }
 
