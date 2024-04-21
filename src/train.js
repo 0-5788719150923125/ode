@@ -445,12 +445,10 @@ class PredictionSampler {
             args.batch !== 0
         ) {
             const startTime = performance.now()
-            const maxLength = params.predictLength
+            const maxLength = args.predictLength
 
             const seedLength = randomBetween(16, maxLength - 16)
-            const prompt = params.dataGenerator
-                .next()
-                .value.slice(1, seedLength)
+            const prompt = args.dataGenerator.next().value.slice(1, seedLength)
 
             const params = { doSample: true, temperature: 0.3 }
             const output = await this.parent.generate({
@@ -460,7 +458,7 @@ class PredictionSampler {
             })
             const endTime = performance.now()
             console.log(
-                `KWARGS: ${JSON.stringify(params)}, RATE: ${(
+                `KWARGS: ${JSON.stringify(args)}, RATE: ${(
                     (endTime - startTime) /
                     (maxLength - seedLength)
                 ).toFixed(2)} ms/token`
