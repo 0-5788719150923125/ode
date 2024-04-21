@@ -4,8 +4,8 @@
     "description": "omniscient deterministic engine",
     "type": "module",
     "source": "src/index.js",
-    "main": "dist/index.js",
-    "module": "dist/index.js",
+    "main": "src/index.js",
+    "module": "src/index.js",
     "scripts": {
         "start:node": "node cli.js",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests"
