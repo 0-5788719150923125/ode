@@ -17,7 +17,7 @@ export default async function loadModelVersion(args) {
         ...args
     }
     try {
-        return modules[defaults.version](args)
+        return new modules[defaults.version](args)
         // const module = await import(`./model.v${defaults.version}.js`)
         // return new module.default(args)
     } catch (error) {
