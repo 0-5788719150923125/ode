@@ -1,9 +1,7 @@
 import * as tfjs from '@tensorflow/tfjs'
 let tf = tfjs
-let isBrowser = true
 ;(async function () {
     if (typeof window === 'undefined') {
-        isBrowser = false
         tf = await import('@tensorflow/tfjs-node-gpu')
     }
 })()
@@ -28,7 +26,6 @@ import { preprocessData } from './utils.js'
 export default class ModelBase {
     constructor(config) {
         this.tf = tf
-        this.isBrowser = isBrowser
         this.ode = {
             layers: customLayers,
             losses: customLosses,
@@ -46,7 +43,7 @@ export default class ModelBase {
         if (corpus) this.config.corpus = corpus
         await tf.ready()
         await tf.setBackend(this.config.backend || 'cpu')
-        await this.defineTokenizer()
+        this.defineTokenizer()
         if (typeof this.tokenizer.init === 'function') {
             await this.tokenizer.init()
         }

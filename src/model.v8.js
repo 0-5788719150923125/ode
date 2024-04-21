@@ -7,7 +7,7 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 3
+        this.layers = 4
         this.units = 256
     }
 

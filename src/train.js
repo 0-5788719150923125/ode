@@ -48,35 +48,30 @@ export async function startTraining(dataGenerator, args, extraCallbacks) {
     }
 
     // a custom training loop
-    try {
-        while (true) {
-            batch++
-            if (batch % trainArgs.gradientAccumulationSteps === 0) {
-                step++
-                // Set learning rate via schedule
-                this.model.optimizer.learningRate =
-                    this.schedulers[0].next().value
-            }
-
-            // Fetch data and compute gradients
-            const tensors = dataset.next().value
-            await accumulator.compute(tensors.xs, tensors.ys)
-            await accumulator.step(step, batch)
-            const loss = accumulator.getLoss()
-
-            for (const callback of callbacks) {
-                await callback.step({
-                    batch,
-                    step,
-                    loss,
-                    dataGenerator,
-                    learningRate: this.model.optimizer.learningRate,
-                    ...trainArgs
-                })
-            }
+    while (true) {
+        batch++
+        if (batch % trainArgs.gradientAccumulationSteps === 0) {
+            step++
+            // Set learning rate via schedule
+            this.model.optimizer.learningRate = this.schedulers[0].next().value
         }
-    } catch (err) {
-        console.error(err, 'Oof!')
+
+        // Fetch data and compute gradients
+        const tensors = dataset.next().value
+        await accumulator.compute(tensors.xs, tensors.ys)
+        await accumulator.step(step, batch)
+        const loss = accumulator.getLoss()
+
+        for (const callback of callbacks) {
+            await callback.step({
+                batch,
+                step,
+                loss,
+                dataGenerator,
+                learningRate: this.model.optimizer.learningRate,
+                ...trainArgs
+            })
+        }
     }
 }
 
@@ -108,8 +103,6 @@ class GradientAccumulator {
 
         this.gradients = grads
         this.loss = loss
-
-        return this
     }
 
     getLoss() {
@@ -451,38 +444,33 @@ class PredictionSampler {
             args.batch % args.generateEvery === 0 &&
             args.batch !== 0
         ) {
-            let white = colors.WHITE
-            let color = colors.BLUE
-
-            const maxLength = args.predictLength
+            const startTime = performance.now()
+            const maxLength = params.predictLength
 
             const seedLength = randomBetween(16, maxLength - 16)
-            const prompt = args.dataGenerator.next().value.slice(1, seedLength)
+            const prompt = params.dataGenerator
+                .next()
+                .value.slice(1, seedLength)
 
-            for (const args of [
-                // { doSample: false, repetitionPenalty: 1 },
-                { doSample: true, temperature: 0.3 }
-                // { doSample: true, temperature: 1.1 },
-                // { doSample: true, temperature: 0.7, topK: 4 },
-                // { doSample: true, temperature: 0.7, topP: 0.8 }
-            ]) {
-                const startTime = performance.now()
-                const output = await this.parent.generate({
-                    prompt,
-                    maxNewTokens: maxLength,
-                    ...args
-                })
-                const endTime = performance.now()
-                console.log(
-                    `KWARGS: ${JSON.stringify(args)}, RATE: ${(
-                        (endTime - startTime) /
-                        (maxLength - seedLength)
-                    ).toFixed(2)} ms/token`
-                )
-                console.log(
-                    color + prompt + white + output.slice(prompt.length, -1)
-                )
-            }
+            const params = { doSample: true, temperature: 0.3 }
+            const output = await this.parent.generate({
+                prompt,
+                maxNewTokens: maxLength,
+                ...params
+            })
+            const endTime = performance.now()
+            console.log(
+                `KWARGS: ${JSON.stringify(params)}, RATE: ${(
+                    (endTime - startTime) /
+                    (maxLength - seedLength)
+                ).toFixed(2)} ms/token`
+            )
+            console.log(
+                colors.BLUE +
+                    prompt +
+                    colors.WHITE +
+                    output.slice(prompt.length, -1)
+            )
         }
     }
 }
@@ -512,12 +500,7 @@ class ConsoleLogger {
 
         let memory = tf.memory()
         const numTensors = memory.numTensors
-
-        if (memory.numBytesInGPU) {
-            memory = 'VRAM=' + (memory.numBytesInGPU / 1_000_000_000).toFixed(4)
-        } else {
-            memory = 'MEM=' + (memory.numBytes / 1_000_000_000).toFixed(4)
-        }
+        memory = 'MEM=' + (memory.numBytes / 1_000_000_000).toFixed(4)
 
         const elapsed = this.timer.next().value
         this.totalElapsed += elapsed
