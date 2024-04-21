@@ -59,7 +59,7 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineSchedulers() {
-        this.learningRate = 1.0
+        this.learningRate = 0.00022
         this.optimizers[0].learningRate = this.learningRate
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
@@ -68,16 +68,10 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         this.optimizers = [
-            this.ode.optimizers.Prodigy({
+            this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: 0.001
+                weightDecay: 0.1
             })
         ]
-        // this.optimizers = [
-        //     this.ode.optimizers.Lion({
-        //         learningRate: this.learningRate,
-        //         weightDecay: 0.001
-        //     })
-        // ]
     }
 }

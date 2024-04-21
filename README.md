@@ -18,7 +18,7 @@ This library implements:
 
 -   a suite of experimental language models, including transformers, recurrent neural networks, state space models, and more
 -   a plethora of custom, composable layer types, for use in your own models
--   custom optimizers, including AdamW, Lion, and Prodigy (broken)
+-   custom optimizers, including AdamW, Lion, and Prodigy
 -   learning rate schedulers
 -   custom loss functions
 -   a custom training loop, with gradient checkpointing (broken), L2-normalized gradient clipping
