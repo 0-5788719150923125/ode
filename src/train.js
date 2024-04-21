@@ -24,8 +24,9 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         ...args
     }
 
-    let batch = 0
-    let step = 0
+    this.batch = 0
+    this.step = 0
+    this.loss = 0
 
     const accumulator = new GradientAccumulator(
         this,
@@ -40,9 +41,9 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
 
     // a custom training loop
     while (true) {
-        batch++
-        if (batch % trainArgs.gradientAccumulationSteps === 0) {
-            step++
+        this.batch++
+        if (this.batch % trainArgs.gradientAccumulationSteps === 0) {
+            this.step++
             // Set learning rate via schedule
             this.model.optimizer.learningRate = this.schedulers[0].next().value
         }
@@ -58,14 +59,14 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
 
         // Fetch data and compute gradients
         await accumulator.compute(sample.xs, sample.ys)
-        await accumulator.step(step, batch)
-        const loss = accumulator.getLoss()
+        await accumulator.step(this.step, this.batch)
+        this.loss = accumulator.getLoss()
 
         for (const callback of callbacks) {
             await callback.step({
-                batch,
-                step,
-                loss,
+                batch: this.batch,
+                step: this.step,
+                loss: this.loss,
                 dataGenerator,
                 learningRate: this.model.optimizer.learningRate,
                 ...trainArgs

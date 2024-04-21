@@ -8,7 +8,7 @@ See: [cli.js](./cli.js)
 
 # serial experiments
 
-The Second Law of Thermodynamics states that the energy of a system always decreases over time, and that the entropy of a system always increases... this translates to... a `${temperature}` increase at every layer. Lower layers are deterministic and stable, while later layers become chaotic and unpredictable.
+The Second Law of Thermodynamics states that the energy of a system always decreases over time, and that the entropy of a system always increases... this translates to... a `${temperature}` increase at every sequential layer. Lower layers should become deterministic and stable, while later layers are chaotic and unpredictable.
 
 A Mixture of Optimizers (MoO) is...
 
@@ -23,7 +23,7 @@ This library implements:
 -   custom loss functions
 -   a custom training loop, with gradient checkpointing (broken), L2-normalized gradient clipping
 -   custom tokenizers, including support for all Huggingface Tokenizers models
--   dataset management via generator functions and custom sampling strategies
+-   dataset management via generator functions and iterable sampling strategies
 -   support for one-label, multi-label, one-hot and integer-encoded datasets
 -   a number of text-decoding strategies, including greedy (argmax), temperature, top-k and top-p sampling
 -   object-oriented, extensible design
@@ -31,4 +31,4 @@ This library implements:
 
 # notes
 
--   in cross attention, queries are generated from one embedding, and keys/values from another (partnership)
+-   in cross attention, queries are generated from one embedding, and keys/values from another (A "pier" is all you need)

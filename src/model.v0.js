@@ -121,7 +121,8 @@ export default class ModelBase {
         topK = 0,
         topP = 1,
         repetitionPenalty = 1,
-        maxNewTokens = 50
+        maxNewTokens = 50,
+        stopToken = null
     } = {}) {
         return await generateText.call(this, {
             prompt,
@@ -130,7 +131,8 @@ export default class ModelBase {
             topK,
             topP,
             repetitionPenalty,
-            maxNewTokens
+            maxNewTokens,
+            stopToken
         })
     }
 
@@ -177,7 +179,8 @@ async function generateText({
     topK,
     topP,
     repetitionPenalty,
-    maxNewTokens
+    maxNewTokens,
+    stopToken
 } = {}) {
     const fixedLength = this.config.contextLength
     const isSingleLabel = this.model.outputs[0].shape.length === 2
@@ -216,6 +219,12 @@ async function generateText({
             // Decode the entire sequence of token indices to update generatedText
             decodedText = this.tokenizer.decode(tokenIndices)
 
+            // Early stopping
+            if (reachedStopToken(decodedText, stopToken)) {
+                decodedText = decodedText.slice(0, -1)
+                return decodedText
+            }
+
             if (isSingleLabel) {
                 inputs = inputs.slice([0, 1], [1, fixedLength - 1])
                 const idxNextExpanded = idxNext.reshape([1, 1])
@@ -230,6 +239,13 @@ async function generateText({
         this.tf.dispose([inputs])
         return decodedText
     })
+}
+
+function reachedStopToken(string, token) {
+    if (string.endsWith(token)) {
+        return true
+    }
+    return false
 }
 
 function predictOnce(
