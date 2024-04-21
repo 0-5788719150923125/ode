@@ -14,8 +14,8 @@ import { preprocessData } from './utils.js'
 let tf = tfjs
 
 /**
- * The base model class, which defines a standard that
- * must remain compatible across all model versions.
+ * The base model class, which defines a standard template
+ * that must remain compatible across all model versions.
  * @constructor
  * @param {Object} config - The configuration settings for the model.
  */
@@ -37,7 +37,8 @@ export default class ModelBase {
     async init({ corpus = null } = {}) {
         this.tf = tfjs
         if (this.config.backend === 'tensorflow') {
-            tf = await eval(`import('@tensorflow/tfjs-node-gpu')`)
+            let x = '@tensorflow/tfjs-node-gpu'
+            tf = await import(x)
             this.tf = tf
         }
         if (corpus) this.config.corpus = corpus

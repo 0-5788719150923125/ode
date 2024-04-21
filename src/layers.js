@@ -4,6 +4,8 @@ import customOps from './ops.js'
 import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {
+    activation: (config) =>
+        tf.layers.activation({ name: `act-${randomString()}`, ...config }),
     add: (config) =>
         tf.layers.add({ name: `add-${randomString()}`, ...config }),
     bottleneck: (config) =>
@@ -4274,8 +4276,40 @@ class InstanceNormalization extends LayerBase {
     }
 }
 
+class Bias extends LayerBase {
+    constructor(config) {
+        super({ name: `bias-${randomString()}`, ...config })
+        this.l1 = config.l1 || 0
+        this.l2 = config.l2 || 0
+    }
+
+    build(inputShape) {
+        const biasShape = inputShape[inputShape.length - 1]
+        this.bias = this.addWeight(
+            'bias',
+            [biasShape],
+            'float32',
+            tf.initializers.zeros(),
+            tf.regularizers.l1l2({
+                l1: this.l1,
+                l2: this.l2
+            })
+        )
+    }
+
+    call(inputs) {
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        return tf.add(inputs, this.bias.read())
+    }
+
+    getConfig() {
+        return { ...super.getConfig() }
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
+    Bias,
     CapsNet,
     CausalSelfAttention,
     ChunkedStateSpace,
