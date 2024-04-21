@@ -33,15 +33,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         trainArgs.clipValue
     )
 
-    const dataset = batchGenerator(
-        dataGenerator,
-        this.tokenizer,
-        trainArgs.batchSize,
-        trainArgs.sampleLength,
-        trainArgs.labels,
-        trainArgs.encoding
-    )
-
     const callbacks = []
     for (const callback of extraCallbacks) {
         callbacks.push(new callback(this))
@@ -56,9 +47,17 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             this.model.optimizer.learningRate = this.schedulers[0].next().value
         }
 
+        const sample = await batchMaker(
+            dataGenerator,
+            this.tokenizer,
+            trainArgs.batchSize,
+            trainArgs.sampleLength,
+            trainArgs.labels,
+            trainArgs.encoding
+        )
+
         // Fetch data and compute gradients
-        const tensors = dataset.next().value
-        await accumulator.compute(tensors.xs, tensors.ys)
+        await accumulator.compute(sample.xs, sample.ys)
         await accumulator.step(step, batch)
         const loss = accumulator.getLoss()
 
@@ -335,7 +334,7 @@ function accumulateGradients(gradients, accumulatedGrads) {
     return accumulatedGrads
 }
 
-function* batchGenerator(
+async function batchMaker(
     dataGenerator,
     tokenizer,
     batchSize,
@@ -343,75 +342,65 @@ function* batchGenerator(
     labels = 'timeDistributed',
     encoding = 'oneHot'
 ) {
-    while (true) {
-        let xsArray = []
-        let ysArray = []
+    let xsArray = []
+    let ysArray = []
 
-        for (let i = 0; i < batchSize; ++i) {
-            const sample = dataGenerator.next().value
+    for (let i = 0; i < batchSize; ++i) {
+        const sample = await dataGenerator.next().value
 
-            const textIndices = preprocessData(
-                sample,
-                tokenizer,
-                inputLength + 1, // Include the next token to predict
-                'left'
-            )
+        const textIndices = preprocessData(
+            sample,
+            tokenizer,
+            inputLength + 1, // Include the next token to predict
+            'left'
+        )
 
-            // Input sequence (excluding the last token for prediction)
-            const xs = textIndices.slice(0, inputLength)
+        // Input sequence (excluding the last token for prediction)
+        const xs = textIndices.slice(0, inputLength)
 
-            // Determine output sequence based on the mode
-            let ys
+        // Determine output sequence based on the mode
+        let ys
 
-            // Output sequence for singleLabel (just the next token)
-            if (labels === 'oneLabel') {
-                ys = [textIndices[inputLength]]
-            }
-            // Output sequence for timeDistributed (the entire sequence shifted by one position to the right)
-            else {
-                ys = textIndices.slice(1)
-            }
-
-            xsArray.push(xs)
-            ysArray.push(ys)
+        // Output sequence for singleLabel (just the next token)
+        if (labels === 'oneLabel') {
+            ys = [textIndices[inputLength]]
+        }
+        // Output sequence for timeDistributed (the entire sequence shifted by one position to the right)
+        else {
+            ys = textIndices.slice(1)
         }
 
-        const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
-
-        const ysTensor = tf.tidy(() => {
-            if (encoding === 'integer') {
-                // Output labels as integers
-                if (mode === 'oneLabel') {
-                    return tf.tensor1d(ysArray.flat(), 'int32')
-                } else {
-                    return tf.tensor2d(
-                        ysArray,
-                        [batchSize, inputLength],
-                        'int32'
-                    )
-                }
-            } else {
-                // Output labels as one-hot encoded
-                if (labels === 'oneLabel') {
-                    return tf.oneHot(
-                        tf.tensor1d(ysArray.flat(), 'int32'),
-                        tokenizer.getLength()
-                    )
-                } else {
-                    return tf
-                        .tensor2d(ysArray, [batchSize, inputLength], 'int32')
-                        .oneHot(tokenizer.getLength())
-                        .reshape([
-                            batchSize,
-                            inputLength,
-                            tokenizer.getLength()
-                        ])
-                }
-            }
-        })
-
-        yield { xs: xsTensor, ys: ysTensor }
+        xsArray.push(xs)
+        ysArray.push(ys)
     }
+
+    const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
+
+    const ysTensor = tf.tidy(() => {
+        if (encoding === 'integer') {
+            // Output labels as integers
+            if (mode === 'oneLabel') {
+                return tf.tensor1d(ysArray.flat(), 'int32')
+            } else {
+                return tf.tensor2d(ysArray, [batchSize, inputLength], 'int32')
+            }
+        } else {
+            // Output labels as one-hot encoded
+            if (labels === 'oneLabel') {
+                return tf.oneHot(
+                    tf.tensor1d(ysArray.flat(), 'int32'),
+                    tokenizer.getLength()
+                )
+            } else {
+                return tf
+                    .tensor2d(ysArray, [batchSize, inputLength], 'int32')
+                    .oneHot(tokenizer.getLength())
+                    .reshape([batchSize, inputLength, tokenizer.getLength()])
+            }
+        }
+    })
+
+    return { xs: xsTensor, ys: ysTensor }
 }
 
 export class ModelSaver {
@@ -448,7 +437,9 @@ export class PredictionSampler {
             const maxLength = args.predictLength
 
             const seedLength = randomBetween(16, maxLength - 16)
-            const prompt = args.dataGenerator.next().value.slice(1, seedLength)
+            const prompt = await args.dataGenerator
+                .next()
+                .value.slice(1, seedLength)
 
             const params = { doSample: true, temperature: 0.3 }
             const output = await this.parent.generate({
