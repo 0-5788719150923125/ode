@@ -12,14 +12,10 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+            model: 'OriginalDesign/frame'
+        })
     }
-
-    // defineTokenizer(config) {
-    //     this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-    //         model: 'OriginalDesign/frame'
-    //     })
-    // }
 
     defineBuild() {
         const inputs = this.ode.layers.input({

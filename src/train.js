@@ -9,7 +9,7 @@ import {
 
 let tf
 
-export async function startTraining(dataGenerator, args, extraCallbacks) {
+export async function trainModel(dataGenerator, args, extraCallbacks) {
     tf = this.tf
     const trainArgs = {
         batchSize: 32,

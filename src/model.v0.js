@@ -14,7 +14,7 @@ import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
 import customSchedulers from './schedulers.js'
 import customSamplers from './samplers.js'
-import { startTraining } from './train.js'
+import { trainModel } from './train.js'
 import { preprocessData } from './utils.js'
 
 /**
@@ -135,7 +135,7 @@ export default class ModelBase {
     }
 
     async train(dataGenerator, args, callbacks) {
-        return await startTraining.call(this, dataGenerator, args, callbacks)
+        return await trainModel.call(this, dataGenerator, args, callbacks)
     }
 
     async save(path = `data/models/ode`) {
