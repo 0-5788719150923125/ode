@@ -8,12 +8,12 @@ import ODE from './model.v3.js'
 export default class OpportunisticDialogueEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 6
-        this.heads = 8
-        this.units = 512
-        this.innerDim = this.units * 4
-        this.epsilon = 1e-5
-        this.alpha = 0.22
+        this.layers = config.layers || 6
+        this.heads = config.heads || 8
+        this.units = config.units || 512
+        this.innerDim = config.innerDim || this.units * 4
+        this.epsilon = config.epsilon || 1e-5
+        this.alpha = config.alpha || 0.22
     }
 
     defineTokenizer() {

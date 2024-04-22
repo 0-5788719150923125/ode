@@ -10,9 +10,9 @@ import ODE from './model.v0.js'
 export default class OmnipresentDiabolicalErudite extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.units = 64
-        this.epsilon = 1e-5
+        this.layers = config.layers || 3
+        this.units = config.units || 64
+        this.epsilon = config.epsilon || 1e-5
     }
 
     defineBuild() {

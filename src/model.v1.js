@@ -8,8 +8,8 @@ import ODE from './model.v0.js'
 export default class OmnipotentDegenerateEntity extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.units = 128
+        this.layers = config.layers || 3
+        this.units = config.units || 128
         this.config.labels = 'oneLabel'
     }
 

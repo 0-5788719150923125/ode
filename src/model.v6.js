@@ -7,8 +7,8 @@ import ODE from './model.v4.js'
 export default class OscillometricDecayedExponent extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 8
-        this.units = 512
+        this.layers = config.layers || 8
+        this.units = config.units || 512
         this.maxDecisions = 9
         this.kernelSize = 3
         this.dilation = 3

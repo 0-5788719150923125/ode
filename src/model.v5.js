@@ -7,9 +7,9 @@ import ODE from './model.v4.js'
 export default class OrthogonalDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.units = 512
-        this.innerDim = this.units * 4
+        this.layers = config.layers || 4
+        this.units = config.units || 512
+        this.innerDim = config.innerDim || this.units * 4
     }
 
     defineBuild() {

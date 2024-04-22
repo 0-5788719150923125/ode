@@ -7,11 +7,11 @@ import ODE from './model.v2.js'
 export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.heads = 8
-        this.units = 128
-        this.dropout = 0.1
-        this.epsilon = 1e-5
+        this.layers = config.layers || 4
+        this.heads = config.heads || 8
+        this.units = config.units || 128
+        this.dropout = config.dropout || 0.1
+        this.epsilon = config.epsilon || 1e-5
     }
 
     defineTokenizer(config) {
