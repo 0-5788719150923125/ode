@@ -87,6 +87,7 @@ export default class ModelBase {
         }
 
         return {
+            backend: this.tf.backend(),
             allocated: allocated.toFixed(4),
             tensors,
             step: this.step,
@@ -144,7 +145,6 @@ export default class ModelBase {
     }
 
     postInit() {
-        console.log('Backend:', this.tf.backend())
         console.log(this.model.optimizer)
         console.log(this.model.summary())
         console.log(`Loaded model: v${this.config.version}`)
