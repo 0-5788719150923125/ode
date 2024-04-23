@@ -77,6 +77,24 @@ export default class ModelBase {
         await this.model.save(`${type}://${path}`, { includeOptimizer: true })
     }
 
+    getStats() {
+        const memory = this.tf.memory()
+        const tensors = memory.numTensors
+
+        let allocated = memory.numBytes / 1_000_000_000
+        if (memory.numBytesInGPUAllocated) {
+            allocated = memory.numBytesInGPUAllocated / 1_000_000_000
+        }
+
+        return {
+            allocated: allocated.toFixed(4),
+            tensors,
+            step: this.step,
+            batch: this.batch,
+            loss: this.loss
+        }
+    }
+
     defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
             config?.vocabSize || 6666,
