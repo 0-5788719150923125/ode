@@ -194,7 +194,7 @@ function computeGradients(
         tf.variableGrads(() => {
             const predictions = model.call(currentXs, meta)
 
-            let lossValue = lossFunction(
+            let lossValue = model.lossFunctions[0](
                 currentYs,
                 predictions[0],
                 weights,

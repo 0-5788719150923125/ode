@@ -299,16 +299,31 @@ class MultiLayerPerceptron extends LayerBase {
 
     build(inputShape) {
         // Initialize dense layers for projection
-        this.inProj = tf.layers.dense({
-            units: this.innerDim,
-            inputDim: this.units,
-            activation: this.activation
-        })
-        this.outProj = tf.layers.dense({
-            units: this.units,
-            inputDim: inputShape,
-            activation: 'linear'
-        })
+        this.inProjKernel = this.addWeight(
+            'inProjKernel',
+            [inputShape[inputShape.length - 1], this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.inProjBias = this.addWeight(
+            'inProjBias',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+
+        this.outProjKernel = this.addWeight(
+            'outProjKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.outProjBias = this.addWeight(
+            'outProjBias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
 
         // Initialize layer normalization
         if (this.epsilon) {
@@ -318,28 +333,45 @@ class MultiLayerPerceptron extends LayerBase {
         }
 
         // Residual connections/skip connections are critical here
-        this.residual = new ResidualConnection()
+        this.residual = customLayers.ResidualConnection()
     }
 
     call(inputs, kwargs, training = false) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Expand and contract projection via feedfoward layers
-            let outputs = this.inProj.apply(inputs)
+            // Expand and contract projection via feedforward layers
+            let outputs = this.dense(inputs, this.inProjKernel, this.inProjBias)
             if (this.customActivation) {
                 outputs = this.customActivation.apply(outputs)
+            } else if (this.activation !== 'linear') {
+                outputs = tf.layers
+                    .activation({ activation: this.activation })
+                    .apply(outputs)
             }
-            outputs = this.outProj.apply(outputs)
+            outputs = this.dense(outputs, this.outProjKernel, this.outProjBias)
+
             // If training, apply residual dropout
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
+
             // Apply layer norm
             if (this.layernorm) outputs = this.layernorm.apply(outputs)
+
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
+    }
+
+    dense(x, kernel, bias) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        const m = tf.matMul(x, k)
+        if (bias) {
+            return tf.add(m, bias.read())
+        } else {
+            return m
+        }
     }
 
     computeOutputShape(inputShape) {
@@ -354,6 +386,80 @@ class MultiLayerPerceptron extends LayerBase {
         }
     }
 }
+
+// class MultiLayerPerceptron extends LayerBase {
+//     constructor(config) {
+//         super({ name: `mlp-${randomString()}`, ...config })
+//         this.units = config?.units || 256
+//         this.innerDim = config?.innerDim || 1024
+//         this.dropout = config?.dropout || 0
+//         this.epsilon = config?.epsilon || false
+//         if (config?.activation === 'gelu') {
+//             this.customActivation = new GELU()
+//             this.activation = 'linear'
+//         } else {
+//             this.activation = config?.activation || 'relu'
+//         }
+//         this.supportsMasking = true
+//     }
+
+//     build(inputShape) {
+//         // Initialize dense layers for projection
+//         this.inProj = tf.layers.dense({
+//             units: this.innerDim,
+//             inputDim: this.units,
+//             activation: this.activation
+//         })
+//         this.outProj = tf.layers.dense({
+//             units: this.units,
+//             inputDim: inputShape,
+//             activation: 'linear'
+//         })
+
+//         // Initialize layer normalization
+//         if (this.epsilon) {
+//             this.layernorm = tf.layers.layerNormalization({
+//                 epsilon: this.epsilon
+//             })
+//         }
+
+//         // Residual connections/skip connections are critical here
+//         this.residual = new ResidualConnection()
+//     }
+
+//     call(inputs, kwargs, training = false) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // Expand and contract projection via feedfoward layers
+//             let outputs = this.inProj.apply(inputs)
+//             if (this.customActivation) {
+//                 outputs = this.customActivation.apply(outputs)
+//             }
+//             outputs = this.outProj.apply(outputs)
+//             // If training, apply residual dropout
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
+//             // Apply layer norm
+//             if (this.layernorm) outputs = this.layernorm.apply(outputs)
+//             // Apply skip connection
+//             return this.residual.apply([inputs, outputs])
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getConfig() {
+//         return {
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             dropout: this.dropout
+//         }
+//     }
+// }
 
 class GatedLinearUnit extends MultiLayerPerceptron {
     constructor(config) {
@@ -1628,24 +1734,24 @@ class SelfAttention extends LayerBase {
     }
 
     build(inputShape) {
-        this.query = tf.layers.dense({
-            units: this.projection,
-            activation: 'linear',
-            useBias: false,
-            kernelInitializer: tf.initializers.glorotUniform()
-        })
-        this.key = tf.layers.dense({
-            units: this.projection,
-            activation: 'linear',
-            useBias: false,
-            kernelInitializer: tf.initializers.glorotUniform()
-        })
-        this.value = tf.layers.dense({
-            units: this.units,
-            activation: 'linear',
-            useBias: false,
-            kernelInitializer: tf.initializers.glorotUniform()
-        })
+        this.queryKernel = this.addWeight(
+            'queryKernel',
+            [inputShape[inputShape.length - 1], this.projection],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.keyKernel = this.addWeight(
+            'keyKernel',
+            [inputShape[inputShape.length - 1], this.projection],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.valueKernel = this.addWeight(
+            'valueKernel',
+            [inputShape[inputShape.length - 1], this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
         this.residual = customLayers.ResidualConnection()
     }
 
@@ -1653,9 +1759,9 @@ class SelfAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const Q = this.query.apply(inputs)
-            const K = this.key.apply(inputs)
-            const V = this.value.apply(inputs)
+            const Q = this.applyDense(inputs, this.queryKernel)
+            const K = this.applyDense(inputs, this.keyKernel)
+            const V = this.applyDense(inputs, this.valueKernel)
 
             const mask = tf.linalg
                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
@@ -1675,6 +1781,11 @@ class SelfAttention extends LayerBase {
         })
     }
 
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
     getConfig() {
         return {
             ...super.getConfig(),
@@ -1683,6 +1794,70 @@ class SelfAttention extends LayerBase {
         }
     }
 }
+
+// class SelfAttention extends LayerBase {
+//     constructor(config) {
+//         super({ name: `attn-${randomString()}`, ...config })
+//         this.units = config.units || 64
+//         this.projection = config.projection || 256
+//     }
+
+//     build(inputShape) {
+//         this.query = tf.layers.dense({
+//             units: this.projection,
+//             activation: 'linear',
+//             useBias: false,
+//             kernelInitializer: tf.initializers.glorotUniform()
+//         })
+//         this.key = tf.layers.dense({
+//             units: this.projection,
+//             activation: 'linear',
+//             useBias: false,
+//             kernelInitializer: tf.initializers.glorotUniform()
+//         })
+//         this.value = tf.layers.dense({
+//             units: this.units,
+//             activation: 'linear',
+//             useBias: false,
+//             kernelInitializer: tf.initializers.glorotUniform()
+//         })
+//         this.residual = customLayers.ResidualConnection()
+//     }
+
+//     call(inputs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const Q = this.query.apply(inputs)
+//             const K = this.key.apply(inputs)
+//             const V = this.value.apply(inputs)
+
+//             const mask = tf.linalg
+//                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+//                 .sub(tf.eye(inputs.shape[1]))
+//                 .mul(tf.scalar(-1e9))
+
+//             const scores = tf
+//                 .matMul(Q, K, false, true)
+//                 .div(tf.scalar(this.projection).sqrt())
+//                 .add(mask)
+
+//             const weights = scores.softmax()
+
+//             const outputs = tf.matMul(weights, V)
+
+//             return this.residual.apply([inputs, outputs])
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             projection: this.projection
+//         }
+//     }
+// }
 
 class Antirectifier extends LayerBase {
     constructor(config) {

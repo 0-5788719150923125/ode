@@ -55,7 +55,7 @@ function categoricalFocalCrossEntropy(
     yPred,
     weights,
     labelSmoothing = 0,
-    reduction = tf.Reduction.SUM_BY_NONZERO_WEIGHTS,
+    reduction,
     alpha = null,
     gamma = 2.0,
     fromLogits = false,
@@ -96,7 +96,28 @@ const customLosses = {
         categoricalCrossentropy(target, output, fromLogits),
     sparseCategoricalCrossentropy: (target, output, fromLogits) =>
         sparseCategoricalCrossentropy(target, output, fromLogits),
-    categoricalFocalCrossEntropy: categoricalFocalCrossEntropy
+    categoricalFocalCrossEntropy: (
+        yTrue,
+        yPred,
+        weights,
+        labelSmoothing,
+        reduction,
+        alpha,
+        gamma,
+        fromLogits,
+        axis
+    ) =>
+        categoricalFocalCrossEntropy(
+            yTrue,
+            yPred,
+            weights,
+            labelSmoothing,
+            reduction,
+            alpha,
+            gamma,
+            fromLogits,
+            axis
+        )
 }
 
 export default customLosses

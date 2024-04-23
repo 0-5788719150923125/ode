@@ -1,7 +1,7 @@
 import * as tfjs from '@tensorflow/tfjs'
 import '@tensorflow/tfjs-backend-wasm'
-import '@tensorflow/tfjs-backend-webgpu'
 import '@tensorflow/tfjs-backend-webgl'
+import '@tensorflow/tfjs-backend-webgpu'
 import customLayers from './layers.js'
 import customLosses from './losses.js'
 import customOptimizers from './optimizers.js'
@@ -51,6 +51,41 @@ export default class ModelBase {
         this.defineLossFunctions()
         this.defineBuild()
         this.defineOptimizers()
+        this.defineSchedulers()
+        this.compile()
+        this.postInit()
+    }
+
+    async save(path = `data/models/ode`) {
+        const fs = await import('fs')
+        fs.mkdirSync(path, { recursive: true })
+        await this.model.save(`file://${path}`, { includeOptimizer: true })
+    }
+
+    async load(path = `data/models/ode`) {
+        this.tf = tfjs
+        if (this.config.backend === 'tensorflow') {
+            let x = '@tensorflow/tfjs-node-gpu'
+            tf = await import(x)
+            this.tf = tf
+        }
+        if (corpus) this.config.corpus = corpus
+        await this.tf.ready()
+        await this.tf.setBackend(this.config.backend || 'cpu')
+        this.defineTokenizer()
+        if (typeof this.tokenizer.init === 'function') {
+            await this.tokenizer.init()
+        }
+        this.defineLossFunctions()
+        this.model = await this.tf.loadLayersModel(
+            `file://${path}/model.json`,
+            {
+                strict: true
+            }
+        )
+        console.log('successfully loaded model from disk')
+        this.defineBuild()
+        // this.defineOptimizers()
         this.defineSchedulers()
         this.compile()
         this.postInit()
@@ -139,33 +174,6 @@ export default class ModelBase {
 
     async train(dataGenerator, args, callbacks) {
         return await trainModel.call(this, dataGenerator, args, callbacks)
-    }
-
-    async save(path = `data/models/ode`) {
-        const fs = await import('fs')
-        fs.mkdirSync(path, { recursive: true })
-        await this.model.save(`file://${path}`, { includeOptimizer: true })
-    }
-
-    async load(path = `data/models/ode`) {
-        await this.tf.ready()
-        await this.tf.setBackend(this.config.backend || 'cpu')
-        this.defineTokenizer()
-        if (typeof this.tokenizer.init === 'function') {
-            await this.tokenizer.init()
-        }
-        this.defineLossFunctions()
-        this.model = await this.tf.loadLayersModel(
-            `file://${path}/model.json`,
-            {
-                strict: true
-            }
-        )
-        console.log('successfully loaded model from disk')
-        this.defineOptimizers()
-        this.defineSchedulers()
-        this.compile()
-        this.postInit()
     }
 
     debug(inputs) {
