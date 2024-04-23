@@ -34,14 +34,13 @@ export default class ModelBase {
         this.tokenizer
     }
 
-    async init({ corpus = null } = {}) {
+    async init() {
         this.tf = tfjs
         if (this.config.backend === 'tensorflow') {
             let x = '@tensorflow/tfjs-node-gpu'
             tf = await import(x)
             this.tf = tf
         }
-        if (corpus) this.config.corpus = corpus
         await this.tf.ready()
         await this.tf.setBackend(this.config.backend || 'cpu')
         this.defineTokenizer()
@@ -69,7 +68,6 @@ export default class ModelBase {
             tf = await import(x)
             this.tf = tf
         }
-        if (corpus) this.config.corpus = corpus
         await this.tf.ready()
         await this.tf.setBackend(this.config.backend || 'cpu')
         this.defineTokenizer()
@@ -80,14 +78,14 @@ export default class ModelBase {
         this.model = await this.tf.loadLayersModel(
             `file://${path}/model.json`,
             {
-                strict: true
+                strict: false
             }
         )
         console.log('successfully loaded model from disk')
-        this.defineBuild()
+        // this.defineBuild()
         // this.defineOptimizers()
         this.defineSchedulers()
-        this.compile()
+        // this.compile()
         this.postInit()
     }
 
@@ -127,7 +125,7 @@ export default class ModelBase {
 
     defineSchedulers() {
         const learningRate = 0.00333
-        this.optimizers[0].learningRate = learningRate
+        // this.optimizers[0].learningRate = learningRate
         this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 

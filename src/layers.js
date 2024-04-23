@@ -380,6 +380,7 @@ class MultiLayerPerceptron extends LayerBase {
 
     getConfig() {
         return {
+            ...super.getConfig(),
             units: this.units,
             innerDim: this.innerDim,
             dropout: this.dropout
