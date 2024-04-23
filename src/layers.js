@@ -47,237 +47,88 @@ class LayerBase extends tf.layers.Layer {
     }
 }
 
-class DebugLayer extends LayerBase {
+class SharedEmbedding extends LayerBase {
     constructor(config) {
-        super(config)
-        this.config = config
-        this.supportsMasking = true
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            console.log(inputs)
-            inputs.print()
-            console.log(inputs.dataSync())
-            console.log(inputs.shape)
-            return inputs
-        })
-    }
-}
-
-class Range extends LayerBase {
-    constructor(config) {
-        super({ name: `ran-${randomString()}`, ...config })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    call(input, kwargs) {
-        return tf.tidy(() => {
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
-            const [B, T] = input.shape
-            const range = tf.reshape(tf.range(0, T, 1, 'int32'), [1, T]) // .tile([B, 1])
-            return range
-        })
-    }
-}
-
-class CausalSelfAttention extends LayerBase {
-    constructor(config) {
-        super(config)
-        this.config = Object.assign({ name: `attn-${randomString()}` }, config)
-
-        // Config
-        this.blockSize = config.blockSize || 256
-        this.units = config.units || 256
-        this.heads = config.heads || 4
-        this.dropout = config.dropout || 0
-        this.bias = config.bias || false
-        this.epsilon = config.epsilon || 1e-5
-        // Causal mask
-        this.mask = tf.keep(
-            tf.linalg.bandPart(
-                tf.ones([config.blockSize, config.blockSize]),
-                -1,
-                0
-            )
-        )
+        super({ name: `emb-${randomString()}`, ...config })
+        this.inputDim = config.inputDim
+        this.outputDim = config.outputDim
+        this.embeddingsInitializer =
+            config.embeddingsInitializer || 'glorotUniform'
     }
 
     build(inputShape) {
-        this.cAttnKernel = this.addWeight(
-            `c_attn-${randomString()}`,
-            [this.units, 3 * this.units],
+        this.embeddings = this.addWeight(
+            'embeddings',
+            [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers[this.embeddingsInitializer]()
         )
-        this.cAttnBias = this.addWeight(
-            `c_attn-${randomString()}`,
-            [3 * this.units],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.cProjKernel = this.addWeight(
-            `c_proj-${randomString()}`,
-            [this.units, this.units],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.cProjBias = this.addWeight(
-            `c_proj-${randomString()}`,
-            [this.units],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
+        this.built = true
     }
 
     computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    getConfig() {
-        // This is needed to save and load the model
-        // When the model is saved, the config is saved with it
-        // When the model is loaded, the config is used to create a new instance of the layer
-        const config = super.getConfig()
-        return Object.assign({}, config, this.config)
-    }
-
-    call(inputs, kwargs, training) {
-        return tf.tidy(() => {
-            if (Array.isArray(inputs)) {
-                inputs = inputs[0]
-            }
-
-            // Direct application of matMul to x and kernel throws:
-            // > Error in gradient for op BatchMatMul.
-            // > The gradient of input 'b' has shape '16,48,48',
-            // > which does not match the shape of the input '48,48'
-            // Two solutions worked:
-            // 1. Use tf.layers.dense but reassign kernel and bias
-            // 2. Use tf.matMul but expandDims and tile kernel (current)
-            // Another option, of course, is to separate attention logic
-            // from trainable weights completely and use tf.layers.dense
-            // inside a model definition. I was not able to define fully
-            // function regular dense layers inside a custom layer.
-            // Something related to how weights are loaded with this.kernel
-            // and duplicating names
-
-            const dense = (x, kernel, bias) => {
-                const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-                const m = tf.matMul(x, k)
-                if (this.bias) {
-                    return tf.add(m, bias.read())
-                } else {
-                    return m
-                }
-            }
-
-            const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
-
-            // Make order of qkv split to follow minGPT
-            let [q, k, v] = tf.split(cAttn, 3, -1)
-            const [B, T, C] = k.shape
-
-            const splitHeads = (x) =>
-                tf.transpose(
-                    tf.reshape(x, [B, T, this.heads, C / this.heads]),
-                    [0, 2, 1, 3]
-                )
-
-            q = splitHeads(q)
-            k = splitHeads(k)
-            v = splitHeads(v)
-
-            // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-            let att = tf.mul(
-                tf.matMul(q, k, false, true),
-                tf.div(
-                    1,
-                    tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
-                )
-            )
-
-            const mask = this.mask.slice([0, 0], [T, T])
-            att = tf.add(att, tf.mul(tf.sub(1, mask), -1e9))
-            att = tf.softmax(att, -1)
-            att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
-
-            let outputs = tf.matMul(att, v)
-
-            outputs = tf.transpose(outputs, [0, 2, 1, 3])
-            outputs = tf.reshape(outputs, [B, T, C])
-            outputs = dense(outputs, this.cProjKernel, this.cProjBias)
-            outputs = kwargs['training']
-                ? tf.dropout(outputs, this.dropout)
-                : outputs
-
-            outputs = this.layerNorm.apply(outputs)
-            return tf.layers.add().apply([inputs, outputs])
-        })
-    }
-}
-
-class SinusoidalPositionalEncoding extends LayerBase {
-    constructor(config) {
-        super({ name: `enc-${randomString()}`, ...config })
-        this.reverse = config?.reverse || false
+        if (inputShape.length === 2) {
+            // Input embedding
+            return [inputShape[0], inputShape[1], this.outputDim]
+        } else if (inputShape.length === 3) {
+            // Output projection
+            return [inputShape[0], inputShape[1], this.inputDim]
+        } else {
+            throw new Error('Invalid input shape for TiedEmbedding layer.')
+        }
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const range = customLayers.Range().apply(inputs)
-
-            // Determine the sequence length from the input shape
-            const seqLength = range.shape[1]
-
-            // Compute the positional encodings (2D tensor of shape [seqLength, this.units])
-            const positionalEncoding = tf.tensor2d(
-                Array.from({ length: seqLength }, (_, pos) => {
-                    return Array.from({ length: inputs.shape[2] }, (_, i) => {
-                        const divTerm = Math.pow(
-                            10000,
-                            (2 * (i / 2)) / inputs.shape[2]
-                        )
-                        // Switch between sine and cosine based on the flag
-                        if (this.reverse) {
-                            return i % 2 === 0
-                                ? Math.cos(pos / divTerm)
-                                : Math.sin(pos / divTerm)
-                        } else {
-                            return i % 2 === 0
-                                ? Math.sin(pos / divTerm)
-                                : Math.cos(pos / divTerm)
-                        }
-                    })
-                })
-            )
-
-            // Broadcast the positional encoding to match the shape of the inputs
-            const broadcastedPositionalEncoding = positionalEncoding
-                .expandDims(0)
-                .tile([inputs.shape[0], 1, 1])
-
-            return inputs.add(broadcastedPositionalEncoding)
+            if (inputs.shape.length === 2) {
+                // Input embedding
+                const flatInputs = tf.reshape(inputs, [-1])
+                const embeddings = tf.gather(
+                    this.embeddings.read(),
+                    flatInputs.cast('int32')
+                )
+                return tf.reshape(embeddings, [
+                    inputs.shape[0],
+                    inputs.shape[1],
+                    this.outputDim
+                ])
+            } else if (inputs.shape.length === 3) {
+                // Output projection
+                const denseOutput = tf.matMul(
+                    tf.reshape(inputs, [-1, this.outputDim]),
+                    this.embeddings.read(),
+                    false,
+                    true
+                )
+                return tf.reshape(denseOutput, [
+                    inputs.shape[0],
+                    inputs.shape[1],
+                    this.inputDim
+                ])
+            } else {
+                throw new Error(
+                    'Invalid input shape for SharedEmbedding layer.'
+                )
+            }
         })
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
+    getWeights() {
+        return [this.embeddings.read()]
+    }
+
+    setWeights(weights) {
+        this.embeddings.write(weights[0])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            inputDim: this.inputDim,
+            outputDim: this.outputDim
+        }
     }
 }
 
@@ -886,6 +737,240 @@ class DigitCaps extends LayerBase {
             routingIterations: this.routingIterations
         }
         return config
+    }
+}
+
+class DebugLayer extends LayerBase {
+    constructor(config) {
+        super(config)
+        this.config = config
+        this.supportsMasking = true
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            console.log(inputs)
+            inputs.print()
+            console.log(inputs.dataSync())
+            console.log(inputs.shape)
+            return inputs
+        })
+    }
+}
+
+class Range extends LayerBase {
+    constructor(config) {
+        super({ name: `ran-${randomString()}`, ...config })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    call(input, kwargs) {
+        return tf.tidy(() => {
+            if (Array.isArray(input)) {
+                input = input[0]
+            }
+            this.invokeCallHook(input, kwargs)
+            const [B, T] = input.shape
+            const range = tf.reshape(tf.range(0, T, 1, 'int32'), [1, T]) // .tile([B, 1])
+            return range
+        })
+    }
+}
+
+class CausalSelfAttention extends LayerBase {
+    constructor(config) {
+        super(config)
+        this.config = Object.assign({ name: `attn-${randomString()}` }, config)
+
+        // Config
+        this.blockSize = config.blockSize || 256
+        this.units = config.units || 256
+        this.heads = config.heads || 4
+        this.dropout = config.dropout || 0
+        this.bias = config.bias || false
+        this.epsilon = config.epsilon || 1e-5
+        // Causal mask
+        this.mask = tf.keep(
+            tf.linalg.bandPart(
+                tf.ones([config.blockSize, config.blockSize]),
+                -1,
+                0
+            )
+        )
+    }
+
+    build(inputShape) {
+        this.cAttnKernel = this.addWeight(
+            `c_attn-${randomString()}`,
+            [this.units, 3 * this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.cAttnBias = this.addWeight(
+            `c_attn-${randomString()}`,
+            [3 * this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.cProjKernel = this.addWeight(
+            `c_proj-${randomString()}`,
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.cProjBias = this.addWeight(
+            `c_proj-${randomString()}`,
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getConfig() {
+        // This is needed to save and load the model
+        // When the model is saved, the config is saved with it
+        // When the model is loaded, the config is used to create a new instance of the layer
+        const config = super.getConfig()
+        return Object.assign({}, config, this.config)
+    }
+
+    call(inputs, kwargs, training) {
+        return tf.tidy(() => {
+            if (Array.isArray(inputs)) {
+                inputs = inputs[0]
+            }
+
+            // Direct application of matMul to x and kernel throws:
+            // > Error in gradient for op BatchMatMul.
+            // > The gradient of input 'b' has shape '16,48,48',
+            // > which does not match the shape of the input '48,48'
+            // Two solutions worked:
+            // 1. Use tf.layers.dense but reassign kernel and bias
+            // 2. Use tf.matMul but expandDims and tile kernel (current)
+            // Another option, of course, is to separate attention logic
+            // from trainable weights completely and use tf.layers.dense
+            // inside a model definition. I was not able to define fully
+            // function regular dense layers inside a custom layer.
+            // Something related to how weights are loaded with this.kernel
+            // and duplicating names
+
+            const dense = (x, kernel, bias) => {
+                const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+                const m = tf.matMul(x, k)
+                if (this.bias) {
+                    return tf.add(m, bias.read())
+                } else {
+                    return m
+                }
+            }
+
+            const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
+
+            // Make order of qkv split to follow minGPT
+            let [q, k, v] = tf.split(cAttn, 3, -1)
+            const [B, T, C] = k.shape
+
+            const splitHeads = (x) =>
+                tf.transpose(
+                    tf.reshape(x, [B, T, this.heads, C / this.heads]),
+                    [0, 2, 1, 3]
+                )
+
+            q = splitHeads(q)
+            k = splitHeads(k)
+            v = splitHeads(v)
+
+            // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+            let att = tf.mul(
+                tf.matMul(q, k, false, true),
+                tf.div(
+                    1,
+                    tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
+                )
+            )
+
+            const mask = this.mask.slice([0, 0], [T, T])
+            att = tf.add(att, tf.mul(tf.sub(1, mask), -1e9))
+            att = tf.softmax(att, -1)
+            att = kwargs['training'] ? tf.dropout(att, this.dropout) : att
+
+            let outputs = tf.matMul(att, v)
+
+            outputs = tf.transpose(outputs, [0, 2, 1, 3])
+            outputs = tf.reshape(outputs, [B, T, C])
+            outputs = dense(outputs, this.cProjKernel, this.cProjBias)
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+
+            outputs = this.layerNorm.apply(outputs)
+            return tf.layers.add().apply([inputs, outputs])
+        })
+    }
+}
+
+class SinusoidalPositionalEncoding extends LayerBase {
+    constructor(config) {
+        super({ name: `enc-${randomString()}`, ...config })
+        this.reverse = config?.reverse || false
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const range = customLayers.Range().apply(inputs)
+
+            // Determine the sequence length from the input shape
+            const seqLength = range.shape[1]
+
+            // Compute the positional encodings (2D tensor of shape [seqLength, this.units])
+            const positionalEncoding = tf.tensor2d(
+                Array.from({ length: seqLength }, (_, pos) => {
+                    return Array.from({ length: inputs.shape[2] }, (_, i) => {
+                        const divTerm = Math.pow(
+                            10000,
+                            (2 * (i / 2)) / inputs.shape[2]
+                        )
+                        // Switch between sine and cosine based on the flag
+                        if (this.reverse) {
+                            return i % 2 === 0
+                                ? Math.cos(pos / divTerm)
+                                : Math.sin(pos / divTerm)
+                        } else {
+                            return i % 2 === 0
+                                ? Math.sin(pos / divTerm)
+                                : Math.cos(pos / divTerm)
+                        }
+                    })
+                })
+            )
+
+            // Broadcast the positional encoding to match the shape of the inputs
+            const broadcastedPositionalEncoding = positionalEncoding
+                .expandDims(0)
+                .tile([inputs.shape[0], 1, 1])
+
+            return inputs.add(broadcastedPositionalEncoding)
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
     }
 }
 
@@ -3913,91 +3998,6 @@ class PerformerAttention extends LayerBase {
             heads: this.heads,
             units: this.units,
             projectionDim: this.projectionDim
-        }
-    }
-}
-
-class SharedEmbedding extends LayerBase {
-    constructor(config) {
-        super({ name: `emb-${randomString()}`, ...config })
-        this.inputDim = config.inputDim
-        this.outputDim = config.outputDim
-        this.embeddingsInitializer =
-            config.embeddingsInitializer || 'glorotUniform'
-    }
-
-    build(inputShape) {
-        this.embeddings = this.addWeight(
-            'embeddings',
-            [this.inputDim, this.outputDim],
-            'float32',
-            tf.initializers[this.embeddingsInitializer]()
-        )
-        this.built = true
-    }
-
-    computeOutputShape(inputShape) {
-        if (inputShape.length === 2) {
-            // Input embedding
-            return [inputShape[0], inputShape[1], this.outputDim]
-        } else if (inputShape.length === 3) {
-            // Output projection
-            return [inputShape[0], inputShape[1], this.inputDim]
-        } else {
-            throw new Error('Invalid input shape for TiedEmbedding layer.')
-        }
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            if (inputs.shape.length === 2) {
-                // Input embedding
-                const flatInputs = tf.reshape(inputs, [-1])
-                const embeddings = tf.gather(
-                    this.embeddings.read(),
-                    flatInputs.cast('int32')
-                )
-                return tf.reshape(embeddings, [
-                    inputs.shape[0],
-                    inputs.shape[1],
-                    this.outputDim
-                ])
-            } else if (inputs.shape.length === 3) {
-                // Output projection
-                const denseOutput = tf.matMul(
-                    tf.reshape(inputs, [-1, this.outputDim]),
-                    this.embeddings.read(),
-                    false,
-                    true
-                )
-                return tf.reshape(denseOutput, [
-                    inputs.shape[0],
-                    inputs.shape[1],
-                    this.inputDim
-                ])
-            } else {
-                throw new Error(
-                    'Invalid input shape for SharedEmbedding layer.'
-                )
-            }
-        })
-    }
-
-    getWeights() {
-        return [this.embeddings.read()]
-    }
-
-    setWeights(weights) {
-        this.embeddings.write(weights[0])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            inputDim: this.inputDim,
-            outputDim: this.outputDim
         }
     }
 }

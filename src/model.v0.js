@@ -34,7 +34,7 @@ export default class ModelBase {
         this.tokenizer
     }
 
-    async init() {
+    async preInit() {
         this.tf = tfjs
         if (this.config.backend === 'tensorflow') {
             let x = '@tensorflow/tfjs-node-gpu'
@@ -48,6 +48,10 @@ export default class ModelBase {
             await this.tokenizer.init()
         }
         this.defineLossFunctions()
+    }
+
+    async init() {
+        await this.preInit()
         this.defineBuild()
         this.defineOptimizers()
         this.defineSchedulers()
@@ -55,38 +59,22 @@ export default class ModelBase {
         this.postInit()
     }
 
-    async save(path = `data/models/ode`) {
-        const fs = await import('fs')
-        fs.mkdirSync(path, { recursive: true })
-        await this.model.save(`file://${path}`, { includeOptimizer: true })
+    async load(type = 'file', path = `data/models/ode/model.json`) {
+        await this.preInit()
+        this.model = await this.tf.loadLayersModel(`${type}://${path}`, {
+            strict: true
+        })
+        console.log('successfully loaded model from disk')
+        this.defineSchedulers()
+        this.postInit()
     }
 
-    async load(path = `data/models/ode`) {
-        this.tf = tfjs
-        if (this.config.backend === 'tensorflow') {
-            let x = '@tensorflow/tfjs-node-gpu'
-            tf = await import(x)
-            this.tf = tf
+    async save(type = 'file', path = `data/models/ode`) {
+        if (type === 'file') {
+            const fs = await import('fs')
+            fs.mkdirSync(path, { recursive: true })
         }
-        await this.tf.ready()
-        await this.tf.setBackend(this.config.backend || 'cpu')
-        this.defineTokenizer()
-        if (typeof this.tokenizer.init === 'function') {
-            await this.tokenizer.init()
-        }
-        this.defineLossFunctions()
-        this.model = await this.tf.loadLayersModel(
-            `file://${path}/model.json`,
-            {
-                strict: true
-            }
-        )
-        console.log('successfully loaded model from disk')
-        // this.defineBuild()
-        // this.defineOptimizers()
-        this.defineSchedulers()
-        // this.compile()
-        this.postInit()
+        await this.model.save(`${type}://${path}`, { includeOptimizer: true })
     }
 
     defineTokenizer(config) {
