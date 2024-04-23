@@ -442,7 +442,7 @@ export class PredictionSampler {
                 .next()
                 .value.slice(1, seedLength)
 
-            const params = { doSample: true, temperature: 0.3 }
+            const params = { doSample: true, temperature: 0.23 }
             const output = await this.parent.generate({
                 prompt,
                 maxNewTokens: maxLength,

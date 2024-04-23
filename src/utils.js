@@ -27,6 +27,13 @@ export function splitLines(text, num = 100) {
     return lines.slice(0, num).join('\n')
 }
 
+export function randomValueFromArray(array, biasFactor = 1) {
+    const randomIndex = Math.floor(
+        Math.pow(Math.random(), biasFactor) * array.length
+    )
+    return array[randomIndex]
+}
+
 // Return a deterministic value from any array
 export function seededValueFromArray(array, seed) {
     return array[Math.floor(seededPRNG(seed) * array.length)]

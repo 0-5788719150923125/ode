@@ -235,6 +235,9 @@ async function generateText({
             // Early stopping
             if (reachedStopToken(decodedText, stopToken)) {
                 decodedText = decodedText.slice(0, -1)
+                if (decodedText.length === 0) {
+                    decodedText = `echo <span class="missing">[PROTECTED]</span> >> ../../$HOME/../../../dev/null`
+                }
                 return decodedText
             }
 
