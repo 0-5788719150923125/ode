@@ -372,6 +372,20 @@ class GatedLinearUnit extends MultiLayerPerceptron {
         this.residual = new ResidualConnection()
     }
 
+    // getWeights() {
+    //     return [
+    //         this.inProj.getWeights(),
+    //         this.outProj.getWeights(),
+    //         this.gateProj.getWeights()
+    //     ]
+    // }
+
+    // setWeights(weights) {
+    //     this.inProj.write(weights[0])
+    //     this.outProj.write(weights[1])
+    //     this.gateProj.write(weights[2])
+    // }
+
     call(inputs, kwargs, training = false) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
