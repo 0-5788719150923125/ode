@@ -2,11 +2,11 @@ import { createCanvas } from 'canvas'
 import fs from 'fs'
 
 function createTextImage(text) {
-    const size = 500
+    const size = 256
     const backgroundColor = 'white'
     const textColor = 'black'
     const fontFamily = 'Arial'
-    const padding = 20
+    const padding = 4
 
     const canvas = createCanvas(size, size)
     const ctx = canvas.getContext('2d')
@@ -95,5 +95,17 @@ function getPixels(ctx, size) {
 }
 
 // Example usage
-const textData = ` In the small German village of Röcken bei Lützen, located in a rural farmland area about 20 miles southwest of Leipzig, Friedrich Wilhelm Nietzsche was born at approximately 10:00 a.m. on October 15, 1844. The date coincided with the 49th birthday of the Prussian King, Friedrich Wilhelm IV, after whom Nietzsche was named, and who had been responsible for Nietzsche’s father’s appointment as Röcken’s town pastor.`
+const textData = `In this updated code:
+
+Two additional pairs of convolutional and pooling layers have been added.
+
+The second convolutional layer has 64 filters, and the third convolutional layer has 128 filters.
+Each convolutional layer is followed by a max pooling layer with a pool size of [2, 2] and strides of [2, 2], which reduces the spatial dimensions by half.
+
+
+The number of units in the first dense layer has been increased to 256 to accommodate the reduced dimensionality of the flattened output.
+
+By adding more convolutional and pooling layers, the spatial dimensions of the feature maps are progressively reduced, resulting in a smaller flattened output. This, in turn, reduces the number of parameters in the dense layers.
+You can further experiment with the number of convolutional layers, filters, and dense units to find the optimal balance between model complexity and performance for your specific task.
+Remember to monitor the model's performance and adjust the hyperparameters as needed based on your validation results.`
 createTextImage(textData)

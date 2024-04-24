@@ -7,10 +7,9 @@ import ODE from './model.v4.js'
 export default class ObjectivelyDumbExample extends ODE {
     constructor(config) {
         super(config)
-        this.units = 64
-        this.imageSize = 512
-        this.maxLength = this.config.contextLength
+        this.units = 256
         this.sourceFormat = 'image'
+        this.imageSize = 512
     }
 
     defineTokenizer(config) {
@@ -52,14 +51,14 @@ export default class ObjectivelyDumbExample extends ODE {
         // Dense layers
         outputs = this.tf.layers
             .dense({
-                units: 256,
+                units: this.units,
                 activation: 'mish'
             })
             .apply(outputs)
 
         outputs = this.tf.layers
             .dense({
-                units: this.maxLength * this.tokenizer.getLength(),
+                units: this.config.contextLength * this.tokenizer.getLength(),
                 activation: 'linear'
             })
             .apply(outputs)
@@ -67,7 +66,10 @@ export default class ObjectivelyDumbExample extends ODE {
         // Reshape the output to match the desired shape
         outputs = this.tf.layers
             .reshape({
-                targetShape: [this.maxLength, this.tokenizer.getLength()]
+                targetShape: [
+                    this.config.contextLength,
+                    this.tokenizer.getLength()
+                ]
             })
             .apply(outputs)
 
