@@ -88,7 +88,7 @@ export default class ModelBase {
 
         return {
             backend: this.tf.backend(),
-            allocated: allocated.toFixed(4),
+            allocated: allocated.toFixed(2),
             tensors,
             step: this.step,
             batch: this.batch,
