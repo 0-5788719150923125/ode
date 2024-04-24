@@ -1,119 +1,71 @@
 import ODE from './model.v4.js'
-import { randomValueFromArray } from './utils.js'
 
 /**
- * For CPU-only peers.
+ * For vision-based language modeling.
  * @extends ODE
  */
 export default class ObjectivelyDumbExample extends ODE {
     constructor(config) {
         super(config)
-        this.units = 66
+        this.units = 64
+        this.imageSize = 512
+        this.maxLength = this.config.contextLength
+        this.sourceFormat = 'image'
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+        this.tokenizer = this.ode.tokenizers.ImageTokenizer()
     }
 
     defineBuild() {
         const inputs = this.ode.layers.input({
-            shape: [null]
+            shape: [this.imageSize, this.imageSize, 1]
         })
 
-        const embeddings = this.ode.layers.SharedEmbedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
-            embeddingsInitializer: 'glorotUniform'
-        })
+        let outputs = inputs
 
-        const encoding = this.ode.layers.SinusoidalPositionalEncoding()
-
-        let outputs = encoding.apply(embeddings.apply(inputs))
-
-        outputs = this.ode.layers
-            .SelfAttention({
-                units: this.units,
-                projection: this.units / 2
+        // Convolutional layers
+        outputs = this.tf.layers
+            .conv2d({
+                filters: 32,
+                kernelSize: 3,
+                activation: 'relu',
+                padding: 'same'
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units / 2,
-                activation: 'mish'
+        outputs = this.tf.layers
+            .maxPooling2d({
+                poolSize: [2, 2],
+                strides: [2, 2]
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .SelfAttention({
-                units: this.units,
-                projection: this.units / 3
+        // Flatten the output
+        outputs = this.tf.layers.flatten().apply(outputs)
+
+        // Dense layers
+        outputs = this.tf.layers
+            .dense({
+                units: 16,
+                activation: 'relu'
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units / 3,
-                activation: 'mish'
+        outputs = this.tf.layers
+            .dense({
+                units: this.maxLength * this.tokenizer.getLength(),
+                activation: 'linear'
             })
             .apply(outputs)
 
-        // const numIterations = 9
-        // for (let i = 0; i < numIterations; i++) {
-        //     outputs = attn.apply(outputs)
-
-        //     outputs = this.ode.layers.Bias({ l2: 0.1 }).apply(outputs)
-
-        //     outputs = this.ode.layers
-        //         .activation({
-        //             activation: randomValueFromArray('mish', 'swish')
-        //         })
-        //         .apply(outputs)
-
-        //     // outputs = this.ode.layers
-        //     //     .ResidualConnection()
-        //     //     .apply([outputs, activated])
-        // }
-
-        // outputs = this.ode.layers
-        //     .MultiLayerPerceptron({
-        //         units: this.units,
-        //         innerDim: this.units * 4,
-        //         activation: 'mish'
-        //     })
-        //     .apply(outputs)
-
-        // outputs = this.ode.layers.Bias({ l2: 0.1 }).apply(outputs)
-        // outputs = this.ode.layers.Bias({ l1: 0.1 }).apply(outputs)
-
-        // outputs = this.ode.layers.Bias({ l1: 0.1 }).apply(outputs)
-        // outputs = this.ode.layers.Bias({ l2: 0.1 }).apply(outputs)
-
-        outputs = embeddings.apply(outputs)
+        // Reshape the output to match the desired shape
+        outputs = this.tf.layers
+            .reshape({
+                targetShape: [this.maxLength, this.tokenizer.getLength()]
+            })
+            .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }
-
-    defineSchedulers() {
-        this.learningRate = 0.0001
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
-    }
-
-    defineOptimizers() {
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: 0.1
-            })
-        ]
-    }
-}
-
-function rollDice(threshold = 0.333) {
-    if (Math.random() < threshold) return true
-    else return false
 }

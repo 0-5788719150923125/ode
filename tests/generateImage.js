@@ -91,7 +91,6 @@ function getPixels(ctx, size) {
         const token = isText ? 1 : 0
         tokenizedData.push(token)
     }
-
     return tokenizedData
 }
 

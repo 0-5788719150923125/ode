@@ -21,6 +21,8 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         clipValue: 1.0,
         labels: this.config.labels || 'timeDistributed',
         encoding: this.config.encoding || 'oneHot',
+        sourceFormat: this.sourceFormat || 'text',
+        imageSize: this.imageSize || 500,
         ...args
     }
 
@@ -54,7 +56,9 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             trainArgs.batchSize,
             trainArgs.sampleLength,
             trainArgs.labels,
-            trainArgs.encoding
+            trainArgs.encoding,
+            trainArgs.sourceFormat,
+            trainArgs.imageSize
         )
 
         // Fetch data and compute gradients
@@ -341,7 +345,9 @@ async function batchMaker(
     batchSize,
     inputLength,
     labels = 'timeDistributed',
-    encoding = 'oneHot'
+    encoding = 'oneHot',
+    sourceFormat = 'text',
+    imageSize = 500
 ) {
     let xsArray = []
     let ysArray = []
@@ -357,7 +363,11 @@ async function batchMaker(
         )
 
         // Input sequence (excluding the last token for prediction)
-        const xs = textIndices.slice(0, inputLength)
+        let xs = textIndices.slice(0, inputLength)
+
+        if (sourceFormat === 'image') {
+            xs = tokenizer.getPixelData(xs.join(''))
+        }
 
         // Determine output sequence based on the mode
         let ys
@@ -375,7 +385,16 @@ async function batchMaker(
         ysArray.push(ys)
     }
 
-    const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
+    let xsTensor
+    if (sourceFormat === 'image') {
+        xsTensor = tf.tensor4d(
+            xsArray.flat(),
+            [batchSize, imageSize, imageSize, 1],
+            'float32'
+        )
+    } else {
+        xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
+    }
 
     const ysTensor = tf.tidy(() => {
         if (encoding === 'integer') {
