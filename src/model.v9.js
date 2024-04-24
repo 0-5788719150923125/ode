@@ -14,7 +14,9 @@ export default class ObjectivelyDumbExample extends ODE {
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.ImageTokenizer()
+        this.tokenizer = this.ode.tokenizers.ImageTokenizer({
+            imageSize: this.imageSize
+        })
     }
 
     defineBuild() {

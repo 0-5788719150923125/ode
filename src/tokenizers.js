@@ -130,12 +130,13 @@ class XenovaTokenizer extends TokenizerBase {
 }
 
 class ImageTokenizer extends CharacterTokenizer {
-    constructor() {
-        super()
+    constructor(config) {
+        super({ ...config })
+        this.size = config.imageSize || 500
     }
 
     getPixelData(text) {
-        const size = 500
+        const size = this.size
         const backgroundColor = 'white'
         const textColor = 'black'
         const fontFamily = 'Arial'
@@ -352,6 +353,6 @@ const tokenizers = {
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),
     XenovaTokenizer: (config) => new XenovaTokenizer(config),
-    ImageTokenizer: () => new ImageTokenizer()
+    ImageTokenizer: (config) => new ImageTokenizer(config)
 }
 export default tokenizers
