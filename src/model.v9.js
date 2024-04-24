@@ -26,22 +26,25 @@ export default class ObjectivelyDumbExample extends ODE {
 
         let outputs = inputs
 
-        // Convolutional layers
-        outputs = this.tf.layers
-            .conv2d({
-                filters: 32,
-                kernelSize: 3,
-                activation: 'relu',
-                padding: 'same'
-            })
-            .apply(outputs)
+        const filters = [32, 64, 128, 256, 512]
 
-        outputs = this.tf.layers
-            .maxPooling2d({
-                poolSize: [2, 2],
-                strides: [2, 2]
-            })
-            .apply(outputs)
+        for (const filter of filters) {
+            outputs = this.tf.layers
+                .conv2d({
+                    filters: filter,
+                    kernelSize: 3,
+                    activation: 'swish',
+                    padding: 'same'
+                })
+                .apply(outputs)
+
+            outputs = this.tf.layers
+                .maxPooling2d({
+                    poolSize: [2, 2],
+                    strides: [2, 2]
+                })
+                .apply(outputs)
+        }
 
         // Flatten the output
         outputs = this.tf.layers.flatten().apply(outputs)
@@ -49,8 +52,8 @@ export default class ObjectivelyDumbExample extends ODE {
         // Dense layers
         outputs = this.tf.layers
             .dense({
-                units: 16,
-                activation: 'relu'
+                units: 256,
+                activation: 'mish'
             })
             .apply(outputs)
 

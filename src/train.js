@@ -366,7 +366,7 @@ async function batchMaker(
         let xs = textIndices.slice(0, inputLength)
 
         if (sourceFormat === 'image') {
-            xs = tokenizer.getPixelData(xs.join(''))
+            xs = tokenizer.getPixelData(tokenizer.decode(xs))
         }
 
         // Determine output sequence based on the mode

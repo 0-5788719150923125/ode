@@ -70,7 +70,6 @@ export default class OpportunisticDialogueEngine extends ODE {
 
     defineSchedulers() {
         this.learningRate = 0.001
-        // this.optimizers[0].learningRate = this.learningRate
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]
