@@ -129,7 +129,7 @@ class XenovaTokenizer extends TokenizerBase {
     }
 }
 
-class ImageTokenizer extends CharacterTokenizer {
+class Text2Image extends CharacterTokenizer {
     constructor(config) {
         super({ ...config })
         this.size = config.imageSize || 500
@@ -353,6 +353,6 @@ const tokenizers = {
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),
     XenovaTokenizer: (config) => new XenovaTokenizer(config),
-    ImageTokenizer: (config) => new ImageTokenizer(config)
+    Text2Image: (config) => new Text2Image(config)
 }
 export default tokenizers

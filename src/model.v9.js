@@ -13,7 +13,7 @@ export default class ObjectivelyDumbExample extends ODE {
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.ImageTokenizer({
+        this.tokenizer = this.ode.tokenizers.Text2Image({
             imageSize: this.imageSize
         })
     }
