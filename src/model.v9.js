@@ -10,7 +10,7 @@ export default class ObjectivelyDumbExample extends ODE {
         this.units = 64
         this.sourceFormat = 'image'
         this.imageSize = 512
-        this.encoderLayers = config.encoderLayers || 7
+        this.encoderLayers = config.encoderLayers || 6
     }
 
     defineTokenizer(config) {
@@ -27,6 +27,8 @@ export default class ObjectivelyDumbExample extends ODE {
         let outputs = inputs
 
         for (let i = 0; i < this.encoderLayers; i++) {
+            // console.log(outputs.shape)
+
             const stride = i % 2 === 0 ? 1 : 2
             outputs = this.tf.layers
                 .conv2d({
@@ -42,45 +44,31 @@ export default class ObjectivelyDumbExample extends ODE {
                 .globalAveragePooling2d({ dataFormat: 'channelsLast' })
                 .apply(outputs)
             console.log(outputs.shape)
+            outputs = this.tf.layers
+                .dense({
+                    units: this.units,
+                    activation: 'swish'
+                })
+                .apply(outputs)
 
-            // const originalShape = outputs.shape
-            // outputs = this.tf.layers
-            //     .reshape({
-            //         targetShape: [
-            //             this.units,
-            //             originalShape[1] * originalShape[2]
-            //         ]
-            //     })
-            //     .apply(outputs)
+            outputs = this.tf.layers
+                .reshape({
+                    targetShape: [1, ...outputs.shape.slice(1)]
+                })
+                .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .SelfAttention({
-            //         units: outputs.shape[2],
-            //         projection: outputs.shape[2] / 4
-            //     })
-            //     .apply(outputs)
+            outputs = this.ode.layers
+                .SelfAttention({
+                    units: this.units,
+                    projection: this.units * 4
+                })
+                .apply(outputs)
 
-            // outputs = this.tf.layers
-            //     .reshape({
-            //         targetShape: [
-            //             originalShape[1],
-            //             originalShape[2],
-            //             this.units
-            //         ]
-            //     })
-            //     .apply(outputs)
-
-            // outputs = this.tf.layers
-            // .reshape({
-            //     targetShape: [this.units, this.imageSize * this.imageSize]
-            // })
-            // .apply(outputs)
-
-            // outputs = this.tf.layers
-            //     .reshape({
-            //         targetShape: [this.imageSize, this.imageSize, this.units]
-            //     })
-            //     .apply(outputs)
+            outputs = this.tf.layers
+                .reshape({
+                    targetShape: [1, 1, this.units]
+                })
+                .apply(outputs)
         }
 
         outputs = this.tf.layers
