@@ -74,7 +74,7 @@ async function orchestrate(options) {
 
     if (['train', 'continue'].includes(options.mode)) {
         const dataset = net.ode.samplers.stringSampler(
-            options.sampleLength * 5,
+            options.sampleLength * 6,
             0,
             corpus
         )

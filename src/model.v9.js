@@ -10,6 +10,7 @@ export default class ObjectivelyDumbExample extends ODE {
         this.units = 256
         this.sourceFormat = 'image'
         this.imageSize = 512
+        this.encoderLayers = config.encoderLayers || 6
     }
 
     defineTokenizer(config) {
@@ -25,13 +26,20 @@ export default class ObjectivelyDumbExample extends ODE {
 
         let outputs = inputs
 
-        const filters = [32, 64, 128, 256, 512]
-
-        for (const filter of filters) {
+        for (let i = 0; i < this.encoderLayers; i++) {
             outputs = this.tf.layers
                 .conv2d({
-                    filters: filter,
+                    filters: this.units,
                     kernelSize: 3,
+                    activation: 'swish',
+                    padding: 'same'
+                })
+                .apply(outputs)
+
+            outputs = this.tf.layers
+                .conv2d({
+                    filters: this.units,
+                    kernelSize: 1,
                     activation: 'swish',
                     padding: 'same'
                 })
@@ -45,31 +53,25 @@ export default class ObjectivelyDumbExample extends ODE {
                 .apply(outputs)
         }
 
-        // Flatten the output
-        outputs = this.tf.layers.flatten().apply(outputs)
-
-        // Dense layers
+        // Global average pooling
         outputs = this.tf.layers
-            .dense({
-                units: this.units,
-                activation: 'mish'
+            .globalAveragePooling2d({ dataFormat: 'channelsLast' })
+            .apply(outputs)
+
+        // Repeat the feature vector to create the time steps dimension
+        outputs = this.tf.layers
+            .repeatVector({
+                n: this.config.contextLength
             })
             .apply(outputs)
 
+        // Dense layer to project the output to the token space
         outputs = this.tf.layers
-            .dense({
-                units: this.config.contextLength * this.tokenizer.getLength(),
-                activation: 'linear'
-            })
-            .apply(outputs)
-
-        // Reshape the output to match the desired shape
-        outputs = this.tf.layers
-            .reshape({
-                targetShape: [
-                    this.config.contextLength,
-                    this.tokenizer.getLength()
-                ]
+            .timeDistributed({
+                layer: this.tf.layers.dense({
+                    units: this.tokenizer.getLength(),
+                    activation: 'linear'
+                })
             })
             .apply(outputs)
 
