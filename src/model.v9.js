@@ -7,7 +7,7 @@ import ODE from './model.v4.js'
 export default class ObjectivelyDumbExample extends ODE {
     constructor(config) {
         super(config)
-        this.units = 64
+        this.units = 256
         this.sourceFormat = 'image'
         this.imageSize = 512
         this.encoderLayers = config.encoderLayers || 6
@@ -27,8 +27,6 @@ export default class ObjectivelyDumbExample extends ODE {
         let outputs = inputs
 
         for (let i = 0; i < this.encoderLayers; i++) {
-            // console.log(outputs.shape)
-
             const stride = i % 2 === 0 ? 1 : 2
             outputs = this.tf.layers
                 .conv2d({
@@ -43,7 +41,7 @@ export default class ObjectivelyDumbExample extends ODE {
             outputs = this.tf.layers
                 .globalAveragePooling2d({ dataFormat: 'channelsLast' })
                 .apply(outputs)
-            console.log(outputs.shape)
+
             outputs = this.tf.layers
                 .dense({
                     units: this.units,
@@ -88,12 +86,12 @@ export default class ObjectivelyDumbExample extends ODE {
             })
             .apply(outputs)
 
-        // outputs = this.tf.layers
-        //     .dense({
-        //         units: this.config.contextLength,
-        //         activation: 'swish'
-        //     })
-        //     .apply(outputs)
+        outputs = this.tf.layers
+            .dense({
+                units: this.config.contextLength,
+                activation: 'swish'
+            })
+            .apply(outputs)
 
         outputs = this.tf.layers
             .timeDistributed({
