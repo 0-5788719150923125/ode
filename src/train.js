@@ -461,10 +461,14 @@ export class PredictionSampler {
                 .next()
                 .value.slice(1, seedLength)
 
-            const params = { doSample: true, temperature: 0.23 }
+            const params = {
+                doSample: true,
+                temperature: 0.333,
+                repetitionPenalty: 1.1,
+                maxNewTokens: maxLength
+            }
             const output = await this.parent.generate({
                 prompt,
-                maxNewTokens: maxLength,
                 ...params
             })
             const endTime = performance.now()

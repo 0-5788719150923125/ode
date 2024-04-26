@@ -4,7 +4,7 @@ import ODE from './model.v4.js'
  * For vision-based language modeling.
  * @extends ODE
  */
-export default class ObjectivelyDumbExample extends ODE {
+export default class ObjectivelyDumbExperiment extends ODE {
     constructor(config) {
         super(config)
         this.units = 256

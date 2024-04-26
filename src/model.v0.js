@@ -405,34 +405,48 @@ function prepareInputs(inputs) {
     })
 }
 
-function applyRepetitionPenalty(logits, idx, repetitionPenalty) {
+function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
     return tf.tidy(() => {
-        const logitsShape = logits.shape
-        const logitsFlat = logits.reshape([-1])
-        const idxFlat = idx.flatten()
+        const sequenceLength = outputSequence.shape[1]
+        const vocabularySize = logits.shape[0]
 
-        const uniqueIndices = tf.unique(idxFlat).values
-        const gatherIndices = uniqueIndices
-        const scores = tf.gather(logitsFlat, gatherIndices)
-
-        const penalizedScores = tf.where(
-            scores.less(0),
-            scores.mul(repetitionPenalty),
-            scores.div(repetitionPenalty)
+        // Create a tensor of shape [sequenceLength, vocabularySize] filled with the repetition penalty value
+        const penaltyTensor = tf.fill(
+            [sequenceLength, vocabularySize],
+            repetitionPenalty
         )
 
-        const scatterIndices = tf
-            .range(0, uniqueIndices.shape[0], 1, 'int32')
-            .reshape([-1, 1])
-        const updatedLogitsFlat = tf.scatterND(
-            scatterIndices,
-            penalizedScores,
-            logitsFlat.shape
+        // Create a mask tensor to identify the previous tokens
+        const outputSequenceMask = tf.cast(
+            tf.greaterEqual(outputSequence, 0),
+            'float32'
         )
 
-        const updatedLogits = updatedLogitsFlat.reshape(logitsShape)
+        // Reshape the output sequence mask to match the shape of the penalty tensor
+        const outputSequenceMaskReshaped = outputSequenceMask
+            .reshape([sequenceLength, 1])
+            .tile([1, vocabularySize])
 
-        return updatedLogits
+        // Create a tensor of shape [sequenceLength, vocabularySize] representing the penalty factors
+        // The penalty factors decrease linearly from 1 to 0 over the sequence length
+        const penaltyFactors = tf
+            .linspace(1, 0, sequenceLength)
+            .expandDims(1)
+            .tile([1, vocabularySize])
+
+        // Calculate the effective penalty tensor by element-wise multiplication
+        const effectivePenalty = tf.mul(
+            penaltyTensor,
+            tf.mul(outputSequenceMaskReshaped, penaltyFactors)
+        )
+
+        // Reshape the effective penalty tensor to match the shape of the logits
+        const effectivePenaltyReshaped = effectivePenalty.sum(0).expandDims(0)
+
+        // Apply the repetition penalty to the logits
+        const penalizedLogits = tf.sub(logits, effectivePenaltyReshaped)
+
+        return penalizedLogits
     })
 }
 
