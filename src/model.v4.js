@@ -12,7 +12,7 @@ export default class OpportunisticDialogueEngine extends ODE {
         this.heads = config.heads || 8
         this.units = config.units || 512
         this.innerDim = config.innerDim || this.units * 4
-        this.epsilon = config.epsilon || 1e-5
+        this.epsilon = config.epsilon || false
         this.alpha = config.alpha || 0.22
     }
 
@@ -43,7 +43,7 @@ export default class OpportunisticDialogueEngine extends ODE {
                     units: this.units,
                     blockSize: this.config.contextLength,
                     heads: this.heads,
-                    // epsilon: this.epsilon,
+                    epsilon: this.epsilon,
                     alpha: this.alpha
                 })
                 .apply(outputs)
@@ -52,7 +52,7 @@ export default class OpportunisticDialogueEngine extends ODE {
                 .GatedLinearUnit({
                     units: this.units,
                     innerDim: this.innerDim,
-                    // epsilon: this.epsilon,
+                    epsilon: this.epsilon,
                     activation: 'mish'
                 })
                 .apply(outputs)

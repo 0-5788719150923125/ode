@@ -7,7 +7,7 @@ import ODE from './model.v4.js'
 export default class OrthogonalDepthwiseEntanglement extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
+        this.layers = config.layers || 1
         this.units = config.units || 512
         this.innerDim = config.innerDim || this.units * 4
     }
@@ -27,7 +27,7 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .StateSpace({
+                .StatePlacement({
                     units: this.units,
                     innerDim: this.innerDim,
                     returnSequences: true

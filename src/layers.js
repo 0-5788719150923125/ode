@@ -2935,6 +2935,22 @@ class StateSpace extends LayerBase {
         return outputShape
     }
 
+    getWeights() {
+        return [
+            this.kernel.read(),
+            this.outputKernel.read(),
+            this.recurrentKernel.read(),
+            this.bias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.kernel.write(weights[0])
+        this.outputKernel.write(weights[1])
+        this.recurrentKernel.write(weights[2])
+        this.bias.write(weights[3])
+    }
+
     getConfig() {
         return {
             ...super.getConfig(),
@@ -3205,6 +3221,154 @@ class StructuredStateSpace extends LayerBase {
             returnSequences: this.returnSequences,
             epsilon: this.epsilon,
             chunkSize: this.chunkSize
+        }
+    }
+}
+
+class StatePlacement extends LayerBase {
+    constructor(config) {
+        super({ name: `ssm-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.innerDim = config.innerDim || 256
+        this.returnSequences = config.returnSequences || false
+        this.epsilon = config.epsilon || false
+        this.k = config.k || 4
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[2]
+        this.kernel = this.addWeight(
+            'kernel',
+            [inputDim, this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.recurrentKernel = this.addWeight(
+            'recurrentKernel',
+            [this.units, this.innerDim],
+            'float32',
+            tf.initializers.orthogonal({ gain: 1 })
+        )
+        this.attentionKernel = this.addWeight(
+            'attentionKernel',
+            [inputDim, 1],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.bias = this.addWeight(
+            'bias',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
+
+        this.residual = new ResidualConnection()
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const [batchSize, sequenceLength, inputDim] = inputs.shape
+
+            let state = tf.zeros([batchSize, this.units])
+
+            const attentionScores = this.dense(
+                inputs,
+                this.attentionKernel,
+                null
+            ).reshape([batchSize, sequenceLength])
+            const topkIndices = tf.topk(attentionScores, this.k).indices
+
+            const selectedInputs = tf.gather(inputs, topkIndices, 1)
+            const outputs = []
+
+            for (let t = 0; t < this.k; t++) {
+                const input = selectedInputs.slice(
+                    [0, t, 0],
+                    [batchSize, 1, inputDim]
+                )
+                const innerState = tf.tanh(
+                    tf.add(
+                        tf.add(
+                            this.dense(
+                                input.reshape([batchSize, inputDim]),
+                                this.kernel,
+                                this.bias
+                            ),
+                            this.dense(state, this.recurrentKernel, null)
+                        ),
+                        this.bias.read()
+                    )
+                )
+                const newState = this.dense(innerState, this.outputKernel, null)
+                outputs.push(newState)
+                state = newState
+            }
+
+            let output = this.returnSequences
+                ? tf.stack(outputs, 1)
+                : outputs[outputs.length - 1]
+
+            if (this.layernorm) output = this.layernorm.apply(output)
+
+            return this.residual.apply([inputs, output])
+        })
+    }
+
+    dense(x, kernel, bias) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        const m = tf.matMul(x, k)
+        if (bias) {
+            return tf.add(m, bias.read())
+        } else {
+            return m
+        }
+    }
+
+    computeOutputShape(inputShape) {
+        const outputShape = this.returnSequences
+            ? [inputShape[0], inputShape[1], this.units]
+            : [inputShape[0], this.units]
+        return outputShape
+    }
+
+    getWeights() {
+        return [
+            this.kernel.read(),
+            this.outputKernel.read(),
+            this.recurrentKernel.read(),
+            this.bias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.kernel.write(weights[0])
+        this.outputKernel.write(weights[1])
+        this.recurrentKernel.write(weights[2])
+        this.bias.write(weights[3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            innerDim: this.innerDim,
+            returnSequences: this.returnSequences,
+            epsilon: this.epsilon,
+            k: this.k
         }
     }
 }
@@ -4799,6 +4963,7 @@ const exportedLayers = [
     SparseMixtureOfExperts,
     SqueezeAndExcitation,
     StateSpace,
+    StatePlacement,
     StructuredStateSpace,
     SynthesizerAttention,
     TemporalPooling,

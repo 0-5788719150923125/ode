@@ -7,7 +7,7 @@ import ODE from './model.v4.js'
 export default class ObjectivelyDumbExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.units = 256
+        this.units = 512
         this.sourceFormat = 'image'
         this.imageSize = 256
     }
@@ -20,86 +20,73 @@ export default class ObjectivelyDumbExperiment extends ODE {
 
     defineBuild() {
         const inputs = this.ode.layers.input({
-            shape: [this.imageSize, this.imageSize, 1]
+            shape: [
+                -1,
+                this.config.contextLength,
+                this.imageSize,
+                this.imageSize,
+                1
+            ]
         })
 
         let outputs = inputs
 
-        const filters = [256, 128, 128, 64, 64, 64]
-
-        for (const i in filters) {
+        const filters = [64, 64, 64]
+        for (const filter of filters) {
             outputs = this.tf.layers
-                .conv2d({
-                    filters: filters[i],
-                    kernelSize: 3,
-                    activation: 'swish',
-                    padding: 'same',
-                    dilationRate: 1
+                .timeDistributed({
+                    layer: this.tf.layers.conv2d({
+                        filters: filter,
+                        kernelSize: 3,
+                        activation: 'swish',
+                        padding: 'same',
+                        dilationRate: 1
+                    })
                 })
                 .apply(outputs)
 
-            if (i % 3 !== 0) {
-                outputs = this.tf.layers
-                    .maxPooling2d({
-                        poolSize: [2, 2],
-                        strides: [2, 2]
-                    })
-                    .apply(outputs)
-            }
+            // outputs = this.tf.layers
+            //     .timeDistributed({
+            //         layer: this.tf.layers.maxPooling2d({
+            //             poolSize: [2, 2],
+            //             strides: [2, 2]
+            //         })
+            //     })
+            //     .apply(outputs)
 
-            console.log(outputs.shape)
+            outputs = this.tf.layers
+                .reshape({
+                    targetShape: [
+                        this.config.contextLength,
+                        outputs.shape[2],
+                        outputs.shape[3]
+                        // outputs.shape[4]
+                    ]
+                })
+                .apply(outputs)
         }
+
+        outputs = this.tf.layers
+            .timeDistributed({
+                layer: this.tf.layers.globalAveragePooling2d({
+                    dataFormat: 'channelsLast'
+                })
+            })
+            .apply(outputs)
 
         outputs = this.tf.layers
             .reshape({
                 targetShape: [
-                    1,
-                    outputs.shape[1] * outputs.shape[2] * outputs.shape[3]
+                    this.config.contextLength,
+                    filters[filters.length - 1]
                 ]
             })
             .apply(outputs)
 
-        outputs = this.tf.layers
-            .dense({
-                units: this.units,
-                activation: 'swish'
-            })
-            .apply(outputs)
-
         outputs = this.ode.layers
-            .SelfAttention({
-                units: this.units,
-                projection: this.units * 4
-            })
-            .apply(outputs)
-
-        outputs = this.ode.layers
-            .MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units * 4,
-                activation: 'mish'
-            })
-            .apply(outputs)
-
-        outputs = this.tf.layers
             .dense({
-                units: this.config.contextLength,
-                activation: 'swish'
-            })
-            .apply(outputs)
-
-        outputs = this.tf.layers
-            .reshape({
-                targetShape: [this.config.contextLength, 1]
-            })
-            .apply(outputs)
-
-        outputs = this.tf.layers
-            .timeDistributed({
-                layer: this.tf.layers.dense({
-                    units: this.tokenizer.getLength(),
-                    activation: 'linear'
-                })
+                units: this.tokenizer.getLength(),
+                activation: 'linear'
             })
             .apply(outputs)
 
