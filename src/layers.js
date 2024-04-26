@@ -2962,182 +2962,14 @@ class StateSpace extends LayerBase {
     }
 }
 
-class ChunkedStateSpace extends LayerBase {
+class ChunkedStateSpace extends StateSpace {
     constructor(config) {
-        super({ name: `ssm-${randomString()}`, ...config })
-        this.units = config.units || 64
-        this.innerDim = config.innerDim || 256
-        this.returnSequences = config.returnSequences || false
-        this.epsilon = config.epsilon || 1e-5
-        this.chunkSize = config.chunkSize || 4
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[2]
-        this.kernel = this.addWeight(
-            'kernel',
-            [inputDim, this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.recurrentKernel = this.addWeight(
-            'recurrentKernel',
-            [this.units, this.innerDim],
-            'float32',
-            tf.initializers.orthogonal({ gain: 1 })
-        )
-        this.outputKernel = this.addWeight(
-            'outputKernel',
-            [this.innerDim, this.units],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.bias = this.addWeight(
-            'bias',
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        this.layernorm = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-
-        this.residual = new ResidualConnection()
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            const [batchSize, sequenceLength, inputDim] = inputs.shape
-
-            let state = tf.zeros([batchSize, this.units])
-            const outputs = []
-
-            const kernel = this.kernel.read()
-            const recurrentKernel = this.recurrentKernel.read()
-            const outputKernel = this.outputKernel.read()
-            const bias = this.bias.read()
-
-            const numChunks = Math.ceil(sequenceLength / this.chunkSize)
-
-            for (let c = 0; c < numChunks; c++) {
-                const chunkStart = c * this.chunkSize
-                const chunkEnd = Math.min(
-                    chunkStart + this.chunkSize,
-                    sequenceLength
-                )
-                const chunkLength = chunkEnd - chunkStart
-
-                const inputChunk = inputs
-                    .slice(
-                        [0, chunkStart, 0],
-                        [batchSize, chunkLength, inputDim]
-                    )
-                    .reshape([batchSize * chunkLength, inputDim])
-
-                const innerStateChunk = tf.tanh(
-                    tf.add(
-                        tf.add(
-                            tf.matMul(inputChunk, kernel),
-                            tf.matMul(
-                                tf.tile(state, [chunkLength, 1]),
-                                recurrentKernel
-                            )
-                        ),
-                        bias
-                    )
-                )
-
-                const newStateChunk = tf.matMul(innerStateChunk, outputKernel)
-                // state = tf.mean(
-                //     newStateChunk.reshape([batchSize, chunkLength, this.units]),
-                //     1
-                // )
-                state = newStateChunk.slice(
-                    [batchSize * (chunkLength - 1), 0],
-                    [batchSize, this.units]
-                )
-
-                outputs.push(
-                    newStateChunk.reshape([batchSize, chunkLength, this.units])
-                )
-            }
-
-            let output = this.returnSequences
-                ? tf.concat(outputs, 1)
-                : outputs[outputs.length - 1]
-
-            output = this.layernorm.apply(output)
-
-            return this.residual.apply([inputs, output])
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        const outputShape = this.returnSequences
-            ? [inputShape[0], inputShape[1], this.units]
-            : [inputShape[0], this.units]
-        return outputShape
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            units: this.units,
-            innerDim: this.innerDim,
-            returnSequences: this.returnSequences,
-            epsilon: this.epsilon,
-            chunkSize: this.chunkSize
-        }
-    }
-}
-
-class StructuredStateSpace extends LayerBase {
-    constructor(config) {
-        super({ name: `sss-${randomString()}`, ...config })
+        super({ name: `css-${randomString()}`, ...config })
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
         this.epsilon = config.epsilon || false
         this.chunkSize = config.chunkSize || 4
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[2]
-        this.kernel = this.addWeight(
-            'kernel',
-            [inputDim, this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.recurrentKernel = this.addWeight(
-            'recurrentKernel',
-            [this.units, this.innerDim],
-            'float32',
-            tf.initializers.orthogonal({ gain: 1 })
-        )
-        this.outputKernel = this.addWeight(
-            'outputKernel',
-            [this.innerDim, this.units],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.bias = this.addWeight(
-            'bias',
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        if (this.epsilon) {
-            this.layernorm = tf.layers.layerNormalization({
-                epsilon: this.epsilon
-            })
-        }
-
-        this.residual = new ResidualConnection()
     }
 
     call(inputs, kwargs) {
@@ -3206,20 +3038,9 @@ class StructuredStateSpace extends LayerBase {
         })
     }
 
-    computeOutputShape(inputShape) {
-        const outputShape = this.returnSequences
-            ? [inputShape[0], inputShape[1], this.units]
-            : [inputShape[0], this.units]
-        return outputShape
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),
-            units: this.units,
-            innerDim: this.innerDim,
-            returnSequences: this.returnSequences,
-            epsilon: this.epsilon,
             chunkSize: this.chunkSize
         }
     }
@@ -4964,7 +4785,6 @@ const exportedLayers = [
     SqueezeAndExcitation,
     StateSpace,
     StatePlacement,
-    StructuredStateSpace,
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot
