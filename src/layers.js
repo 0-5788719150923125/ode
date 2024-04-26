@@ -215,6 +215,221 @@ class SelfAttention extends LayerBase {
     }
 }
 
+class LocalSelfAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `local-attn-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.projection = config.projection || 256
+        this.chunkSize = config.chunkSize || 64
+    }
+
+    build(inputShape) {
+        this.queryKernel = this.addWeight(
+            'queryKernel',
+            [inputShape[inputShape.length - 1], this.projection],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.keyKernel = this.addWeight(
+            'keyKernel',
+            [inputShape[inputShape.length - 1], this.projection],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.valueKernel = this.addWeight(
+            'valueKernel',
+            [inputShape[inputShape.length - 1], this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const Q = this.applyDense(inputs, this.queryKernel)
+            const K = this.applyDense(inputs, this.keyKernel)
+            const V = this.applyDense(inputs, this.valueKernel)
+
+            const numChunks = Math.ceil(inputs.shape[1] / this.chunkSize)
+            const chunkOutputs = []
+
+            for (let i = 0; i < numChunks; i++) {
+                const start = i * this.chunkSize
+                const end = Math.min((i + 1) * this.chunkSize, inputs.shape[1])
+
+                const chunkQ = Q.slice(
+                    [0, start, 0],
+                    [Q.shape[0], end - start, Q.shape[2]]
+                )
+                const chunkK = K.slice(
+                    [0, start, 0],
+                    [K.shape[0], end - start, K.shape[2]]
+                )
+                const chunkV = V.slice(
+                    [0, start, 0],
+                    [V.shape[0], end - start, V.shape[2]]
+                )
+
+                const scores = tf
+                    .matMul(chunkQ, chunkK, false, true)
+                    .div(tf.scalar(this.projection).sqrt())
+
+                const weights = scores.softmax()
+
+                const chunkOutput = tf.matMul(weights, chunkV)
+                chunkOutputs.push(chunkOutput)
+            }
+
+            const outputs = tf.concat(chunkOutputs, 1)
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    getWeights() {
+        return [
+            this.queryKernel.read(),
+            this.keyKernel.read(),
+            this.valueKernel.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.queryKernel.write(weights[0])
+        this.keyKernel.write(weights[1])
+        this.valueKernel.write(weights[2])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            projection: this.projection,
+            chunkSize: this.chunkSize
+        }
+    }
+}
+
+class MultiQueryAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `mqa-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.projection = config.projection || 256
+        this.queries = config.queries || 8
+    }
+
+    build(inputShape) {
+        this.queryKernels = []
+        for (let i = 0; i < this.queries; i++) {
+            this.queryKernels.push(
+                this.addWeight(
+                    `queryKernel${i}`,
+                    [inputShape[inputShape.length - 1], this.projection],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+        }
+        this.keyKernel = this.addWeight(
+            'keyKernel',
+            [inputShape[inputShape.length - 1], this.projection],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.valueKernel = this.addWeight(
+            'valueKernel',
+            [inputShape[inputShape.length - 1], this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.units * this.queries, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const K = this.applyDense(inputs, this.keyKernel)
+            const V = this.applyDense(inputs, this.valueKernel)
+
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
+
+            const attentionOutputs = []
+
+            for (let i = 0; i < this.queries; i++) {
+                const Q = this.applyDense(inputs, this.queryKernels[i])
+
+                const scores = tf
+                    .matMul(Q, K, false, true)
+                    .div(tf.scalar(this.projection).sqrt())
+                    .add(mask)
+
+                const weights = scores.softmax()
+
+                const output = tf.matMul(weights, V)
+                attentionOutputs.push(output)
+            }
+
+            const concatenatedOutputs = tf.concat(attentionOutputs, -1)
+            const outputs = this.applyDense(
+                concatenatedOutputs,
+                this.outputKernel
+            )
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    getWeights() {
+        return [
+            ...this.queryKernels.map((kernel) => kernel.read()),
+            this.keyKernel.read(),
+            this.valueKernel.read(),
+            this.outputKernel.read()
+        ]
+    }
+
+    setWeights(weights) {
+        for (let i = 0; i < this.queries; i++) {
+            this.queryKernels[i].write(weights[i])
+        }
+        this.keyKernel.write(weights[this.queries])
+        this.valueKernel.write(weights[this.queries + 1])
+        this.outputKernel.write(weights[this.queries + 2])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            projection: this.projection,
+            queries: this.queries
+        }
+    }
+}
+
 class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
         super({ name: `mlp-${randomString()}`, ...config })
@@ -334,6 +549,145 @@ class MultiLayerPerceptron extends LayerBase {
             units: this.units,
             innerDim: this.innerDim,
             dropout: this.dropout
+        }
+    }
+}
+
+class GroupedQueryAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `gqa-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.projection = config.projection || 256
+        this.groups = config.groups || 8
+    }
+
+    build(inputShape) {
+        this.queryKernels1 = []
+        this.queryKernels2 = []
+        this.keyKernels = []
+        this.valueKernels = []
+
+        for (let i = 0; i < this.groups; i++) {
+            this.queryKernels1.push(
+                this.addWeight(
+                    `queryKernel1_${i}`,
+                    [inputShape[inputShape.length - 1], this.projection],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.queryKernels2.push(
+                this.addWeight(
+                    `queryKernel2_${i}`,
+                    [inputShape[inputShape.length - 1], this.projection],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.keyKernels.push(
+                this.addWeight(
+                    `keyKernel${i}`,
+                    [inputShape[inputShape.length - 1], this.projection],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.valueKernels.push(
+                this.addWeight(
+                    `valueKernel${i}`,
+                    [inputShape[inputShape.length - 1], this.units],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+        }
+
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.units * this.groups * 2, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
+
+            const attentionOutputs = []
+
+            for (let i = 0; i < this.groups; i++) {
+                const Q1 = this.applyDense(inputs, this.queryKernels1[i])
+                const Q2 = this.applyDense(inputs, this.queryKernels2[i])
+                const K = this.applyDense(inputs, this.keyKernels[i])
+                const V = this.applyDense(inputs, this.valueKernels[i])
+
+                const scores1 = tf
+                    .matMul(Q1, K, false, true)
+                    .div(tf.scalar(this.projection).sqrt())
+                    .add(mask)
+
+                const scores2 = tf
+                    .matMul(Q2, K, false, true)
+                    .div(tf.scalar(this.projection).sqrt())
+                    .add(mask)
+
+                const weights1 = scores1.softmax()
+                const weights2 = scores2.softmax()
+
+                const output1 = tf.matMul(weights1, V)
+                const output2 = tf.matMul(weights2, V)
+
+                attentionOutputs.push(output1, output2)
+            }
+
+            const concatenatedOutputs = tf.concat(attentionOutputs, -1)
+            const outputs = this.applyDense(
+                concatenatedOutputs,
+                this.outputKernel
+            )
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    getWeights() {
+        return [
+            ...this.queryKernels1.map((kernel) => kernel.read()),
+            ...this.queryKernels2.map((kernel) => kernel.read()),
+            ...this.keyKernels.map((kernel) => kernel.read()),
+            ...this.valueKernels.map((kernel) => kernel.read()),
+            this.outputKernel.read()
+        ]
+    }
+
+    setWeights(weights) {
+        for (let i = 0; i < this.groups; i++) {
+            this.queryKernels1[i].write(weights[i])
+            this.queryKernels2[i].write(weights[this.groups + i])
+            this.keyKernels[i].write(weights[this.groups * 2 + i])
+            this.valueKernels[i].write(weights[this.groups * 3 + i])
+        }
+        this.outputKernel.write(weights[this.groups * 4])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            projection: this.projection,
+            groups: this.groups
         }
     }
 }
@@ -4399,31 +4753,37 @@ class Bias extends LayerBase {
 
 const exportedLayers = [
     Antirectifier,
+    Autoencoder,
     Bias,
     CapsNet,
     CausalSelfAttention,
     ChunkedStateSpace,
     CollapseOneHot,
+    Collideoscope,
     CompressorHead,
     ControlGate,
     ConvolutionalExpansionLayer,
     DebugLayer,
+    DenseMultiLayerPerceptron,
     DepthwiseSeparableConvolution,
     DeterministicEmbedding,
-    Autoencoder,
     DimensionContraction,
     DimensionExpansion,
     DumbCompression,
     EfficientChannelAttention,
     FourierFeaturePositionalEncoding,
-    InstanceNormalization,
     GatedLinearUnit,
+    GroupedQueryAttention,
+    InstanceNormalization,
+    Interrogator,
     LambdaLayer,
     LazyMixtureOfExperts,
     LearnedUpsampling,
+    LinearAttention,
+    LocalSelfAttention,
     MixtureOfDepthsRouting,
     MultiLayerPerceptron,
-    DenseMultiLayerPerceptron,
+    MultiQueryAttention,
     NearestNeighborUpsampling,
     PerformerAttention,
     PseudoQuantumState,
@@ -4431,21 +4791,18 @@ const exportedLayers = [
     Range,
     ResidualConnection,
     RotaryPositionalEncoding,
+    SelfAttention,
     SequenceExpansionLayer,
     SharedEmbedding,
-    SelfAttention,
     SinusoidalPositionalEncoding,
+    SparseEstimatedAttention,
     SparseMixtureOfExperts,
     SqueezeAndExcitation,
     StateSpace,
     StructuredStateSpace,
     SynthesizerAttention,
     TemporalPooling,
-    ToOneHot,
-    Interrogator,
-    Collideoscope,
-    SparseEstimatedAttention,
-    LinearAttention
+    ToOneHot
 ]
 
 exportedLayers.forEach((LayerClass) => {
