@@ -54,7 +54,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .CapNet({
+                .CapsNet({
                     units: this.units,
                     innerDim: this.innerDim * 4,
                     epsilon: this.epsilon,
