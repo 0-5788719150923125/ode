@@ -37,8 +37,8 @@ export default class ModelBase {
     async preInit() {
         this.tf = tfjs
         if (this.config.backend === 'tensorflow') {
-            let x = '@tensorflow/tfjs-node-gpu'
-            tf = await import(x)
+            let backend = '@tensorflow/tfjs-node-gpu'
+            tf = await import(backend)
             this.tf = tf
         }
         await this.tf.ready()

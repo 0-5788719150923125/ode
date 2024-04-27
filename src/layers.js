@@ -215,6 +215,152 @@ class SelfAttention extends LayerBase {
     }
 }
 
+// https://github.com/lhallee/Multi_Head_Mixture_of_Experts__MH-MOE/blob/main/mhmoe.py
+class MultiHeadMoeBlock extends LayerBase {
+    constructor(config) {
+        super({ name: `mh-moe-${randomString()}`, ...config })
+        this.hiddenDim = config.hiddenDim || 64
+        this.numExperts = config.numExperts || 4
+        this.numHeads = config.numHeads || 4
+        this.topk = config.topk || 2
+        this.headDim = this.hiddenDim / this.numHeads
+        this.roundedDim =
+            Math.floor(this.hiddenDim / this.numHeads) * this.numHeads
+    }
+
+    build(inputShape) {
+        this.multiHeadLayer = tf.layers.dense({
+            units: this.roundedDim,
+            useBias: false,
+            activation: 'linear',
+            kernelInitializer: 'glorotUniform'
+        })
+
+        this.router = new MHRouter({
+            numExperts: this.numExperts,
+            hiddenDim: this.hiddenDim,
+            numHeads: this.numHeads
+        })
+
+        this.experts = []
+        for (let i = 0; i < this.numExperts; i++) {
+            const expert = tf.layers.dense({
+                units: this.headDim,
+                useBias: false,
+                activation: 'linear',
+                kernelInitializer: 'glorotUniform'
+            })
+            this.experts.push(expert)
+        }
+
+        this.mergeLayer = tf.layers.dense({
+            units: this.hiddenDim,
+            useBias: false,
+            activation: 'linear',
+            kernelInitializer: 'glorotUniform'
+        })
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const batchSize = inputs.shape[0]
+            const seqLen = inputs.shape[1]
+
+            // Project inputs to rounded dimension
+            let x = this.multiHeadLayer.apply(inputs)
+            x = x.reshape([batchSize * seqLen * this.numHeads, this.headDim])
+
+            // Router
+            const routerLogits = this.router.apply(x)
+            const routerWeights = routerLogits.softmax()
+            const topkOutputs = tf.topk(routerWeights, this.topk)
+
+            // Call experts densely, faster than selective loops
+            const expertOutputs = []
+            for (const expert of this.experts) {
+                expertOutputs.push(expert.apply(x))
+            }
+            const expertStack = tf.stack(expertOutputs, 1)
+
+            // Select top-k expert outputs
+            const batchIndices = tf.range(0, expertStack.shape[0]).expandDims(1)
+            const gatherIndices = tf.concat(
+                [batchIndices.cast('int32'), topkOutputs.indices.cast('int32')],
+                1
+            )
+            const selectedExpertOutputs = tf.gatherND(
+                expertStack.cast('float32'),
+                gatherIndices.cast('int32')
+            )
+
+            // Multiply selected expert outputs with router weights elementwise
+            const weightedExpertOutputs = selectedExpertOutputs.mul(
+                topkOutputs.values.expandDims(-1)
+            )
+
+            // Combine top-k expert outputs
+            x = weightedExpertOutputs.sum(1)
+
+            // Back to original shape
+            x = x.reshape([batchSize, seqLen, this.headDim])
+            x = this.mergeLayer.apply(x)
+
+            return x
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            hiddenDim: this.hiddenDim,
+            numExperts: this.numExperts,
+            numHeads: this.numHeads,
+            topk: this.topk
+        }
+    }
+}
+
+class MHRouter extends LayerBase {
+    constructor(config) {
+        super({ name: `mh-router-${randomString()}`, ...config })
+        this.numExperts = config.numExperts
+        this.hiddenDim = config.hiddenDim
+        this.numHeads = config.numHeads
+    }
+
+    build(inputShape) {
+        this.expertEmbedding = this.addWeight(
+            'expertEmbedding',
+            [this.hiddenDim / this.numHeads, this.numExperts],
+            'float32',
+            tf.initializers.randomNormal({ mean: 0, stddev: 1 })
+        )
+    }
+
+    call(inputs) {
+        return tf.matMul(inputs, this.expertEmbedding.read())
+    }
+
+    getWeights() {
+        return [this.expertEmbedding.read()]
+    }
+
+    setWeights(weights) {
+        this.expertEmbedding.write(weights[0])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            hiddenDim: this.hiddenDim,
+            numHeads: this.numHeads
+        }
+    }
+}
+
 class LocalSelfAttention extends LayerBase {
     constructor(config) {
         super({ name: `local-attn-${randomString()}`, ...config })
@@ -314,6 +460,126 @@ class LocalSelfAttention extends LayerBase {
             units: this.units,
             projection: this.projection,
             chunkSize: this.chunkSize
+        }
+    }
+}
+
+class MultiHeadAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `mha-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.heads = config.heads || 8
+    }
+
+    build(inputShape) {
+        this.queryKernels = []
+        this.keyKernels = []
+        this.valueKernels = []
+
+        const projectionSize = this.units / this.heads
+
+        for (let i = 0; i < this.heads; i++) {
+            this.queryKernels.push(
+                this.addWeight(
+                    `queryKernel_${i}`,
+                    [inputShape[inputShape.length - 1], projectionSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.keyKernels.push(
+                this.addWeight(
+                    `keyKernel_${i}`,
+                    [inputShape[inputShape.length - 1], projectionSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.valueKernels.push(
+                this.addWeight(
+                    `valueKernel_${i}`,
+                    [inputShape[inputShape.length - 1], projectionSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+        }
+
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
+
+            const attentionOutputs = []
+
+            for (let i = 0; i < this.heads; i++) {
+                const Q = this.applyDense(inputs, this.queryKernels[i])
+                const K = this.applyDense(inputs, this.keyKernels[i])
+                const V = this.applyDense(inputs, this.valueKernels[i])
+
+                const scores = tf
+                    .matMul(Q, K, false, true)
+                    .div(tf.scalar(Math.sqrt(this.units / this.heads)))
+                    .add(mask)
+
+                const weights = scores.softmax()
+
+                const output = tf.matMul(weights, V)
+
+                attentionOutputs.push(output)
+            }
+
+            const concatenatedOutputs = tf.concat(attentionOutputs, -1)
+            const outputs = this.applyDense(
+                concatenatedOutputs,
+                this.outputKernel
+            )
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    getWeights() {
+        return [
+            ...this.queryKernels.map((kernel) => kernel.read()),
+            ...this.keyKernels.map((kernel) => kernel.read()),
+            ...this.valueKernels.map((kernel) => kernel.read()),
+            this.outputKernel.read()
+        ]
+    }
+
+    setWeights(weights) {
+        for (let i = 0; i < this.heads; i++) {
+            this.queryKernels[i].write(weights[i])
+            this.keyKernels[i].write(weights[this.heads + i])
+            this.valueKernels[i].write(weights[this.heads * 2 + i])
+        }
+        this.outputKernel.write(weights[this.heads * 3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            heads: this.heads
         }
     }
 }
@@ -426,129 +692,6 @@ class MultiQueryAttention extends LayerBase {
             units: this.units,
             projection: this.projection,
             queries: this.queries
-        }
-    }
-}
-
-class MultiLayerPerceptron extends LayerBase {
-    constructor(config) {
-        super({ name: `mlp-${randomString()}`, ...config })
-        this.units = config?.units || 256
-        this.innerDim = config?.innerDim || 1024
-        this.dropout = config?.dropout || 0
-        this.epsilon = config?.epsilon || false
-        if (config?.activation === 'gelu') {
-            this.customActivation = new GELU()
-            this.activation = 'linear'
-        } else {
-            this.activation = config?.activation || 'relu'
-        }
-        this.supportsMasking = true
-    }
-
-    build(inputShape) {
-        // Initialize dense layers for projection
-        this.inProjKernel = this.addWeight(
-            'inProjKernel',
-            [inputShape[inputShape.length - 1], this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.inProjBias = this.addWeight(
-            'inProjBias',
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        this.outProjKernel = this.addWeight(
-            'outProjKernel',
-            [this.innerDim, this.units],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.outProjBias = this.addWeight(
-            'outProjBias',
-            [this.units],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        // Initialize layer normalization
-        if (this.epsilon) {
-            this.layernorm = tf.layers.layerNormalization({
-                epsilon: this.epsilon
-            })
-        }
-
-        // Residual connections/skip connections are critical here
-        this.residual = customLayers.ResidualConnection()
-    }
-
-    call(inputs, kwargs, training = false) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Expand and contract projection via feedforward layers
-            let outputs = this.dense(inputs, this.inProjKernel, this.inProjBias)
-            if (this.customActivation) {
-                outputs = this.customActivation.apply(outputs)
-            } else if (this.activation !== 'linear') {
-                outputs = tf.layers
-                    .activation({ activation: this.activation })
-                    .apply(outputs)
-            }
-            outputs = this.dense(outputs, this.outProjKernel, this.outProjBias)
-
-            // If training, apply residual dropout
-            outputs = kwargs['training']
-                ? tf.dropout(outputs, this.dropout)
-                : outputs
-
-            // Apply layer norm
-            if (this.layernorm) outputs = this.layernorm.apply(outputs)
-
-            // Apply skip connection
-            return this.residual.apply([inputs, outputs])
-        })
-    }
-
-    dense(x, kernel, bias) {
-        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        const m = tf.matMul(x, k)
-        if (bias) {
-            return tf.add(m, bias.read())
-        } else {
-            return m
-        }
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    getWeights() {
-        return [
-            this.inProjKernel.read(),
-            this.inProjBias.read(),
-            this.outProjKernel.read(),
-            this.outProjBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.inProjKernel.write(weights[0])
-        this.inProjBias.write(weights[1])
-        this.outProjKernel.write(weights[2])
-        this.outProjBias.write(weights[3])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            units: this.units,
-            innerDim: this.innerDim,
-            dropout: this.dropout
         }
     }
 }
@@ -688,6 +831,129 @@ class GroupedQueryAttention extends LayerBase {
             units: this.units,
             projection: this.projection,
             groups: this.groups
+        }
+    }
+}
+
+class MultiLayerPerceptron extends LayerBase {
+    constructor(config) {
+        super({ name: `mlp-${randomString()}`, ...config })
+        this.units = config?.units || 256
+        this.innerDim = config?.innerDim || 1024
+        this.dropout = config?.dropout || 0
+        this.epsilon = config?.epsilon || false
+        if (config?.activation === 'gelu') {
+            this.customActivation = new GELU()
+            this.activation = 'linear'
+        } else {
+            this.activation = config?.activation || 'relu'
+        }
+        this.supportsMasking = true
+    }
+
+    build(inputShape) {
+        // Initialize dense layers for projection
+        this.inProjKernel = this.addWeight(
+            'inProjKernel',
+            [inputShape[inputShape.length - 1], this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.inProjBias = this.addWeight(
+            'inProjBias',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+
+        this.outProjKernel = this.addWeight(
+            'outProjKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.outProjBias = this.addWeight(
+            'outProjBias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+
+        // Initialize layer normalization
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
+
+        // Residual connections/skip connections are critical here
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs, kwargs, training = false) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Expand and contract projection via feedforward layers
+            let outputs = this.dense(inputs, this.inProjKernel, this.inProjBias)
+            if (this.customActivation) {
+                outputs = this.customActivation.apply(outputs)
+            } else if (this.activation !== 'linear') {
+                outputs = tf.layers
+                    .activation({ activation: this.activation })
+                    .apply(outputs)
+            }
+            outputs = this.dense(outputs, this.outProjKernel, this.outProjBias)
+
+            // If training, apply residual dropout
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+
+            // Apply layer norm
+            if (this.layernorm) outputs = this.layernorm.apply(outputs)
+
+            // Apply skip connection
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    dense(x, kernel, bias) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        const m = tf.matMul(x, k)
+        if (bias) {
+            return tf.add(m, bias.read())
+        } else {
+            return m
+        }
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getWeights() {
+        return [
+            this.inProjKernel.read(),
+            this.inProjBias.read(),
+            this.outProjKernel.read(),
+            this.outProjBias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.inProjKernel.write(weights[0])
+        this.inProjBias.write(weights[1])
+        this.outProjKernel.write(weights[2])
+        this.outProjBias.write(weights[3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            innerDim: this.innerDim,
+            dropout: this.dropout
         }
     }
 }
@@ -4769,6 +5035,7 @@ const exportedLayers = [
     MixtureOfDepthsRouting,
     MultiLayerPerceptron,
     MultiQueryAttention,
+    MultiHeadMoeBlock,
     NearestNeighborUpsampling,
     PerformerAttention,
     PseudoQuantumState,
@@ -4777,6 +5044,7 @@ const exportedLayers = [
     ResidualConnection,
     RotaryPositionalEncoding,
     SelfAttention,
+    MultiHeadAttention,
     SequenceExpansionLayer,
     SharedEmbedding,
     SinusoidalPositionalEncoding,
