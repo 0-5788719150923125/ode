@@ -14,8 +14,7 @@ const options = {
     sampleLength: 256,
     predictLength: 128,
     saveEvery: 0,
-    corpus: null,
-    debug: false
+    corpus: null
 }
 
 // Get the command-line arguments

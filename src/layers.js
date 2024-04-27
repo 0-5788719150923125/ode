@@ -1075,7 +1075,7 @@ class MultiLayerPerceptron extends LayerBase {
         this.residual = customLayers.ResidualConnection()
     }
 
-    call(inputs, kwargs, training = false) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
