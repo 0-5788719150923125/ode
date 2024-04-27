@@ -835,6 +835,191 @@ class GroupedQueryAttention extends LayerBase {
     }
 }
 
+class NystromAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `nystromformer-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.heads = config.heads || 8
+        this.landmarks = config.landmarks || 64
+    }
+
+    build(inputShape) {
+        this.queryKernels = []
+        this.keyKernels = []
+        this.valueKernels = []
+
+        const projectionSize = this.units / this.heads
+
+        for (let i = 0; i < this.heads; i++) {
+            this.queryKernels.push(
+                this.addWeight(
+                    `queryKernel_${i}`,
+                    [inputShape[inputShape.length - 1], projectionSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.keyKernels.push(
+                this.addWeight(
+                    `keyKernel_${i}`,
+                    [inputShape[inputShape.length - 1], projectionSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+            this.valueKernels.push(
+                this.addWeight(
+                    `valueKernel_${i}`,
+                    [inputShape[inputShape.length - 1], projectionSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+        }
+
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.units, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const batchSize = inputs.shape[0]
+            const sequenceLength = inputs.shape[1]
+
+            const attentionOutputs = []
+
+            for (let i = 0; i < this.heads; i++) {
+                const Q = this.applyDense(inputs, this.queryKernels[i])
+                const K = this.applyDense(inputs, this.keyKernels[i])
+                const V = this.applyDense(inputs, this.valueKernels[i])
+
+                const landmarks = this.sampleLandmarks(K, this.landmarks)
+
+                const kernelMatrix = this.computeKernelMatrix(Q, landmarks)
+                const attentionMatrix = this.computeAttentionMatrix(
+                    kernelMatrix,
+                    V,
+                    landmarks
+                )
+
+                const output = attentionMatrix.reshape([
+                    batchSize,
+                    sequenceLength,
+                    -1
+                ])
+
+                attentionOutputs.push(output)
+            }
+
+            const concatenatedOutputs = tf.concat(attentionOutputs, -1)
+            const outputs = this.applyDense(
+                concatenatedOutputs,
+                this.outputKernel
+            )
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    sampleLandmarks(keys, numLandmarks) {
+        const batchSize = keys.shape[0]
+        const sequenceLength = keys.shape[1]
+
+        const randomIndices = tf.randomUniform(
+            [batchSize, numLandmarks],
+            0,
+            sequenceLength,
+            'int32'
+        )
+        const landmarks = tf.gather(keys, randomIndices, 1)
+
+        return landmarks
+    }
+
+    computeKernelMatrix(queries, landmarks) {
+        const projectionSize = this.units / this.heads
+        const batchSize = queries.shape[0]
+        const sequenceLength = queries.shape[1]
+        const numLandmarks = landmarks.shape[1]
+
+        const flattenedQueries = queries.reshape([
+            batchSize * sequenceLength,
+            projectionSize
+        ])
+        const flattenedLandmarks = landmarks.reshape([
+            batchSize * numLandmarks,
+            projectionSize
+        ])
+
+        const queryProjections = tf.matMul(
+            flattenedQueries,
+            flattenedLandmarks,
+            false,
+            true
+        )
+        const kernelMatrix = tf.exp(
+            queryProjections.div(tf.sqrt(tf.scalar(projectionSize)))
+        )
+
+        return kernelMatrix.reshape([
+            batchSize,
+            sequenceLength,
+            batchSize,
+            numLandmarks
+        ])
+    }
+
+    computeAttentionMatrix(kernelMatrix, values, landmarks) {
+        const valueLandmarks = tf.einsum('bnd,nl->bld', values, landmarks)
+        const attentionMatrix = tf.einsum(
+            'bnl,bld->bnd',
+            kernelMatrix,
+            valueLandmarks
+        )
+
+        return attentionMatrix
+    }
+
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    getWeights() {
+        return [
+            ...this.queryKernels.map((kernel) => kernel.read()),
+            ...this.keyKernels.map((kernel) => kernel.read()),
+            ...this.valueKernels.map((kernel) => kernel.read()),
+            this.outputKernel.read()
+        ]
+    }
+
+    setWeights(weights) {
+        for (let i = 0; i < this.heads; i++) {
+            this.queryKernels[i].write(weights[i])
+            this.keyKernels[i].write(weights[this.heads + i])
+            this.valueKernels[i].write(weights[this.heads * 2 + i])
+        }
+        this.outputKernel.write(weights[this.heads * 3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            heads: this.heads,
+            landmarks: this.landmarks
+        }
+    }
+}
+
 class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
         super({ name: `mlp-${randomString()}`, ...config })
@@ -5020,6 +5205,7 @@ const exportedLayers = [
     DeterministicEmbedding,
     DimensionContraction,
     DimensionExpansion,
+    NystromAttention,
     DumbCompression,
     EfficientChannelAttention,
     FourierFeaturePositionalEncoding,

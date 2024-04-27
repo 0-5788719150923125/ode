@@ -11,8 +11,7 @@ export default class OmnipresentDiabolicalErudite extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 3
-        this.units = config.units || 64
-        this.epsilon = config.epsilon || 1e-5
+        this.units = config.units || 256
     }
 
     defineBuild() {
@@ -25,10 +24,6 @@ export default class OmnipresentDiabolicalErudite extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.tf.layers
-            .layerNormalization({ epsilon: this.epsilon })
-            .apply(outputs)
-
         for (let i = 0; i < this.layers; i++) {
             outputs = this.tf.layers
                 .gru({
@@ -39,10 +34,6 @@ export default class OmnipresentDiabolicalErudite extends ODE {
                     recurrentInitializer: 'orthogonal',
                     returnSequences: true
                 })
-                .apply(outputs)
-
-            outputs = this.tf.layers
-                .layerNormalization({ epsilon: this.epsilon })
                 .apply(outputs)
         }
 
@@ -75,7 +66,6 @@ export default class OmnipresentDiabolicalErudite extends ODE {
         const peakLr = 0.00333
         const iterations = 333
         const modulation = 0.666
-        this.optimizers[0].learningRate = initialLr
         this.schedulers = [
             this.ode.schedulers.cosineScheduler(
                 initialLr,

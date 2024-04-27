@@ -97,10 +97,7 @@ export default class ModelBase {
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.BasicSubwordTokenizer(
-            config?.vocabSize || 6666,
-            config?.numIterations || 30_000_000
-        )
+        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     }
 
     defineLossFunctions() {
@@ -132,7 +129,6 @@ export default class ModelBase {
 
     defineSchedulers() {
         const learningRate = 0.00333
-        // this.optimizers[0].learningRate = learningRate
         this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
     }
 

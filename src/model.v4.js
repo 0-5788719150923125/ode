@@ -1,8 +1,8 @@
 import ODE from './model.v3.js'
 
 /**
- * A small transformer with synthetic attention, GLU-based feedforward
- * networks, and sinusoidal positional embeddings.
+ * A small transformer with synthesizer attention, GLU-based feedforward
+ * networks, and sinusoidal positional encoding.
  * @extends ODE
  */
 export default class OpportunisticDialogueEngine extends ODE {
