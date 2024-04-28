@@ -10,6 +10,8 @@ const customLayers = {
         tf.layers.add({ name: `add-${randomString()}`, ...config }),
     bottleneck: (config) =>
         tf.layers.dense({ name: `bot-${randomString()}`, ...config }),
+    concatenate: (config) =>
+        tf.layers.concatenate({ name: `con-${randomString()}`, ...config }),
     conv1d: (config) =>
         tf.layers.conv1d({ name: `c1d-${randomString()}`, ...config }),
     conv2d: (config) =>
@@ -20,6 +22,8 @@ const customLayers = {
         tf.layers.embedding({ name: `emb-${randomString()}`, ...config }),
     input: (config) =>
         tf.layers.input({ name: `inp-${randomString()}`, ...config }),
+    multiply: (config) =>
+        tf.layers.multiply({ name: `mul-${randomString()}`, ...config }),
     timeDistributed: (config) =>
         tf.layers.timeDistributed({ name: `time-${randomString()}`, ...config })
 }
@@ -5187,6 +5191,73 @@ class Bias extends LayerBase {
     }
 }
 
+class WeightedSum extends LayerBase {
+    constructor(config) {
+        super({ name: `wsum-${randomString()}`, ...config })
+        this.units = config.units || 1
+    }
+
+    build(inputShape) {
+        if (!Array.isArray(inputShape) || inputShape.length < 2) {
+            throw new Error('WeightedSum layer expects at least two inputs.')
+        }
+
+        const numInputs = inputShape.length
+        this.kernel = []
+
+        for (let i = 0; i < numInputs; i++) {
+            this.kernel.push(
+                this.addWeight(
+                    `weight_${i}`,
+                    [inputShape[i][inputShape[i].length - 1], this.units],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+        }
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            const weightedInputs = []
+
+            for (let i = 0; i < inputs.length; i++) {
+                const weightedInput = this.dense(inputs[i], this.kernel[i])
+                weightedInputs.push(weightedInput)
+            }
+
+            const output = weightedInputs.reduce((sum, input) => sum.add(input))
+            return output
+        })
+    }
+
+    dense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0][0], this.units]
+    }
+
+    getWeights() {
+        return this.kernel.map((weight) => weight.read())
+    }
+
+    setWeights(weights) {
+        for (let i = 0; i < weights.length; i++) {
+            this.kernel[i].write(weights[i])
+        }
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units
+        }
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     Autoencoder,
@@ -5241,7 +5312,8 @@ const exportedLayers = [
     StatePlacement,
     SynthesizerAttention,
     TemporalPooling,
-    ToOneHot
+    ToOneHot,
+    WeightedSum
 ]
 
 exportedLayers.forEach((LayerClass) => {
