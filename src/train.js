@@ -43,14 +43,17 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
 
     // a custom training loop
     while (true) {
-        this.batch++
-        if (this.batch % trainArgs.gradientAccumulationSteps === 0) {
-            this.step++
-            // Set learning rate via schedule
-            this.model.optimizer.learningRate = this.schedulers[0].next().value
-        }
+        setLearningRate(
+            this.batch,
+            trainArgs.gradientAccumulationSteps,
+            this.model,
+            this.schedulers
+        )
 
-        const sample = await batchMaker(
+        this.batch++
+        if (this.batch % trainArgs.gradientAccumulationSteps === 0) this.step++
+
+        const data = await batchMaker(
             dataGenerator,
             this.tokenizer,
             trainArgs.batchSize,
@@ -62,7 +65,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         )
 
         // Fetch data and compute gradients
-        await accumulator.compute(sample.xs, sample.ys)
+        await accumulator.compute(data.xs, data.ys)
         await accumulator.step(this.step, this.batch)
         this.loss = accumulator.getLoss()
 
@@ -155,6 +158,13 @@ class GradientAccumulator {
 
         // Dispose of grads after accumulation
         Object.values(this.gradients).forEach((grad) => grad && grad.dispose())
+    }
+}
+
+// Set learning rate via schedule
+function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
+    if (batch % gradientAccumulationSteps === 0) {
+        model.optimizer.setLearningRate(schedulers[0].next().value)
     }
 }
 
@@ -463,7 +473,7 @@ export class PredictionSampler {
 
             const params = {
                 doSample: true,
-                temperature: 0.333,
+                temperature: 0.45,
                 repetitionPenalty: 1.1,
                 maxNewTokens: maxLength
             }

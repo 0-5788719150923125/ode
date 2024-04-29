@@ -87,7 +87,7 @@ tf.serialization.registerClass(APTx)
 const activations = {
     Gelu: new Gelu(),
     GeluNew: new GeluNew(),
-    APTx: (epsilon, omega) => new APTx(epsilon, omega)
+    APTx: (epsilon, omega, gamma) => new APTx(epsilon, omega, gamma)
 }
 
 export default activations

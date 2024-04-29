@@ -8,6 +8,7 @@ import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
 import customSchedulers from './schedulers.js'
 import customSamplers from './samplers.js'
+import './activations.js'
 import { trainModel } from './train.js'
 import { preprocessData } from './utils.js'
 
