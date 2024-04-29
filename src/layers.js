@@ -5242,6 +5242,92 @@ class WeightedSum extends LayerBase {
     }
 }
 
+// https://arxiv.org/abs/1610.06258
+class FastMemory extends LayerBase {
+    constructor(config) {
+        super({ name: `mem-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.forgetfulness = config.forgetfulness || 0.9
+        this.static = config.static || false
+    }
+
+    build(inputShape) {
+        this.inputDim = inputShape[inputShape.length - 1]
+        this.fastWeights = tf.variable(
+            tf.randomNormal([this.inputDim, this.units], 0, 0.1),
+            false,
+            'fastWeights'
+        )
+        this.currentState = tf.variable(
+            tf.ones([this.inputDim, this.units]),
+            false,
+            'currentState'
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const [batchSize, sequenceLength, inputDim] = inputs.shape
+
+            // Pad sequences with zeros to match the maximum sequence length
+            if (sequenceLength < this.inputDim) {
+                const padAmount = this.inputDim - sequenceLength
+                inputs = tf.pad(inputs, [
+                    [0, 0],
+                    [0, padAmount],
+                    [0, 0]
+                ])
+            }
+
+            const newStates = []
+
+            for (let i = 0; i < batchSize; i++) {
+                const currentExample = inputs.slice(
+                    [i, 0, 0],
+                    [1, this.inputDim, this.inputDim]
+                )
+
+                let newWeights = tf.matMul(currentExample, this.fastWeights)
+                newWeights = newWeights.div(newWeights.norm())
+
+                let newState = tf.add(
+                    tf.mul(this.forgetfulness, this.currentState),
+                    tf.mul(1 - this.forgetfulness, newWeights)
+                )
+                newState = newState.div(newState.norm())
+
+                if (this.static) {
+                    newState = newState.add(
+                        tf.randomNormal(
+                            newState.shape,
+                            -this.static,
+                            this.static
+                        )
+                    )
+                }
+
+                newStates.push(newState)
+
+                this.fastWeights.assign(newWeights.squeeze())
+                this.currentState.assign(newState.squeeze())
+            }
+
+            return tf.concat(newStates, 0)
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            forgetfulness: this.forgetfulness,
+            static: this.static
+        }
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
     Autoencoder,
@@ -5256,6 +5342,7 @@ const exportedLayers = [
     ConvolutionalExpansionLayer,
     DebugLayer,
     DenseMultiLayerPerceptron,
+    FastMemory,
     DepthwiseSeparableConvolution,
     DeterministicEmbedding,
     DimensionContraction,
