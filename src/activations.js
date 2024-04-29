@@ -26,6 +26,41 @@ class Gelu extends tf.serialization.Serializable {
 tf.serialization.registerClass(Gelu)
 
 /**
+ * GeluNew activation function
+ */
+export class GeluNew extends tf.serialization.Serializable {
+    /** @nocollapse */
+    static className = 'gelu_new'
+    /**
+     * Calculate the activation function.
+     *
+     * @param x Tensor.
+     * @returns a Tensor of the same shape as x
+     */
+    apply(x) {
+        return tidy(() => {
+            return tf.mul(
+                0.5,
+                tf.mul(
+                    x,
+                    tf.add(
+                        1,
+                        tf.tanh(
+                            tf.mul(
+                                tf.sqrt(tf.div(2, Math.PI)),
+                                tf.add(x, tf.mul(0.044715, tf.pow(x, 3)))
+                            )
+                        )
+                    )
+                )
+            )
+        })
+    }
+}
+
+tf.serialization.registerClass(GeluNew)
+
+/**
  * APTx activation function
  */
 class APTx extends tf.serialization.Serializable {
@@ -51,6 +86,7 @@ tf.serialization.registerClass(APTx)
 
 const activations = {
     Gelu: new Gelu(),
+    GeluNew: new GeluNew(),
     APTx: (epsilon, omega) => new APTx(epsilon, omega)
 }
 
