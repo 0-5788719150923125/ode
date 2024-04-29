@@ -1,39 +1,57 @@
 import * as tf from '@tensorflow/tfjs'
 
-export class GELU extends tf.layers.Layer {
-    constructor() {
-        super({})
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    call(input, kwargs) {
+/**
+ * Gelu activation function
+ */
+class Gelu extends tf.serialization.Serializable {
+    /** @nocollapse */
+    static className = 'gelu'
+    /**
+     * Calculate the activation function.
+     *
+     * @param x Tensor.
+     * @returns a Tensor of the same shape as x
+     */
+    apply(x) {
         return tf.tidy(() => {
-            if (Array.isArray(input)) {
-                input = input[0]
-            }
-            this.invokeCallHook(input, kwargs)
-            const cdf = tf.mul(
-                0.5,
-                tf.add(
-                    1,
-                    tf.tanh(
-                        tf.mul(
-                            tf.sqrt(tf.div(2, Math.PI)),
-                            tf.add(input, tf.mul(0.044715, tf.pow(input, 3)))
-                        )
-                    )
-                )
-            )
-            return tf.mul(input, cdf)
+            const sqrtTwo = Math.sqrt(2)
+            // Compute Φ(x) using the erf function
+            const cdf = tf.mul(0.5, tf.add(1, tf.erf(tf.div(x, sqrtTwo))))
+            // Compute GELU(x) = x * Φ(x)
+            return tf.mul(x, cdf)
         })
-    }
-
-    static get className() {
-        return 'GELU'
     }
 }
 
-tf.serialization.registerClass(GELU)
+tf.serialization.registerClass(Gelu)
+
+/**
+ * APTx activation function
+ */
+class APTx extends tf.serialization.Serializable {
+    /** @nocollapse */
+    static className = 'aptx'
+
+    /**
+     * Calculate the activation function.
+     *
+     * @param x Tensor.
+     * @returns a Tensor of the same shape as x
+     */
+    apply(x, alpha = 1.0, beta = 1.0, gamma = 0.5) {
+        return tf.tidy(() => {
+            const tanhTerm = tf.tanh(tf.mul(beta, x))
+            const modulation = tf.add(alpha, tanhTerm)
+            return tf.mul(tf.mul(gamma, x), modulation)
+        })
+    }
+}
+
+tf.serialization.registerClass(APTx)
+
+const activations = {
+    Gelu: new Gelu(),
+    APTx: (epsilon, omega) => new APTx(epsilon, omega)
+}
+
+export default activations

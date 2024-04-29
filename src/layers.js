@@ -1,5 +1,4 @@
 import * as tf from '@tensorflow/tfjs'
-import { GELU } from './activations.js'
 import customOps from './ops.js'
 import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
@@ -1031,12 +1030,7 @@ class MultiLayerPerceptron extends LayerBase {
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
         this.epsilon = config?.epsilon || false
-        if (config?.activation === 'gelu') {
-            this.customActivation = new GELU()
-            this.activation = 'linear'
-        } else {
-            this.activation = config?.activation || 'relu'
-        }
+        this.activation = config?.activation || 'relu'
         this.supportsMasking = true
     }
 
@@ -1085,13 +1079,11 @@ class MultiLayerPerceptron extends LayerBase {
 
             // Expand and contract projection via feedforward layers
             let outputs = this.dense(inputs, this.inProjKernel, this.inProjBias)
-            if (this.customActivation) {
-                outputs = this.customActivation.apply(outputs)
-            } else if (this.activation !== 'linear') {
-                outputs = tf.layers
-                    .activation({ activation: this.activation })
-                    .apply(outputs)
-            }
+
+            outputs = tf.layers
+                .activation({ activation: this.activation })
+                .apply(outputs)
+
             outputs = this.dense(outputs, this.outProjKernel, this.outProjBias)
 
             // If training, apply residual dropout
@@ -1223,7 +1215,7 @@ class DenseMultiLayerPerceptron extends LayerBase {
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
         this.epsilon = config?.epsilon || false
-        this.activation = config?.activation || 'gelu'
+        this.activation = config?.activation || 'relu'
         this.supportsMasking = true
     }
 
@@ -1389,12 +1381,7 @@ class CapsNet extends LayerBase {
         this.numCapsules = config?.numCapsules || 8
         this.capsuleDim = config?.capsuleDim || 16
         this.routingIterations = config?.routingIterations || 3
-        if (config?.activation === 'gelu') {
-            this.customActivation = new GELU()
-            this.activation = 'linear'
-        } else {
-            this.activation = config?.activation || 'relu'
-        }
+        this.activation = config?.activation || 'relu'
         this.supportsMasking = true
     }
 
@@ -1447,9 +1434,6 @@ class CapsNet extends LayerBase {
 
             // Expand and contract projection via feedforward layers
             let outputs = this.inProj.apply(inputs)
-            if (this.customActivation) {
-                outputs = this.customActivation.apply(outputs)
-            }
             // Apply primary capsules
             outputs = this.primaryCaps.apply(outputs)
             outputs = tf.reshape(outputs, [
