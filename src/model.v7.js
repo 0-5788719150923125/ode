@@ -19,7 +19,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
     defineTokenizer() {
         super.defineTokenizer({
-            model: 'mistralai/Mistral-7B-v0.1'
+            model: 'OriginalDesign/word'
         })
     }
 
@@ -44,12 +44,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SparseMixtureOfExperts({
+                .SimpleMixtureOfExperts({
                     experts: this.createAttentionExperts(),
-                    units: this.units,
-                    innerDim: this.innerDim,
-                    topK: this.topK,
-                    loadBalancing: this.loadBalancing
+                    topK: this.topK
                 })
                 .apply(outputs)
 
@@ -72,6 +69,22 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         this.model = this.tf.model({ inputs, outputs })
     }
+
+    // defineSchedulers() {
+    //     this.learningRate = 0.0001
+    //     this.schedulers = [
+    //         this.ode.schedulers.constantScheduler(this.learningRate)
+    //     ]
+    // }
+
+    // defineOptimizers() {
+    //     this.optimizers = [
+    //         this.ode.optimizers.Lion({
+    //             learningRate: this.learningRate,
+    //             weightDecay: 0.1
+    //         })
+    //     ]
+    // }
 
     createAttentionExperts() {
         return [

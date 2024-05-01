@@ -1990,6 +1990,83 @@ class SparseMixtureOfExperts extends LayerBase {
     }
 }
 
+class SimpleMixtureOfExperts extends LayerBase {
+    constructor(config) {
+        super({ name: `moe-${randomString()}`, ...config })
+        this.experts = config.experts
+        this.k = config.k || 2
+        this.numExperts = this.experts.length
+        this.gateLayer = tf.layers.dense({
+            units: this.numExperts,
+            activation: 'softmax'
+        })
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            const batchSize = inputs.shape[0]
+            const sequenceLength = inputs.shape[1]
+            const inputDim = inputs.shape[2]
+            console.log(`Input shape: ${inputs.shape}`)
+
+            // Compute gate probabilities for the final time step
+            const finalInput = inputs
+                .slice([0, sequenceLength - 1, 0], [batchSize, 1, inputDim])
+                .squeeze([1])
+            const gateProbabilities = this.gateLayer.apply(finalInput)
+            console.log(`Gate probabilities shape: ${gateProbabilities.shape}`)
+
+            // Select top-k experts for the final time step
+            const selectedExperts = customOps.subliminalTopk(
+                gateProbabilities,
+                this.k
+            )
+            const topKIndices = selectedExperts.indices
+            const topKGates = selectedExperts.values
+            console.log(`Top-k indices shape: ${topKIndices.shape}`)
+            console.log(`Top-k gates shape: ${topKGates.shape}`)
+
+            // Compute expert outputs for top-k experts
+            const expertOutputs = []
+            for (let i = 0; i < this.k; i++) {
+                const expertIndices = topKIndices
+                    .slice([0, i], [batchSize, 1])
+                    .flatten()
+                const expertInputs = customOps.customGather(
+                    inputs,
+                    expertIndices
+                )
+                const expertOutput = this.experts[i].apply(expertInputs)
+                expertOutputs.push(expertOutput)
+            }
+            const stackedExpertOutputs = tf.stack(expertOutputs, 1)
+            console.log(
+                `Stacked expert outputs shape: ${stackedExpertOutputs.shape}`
+            )
+
+            // Compute sparse mixture
+            const gatesReshaped = topKGates.reshape([batchSize, this.k, 1, 1])
+            console.log(`Reshaped gates shape: ${gatesReshaped.shape}`)
+            const sparseMixture = tf.sum(
+                gatesReshaped.mul(stackedExpertOutputs),
+                1
+            )
+            console.log(`Sparse mixture shape: ${sparseMixture.shape}`)
+
+            return sparseMixture
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            k: this.k
+        }
+    }
+}
+
 class LazyMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `lmoe-${randomString()}`, ...config })
@@ -5385,7 +5462,8 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    WeightedSum
+    WeightedSum,
+    SimpleMixtureOfExperts
 ]
 
 exportedLayers.forEach((LayerClass) => {

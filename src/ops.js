@@ -1,5 +1,53 @@
 import * as tf from '@tensorflow/tfjs'
 
+function customGather(inputs, indices) {
+    const forward = (inputs, save) => {
+        console.log('Forward inputs shape:', inputs.shape)
+        console.log('Forward indices shape:', indices.shape)
+        const value = tf.gather(inputs, indices.cast('int32'))
+        save([value, indices])
+        console.log('Forward value shape:', value.shape)
+        const gradFunc = (dy, saved) => {
+            const [savedValue, savedIndices] = saved
+            console.log('Backward dy shape:', dy.shape)
+            const inputsGrad = () => {
+                const inputsShape = inputs.shape
+                const indicesShape = savedIndices.shape
+                const dyShape = dy.shape
+
+                const inputsGradValues = tf.zerosLike(inputs)
+                const flattenedIndices = savedIndices.reshape([-1])
+                const updatesShape = savedIndices.shape.concat(
+                    dy.shape.slice(1)
+                )
+                const updatedInputsGradValues = tf.scatterND(
+                    flattenedIndices.expandDims(1),
+                    dy.reshape(updatesShape),
+                    inputsShape
+                )
+
+                console.log(
+                    'Backward inputsGrad shape:',
+                    updatedInputsGradValues.shape
+                )
+                return updatedInputsGradValues
+            }
+            const indicesGrad = () => {
+                const result = tf.zerosLike(savedIndices, 'float32')
+                console.log('Backward indicesGrad shape:', result.shape)
+                return result
+            }
+            return [
+                inputsGrad()
+                // indicesGrad()
+            ]
+        }
+        return { value, gradFunc }
+    }
+
+    return tf.customGrad(forward)(inputs)
+}
+
 function subliminalSpace(start, end, dimensions) {
     const linspaceGrad = (dydy) => {
         const gradStart = tf.sum(dydy)
@@ -61,5 +109,6 @@ function subliminalTopk(input, k) {
 
 export default {
     subliminalSpace,
-    subliminalTopk
+    subliminalTopk,
+    customGather
 }
