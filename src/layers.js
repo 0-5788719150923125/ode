@@ -5255,14 +5255,13 @@ class FastMemory extends LayerBase {
         this.inputDim = inputShape[inputShape.length - 1]
         this.fastWeights = tf.variable(
             tf.randomNormal([this.inputDim, this.units], 0, 0.1),
-            false,
-            'fastWeights'
+            false
         )
         this.currentState = tf.variable(
             tf.ones([this.inputDim, this.units]),
-            false,
-            'currentState'
+            false
         )
+        this.residual = customLayers.ResidualConnection()
     }
 
     call(inputs, kwargs) {
@@ -5314,7 +5313,9 @@ class FastMemory extends LayerBase {
                 this.currentState.assign(newState.squeeze())
             }
 
-            return tf.concat(newStates, 0)
+            const outputs = tf.concat(newStates, 0)
+
+            return this.residual.apply([inputs, outputs])
         })
     }
 

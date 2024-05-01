@@ -55,7 +55,7 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineSchedulers() {
-        this.learningRate = 0.00022
+        this.learningRate = 0.0001
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]
