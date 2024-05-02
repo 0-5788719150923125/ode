@@ -149,8 +149,10 @@ function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
                 return experts[index].apply(batchInputs)
             })
 
-            const outputs = expertOutputs.reduce((acc, curr) => acc.add(curr))
-            batchOutputs.push(outputs)
+            const batchOutput = expertOutputs.reduce((acc, curr) =>
+                acc.add(curr)
+            )
+            batchOutputs.push(batchOutput)
         }
 
         const outputs = tf.concat(batchOutputs, 0)
