@@ -66,20 +66,20 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     defineSchedulers() {
-        this.learningRate = 0.0001
+        this.learningRate = 0.001
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]
     }
 
-    defineOptimizers() {
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: 0.1
-            })
-        ]
-    }
+    // defineOptimizers() {
+    //     this.optimizers = [
+    //         this.ode.optimizers.Lion({
+    //             learningRate: this.learningRate,
+    //             weightDecay: 0.1
+    //         })
+    //     ]
+    // }
 
     createAttentionExperts() {
         return [

@@ -1839,6 +1839,131 @@ class MixtureOfDepthsRouting extends LayerBase {
     }
 }
 
+function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
+    const flatGatingScores = gatingScores.reshape([-1, experts.length])
+
+    const backward = (dy, saved) => {
+        const [inputs, gatingScores, selectedExpertsTensor, outputs] = saved
+
+        let gatingGrads = tf.zerosLike(gatingScores)
+        let lastStepGatingGrads = tf.zeros([
+            gatingScores.shape[0],
+            experts.length
+        ])
+
+        const selectedExperts = selectedExpertsTensor.arraySync()
+        selectedExperts.map((index) => {
+            const expertGrad = tf.ones([gatingScores.shape[0], 1])
+            const indices = tf.tensor1d([index], 'int32')
+            lastStepGatingGrads = lastStepGatingGrads.add(
+                tf.oneHot(indices, experts.length).mul(expertGrad)
+            )
+        })
+
+        const reshapedLastStepGatingGrads = lastStepGatingGrads.reshape([
+            gatingScores.shape[0],
+            1,
+            experts.length
+        ])
+        const lastStepSlice = gatingGrads.slice(
+            [0, gatingScores.shape[1] - 1, 0],
+            [gatingScores.shape[0], 1, experts.length]
+        )
+        gatingGrads = gatingGrads.add(
+            lastStepSlice.sub(lastStepSlice).add(reshapedLastStepGatingGrads)
+        )
+
+        return [dy, gatingGrads]
+    }
+
+    const forward = tf.customGrad((inputs, gatingScores, save) => {
+        const { indices: topKIndices } = tf.topk(flatGatingScores, topK)
+        const selectedExperts = topKIndices.arraySync()[inputs.shape[1] - 1]
+
+        const expertOutputs = selectedExperts.map((index) => {
+            return experts[index].apply(inputs)
+        })
+
+        const outputs = expertOutputs.reduce((acc, curr) => acc.add(curr))
+
+        save([inputs, gatingScores, tf.tensor1d(selectedExperts), outputs])
+
+        return {
+            value: outputs,
+            gradFunc: (dy, saved) => {
+                return backward(dy, saved)
+            }
+        }
+    })
+
+    return forward(inputs, gatingScores)
+}
+
+// function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
+//     const gatingScoresFlat = gatingScores.reshape([-1, experts.length])
+
+//     const backward = (dy, saved) => {
+//         const [inputs, gatingScores, selectedExpertsTensor, outputs] = saved
+
+//         let gradGatingScores = tf.zerosLike(gatingScores)
+//         let gradGatingScoresLastStep = tf.zeros([
+//             gatingScores.shape[0],
+//             experts.length
+//         ])
+
+//         const selectedExperts = selectedExpertsTensor.arraySync()
+//         selectedExperts.map((index) => {
+//             const expertGrad = tf.ones([gatingScores.shape[0], 1])
+//             const indices = tf.tensor1d([index], 'int32')
+//             gradGatingScoresLastStep = gradGatingScoresLastStep.add(
+//                 tf.oneHot(indices, experts.length).mul(expertGrad)
+//             )
+//         })
+
+//         const gradGatingScoresLastStepReshaped =
+//             gradGatingScoresLastStep.reshape([
+//                 gatingScores.shape[0],
+//                 1,
+//                 experts.length
+//             ])
+//         const gradGatingScoresSlice = gradGatingScores.slice(
+//             [0, gatingScores.shape[1] - 1, 0],
+//             [gatingScores.shape[0], 1, experts.length]
+//         )
+//         gradGatingScores = gradGatingScores.add(
+//             gradGatingScoresSlice
+//                 .sub(gradGatingScoresSlice)
+//                 .add(gradGatingScoresLastStepReshaped)
+//         )
+
+//         const gradInputs = dy.mul(tf.ones(inputs.shape))
+
+//         return [gradInputs, gradGatingScores]
+//     }
+
+//     const forward = tf.customGrad((inputs, gatingScores, save) => {
+//         const { indices: topKIndices } = tf.topk(gatingScoresFlat, topK)
+//         const selectedExperts = topKIndices.arraySync()[inputs.shape[1] - 1]
+
+//         const expertOutputs = selectedExperts.map((index) => {
+//             return experts[index].apply(inputs)
+//         })
+
+//         const outputs = expertOutputs.reduce((acc, curr) => acc.add(curr))
+
+//         save([inputs, gatingScores, tf.tensor1d(selectedExperts), outputs])
+
+//         return {
+//             value: outputs,
+//             gradFunc: (dy, saved) => {
+//                 return backward(dy, saved)
+//             }
+//         }
+//     })
+
+//     return forward(inputs, gatingScores)
+// }
+
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
@@ -1846,6 +1971,7 @@ class SparseMixtureOfExperts extends LayerBase {
         this.experts = config.experts
         this.numExperts = this.experts.length
         this.topK = config.topK || 2
+        this.supportsMasking = false
     }
 
     build(inputShape) {
@@ -1873,25 +1999,12 @@ class SparseMixtureOfExperts extends LayerBase {
                 'softmax'
             )
 
-            // Compute top-k gating scores and indices
-            const gatingScoresFlat = gatingScores.reshape([-1, this.numExperts])
-
-            const topK = tf.topk(gatingScoresFlat, this.topK)
-
-            // Compute expert outputs for top-k experts
-            const expertOutputs = []
-            const selectedExperts =
-                topK.indices.arraySync()[inputs.shape[1] - 1]
-
-            selectedExperts.map((index) => {
-                const expertOutput = this.experts[index].apply(inputs)
-                expertOutputs.push(expertOutput)
-            })
-
-            // Sum weighted expert outputs
-            const outputs = expertOutputs.reduce((acc, curr) => {
-                return acc.add(curr)
-            })
+            const outputs = sparseMixtureOfExpertsGrad(
+                inputs,
+                gatingScores,
+                this.experts,
+                this.topK
+            )
 
             return outputs
         })
@@ -1954,46 +2067,20 @@ class SparseMixtureOfExperts extends LayerBase {
 //             // Compute top-k gating scores and indices
 //             const gatingScoresFlat = gatingScores.reshape([-1, this.numExperts])
 
-//             const expertsIndices = tf.range(0, this.topK).cast('int32')
-//             const expertsOneHot = tf
-//                 .oneHot(expertsIndices, this.numExperts)
-//                 .expandDims(0)
-//                 .tile([gatingScoresFlat.shape[0], 1, 1])
-
-//             const topKScores = gatingScoresFlat
-//                 .reshape([-1, 1, this.numExperts])
-//                 .mul(expertsOneHot)
-//                 .sum(2)
-//             const topKIndices = tf.argMax(topKScores, -1)
-
-//             // Compute sparse gating weights using one-hot encoding
-//             const sparseGatingWeightsTensor = tf
-//                 .oneHot(topKIndices, this.numExperts)
-//                 .reshape([inputs.shape[0], inputs.shape[1], this.numExperts])
+//             const topK = tf.topk(gatingScoresFlat, this.topK)
 
 //             // Compute expert outputs for top-k experts
 //             const expertOutputs = []
-//             for (let i = 0; i < this.topK; i++) {
-//                 const expertIndex = sparseGatingWeightsTensor.slice(
-//                     [0, 0, i],
-//                     [inputs.shape[0], inputs.shape[1], 1]
-//                 )
-//                 const expertInputs = inputs.mul(expertIndex)
-//                 const expertOutput = this.experts[i].apply(expertInputs)
-//                 expertOutputs.push(expertOutput)
-//             }
+//             const selectedExperts =
+//                 topK.indices.arraySync()[inputs.shape[1] - 1]
 
-//             // Apply sparse gating to expert outputs
-//             const weightedExpertOutputs = expertOutputs.map((output, i) => {
-//                 const gatingWeights = sparseGatingWeightsTensor.slice(
-//                     [0, 0, i],
-//                     [inputs.shape[0], inputs.shape[1], 1]
-//                 )
-//                 return output.mul(gatingWeights)
+//             selectedExperts.map((index) => {
+//                 const expertOutput = this.experts[index].apply(inputs)
+//                 expertOutputs.push(expertOutput)
 //             })
 
 //             // Sum weighted expert outputs
-//             const outputs = weightedExpertOutputs.reduce((acc, curr) => {
+//             const outputs = expertOutputs.reduce((acc, curr) => {
 //                 return acc.add(curr)
 //             })
 
