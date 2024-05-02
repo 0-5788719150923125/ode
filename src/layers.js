@@ -1839,131 +1839,6 @@ class MixtureOfDepthsRouting extends LayerBase {
     }
 }
 
-function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
-    const flatGatingScores = gatingScores.reshape([-1, experts.length])
-
-    const backward = (dy, saved) => {
-        const [inputs, gatingScores, selectedExpertsTensor, outputs] = saved
-
-        let gatingGrads = tf.zerosLike(gatingScores)
-        let lastStepGatingGrads = tf.zeros([
-            gatingScores.shape[0],
-            experts.length
-        ])
-
-        const selectedExperts = selectedExpertsTensor.arraySync()
-        selectedExperts.map((index) => {
-            const expertGrad = tf.ones([gatingScores.shape[0], 1])
-            const indices = tf.tensor1d([index], 'int32')
-            lastStepGatingGrads = lastStepGatingGrads.add(
-                tf.oneHot(indices, experts.length).mul(expertGrad)
-            )
-        })
-
-        const reshapedLastStepGatingGrads = lastStepGatingGrads.reshape([
-            gatingScores.shape[0],
-            1,
-            experts.length
-        ])
-        const lastStepSlice = gatingGrads.slice(
-            [0, gatingScores.shape[1] - 1, 0],
-            [gatingScores.shape[0], 1, experts.length]
-        )
-        gatingGrads = gatingGrads.add(
-            lastStepSlice.sub(lastStepSlice).add(reshapedLastStepGatingGrads)
-        )
-
-        return [dy, gatingGrads]
-    }
-
-    const forward = tf.customGrad((inputs, gatingScores, save) => {
-        const { indices: topKIndices } = tf.topk(flatGatingScores, topK)
-        const selectedExperts = topKIndices.arraySync()[inputs.shape[1] - 1]
-
-        const expertOutputs = selectedExperts.map((index) => {
-            return experts[index].apply(inputs)
-        })
-
-        const outputs = expertOutputs.reduce((acc, curr) => acc.add(curr))
-
-        save([inputs, gatingScores, tf.tensor1d(selectedExperts), outputs])
-
-        return {
-            value: outputs,
-            gradFunc: (dy, saved) => {
-                return backward(dy, saved)
-            }
-        }
-    })
-
-    return forward(inputs, gatingScores)
-}
-
-// function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
-//     const gatingScoresFlat = gatingScores.reshape([-1, experts.length])
-
-//     const backward = (dy, saved) => {
-//         const [inputs, gatingScores, selectedExpertsTensor, outputs] = saved
-
-//         let gradGatingScores = tf.zerosLike(gatingScores)
-//         let gradGatingScoresLastStep = tf.zeros([
-//             gatingScores.shape[0],
-//             experts.length
-//         ])
-
-//         const selectedExperts = selectedExpertsTensor.arraySync()
-//         selectedExperts.map((index) => {
-//             const expertGrad = tf.ones([gatingScores.shape[0], 1])
-//             const indices = tf.tensor1d([index], 'int32')
-//             gradGatingScoresLastStep = gradGatingScoresLastStep.add(
-//                 tf.oneHot(indices, experts.length).mul(expertGrad)
-//             )
-//         })
-
-//         const gradGatingScoresLastStepReshaped =
-//             gradGatingScoresLastStep.reshape([
-//                 gatingScores.shape[0],
-//                 1,
-//                 experts.length
-//             ])
-//         const gradGatingScoresSlice = gradGatingScores.slice(
-//             [0, gatingScores.shape[1] - 1, 0],
-//             [gatingScores.shape[0], 1, experts.length]
-//         )
-//         gradGatingScores = gradGatingScores.add(
-//             gradGatingScoresSlice
-//                 .sub(gradGatingScoresSlice)
-//                 .add(gradGatingScoresLastStepReshaped)
-//         )
-
-//         const gradInputs = dy.mul(tf.ones(inputs.shape))
-
-//         return [gradInputs, gradGatingScores]
-//     }
-
-//     const forward = tf.customGrad((inputs, gatingScores, save) => {
-//         const { indices: topKIndices } = tf.topk(gatingScoresFlat, topK)
-//         const selectedExperts = topKIndices.arraySync()[inputs.shape[1] - 1]
-
-//         const expertOutputs = selectedExperts.map((index) => {
-//             return experts[index].apply(inputs)
-//         })
-
-//         const outputs = expertOutputs.reduce((acc, curr) => acc.add(curr))
-
-//         save([inputs, gatingScores, tf.tensor1d(selectedExperts), outputs])
-
-//         return {
-//             value: outputs,
-//             gradFunc: (dy, saved) => {
-//                 return backward(dy, saved)
-//             }
-//         }
-//     })
-
-//     return forward(inputs, gatingScores)
-// }
-
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
@@ -1971,7 +1846,6 @@ class SparseMixtureOfExperts extends LayerBase {
         this.experts = config.experts
         this.numExperts = this.experts.length
         this.topK = config.topK || 2
-        this.supportsMasking = false
     }
 
     build(inputShape) {
@@ -1999,7 +1873,7 @@ class SparseMixtureOfExperts extends LayerBase {
                 'softmax'
             )
 
-            const outputs = sparseMixtureOfExpertsGrad(
+            const outputs = customOps.sparseMixtureOfExpertsGrad(
                 inputs,
                 gatingScores,
                 this.experts,

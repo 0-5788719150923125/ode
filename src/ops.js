@@ -93,8 +93,89 @@ function subliminalTopk(input, k) {
 //     return { value, indices }
 // }
 
+function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
+    const backward = (dy, saved) => {
+        const [inputs, gatingScores, selectedExpertsTensor, outputs] = saved
+
+        let gatingGrads = tf.zerosLike(gatingScores)
+        let lastStepGatingGrads = tf.zeros([
+            gatingScores.shape[0],
+            experts.length
+        ])
+
+        for (let i = 0; i < inputs.shape[0]; i++) {
+            const selectedExperts = selectedExpertsTensor.arraySync()[i]
+            selectedExperts.map((index) => {
+                const expertGrad = tf.ones([1, 1])
+                const indices = tf.tensor1d([index], 'int32')
+                lastStepGatingGrads = lastStepGatingGrads.add(
+                    tf.oneHot(indices, experts.length).mul(expertGrad)
+                )
+            })
+        }
+
+        const reshapedLastStepGatingGrads = lastStepGatingGrads.reshape([
+            gatingScores.shape[0],
+            1,
+            experts.length
+        ])
+        const lastStepSlice = gatingGrads.slice(
+            [0, gatingScores.shape[1] - 1, 0],
+            [gatingScores.shape[0], 1, experts.length]
+        )
+        gatingGrads = gatingGrads.add(
+            lastStepSlice.sub(lastStepSlice).add(reshapedLastStepGatingGrads)
+        )
+
+        return [dy, gatingGrads]
+    }
+
+    const forward = tf.customGrad((inputs, gatingScores, save) => {
+        const batchOutputs = []
+        const selectedExpertsArray = []
+
+        for (let i = 0; i < inputs.shape[0]; i++) {
+            const batchInputs = inputs.slice([i, 0, 0], [1, -1, -1])
+            const batchGatingScores = gatingScores.slice([i, 0, 0], [1, -1, -1])
+
+            const { indices: topKIndices } = tf.topk(
+                batchGatingScores.reshape([-1, experts.length]),
+                topK
+            )
+            const selectedExperts = topKIndices.arraySync()[inputs.shape[1] - 1]
+            selectedExpertsArray.push(selectedExperts)
+
+            const expertOutputs = selectedExperts.map((index) => {
+                return experts[index].apply(batchInputs)
+            })
+
+            const outputs = expertOutputs.reduce((acc, curr) => acc.add(curr))
+            batchOutputs.push(outputs)
+        }
+
+        const outputs = tf.concat(batchOutputs, 0)
+        const selectedExpertsTensor = tf.tensor2d(
+            selectedExpertsArray,
+            [inputs.shape[0], topK],
+            'int32'
+        )
+
+        save([inputs, gatingScores, selectedExpertsTensor, outputs])
+
+        return {
+            value: outputs,
+            gradFunc: (dy, saved) => {
+                return backward(dy, saved)
+            }
+        }
+    })
+
+    return forward(inputs, gatingScores)
+}
+
 export default {
     subliminalSpace,
     subliminalTopk,
-    customGather
+    customGather,
+    sparseMixtureOfExpertsGrad
 }

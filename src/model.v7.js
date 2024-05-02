@@ -8,7 +8,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = 6
-        this.units = 128
+        this.units = 64
         this.topK = 2
     }
 
@@ -26,7 +26,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
+                outputDim: this.units * 4,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
@@ -34,6 +34,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         outputs = this.ode.layers
             .RotaryPositionalEncoding({
                 blockSize: this.config.contextLength
+            })
+            .apply(outputs)
+
+        outputs = this.tf.layers
+            .dense({
+                units: this.units
             })
             .apply(outputs)
 
@@ -71,15 +77,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]
     }
-
-    // defineOptimizers() {
-    //     this.optimizers = [
-    //         this.ode.optimizers.Lion({
-    //             learningRate: this.learningRate,
-    //             weightDecay: 0.1
-    //         })
-    //     ]
-    // }
 
     createAttentionExperts() {
         return [
