@@ -7,14 +7,9 @@ import ODE from './model.v3.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 4
-        this.heads = 8
-        this.units = 256
-        this.innerDim = this.units * 4
-        this.epsilon = 1e-5
-        this.alpha = 0.22
+        this.layers = 6
+        this.units = 128
         this.topK = 2
-        this.loadBalancing = 1.0
     }
 
     defineTokenizer() {
@@ -44,18 +39,18 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SimpleMixtureOfExperts({
+                .SparseMixtureOfExperts({
                     experts: this.createAttentionExperts(),
+                    units: this.units,
                     topK: this.topK
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .CapsNet({
+                .SparseMixtureOfExperts({
+                    experts: this.createFeedforwardExperts(),
                     units: this.units,
-                    innerDim: this.innerDim * 4,
-                    epsilon: this.epsilon,
-                    activation: 'swish'
+                    topK: this.topK
                 })
                 .apply(outputs)
         }
@@ -70,45 +65,71 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    // defineSchedulers() {
-    //     this.learningRate = 0.0001
-    //     this.schedulers = [
-    //         this.ode.schedulers.constantScheduler(this.learningRate)
-    //     ]
-    // }
+    defineSchedulers() {
+        this.learningRate = 0.0001
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
+    }
 
-    // defineOptimizers() {
-    //     this.optimizers = [
-    //         this.ode.optimizers.Lion({
-    //             learningRate: this.learningRate,
-    //             weightDecay: 0.1
-    //         })
-    //     ]
-    // }
+    defineOptimizers() {
+        this.optimizers = [
+            this.ode.optimizers.Lion({
+                learningRate: this.learningRate,
+                weightDecay: 0.1
+            })
+        ]
+    }
 
     createAttentionExperts() {
         return [
-            this.ode.layers.SynthesizerAttention({
+            this.ode.layers.MultiQueryAttention({
                 units: this.units,
-                blockSize: this.config.contextLength,
-                heads: this.heads,
-                epsilon: this.epsilon,
-                activation: this.tf.leakyRelu,
-                alpha: this.alpha
+                projection: this.units * 4,
+                queries: 4
             }),
-            this.ode.layers.SynthesizerAttention({
+            this.ode.layers.MultiQueryAttention({
                 units: this.units,
-                blockSize: this.config.contextLength,
-                heads: this.heads,
-                epsilon: this.epsilon,
-                activation: this.tf.selu
+                projection: this.units * 4,
+                queries: 4
             }),
-            this.ode.layers.SynthesizerAttention({
+            this.ode.layers.GroupedQueryAttention({
                 units: this.units,
-                blockSize: this.config.contextLength,
-                heads: this.heads,
-                epsilon: this.epsilon,
-                activation: this.tf.tanh
+                projection: this.units * 4,
+                groups: 4
+            }),
+            this.ode.layers.GroupedQueryAttention({
+                units: this.units,
+                projection: this.units * 4,
+                groups: 4
+            }),
+            this.ode.layers.MultiHeadAttention({
+                units: this.units,
+                heads: 4
+            }),
+            this.ode.layers.MultiHeadAttention({
+                units: this.units,
+                heads: 4
+            })
+        ]
+    }
+
+    createFeedforwardExperts() {
+        return [
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.units * 4,
+                activation: 'mish'
+            }),
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.units * 4,
+                activation: 'swish'
+            }),
+            this.ode.layers.MultiLayerPerceptron({
+                units: this.units,
+                innerDim: this.units * 4,
+                activation: 'aptx'
             })
         ]
     }

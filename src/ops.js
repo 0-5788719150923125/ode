@@ -1,21 +1,14 @@
 import * as tf from '@tensorflow/tfjs'
 
 function customGather(inputs, indices) {
-    const forward = (inputs, save) => {
-        console.log('Forward inputs shape:', inputs.shape)
-        console.log('Forward indices shape:', indices.shape)
-        const value = tf.gather(inputs, indices.cast('int32'))
+    const forward = (inputs, indices, save) => {
+        indices = indices.cast('int32')
+        const value = tf.gather(inputs, indices)
         save([value, indices])
-        console.log('Forward value shape:', value.shape)
         const gradFunc = (dy, saved) => {
             const [savedValue, savedIndices] = saved
-            console.log('Backward dy shape:', dy.shape)
             const inputsGrad = () => {
                 const inputsShape = inputs.shape
-                const indicesShape = savedIndices.shape
-                const dyShape = dy.shape
-
-                const inputsGradValues = tf.zerosLike(inputs)
                 const flattenedIndices = savedIndices.reshape([-1])
                 const updatesShape = savedIndices.shape.concat(
                     dy.shape.slice(1)
@@ -25,27 +18,18 @@ function customGather(inputs, indices) {
                     dy.reshape(updatesShape),
                     inputsShape
                 )
-
-                console.log(
-                    'Backward inputsGrad shape:',
-                    updatedInputsGradValues.shape
-                )
                 return updatedInputsGradValues
             }
             const indicesGrad = () => {
                 const result = tf.zerosLike(savedIndices, 'float32')
-                console.log('Backward indicesGrad shape:', result.shape)
                 return result
             }
-            return [
-                inputsGrad()
-                // indicesGrad()
-            ]
+            return [inputsGrad(), indicesGrad()]
         }
         return { value, gradFunc }
     }
 
-    return tf.customGrad(forward)(inputs)
+    return tf.customGrad(forward)(inputs, indices.cast('float32'))
 }
 
 function subliminalSpace(start, end, dimensions) {
@@ -70,42 +54,44 @@ function subliminalSpace(start, end, dimensions) {
 }
 
 function subliminalTopk(input, k) {
-    const topkGrad = (dy) => {
-        const inputShape = input.shape
-        const [batchSize, seqLen] = inputShape
-
-        const dyReshaped = tf.reshape(dy, [-1])
-
-        const indices = tf
-            .range(0, batchSize)
-            .flatten()
-            .mul(seqLen)
-            .add(
-                tf
-                    .topk(tf.reshape(input, [batchSize, seqLen]), k)
-                    .indices.flatten()
-            )
-
-        const gradInput = tf.zeros(inputShape, input.dtype)
-        const updatedGradInput = gradInput.scatter(indices, dyReshaped, 1)
-
-        return updatedGradInput
-    }
-
-    let idx
-    const customTopk = tf.customGrad((input) => {
-        const { values, indices } = tf.topk(input, k)
-        idx = tf.keep(indices)
-        const gradFunc = (dy) => {
-            const gradInput = topkGrad(dy)
-            return [gradInput, null]
-        }
-        return { value: values, gradFunc }
-    })
-
-    const values = customTopk(input)
-    return { values, indices: idx }
+    const result = tf.topk(input, k)
+    return { value: result.values, indices: result.indices }
 }
+
+// function subliminalTopk(input, k) {
+//     const topkGrad = (dy, indices) => {
+//         const inputShape = input.shape
+//         const [batchSize, seqLen] = inputShape
+
+//         const dyReshaped = tf.reshape(dy, [-1])
+
+//         const indicesFlat = tf
+//             .range(0, batchSize)
+//             .flatten()
+//             .mul(seqLen)
+//             .add(indices.flatten())
+
+//         const gradInput = tf.zeros(inputShape, input.dtype)
+//         const updatedGradInput = gradInput.scatter(indicesFlat, dyReshaped, 1)
+
+//         return updatedGradInput
+//     }
+
+//     const customTopk = tf.customGrad((input, save) => {
+//         const { values, indices } = tf.topk(input, k)
+//         save([indices])
+//         const gradFunc = (dy, saved) => {
+//             const [savedIndices] = saved
+//             const gradInput = topkGrad(dy, savedIndices)
+//             return gradInput
+//         }
+//         return { value: values, gradFunc }
+//     })
+
+//     const value = customTopk(input)
+//     const indices = tf.topk(input, k).indices
+//     return { value, indices }
+// }
 
 export default {
     subliminalSpace,
