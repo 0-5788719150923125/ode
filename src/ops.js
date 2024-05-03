@@ -155,12 +155,13 @@ function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
             batchOutputs.push(batchOutput)
         }
 
-        const outputs = tf.concat(batchOutputs, 0)
         const selectedExpertsTensor = tf.tensor2d(
             selectedExpertsArray,
             [inputs.shape[0], topK],
             'int32'
         )
+
+        const outputs = tf.concat(batchOutputs, 0)
 
         save([inputs, gatingScores, selectedExpertsTensor, outputs])
 
