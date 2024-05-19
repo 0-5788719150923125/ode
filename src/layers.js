@@ -1213,6 +1213,396 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     }
 }
 
+// class KolmogorovArnoldNetwork extends LayerBase {
+//     constructor(config) {
+//         super({ name: `kan-${randomString()}`, ...config })
+//         this.inDim = config.inDim || 3
+//         this.outDim = config.outDim || 2
+//         this.num = config.num || 5
+//         this.k = config.k || 3
+//         this.noiseScale = config.noiseScale || 0.1
+//         this.scaleBase = config.scaleBase || 1.0
+//         this.scaleSp = config.scaleSp || 1.0
+//         this.baseFun = config.baseFun || 'silu'
+//         this.gridEps = config.gridEps || 0.02
+//         this.gridRange = config.gridRange || [-1, 1]
+//         this.spTrainable = config.spTrainable !== false
+//         this.sbTrainable = config.sbTrainable !== false
+//     }
+
+//     build(inputShape) {
+//         const size = this.outDim * this.inDim
+//         const gridShape = [size, this.num + 1]
+//         const noiseShape = [size, this.num + 1]
+
+//         const grid = tf
+//             .linspace(this.gridRange[0], this.gridRange[1], this.num + 1)
+//             .expandDims(0)
+//             .tile([size, 1])
+//         this.grid = this.addWeight(
+//             'grid',
+//             gridShape,
+//             'float32',
+//             () => grid,
+//             false
+//         )
+
+//         const noises = tf
+//             .randomUniform(noiseShape, -1, 1)
+//             .sub(0.5)
+//             .mul(this.noiseScale / this.num)
+//         const coef = this.curve2coef(this.grid, noises, this.grid, this.k)
+//         this.coef = this.addWeight(
+//             'coef',
+//             coef.shape,
+//             'float32',
+//             () => coef,
+//             true
+//         )
+
+//         this.scaleBase = this.addWeight(
+//             'scaleBase',
+//             [size],
+//             'float32',
+//             tf.initializers.constant(this.scaleBase),
+//             this.sbTrainable
+//         )
+//         this.scaleSp = this.addWeight(
+//             'scaleSp',
+//             [size],
+//             'float32',
+//             tf.initializers.constant(this.scaleSp),
+//             this.spTrainable
+//         )
+
+//         this.mask = this.addWeight(
+//             'mask',
+//             [size],
+//             'float32',
+//             tf.initializers.ones(),
+//             false
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             const batch = inputs.shape[0]
+//             const preacts = inputs
+//                 .tile([1, this.outDim])
+//                 .reshape([batch, this.outDim, this.inDim])
+
+//             const base = this.activationFn(
+//                 inputs.reshape([batch, this.size])
+//             ).reshape([batch, this.outDim, this.inDim])
+
+//             const y = this.coef2curve(
+//                 inputs.reshape([batch, this.size]),
+//                 this.grid,
+//                 this.coef,
+//                 this.k
+//             ).reshape([batch, this.outDim, this.inDim])
+
+//             const postspline = y.clone()
+
+//             const postacts = this.scaleBase
+//                 .expandDims(0)
+//                 .mul(base)
+//                 .add(this.scaleSp.expandDims(0).mul(y))
+//                 .mul(this.mask.expandDims(0))
+
+//             const output = postacts.sum(2)
+
+//             return [output, preacts, postacts, postspline]
+//         })
+//     }
+
+//     B_batch(x, grid, k = 0, extend = true) {
+//         const extendGrid = (grid, kExtend = 0) => {
+//             const h = grid
+//                 .slice([0, -1])
+//                 .sub(grid.slice([0, 0]))
+//                 .div(grid.shape[1] - 1)
+//             let extendedGrid = grid
+//             for (let i = 0; i < kExtend; i++) {
+//                 extendedGrid = extendedGrid.concat(
+//                     [grid.slice([0, 0]).sub(h), extendedGrid],
+//                     1
+//                 )
+//                 extendedGrid = extendedGrid.concat(
+//                     [extendedGrid, grid.slice([0, -1]).add(h)],
+//                     1
+//                 )
+//             }
+//             return extendedGrid
+//         }
+
+//         if (extend) {
+//             grid = extendGrid(grid, k)
+//         }
+
+//         grid = grid.expandDims(2)
+//         x = x.expandDims(1)
+
+//         let value
+//         if (k === 0) {
+//             value = x
+//                 .greaterEqual(grid.slice([0, 0, -1]))
+//                 .mul(x.less(grid.slice([0, 1, -1])))
+//         } else {
+//             const B_km1 = this.B_batch(
+//                 x.slice([0, 0]),
+//                 grid.slice([0, 0, 0]),
+//                 k - 1,
+//                 false
+//             )
+//             value = x
+//                 .sub(grid.slice([0, 0, -(k + 1)]))
+//                 .div(grid.slice([0, k, -1]).sub(grid.slice([0, 0, -(k + 1)])))
+//                 .mul(B_km1.slice([0, 0, -1]))
+//                 .add(
+//                     grid
+//                         .slice([0, k + 1, -1])
+//                         .sub(x)
+//                         .div(
+//                             grid
+//                                 .slice([0, k + 1, -1])
+//                                 .sub(grid.slice([0, 1, -k]))
+//                         )
+//                         .mul(B_km1.slice([0, 1, -1]))
+//                 )
+//         }
+//         return value
+//     }
+
+//     coef2curve(xEval, grid, coef, k) {
+//         if (coef.dtype !== xEval.dtype) {
+//             coef = coef.cast(xEval.dtype)
+//         }
+//         const yEval = tf.einsum(
+//             'ij,ijk->ik',
+//             coef,
+//             this.B_batch(xEval, grid, k)
+//         )
+//         return yEval
+//     }
+
+//     curve2coef(xEval, yEval, grid, k) {
+//         const mat = this.B_batch(xEval, grid, k).transpose([0, 2, 1])
+//         const coef = tf.linalg
+//             .lstsq(mat, yEval.expandDims(2))
+//             .reshape([mat.shape[0], mat.shape[2]])
+//         return coef
+//     }
+
+//     activationFn(x) {
+//         if (this.baseFun === 'silu') {
+//             return tf.layers.activation({ activation: 'silu' }).apply(x)
+//         } else {
+//             throw new Error('Unsupported activation function')
+//         }
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             inDim: this.inDim,
+//             outDim: this.outDim,
+//             num: this.num,
+//             k: this.k,
+//             noiseScale: this.noiseScale,
+//             scaleBase: this.scaleBase,
+//             scaleSp: this.scaleSp,
+//             baseFun: this.baseFun,
+//             gridEps: this.gridEps,
+//             gridRange: this.gridRange,
+//             spTrainable: this.spTrainable,
+//             sbTrainable: this.sbTrainable
+//         }
+//     }
+// }
+
+class KolmogorovArnoldNetwork extends LayerBase {
+    constructor(config) {
+        super({ name: `kan-${randomString()}`, ...config })
+        this.units = config.units
+        this.num = config.num || 5
+        this.k = config.k || 3
+        this.noiseScale = config.noiseScale || 0.1
+        this.gridEps = config.gridEps || 0.02
+        this.gridRange = config.gridRange || [-1, 1]
+    }
+
+    build(inputShape) {
+        const inDim = inputShape[inputShape.length - 1]
+        this.inDim = inDim
+        this.outDim = this.units
+        this.size = this.outDim * this.inDim
+
+        this.grid = tf.variable(
+            tf.tile(
+                tf
+                    .linspace(
+                        this.gridRange[0],
+                        this.gridRange[1],
+                        this.num + 1
+                    )
+                    .expandDims(0),
+                [this.size, 1]
+            ),
+            false
+        )
+
+        const noises = tf
+            .randomUniform([this.size, this.grid.shape[1]], -0.5, 0.5)
+            .mul(this.noiseScale / this.num)
+        this.coef = this.addWeight(
+            'coef',
+            [this.size, this.num + this.k],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.coef.assign(this.curveToCoef(this.grid, noises))
+
+        this.built = true
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const batch = inputs.shape[0]
+            const x = tf
+                .tile(inputs.expandDims(1), [1, this.outDim, 1])
+                .reshape([batch, this.size])
+                .transpose()
+            const preacts = x
+                .transpose()
+                .reshape([batch, this.outDim, this.inDim])
+            let y = this.coefToCurve(x)
+            y = y.transpose()
+
+            const postspline = y
+                .clone()
+                .reshape([batch, this.outDim, this.inDim])
+            y = y.reshape([batch, this.outDim, this.inDim]).sum(2)
+            return y
+        })
+    }
+
+    extendGrid(grid, kExtend) {
+        const h = tf
+            .sub(
+                grid.slice([0, grid.shape[1] - 1], [-1, 1]),
+                grid.slice([0, 0], [-1, 1])
+            )
+            .div(grid.shape[1] - 1)
+        let extendedGrid = grid
+
+        for (let i = 0; i < kExtend; i++) {
+            extendedGrid = tf.concat(
+                [tf.sub(extendedGrid.slice([0, 0], [-1, 1]), h), extendedGrid],
+                1
+            )
+            extendedGrid = tf.concat(
+                [
+                    extendedGrid,
+                    tf.add(
+                        extendedGrid.slice(
+                            [0, extendedGrid.shape[1] - 1],
+                            [-1, 1]
+                        ),
+                        h
+                    )
+                ],
+                1
+            )
+        }
+
+        return extendedGrid
+    }
+
+    BBatch(x, grid, k = 0, extend = true) {
+        if (extend) {
+            grid = this.extendGrid(grid, k)
+        }
+
+        grid = grid.expandDims(2)
+        x = x.expandDims(1)
+
+        if (k === 0) {
+            return tf.mul(
+                tf.greaterEqual(
+                    x,
+                    grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - 1])
+                ),
+                tf.less(x, grid.slice([0, 0, 1], [-1, -1, grid.shape[1] - 1]))
+            )
+        } else {
+            const B_km1 = this.BBatch(x.squeeze(), grid.squeeze(), k - 1, false)
+            const value1 = tf.mul(
+                tf.div(
+                    tf.sub(
+                        x,
+                        grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - k - 1])
+                    ),
+                    tf.sub(
+                        grid.slice([0, 0, k], [-1, -1, -1]),
+                        grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - k - 1])
+                    )
+                ),
+                B_km1.slice([0, 0, 0], [-1, -1, B_km1.shape[2] - 1])
+            )
+            const value2 = tf.mul(
+                tf.div(
+                    tf.sub(grid.slice([0, 0, k + 1], [-1, -1, -1]), x),
+                    tf.sub(
+                        grid.slice([0, 0, k + 1], [-1, -1, -1]),
+                        grid.slice([0, 0, 1], [-1, -1, grid.shape[1] - k - 1])
+                    )
+                ),
+                B_km1.slice([0, 0, 1], [-1, -1, B_km1.shape[2] - 1])
+            )
+
+            return tf.add(value1, value2)
+        }
+    }
+
+    coefToCurve(xEval) {
+        return tf.einsum(
+            'ij,ijk->ik',
+            this.coef,
+            this.BBatch(xEval, this.grid, this.k)
+        )
+    }
+
+    curveToCoef(xEval, yEval) {
+        const mat = this.BBatch(xEval, this.grid, this.k).transpose([0, 2, 1])
+        const coef = tf.linalg
+            .lstsq(mat, yEval.expandDims(2))
+            .solution.squeeze()
+        return coef
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], this.units]
+    }
+
+    getConfig() {
+        const baseConfig = super.getConfig()
+        return {
+            ...baseConfig,
+            units: this.units,
+            num: this.num,
+            k: this.k,
+            noiseScale: this.noiseScale,
+            scaleBase: this.scaleBase.arraySync(),
+            scaleSp: this.scaleSp.arraySync(),
+            gridEps: this.gridEps,
+            gridRange: this.gridRange,
+            spTrainable: this.spTrainable,
+            sbTrainable: this.sbTrainable
+        }
+    }
+}
+
 class DenseMultiLayerPerceptron extends LayerBase {
     constructor(config) {
         super({ name: `mlp-${randomString()}`, ...config })
@@ -5299,7 +5689,8 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    WeightedSum
+    WeightedSum,
+    KolmogorovArnoldNetwork
 ]
 
 exportedLayers.forEach((LayerClass) => {
