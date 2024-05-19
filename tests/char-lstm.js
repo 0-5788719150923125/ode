@@ -9,9 +9,7 @@ let tf = tfjs
     await tf.setBackend('tensorflow')
 })()
 
-import { shaks13 } from '../src/data.js'
-
-const text = shaks13
+const text = ''
 
 const createModel = (lstmLayerSize, sampleLen, charSetSize, learningRate) => {
     const model = lstmLayerSize.reduce((mdl, lstmLayerSize, i, orig) => {

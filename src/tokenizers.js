@@ -1,5 +1,4 @@
 import { createCanvas } from 'canvas'
-import { shaks13 } from './data.js'
 
 class TokenizerBase {
     constructor() {
@@ -227,7 +226,7 @@ class BasicSubwordTokenizer extends TokenizerBase {
     constructor(
         maxVocabSize = 32000,
         trainIterations = 50_000_000,
-        corpus = shaks13
+        corpus = ''
     ) {
         super()
         this.maxVocabSize = maxVocabSize

@@ -1,5 +1,4 @@
 import * as tf from '@tensorflow/tfjs-node-gpu'
-import { shaks13 } from '../src/data.js'
 import {
     emaGenerator,
     preprocessData,
@@ -16,7 +15,7 @@ const vocab = Array.from(
     )
 )
 
-const dataGenerator = sequentialStringSampler(maxSequenceLength + 1, shaks13)
+const dataGenerator = sequentialStringSampler(maxSequenceLength + 1, '')
 const dataset = tf.data.generator(
     createBatchGenerator(dataGenerator, vocab, batchSize)
 )
@@ -91,7 +90,9 @@ async function trainModel() {
                     const elapsedTime = timer.next().value
                     const updatedEma = ema.next(logs.loss).value
                     console.log(
-                        `STEP=${step}, ELAPSED=${elapsedTime.toFixed(2)}Hrs, EMA=${updatedEma.toFixed(5)}, LOSS=${logs.loss}`
+                        `STEP=${step}, ELAPSED=${elapsedTime.toFixed(
+                            2
+                        )}Hrs, EMA=${updatedEma.toFixed(5)}, LOSS=${logs.loss}`
                     )
                 }
                 if (step % 100 === 0) {

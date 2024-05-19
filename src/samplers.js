@@ -1,7 +1,6 @@
-import { shaks13 } from './data.js'
 import { delay, randomBetween } from './utils.js'
 
-function* stringSampler(sampleLen, overfit = 0, str = shaks13) {
+function* stringSampler(sampleLen, overfit = 0, str = '') {
     if (overfit > 0) str = splitLines(str, overfit)
     while (true) {
         // Generate a random start index within the string's bounds
@@ -58,7 +57,10 @@ async function directoryReader(dir = './', delimiter = '\n\n') {
                 if (entry.isDirectory()) {
                     readDirSync(entryPath)
                 } else {
-                    allText += `${fs.readFileSync(entryPath, 'utf8')}${delimiter}`
+                    allText += `${fs.readFileSync(
+                        entryPath,
+                        'utf8'
+                    )}${delimiter}`
                 }
             }
         )
