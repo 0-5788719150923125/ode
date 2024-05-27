@@ -1083,13 +1083,21 @@ class MultiLayerPerceptron extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Expand and contract projection via feedforward layers
-            let outputs = this.dense(inputs, this.inProjKernel, this.inProjBias)
+            let outputs = this.applyDense(
+                inputs,
+                this.inProjKernel,
+                this.inProjBias
+            )
 
             outputs = tf.layers
                 .activation({ activation: this.activation })
                 .apply(outputs)
 
-            outputs = this.dense(outputs, this.outProjKernel, this.outProjBias)
+            outputs = this.applyDense(
+                outputs,
+                this.outProjKernel,
+                this.outProjBias
+            )
 
             // If training, apply residual dropout
             outputs = kwargs['training']
@@ -1104,7 +1112,7 @@ class MultiLayerPerceptron extends LayerBase {
         })
     }
 
-    dense(x, kernel, bias) {
+    applyDense(x, kernel, bias) {
         const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
         const m = tf.matMul(x, k)
         if (bias) {
@@ -1150,68 +1158,197 @@ class GatedLinearUnit extends MultiLayerPerceptron {
     }
 
     build(inputShape) {
-        // Initialize dense layers for projection and gating
-        this.inProj = tf.layers.dense({
-            units: this.innerDim,
-            inputDim: this.units,
-            activation: this.activation
-        })
-        this.gateProj = tf.layers.dense({
-            units: this.innerDim,
-            inputDim: this.units,
-            activation: 'sigmoid'
-        })
-        this.outProj = tf.layers.dense({
-            units: this.units,
-            inputDim: inputShape,
-            activation: 'linear'
-        })
+        super.build(inputShape)
 
-        // Initialize layer normalization
-        if (this.epsilon) {
-            this.layernorm = tf.layers.layerNormalization({
-                epsilon: this.epsilon
-            })
-        }
-
-        // Residual connections/skip connections are critical here
-        this.residual = new ResidualConnection()
+        this.gateProjKernel = this.addWeight(
+            'gateProjKernel',
+            [inputShape[inputShape.length - 1], this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gateProjBias = this.addWeight(
+            'gateProjBias',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
+        )
     }
 
-    // getWeights() {
-    //     return [
-    //         this.inProj.getWeights(),
-    //         this.outProj.getWeights(),
-    //         this.gateProj.getWeights()
-    //     ]
-    // }
-
-    // setWeights(weights) {
-    //     this.inProj.write(weights[0])
-    //     this.outProj.write(weights[1])
-    //     this.gateProj.write(weights[2])
-    // }
-
-    call(inputs, kwargs, training = false) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Expand and contract projection via feedforward layers
-            const proj = this.inProj.apply(inputs)
-            const gate = this.gateProj.apply(inputs)
+            let proj = this.applyDense(
+                inputs,
+                this.inProjKernel,
+                this.inProjBias
+            )
+
+            proj = tf.layers
+                .activation({ activation: this.activation })
+                .apply(proj)
+
+            let gate = this.applyDense(
+                inputs,
+                this.gateProjKernel,
+                this.gateProjBias
+            )
+
+            gate = tf.layers.activation({ activation: 'sigmoid' }).apply(gate)
+
             const gatedOutput = tf.mul(proj, gate)
-            let outputs = this.outProj.apply(gatedOutput)
+
+            let outputs = this.applyDense(
+                gatedOutput,
+                this.outProjKernel,
+                this.outProjBias
+            )
+
             // If training, apply residual dropout
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
+
             // Apply layer norm
             if (this.layernorm) outputs = this.layernorm.apply(outputs)
+
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
     }
+
+    getWeights() {
+        return [
+            this.inProjKernel.read(),
+            this.inProjBias.read(),
+            this.outProjKernel.read(),
+            this.outProjBias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.inProjKernel.write(weights[0])
+        this.inProjBias.write(weights[1])
+        this.gateProjKernel.write(weights[2])
+        this.gateProjBias.write(weights[3])
+        this.outProjKernel.write(weights[4])
+        this.outProjBias.write(weights[5])
+    }
 }
+
+// class GatedLinearUnit extends LayerBase {
+//     constructor(config) {
+//         super({ name: `glu-${randomString()}`, ...config })
+//         this.units = config?.units || 256
+//         this.innerDim = config?.innerDim || 1024
+//         this.dropout = config?.dropout || 0
+//         this.epsilon = config?.epsilon || false
+//         this.activation = config?.activation || 'relu'
+//         this.supportsMasking = true
+//     }
+
+//     build(inputShape) {
+//         // Initialize dense layers for projection and gating
+//         this.inProj = tf.layers.dense({
+//             units: this.innerDim,
+//             inputDim: this.units,
+//             activation: this.activation
+//         })
+//         this.gateProj = tf.layers.dense({
+//             units: this.innerDim,
+//             inputDim: this.units,
+//             activation: 'sigmoid'
+//         })
+//         this.outProj = tf.layers.dense({
+//             units: this.units,
+//             inputDim: inputShape,
+//             activation: 'linear'
+//         })
+
+//         this.inProj.build([inputShape[0], inputShape[1], this.units])
+//         this.gateProj.build([inputShape[0], inputShape[1], this.units])
+//         this.outProj.build([inputShape[0], inputShape[1], this.innerDim])
+
+//         this.trainableWeights = [
+//             ...this.inProj.trainableWeights,
+//             ...this.gateProj.trainableWeights,
+//             ...this.outProj.trainableWeights
+//         ]
+
+//         // Initialize layer normalization
+//         if (this.epsilon) {
+//             this.layernorm = tf.layers.layerNormalization({
+//                 epsilon: this.epsilon
+//             })
+//             this.trainableWeights.push(...this.layernorm.trainableWeights)
+//         }
+
+//         // Residual connections/skip connections are critical here
+//         this.residual = new ResidualConnection()
+//     }
+
+//     // getWeights() {
+//     //     return [
+//     //         this.inProjKernel.read(),
+//     //         this.inProjBias.read(),
+//     //         this.outProjKernel.read(),
+//     //         this.outProjBias.read()
+//     //     ]
+//     // }
+
+//     // setWeights(weights) {
+//     //     this.inProjKernel.write(weights[0])
+//     //     this.inProjBias.write(weights[1])
+//     //     this.outProjKernel.write(weights[2])
+//     //     this.outProjBias.write(weights[3])
+//     // }
+
+//     getWeights() {
+//         return this.trainableWeights.map((weights) => weights.read())
+//     }
+
+//     setWeights(weights) {
+//         this.inProj.kernel.write(weights[0])
+//         this.inProj.bias.write(weights[1])
+//         this.outProj.kernel.write(weights[2])
+//         this.outProj.bias.write(weights[3])
+//         this.gateProj.kernel.write(weights[4])
+//         this.gateProj.bias.write(weights[5])
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // console.log(this.trainableWeights)
+//             // console.log(this.outProj)
+
+//             // Expand and contract projection via feedforward layers
+//             const proj = this.inProj.apply(inputs)
+//             const gate = this.gateProj.apply(inputs)
+//             const gatedOutput = tf.mul(proj, gate)
+//             let outputs = this.outProj.apply(gatedOutput)
+//             // If training, apply residual dropout
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
+//             // Apply layer norm
+//             if (this.layernorm) outputs = this.layernorm.apply(outputs)
+//             // Apply skip connection
+//             return this.residual.apply([inputs, outputs])
+//         })
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             dropout: this.dropout
+//         }
+//     }
+// }
 
 // class KolmogorovArnoldNetwork extends LayerBase {
 //     constructor(config) {
@@ -5633,8 +5770,135 @@ class FastMemory extends LayerBase {
     }
 }
 
+// https://github.com/rish-16/aft-pytorch/blob/main/aft_pytorch/aft_pytorch.py
+class AttentionFreeTransformer extends LayerBase {
+    constructor(config) {
+        super({ name: `aft-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.hiddenDim = config.hiddenDim || 64
+        this.contextLength = config.contextLength
+    }
+
+    build(inputShape) {
+        this.toQ = this.addWeight(
+            'toQ',
+            [inputShape[inputShape.length - 1], this.hiddenDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.toK = this.addWeight(
+            'toK',
+            [inputShape[inputShape.length - 1], this.hiddenDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.toV = this.addWeight(
+            'toV',
+            [inputShape[inputShape.length - 1], this.hiddenDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.project = this.addWeight(
+            'project',
+            [this.hiddenDim, this.units],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.wbias = this.addWeight(
+            'wbias',
+            [this.contextLength, this.contextLength],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const [B, T, _] = x.shape
+
+            const Q = this.applyDense(x, this.toQ).reshape([
+                B,
+                T,
+                this.hiddenDim
+            ])
+            const K = this.applyDense(x, this.toK).reshape([
+                B,
+                T,
+                this.hiddenDim
+            ])
+            const V = this.applyDense(x, this.toV).reshape([
+                B,
+                T,
+                this.hiddenDim
+            ])
+
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
+
+            const tempWbias = this.wbias
+                .read()
+                .slice([0, 0], [T, T])
+                .expandDims(0)
+                .add(mask)
+
+            const QSig = tf.sigmoid(Q)
+            const temp = tf.matMul(tf.exp(tempWbias), tf.mul(tf.exp(K), V))
+            const weighted = tf.div(
+                temp,
+                tf.matMul(tf.exp(tempWbias), tf.exp(K))
+            )
+
+            const Yt = tf.mul(QSig, weighted)
+
+            const outputs = this.applyDense(
+                Yt.reshape([B, T, this.hiddenDim]),
+                this.project
+            )
+
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    applyDense(x, kernel) {
+        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
+        return tf.matMul(x, k)
+    }
+
+    getWeights() {
+        return [
+            this.toQ.read(),
+            this.toK.read(),
+            this.toV.read(),
+            this.project.read(),
+            this.wbias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.toQ.write(weights[0])
+        this.toK.write(weights[1])
+        this.toV.write(weights[2])
+        this.project.write(weights[3])
+        this.wbias.write(weights[4])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            hiddenDim: this.hiddenDim,
+            contextLength: this.contextLength
+        }
+    }
+}
+
 const exportedLayers = [
     Antirectifier,
+    AttentionFreeTransformer,
     Autoencoder,
     Bias,
     CapsNet,

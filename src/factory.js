@@ -7,8 +7,9 @@ import v5 from './model.v5.js'
 import v6 from './model.v6.js'
 import v7 from './model.v7.js'
 import v8 from './model.v8.js'
+import v9 from './model.v9.js'
 
-const modules = [v0, v1, v2, v3, v4, v5, v6, v7, v8]
+const modules = [v0, v1, v2, v3, v4, v5, v6, v7, v8, v9]
 
 export default async function loadModelVersion(args) {
     const config = {

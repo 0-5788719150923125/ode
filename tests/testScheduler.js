@@ -38,7 +38,7 @@ function plotCosineSchedulerRealTime(
     rate = 100,
     modulation = 1
 ) {
-    const generator = schedulers.cosineScheduler(
+    const generator = schedulers.cosineWithRestartsScheduler(
         min,
         max,
         iterations,
