@@ -1558,184 +1558,349 @@ class GatedLinearUnit extends MultiLayerPerceptron {
 //     }
 // }
 
+// class KolmogorovArnoldNetwork extends LayerBase {
+//     constructor(config) {
+//         super({ name: `kan-${randomString()}`, ...config })
+//         this.units = config.units
+//         this.num = config.num || 5
+//         this.k = config.k || 3
+//         this.noiseScale = config.noiseScale || 0.1
+//         this.gridEps = config.gridEps || 0.02
+//         this.gridRange = config.gridRange || [-1, 1]
+//     }
+
+//     build(inputShape) {
+//         const inDim = inputShape[inputShape.length - 1]
+//         this.inDim = inDim
+//         this.outDim = this.units
+//         this.size = this.outDim * this.inDim
+
+//         this.grid = tf.variable(
+//             tf.tile(
+//                 tf
+//                     .linspace(
+//                         this.gridRange[0],
+//                         this.gridRange[1],
+//                         this.num + 1
+//                     )
+//                     .expandDims(0),
+//                 [this.size, 1]
+//             ),
+//             false
+//         )
+
+//         const noises = tf
+//             .randomUniform([this.size, this.grid.shape[1]], -0.5, 0.5)
+//             .mul(this.noiseScale / this.num)
+//         this.coef = this.addWeight(
+//             'coef',
+//             [this.size, this.num + this.k],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.coef.assign(this.curveToCoef(this.grid, noises))
+
+//         this.built = true
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             const batch = inputs.shape[0]
+//             const x = tf
+//                 .tile(inputs.expandDims(1), [1, this.outDim, 1])
+//                 .reshape([batch, this.size])
+//                 .transpose()
+//             const preacts = x
+//                 .transpose()
+//                 .reshape([batch, this.outDim, this.inDim])
+//             let y = this.coefToCurve(x)
+//             y = y.transpose()
+
+//             const postspline = y
+//                 .clone()
+//                 .reshape([batch, this.outDim, this.inDim])
+//             y = y.reshape([batch, this.outDim, this.inDim]).sum(2)
+//             return y
+//         })
+//     }
+
+//     extendGrid(grid, kExtend) {
+//         const h = tf
+//             .sub(
+//                 grid.slice([0, grid.shape[1] - 1], [-1, 1]),
+//                 grid.slice([0, 0], [-1, 1])
+//             )
+//             .div(grid.shape[1] - 1)
+//         let extendedGrid = grid
+
+//         for (let i = 0; i < kExtend; i++) {
+//             extendedGrid = tf.concat(
+//                 [tf.sub(extendedGrid.slice([0, 0], [-1, 1]), h), extendedGrid],
+//                 1
+//             )
+//             extendedGrid = tf.concat(
+//                 [
+//                     extendedGrid,
+//                     tf.add(
+//                         extendedGrid.slice(
+//                             [0, extendedGrid.shape[1] - 1],
+//                             [-1, 1]
+//                         ),
+//                         h
+//                     )
+//                 ],
+//                 1
+//             )
+//         }
+
+//         return extendedGrid
+//     }
+
+//     BBatch(x, grid, k = 0, extend = true) {
+//         if (extend) {
+//             grid = this.extendGrid(grid, k)
+//         }
+
+//         grid = grid.expandDims(2)
+//         x = x.expandDims(1)
+
+//         if (k === 0) {
+//             return tf.mul(
+//                 tf.greaterEqual(
+//                     x,
+//                     grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - 1])
+//                 ),
+//                 tf.less(x, grid.slice([0, 0, 1], [-1, -1, grid.shape[1] - 1]))
+//             )
+//         } else {
+//             const B_km1 = this.BBatch(x.squeeze(), grid.squeeze(), k - 1, false)
+//             const value1 = tf.mul(
+//                 tf.div(
+//                     tf.sub(
+//                         x,
+//                         grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - k - 1])
+//                     ),
+//                     tf.sub(
+//                         grid.slice([0, 0, k], [-1, -1, -1]),
+//                         grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - k - 1])
+//                     )
+//                 ),
+//                 B_km1.slice([0, 0, 0], [-1, -1, B_km1.shape[2] - 1])
+//             )
+//             const value2 = tf.mul(
+//                 tf.div(
+//                     tf.sub(grid.slice([0, 0, k + 1], [-1, -1, -1]), x),
+//                     tf.sub(
+//                         grid.slice([0, 0, k + 1], [-1, -1, -1]),
+//                         grid.slice([0, 0, 1], [-1, -1, grid.shape[1] - k - 1])
+//                     )
+//                 ),
+//                 B_km1.slice([0, 0, 1], [-1, -1, B_km1.shape[2] - 1])
+//             )
+
+//             return tf.add(value1, value2)
+//         }
+//     }
+
+//     coefToCurve(xEval) {
+//         return tf.einsum(
+//             'ij,ijk->ik',
+//             this.coef,
+//             this.BBatch(xEval, this.grid, this.k)
+//         )
+//     }
+
+//     curveToCoef(xEval, yEval) {
+//         const mat = this.BBatch(xEval, this.grid, this.k).transpose([0, 2, 1])
+//         const coef = tf.linalg
+//             .lstsq(mat, yEval.expandDims(2))
+//             .solution.squeeze()
+//         return coef
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [inputShape[0], this.units]
+//     }
+
+//     getConfig() {
+//         const baseConfig = super.getConfig()
+//         return {
+//             ...baseConfig,
+//             units: this.units,
+//             num: this.num,
+//             k: this.k,
+//             noiseScale: this.noiseScale,
+//             scaleBase: this.scaleBase.arraySync(),
+//             scaleSp: this.scaleSp.arraySync(),
+//             gridEps: this.gridEps,
+//             gridRange: this.gridRange,
+//             spTrainable: this.spTrainable,
+//             sbTrainable: this.sbTrainable
+//         }
+//     }
+// }
+
 class KolmogorovArnoldNetwork extends LayerBase {
     constructor(config) {
         super({ name: `kan-${randomString()}`, ...config })
-        this.units = config.units
-        this.num = config.num || 5
-        this.k = config.k || 3
-        this.noiseScale = config.noiseScale || 0.1
-        this.gridEps = config.gridEps || 0.02
-        this.gridRange = config.gridRange || [-1, 1]
+        this.degree = config?.degree || 3
+        this.units = config?.units || 256
+        this.gridPoints = tf.linspace(0.0, 1.0, this.units + 1).arraySync()
+        this.dropout = config?.dropout || 0
+        this.epsilon = config?.epsilon || false
+        this.supportsMasking = true
     }
 
     build(inputShape) {
-        const inDim = inputShape[inputShape.length - 1]
-        this.inDim = inDim
-        this.outDim = this.units
-        this.size = this.outDim * this.inDim
-
-        this.grid = tf.variable(
-            tf.tile(
-                tf
-                    .linspace(
-                        this.gridRange[0],
-                        this.gridRange[1],
-                        this.num + 1
-                    )
-                    .expandDims(0),
-                [this.size, 1]
-            ),
-            false
-        )
-
-        const noises = tf
-            .randomUniform([this.size, this.grid.shape[1]], -0.5, 0.5)
-            .mul(this.noiseScale / this.num)
-        this.coef = this.addWeight(
-            'coef',
-            [this.size, this.num + this.k],
+        this.coefficients = this.addWeight(
+            'coefficients',
+            [this.gridPoints.length + this.degree - 1],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.randomNormal({ mean: 0, stddev: 1 })
         )
-        this.coef.assign(this.curveToCoef(this.grid, noises))
 
-        this.built = true
+        this.bSplines = this._createBSplines()
+
+        if (this.epsilon) {
+            this.layernorm = tf.layers.layerNormalization({
+                epsilon: this.epsilon
+            })
+        }
+
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    _createBSplines() {
+        const knots = [
+            ...Array(this.degree).fill(this.gridPoints[0]),
+            ...this.gridPoints,
+            ...Array(this.degree).fill(
+                this.gridPoints[this.gridPoints.length - 1]
+            )
+        ]
+
+        const bSplines = []
+        for (let i = 0; i < this.gridPoints.length + this.degree - 1; i++) {
+            bSplines.push(
+                this._bSplineBasis(knots.slice(i, i + this.degree + 1))
+            )
+        }
+
+        return bSplines
+    }
+
+    _bSplineBasis(knots) {
+        return (x) => {
+            let y = tf.zeros([x.shape[0]])
+            for (let i = 0; i < knots.length - this.degree; i++) {
+                y = tf.add(
+                    y,
+                    this._coxDeBoor(
+                        knots.slice(i, i + this.degree + 1),
+                        x,
+                        this.degree
+                    )
+                )
+            }
+            return y
+        }
+    }
+
+    _coxDeBoor(knots, x, degree) {
+        if (degree === 0) {
+            if (knots.length === 1) {
+                const diff = tf.abs(tf.sub(x, knots[0]))
+                const eps = 1e-8
+                const inRange = tf.sigmoid(tf.mul(tf.sub(eps, diff), 1e8))
+                return tf.mul(inRange, tf.ones([x.shape[0]]))
+            } else {
+                const lowerBound = tf.sigmoid(tf.mul(tf.sub(x, knots[0]), 1e8))
+                const upperBound = tf.sigmoid(tf.mul(tf.sub(knots[1], x), 1e8))
+                const inRange = tf.mul(lowerBound, upperBound)
+                return tf.mul(inRange, tf.ones([x.shape[0]]))
+            }
+        }
+
+        if (knots.length === 1) {
+            return tf.zerosLike(x)
+        }
+
+        const denom1 = tf.sub(knots[degree], knots[0])
+        const eps = 1e-8
+        const isDenom1Positive = tf.sigmoid(tf.mul(denom1, 1e8))
+        const term1 = tf.mul(
+            tf.mul(
+                tf.sub(x, knots[0]),
+                this._coxDeBoor(knots.slice(0, -1), x, degree - 1)
+            ),
+            tf.div(isDenom1Positive, tf.add(denom1, eps))
+        )
+
+        let term2
+        if (degree + 1 < knots.length) {
+            const denom2 = tf.sub(knots[degree + 1], knots[1])
+            const isDenom2Positive = tf.sigmoid(tf.mul(denom2, 1e8))
+            term2 = tf.mul(
+                tf.mul(
+                    tf.sub(knots[degree + 1], x),
+                    this._coxDeBoor(knots.slice(1), x, degree - 1)
+                ),
+                tf.div(isDenom2Positive, tf.add(denom2, eps))
+            )
+        } else {
+            term2 = tf.zerosLike(x)
+        }
+
+        return tf.add(term1, term2)
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
-            const batch = inputs.shape[0]
-            const x = tf
-                .tile(inputs.expandDims(1), [1, this.outDim, 1])
-                .reshape([batch, this.size])
-                .transpose()
-            const preacts = x
-                .transpose()
-                .reshape([batch, this.outDim, this.inDim])
-            let y = this.coefToCurve(x)
-            y = y.transpose()
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const postspline = y
-                .clone()
-                .reshape([batch, this.outDim, this.inDim])
-            y = y.reshape([batch, this.outDim, this.inDim]).sum(2)
-            return y
+            const mulResults = this.bSplines.map((bSpline, i) => {
+                const coeffSlice = this.coefficients.read().slice([i], [1])
+
+                const bSplineResult = bSpline(inputs)
+
+                return tf.mul(coeffSlice, bSplineResult)
+            })
+
+            const phiX = tf.addN(mulResults)
+
+            let outputs = phiX
+
+            if (kwargs['training']) {
+                outputs = tf.dropout(outputs, this.dropout)
+            }
+
+            if (this.layernorm) {
+                outputs = this.layernorm.apply(outputs)
+            }
+
+            return this.residual.apply([inputs, outputs])
         })
     }
 
-    extendGrid(grid, kExtend) {
-        const h = tf
-            .sub(
-                grid.slice([0, grid.shape[1] - 1], [-1, 1]),
-                grid.slice([0, 0], [-1, 1])
-            )
-            .div(grid.shape[1] - 1)
-        let extendedGrid = grid
-
-        for (let i = 0; i < kExtend; i++) {
-            extendedGrid = tf.concat(
-                [tf.sub(extendedGrid.slice([0, 0], [-1, 1]), h), extendedGrid],
-                1
-            )
-            extendedGrid = tf.concat(
-                [
-                    extendedGrid,
-                    tf.add(
-                        extendedGrid.slice(
-                            [0, extendedGrid.shape[1] - 1],
-                            [-1, 1]
-                        ),
-                        h
-                    )
-                ],
-                1
-            )
-        }
-
-        return extendedGrid
-    }
-
-    BBatch(x, grid, k = 0, extend = true) {
-        if (extend) {
-            grid = this.extendGrid(grid, k)
-        }
-
-        grid = grid.expandDims(2)
-        x = x.expandDims(1)
-
-        if (k === 0) {
-            return tf.mul(
-                tf.greaterEqual(
-                    x,
-                    grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - 1])
-                ),
-                tf.less(x, grid.slice([0, 0, 1], [-1, -1, grid.shape[1] - 1]))
-            )
-        } else {
-            const B_km1 = this.BBatch(x.squeeze(), grid.squeeze(), k - 1, false)
-            const value1 = tf.mul(
-                tf.div(
-                    tf.sub(
-                        x,
-                        grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - k - 1])
-                    ),
-                    tf.sub(
-                        grid.slice([0, 0, k], [-1, -1, -1]),
-                        grid.slice([0, 0, 0], [-1, -1, grid.shape[1] - k - 1])
-                    )
-                ),
-                B_km1.slice([0, 0, 0], [-1, -1, B_km1.shape[2] - 1])
-            )
-            const value2 = tf.mul(
-                tf.div(
-                    tf.sub(grid.slice([0, 0, k + 1], [-1, -1, -1]), x),
-                    tf.sub(
-                        grid.slice([0, 0, k + 1], [-1, -1, -1]),
-                        grid.slice([0, 0, 1], [-1, -1, grid.shape[1] - k - 1])
-                    )
-                ),
-                B_km1.slice([0, 0, 1], [-1, -1, B_km1.shape[2] - 1])
-            )
-
-            return tf.add(value1, value2)
-        }
-    }
-
-    coefToCurve(xEval) {
-        return tf.einsum(
-            'ij,ijk->ik',
-            this.coef,
-            this.BBatch(xEval, this.grid, this.k)
-        )
-    }
-
-    curveToCoef(xEval, yEval) {
-        const mat = this.BBatch(xEval, this.grid, this.k).transpose([0, 2, 1])
-        const coef = tf.linalg
-            .lstsq(mat, yEval.expandDims(2))
-            .solution.squeeze()
-        return coef
-    }
-
     computeOutputShape(inputShape) {
-        return [inputShape[0], this.units]
+        return inputShape
+    }
+
+    getWeights() {
+        return [this.coefficients.read()]
+    }
+
+    setWeights(weights) {
+        this.coefficients.write(weights[0])
     }
 
     getConfig() {
-        const baseConfig = super.getConfig()
         return {
-            ...baseConfig,
+            ...super.getConfig(),
             units: this.units,
-            num: this.num,
-            k: this.k,
-            noiseScale: this.noiseScale,
-            scaleBase: this.scaleBase.arraySync(),
-            scaleSp: this.scaleSp.arraySync(),
-            gridEps: this.gridEps,
-            gridRange: this.gridRange,
-            spTrainable: this.spTrainable,
-            sbTrainable: this.sbTrainable
+            gridPoints: this.gridPoints,
+            degree: this.degree,
+            dropout: this.dropout
         }
     }
 }

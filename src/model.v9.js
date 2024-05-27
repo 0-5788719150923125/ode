@@ -4,13 +4,13 @@ import ODE from './model.v8.js'
  * A model that's still in development.
  * @extends ODE
  */
-export default class OODDEE extends ODE {
+export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
-        this.units = config.units || 333
-        this.projection = config.units || 666
-        this.queries = 3
+        this.layers = config.layers || 3
+        this.units = config.units || 256
+        this.projection = config.projection || 1024
+        this.queries = config.queries || 4
     }
 
     defineBuild() {
@@ -38,12 +38,19 @@ export default class OODDEE extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .GatedLinearUnit({
-                    units: this.units,
-                    innerDim: this.units * 3,
-                    activation: 'aptx'
+                .KolmogorovArnoldNetwork({
+                    units: 16,
+                    degree: 4
                 })
                 .apply(outputs)
+
+            // outputs = this.ode.layers
+            //     .GatedLinearUnit({
+            //         units: this.units,
+            //         innerDim: this.units * 4,
+            //         activation: 'aptx'
+            //     })
+            //     .apply(outputs)
         }
 
         outputs = embeddings.apply(outputs)
