@@ -29,10 +29,17 @@ export default class OscillatingDiagonalEngine extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
+            // outputs = this.ode.layers
+            //     .MultiQueryAttention({
+            //         projection: this.projection,
+            //         queries: this.queries
+            //     })
+            //     .apply(outputs)
             outputs = this.ode.layers
-                .MultiQueryAttention({
-                    projection: this.projection,
-                    queries: this.queries
+                .EfficientAttention({
+                    keyChannels: this.units * 4,
+                    valueChannels: this.units * 4,
+                    headCount: 4
                 })
                 .apply(outputs)
 

@@ -228,6 +228,146 @@ class SelfAttention extends LayerBase {
     }
 }
 
+// https://github.com/cmsflash/efficient-attention/blob/master/efficient_attention.py
+class EfficientAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `attn-${randomString()}`, ...config })
+        this.keyChannels = config.keyChannels || 1024
+        this.headCount = config.headCount || 8
+        this.valueChannels = config.valueChannels || 1024
+    }
+
+    build(inputShape) {
+        const inputDepth = inputShape[inputShape.length - 1]
+
+        this.keys = this.addWeight(
+            'keys',
+            [1, inputDepth, this.keyChannels],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.queries = this.addWeight(
+            'queries',
+            [1, inputDepth, this.keyChannels],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.values = this.addWeight(
+            'values',
+            [1, inputDepth, this.valueChannels],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.reprojection = this.addWeight(
+            'reprojection',
+            [1, this.valueChannels, inputDepth],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+        this.residual = customLayers.ResidualConnection()
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const [n, t, inputDepth] = inputs.shape
+
+            const keys = tf
+                .conv1d(
+                    inputs.reshape([n, t, inputDepth]),
+                    this.keys.read(),
+                    1,
+                    'same'
+                )
+                .reshape([n, this.keyChannels, t])
+            const queries = tf
+                .conv1d(
+                    inputs.reshape([n, t, inputDepth]),
+                    this.queries.read(),
+                    1,
+                    'same'
+                )
+                .reshape([n, this.keyChannels, t])
+            const values = tf
+                .conv1d(
+                    inputs.reshape([n, t, inputDepth]),
+                    this.values.read(),
+                    1,
+                    'same'
+                )
+                .reshape([n, this.valueChannels, t])
+
+            const headKeyChannels = Math.floor(
+                this.keyChannels / this.headCount
+            )
+            const headValueChannels = Math.floor(
+                this.valueChannels / this.headCount
+            )
+
+            const attendedValues = []
+            for (let i = 0; i < this.headCount; i++) {
+                const key = keys
+                    .slice([0, i * headKeyChannels, 0], [n, headKeyChannels, t])
+                    .softmax(-1)
+                const query = queries
+                    .slice([0, i * headKeyChannels, 0], [n, headKeyChannels, t])
+                    .transpose([0, 2, 1])
+                    .softmax(-1)
+                    .transpose([0, 2, 1])
+                const value = values.slice(
+                    [0, i * headValueChannels, 0],
+                    [n, headValueChannels, t]
+                )
+
+                const context = tf.matMul(key, value, false, true)
+                const attendedValue = tf
+                    .matMul(context, query, true, false)
+                    .reshape([n, headValueChannels, 1, t])
+
+                attendedValues.push(attendedValue)
+            }
+
+            const aggregatedValues = tf
+                .concat(attendedValues, 1)
+                .reshape([n, t, this.valueChannels])
+
+            const reprojectedValue = tf.conv1d(
+                aggregatedValues,
+                this.reprojection.read(),
+                1,
+                'same'
+            )
+
+            return this.residual.apply([inputs, reprojectedValue])
+        })
+    }
+
+    getWeights() {
+        return [
+            this.queries.read(),
+            this.keys.read(),
+            this.values.read(),
+            this.reprojection.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.queries.write(weights[0])
+        this.keys.write(weights[1])
+        this.values.write(weights[2])
+        this.reprojection.write(weights[3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            keyChannels: this.keyChannels,
+            headCount: this.headCount,
+            valueChannels: this.valueChannels
+        }
+    }
+}
+
 // https://github.com/lhallee/Multi_Head_Mixture_of_Experts__MH-MOE/blob/main/mhmoe.py
 class MultiHeadMoeBlock extends LayerBase {
     constructor(config) {
@@ -5729,6 +5869,7 @@ const exportedLayers = [
     DimensionContraction,
     DimensionExpansion,
     DumbCompression,
+    EfficientAttention,
     EfficientChannelAttention,
     FastMemory,
     FourierFeaturePositionalEncoding,
