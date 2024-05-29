@@ -232,22 +232,22 @@ class SelfAttention extends LayerBase {
 class EfficientAttention extends LayerBase {
     constructor(config) {
         super({ name: `attn-${randomString()}`, ...config })
-        this.keyChannels = config.keyChannels || 1024
+        this.keyChannels = config.keyChannels || 256
+        this.valueChannels = config.valueChannels || 256
         this.headCount = config.headCount || 8
-        this.valueChannels = config.valueChannels || 1024
     }
 
     build(inputShape) {
         const inputDepth = inputShape[inputShape.length - 1]
 
-        this.keys = this.addWeight(
-            'keys',
+        this.queries = this.addWeight(
+            'queries',
             [1, inputDepth, this.keyChannels],
             'float32',
             tf.initializers.glorotUniform()
         )
-        this.queries = this.addWeight(
-            'queries',
+        this.keys = this.addWeight(
+            'keys',
             [1, inputDepth, this.keyChannels],
             'float32',
             tf.initializers.glorotUniform()
@@ -270,32 +270,32 @@ class EfficientAttention extends LayerBase {
     call(inputs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const [n, t, inputDepth] = inputs.shape
+            const [batchSize, seqLen, dims] = inputs.shape
 
-            const keys = tf
-                .conv1d(
-                    inputs.reshape([n, t, inputDepth]),
-                    this.keys.read(),
-                    1,
-                    'same'
-                )
-                .reshape([n, this.keyChannels, t])
             const queries = tf
                 .conv1d(
-                    inputs.reshape([n, t, inputDepth]),
+                    inputs.reshape([batchSize, seqLen, dims]),
                     this.queries.read(),
                     1,
                     'same'
                 )
-                .reshape([n, this.keyChannels, t])
+                .reshape([batchSize, this.keyChannels, seqLen])
+            const keys = tf
+                .conv1d(
+                    inputs.reshape([batchSize, seqLen, dims]),
+                    this.keys.read(),
+                    1,
+                    'same'
+                )
+                .reshape([batchSize, this.keyChannels, seqLen])
             const values = tf
                 .conv1d(
-                    inputs.reshape([n, t, inputDepth]),
+                    inputs.reshape([batchSize, seqLen, dims]),
                     this.values.read(),
                     1,
                     'same'
                 )
-                .reshape([n, this.valueChannels, t])
+                .reshape([batchSize, this.valueChannels, seqLen])
 
             const headKeyChannels = Math.floor(
                 this.keyChannels / this.headCount
@@ -307,38 +307,44 @@ class EfficientAttention extends LayerBase {
             const attendedValues = []
             for (let i = 0; i < this.headCount; i++) {
                 const key = keys
-                    .slice([0, i * headKeyChannels, 0], [n, headKeyChannels, t])
+                    .slice(
+                        [0, i * headKeyChannels, 0],
+                        [batchSize, headKeyChannels, seqLen]
+                    )
                     .softmax(-1)
                 const query = queries
-                    .slice([0, i * headKeyChannels, 0], [n, headKeyChannels, t])
+                    .slice(
+                        [0, i * headKeyChannels, 0],
+                        [batchSize, headKeyChannels, seqLen]
+                    )
                     .transpose([0, 2, 1])
                     .softmax(-1)
                     .transpose([0, 2, 1])
                 const value = values.slice(
                     [0, i * headValueChannels, 0],
-                    [n, headValueChannels, t]
+                    [batchSize, headValueChannels, seqLen]
                 )
 
                 const context = tf.matMul(key, value, false, true)
                 const attendedValue = tf
                     .matMul(context, query, true, false)
-                    .reshape([n, headValueChannels, 1, t])
+                    .reshape([batchSize, headValueChannels, 1, seqLen])
 
                 attendedValues.push(attendedValue)
             }
 
             const aggregatedValues = tf
                 .concat(attendedValues, 1)
-                .reshape([n, t, this.valueChannels])
+                .reshape([batchSize, seqLen, this.valueChannels])
 
-            const reprojectedValue = tf.conv1d(
+            const outputs = tf.conv1d(
                 aggregatedValues,
                 this.reprojection.read(),
                 1,
                 'same'
             )
 
-            return this.residual.apply([inputs, reprojectedValue])
+            return this.residual.apply([inputs, outputs])
         })
     }
 
@@ -362,8 +368,8 @@ class EfficientAttention extends LayerBase {
         return {
             ...super.getConfig(),
             keyChannels: this.keyChannels,
-            headCount: this.headCount,
-            valueChannels: this.valueChannels
+            valueChannels: this.valueChannels,
+            headCount: this.headCount
         }
     }
 }
