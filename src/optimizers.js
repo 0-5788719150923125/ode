@@ -33,14 +33,6 @@ class AdamW extends tf.AdamOptimizer {
         })
     }
 
-    setLearningRate(learningRate) {
-        this.learningRate = learningRate
-        // if (this.c != null) {
-        //   this.c.dispose();
-        // }
-        // this.c = keep(scalar(-learningRate));
-    }
-
     static get className() {
         return 'AdamW'
     }

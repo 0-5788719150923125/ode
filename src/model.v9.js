@@ -4,12 +4,12 @@ import ODE from './model.v8.js'
  * A model that's still in development.
  * @extends ODE
  */
-export default class OmniscientDeterministicEngine extends ODE {
+export default class OscillatingDiagonalEngine extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.projection = config.projection || 1024
+        this.units = config.units || 512
+        this.projection = config.projection || 256
         this.queries = config.queries || 4
     }
 
@@ -31,26 +31,17 @@ export default class OmniscientDeterministicEngine extends ODE {
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .MultiQueryAttention({
-                    units: this.units,
                     projection: this.projection,
                     queries: this.queries
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .KolmogorovArnoldNetwork({
-                    units: 16,
-                    degree: 4
+                .GatedLinearUnit({
+                    innerDim: this.units * 4,
+                    activation: 'selu'
                 })
                 .apply(outputs)
-
-            // outputs = this.ode.layers
-            //     .GatedLinearUnit({
-            //         units: this.units,
-            //         innerDim: this.units * 4,
-            //         activation: 'aptx'
-            //     })
-            //     .apply(outputs)
         }
 
         outputs = embeddings.apply(outputs)

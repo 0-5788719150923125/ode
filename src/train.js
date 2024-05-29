@@ -164,7 +164,7 @@ class GradientAccumulator {
 // Set learning rate via schedule
 function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
     if (batch % gradientAccumulationSteps === 0) {
-        model.optimizer.setLearningRate(schedulers[0].next().value)
+        model.optimizer.learningRate = schedulers[0].next().value
     }
 }
 
