@@ -229,12 +229,14 @@ class SelfAttention extends LayerBase {
 }
 
 // https://github.com/cmsflash/efficient-attention/blob/master/efficient_attention.py
+// currently failing, because the causal mask makes loss values extremely high
 class EfficientAttention extends LayerBase {
     constructor(config) {
         super({ name: `attn-${randomString()}`, ...config })
         this.keyChannels = config.keyChannels || 256
         this.valueChannels = config.valueChannels || 256
         this.headCount = config.headCount || 8
+        this.contextLength = config.contextLength
     }
 
     build(inputShape) {
@@ -304,6 +306,15 @@ class EfficientAttention extends LayerBase {
                 this.valueChannels / this.headCount
             )
 
+            const mask = tf.linalg
+                .bandPart(
+                    tf.ones([this.contextLength, this.contextLength]),
+                    0,
+                    -1
+                )
+                .sub(tf.eye(this.contextLength))
+                .mul(tf.scalar(-1e9))
+
             const attendedValues = []
             for (let i = 0; i < this.headCount; i++) {
                 const key = keys
@@ -325,10 +336,10 @@ class EfficientAttention extends LayerBase {
                     [batchSize, headValueChannels, seqLen]
                 )
 
-                const context = tf.matMul(key, value, false, true)
+                const context = tf.matMul(key, value, false, true).add(mask)
                 const attendedValue = tf
                     .matMul(context, query, true, false)
-                    .reshape([batchSize, headValueChannels, 1, seqLen])
+                    .reshape([batchSize, headValueChannels, seqLen])
 
                 attendedValues.push(attendedValue)
             }
@@ -763,8 +774,8 @@ class MultiQueryAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
-            this.queryBias = this.addWeight(
-                `queryBias${i}`,
+            this.queryBiases = this.addWeight(
+                `queryBiases${i}`,
                 [this.projection],
                 'float32',
                 tf.initializers.zeros()
@@ -827,7 +838,7 @@ class MultiQueryAttention extends LayerBase {
                 const Q = this.applyDense(
                     inputs,
                     this.queryKernels[i],
-                    this.queryBias[i]
+                    this.queryBiases[i]
                 )
 
                 const scores = tf
@@ -855,19 +866,27 @@ class MultiQueryAttention extends LayerBase {
     getWeights() {
         return [
             ...this.queryKernels.map((kernel) => kernel.read()),
+            ...this.queryBiases.map((kernel) => kernel.read()),
             this.keyKernel.read(),
+            this.keyBias.read(),
             this.valueKernel.read(),
-            this.outputKernel.read()
+            this.valueBias.read(),
+            this.outputKernel.read(),
+            this.outputBias.read()
         ]
     }
 
     setWeights(weights) {
         for (let i = 0; i < this.queries; i++) {
             this.queryKernels[i].write(weights[i])
+            this.queryBiases[i].write(weights[i])
         }
         this.keyKernel.write(weights[this.queries])
-        this.valueKernel.write(weights[this.queries + 1])
-        this.outputKernel.write(weights[this.queries + 2])
+        this.keyBias.write(weights[this.queries + 1])
+        this.valueKernel.write(weights[this.queries + 2])
+        this.valueBias.write(weights[this.queries + 3])
+        this.outputKernel.write(weights[this.queries + 4])
+        this.outputBias.write(weights[this.queries + 5])
     }
 
     getConfig() {
@@ -1519,6 +1538,8 @@ class GatedLinearUnit extends MultiLayerPerceptron {
         return [
             this.inProjKernel.read(),
             this.inProjBias.read(),
+            this.gateProjKernel.read(),
+            this.gateProjBias.read(),
             this.outProjKernel.read(),
             this.outProjBias.read()
         ]
