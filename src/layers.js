@@ -67,6 +67,7 @@ class SharedEmbedding extends LayerBase {
         this.outputDim = config.outputDim
         this.embeddingsInitializer =
             config.embeddingsInitializer || 'glorotUniform'
+        this.dropout = config.dropout || 0
     }
 
     build(inputShape) {
@@ -76,7 +77,6 @@ class SharedEmbedding extends LayerBase {
             'float32',
             tf.initializers[this.embeddingsInitializer]()
         )
-        this.built = true
     }
 
     computeOutputShape(inputShape) {
@@ -102,11 +102,18 @@ class SharedEmbedding extends LayerBase {
                     this.embeddings.read(),
                     flatInputs.cast('int32')
                 )
-                return tf.reshape(embeddings, [
+
+                let outputs = tf.reshape(embeddings, [
                     inputs.shape[0],
                     inputs.shape[1],
                     this.outputDim
                 ])
+
+                outputs = kwargs['training']
+                    ? tf.dropout(outputs, this.dropout)
+                    : outputs
+
+                return outputs
             } else if (inputs.shape.length === 3) {
                 // Output projection
                 const denseOutput = tf.matMul(
@@ -115,11 +122,18 @@ class SharedEmbedding extends LayerBase {
                     false,
                     true
                 )
-                return tf.reshape(denseOutput, [
+
+                let outputs = tf.reshape(denseOutput, [
                     inputs.shape[0],
                     inputs.shape[1],
                     this.inputDim
                 ])
+
+                outputs = kwargs['training']
+                    ? tf.dropout(outputs, this.dropout)
+                    : outputs
+
+                return outputs
             } else {
                 throw new Error(
                     'Invalid input shape for SharedEmbedding layer.'
@@ -759,6 +773,7 @@ class MultiQueryAttention extends LayerBase {
         super({ name: `mqa-${randomString()}`, ...config })
         this.projection = config.projection || 256
         this.queries = config.queries || 8
+        this.dropout = config.dropout || 0
     }
 
     build(inputShape) {
@@ -820,7 +835,7 @@ class MultiQueryAttention extends LayerBase {
         this.residual = customLayers.ResidualConnection()
     }
 
-    call(inputs) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
@@ -846,20 +861,30 @@ class MultiQueryAttention extends LayerBase {
                     .div(tf.scalar(this.projection).sqrt())
                     .add(mask)
 
-                const weights = scores.softmax()
+                let weights = scores.softmax()
+
+                weights = kwargs['training']
+                    ? tf.dropout(weights, this.dropout)
+                    : weights
 
                 const output = tf.matMul(weights, V)
                 attentionOutputs.push(output)
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-            const outputs = this.applyDense(
+            let outputs = this.applyDense(
                 concatenatedOutputs,
                 this.outputKernel,
                 this.outputBias
             )
 
-            return this.residual.apply([inputs, outputs])
+            outputs = this.residual.apply([inputs, outputs])
+
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+
+            return outputs
         })
     }
 
@@ -893,7 +918,8 @@ class MultiQueryAttention extends LayerBase {
         return {
             ...super.getConfig(),
             projection: this.projection,
-            queries: this.queries
+            queries: this.queries,
+            dropout: this.dropout
         }
     }
 }
@@ -1426,16 +1452,15 @@ class MultiLayerPerceptron extends LayerBase {
                 this.outProjBias
             )
 
-            // If training, apply residual dropout
+            if (this.layernorm) outputs = this.layernorm.apply(outputs)
+
+            outputs = this.residual.apply([inputs, outputs])
+
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
 
-            // Apply layer norm
-            if (this.layernorm) outputs = this.layernorm.apply(outputs)
-
-            // Apply skip connection
-            return this.residual.apply([inputs, outputs])
+            return outputs
         })
     }
 
@@ -1521,16 +1546,15 @@ class GatedLinearUnit extends MultiLayerPerceptron {
                 this.outProjBias
             )
 
-            // If training, apply residual dropout
+            if (this.layernorm) outputs = this.layernorm.apply(outputs)
+
+            outputs = this.residual.apply([inputs, outputs])
+
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
 
-            // Apply layer norm
-            if (this.layernorm) outputs = this.layernorm.apply(outputs)
-
-            // Apply skip connection
-            return this.residual.apply([inputs, outputs])
+            return outputs
         })
     }
 

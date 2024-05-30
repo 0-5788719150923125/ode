@@ -35,7 +35,9 @@ export default class OpportunisticDialogueEngine extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.ode.layers.SinusoidalPositionalEncoding().apply(outputs)
+        outputs = this.ode.layers
+            .RotaryPositionalEncoding({ blockSize: this.config.contextLength })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -53,7 +55,7 @@ export default class OpportunisticDialogueEngine extends ODE {
                     units: this.units,
                     innerDim: this.innerDim,
                     epsilon: this.epsilon,
-                    activation: 'mish'
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }

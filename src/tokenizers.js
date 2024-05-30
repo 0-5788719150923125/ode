@@ -1,4 +1,7 @@
 import { createCanvas } from 'canvas'
+import { env } from '@xenova/transformers'
+env.allowLocalModels = false
+import { AutoTokenizer } from '@xenova/transformers'
 
 class TokenizerBase {
     constructor() {
@@ -101,9 +104,6 @@ class CharacterTokenizer extends TokenizerBase {
     }
 }
 
-import { env } from '@xenova/transformers'
-env.allowLocalModels = false
-import { AutoTokenizer } from '@xenova/transformers'
 class XenovaTokenizer extends TokenizerBase {
     constructor(config) {
         super(config)
