@@ -780,6 +780,7 @@ class MultiQueryAttention extends LayerBase {
         const units = inputShape[inputShape.length - 1]
 
         this.queryKernels = []
+        this.queryBiases = []
         for (let i = 0; i < this.queries; i++) {
             this.queryKernels.push(
                 this.addWeight(
@@ -789,11 +790,13 @@ class MultiQueryAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
-            this.queryBiases = this.addWeight(
-                `queryBiases${i}`,
-                [this.projection],
-                'float32',
-                tf.initializers.zeros()
+            this.queryBiases.push(
+                this.addWeight(
+                    `queryBiases${i}`,
+                    [this.projection],
+                    'float32',
+                    tf.initializers.zeros()
+                )
             )
         }
         this.keyKernel = this.addWeight(
@@ -927,30 +930,45 @@ class MultiQueryAttention extends LayerBase {
 class GroupedQueryAttention extends LayerBase {
     constructor(config) {
         super({ name: `gqa-${randomString()}`, ...config })
-        this.units = config.units || 64
         this.projection = config.projection || 256
         this.heads = config.heads || 8
-        this.queries = config.queries || 16
+        this.queriesPerHead = config.queriesPerHead || 2
+        this.dropout = config.dropout || 0
     }
 
     build(inputShape) {
+        const units = inputShape[inputShape.length - 1]
+
         this.queryKernels = []
+        this.queryBiases = []
         this.keyKernels = []
+        this.keyBiases = []
         this.valueKernels = []
+        this.valueBiases = []
 
         for (let i = 0; i < this.heads; i++) {
             const queryKernels = []
-            for (let j = 0; j < this.queries; j++) {
+            const queryBiases = []
+            for (let j = 0; j < this.queriesPerHead; j++) {
                 queryKernels.push(
                     this.addWeight(
                         `queryKernel_${i}_${j}`,
-                        [inputShape[inputShape.length - 1], this.projection],
+                        [units, this.projection],
                         'float32',
                         tf.initializers.glorotUniform()
                     )
                 )
+                queryBiases.push(
+                    this.addWeight(
+                        `queryBias_${i}_${j}`,
+                        [this.projection],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
             }
             this.queryKernels.push(queryKernels)
+            this.queryBiases.push(queryBiases)
 
             this.keyKernels.push(
                 this.addWeight(
@@ -960,26 +978,44 @@ class GroupedQueryAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
+            this.keyBiases = this.addWeight(
+                `keyBiases${i}`,
+                [this.projection],
+                'float32',
+                tf.initializers.zeros()
+            )
             this.valueKernels.push(
                 this.addWeight(
                     `valueKernel${i}`,
-                    [inputShape[inputShape.length - 1], this.units],
+                    [inputShape[inputShape.length - 1], units],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
+            )
+            this.valueBiases = this.addWeight(
+                `valueBiases${i}`,
+                [units],
+                'float32',
+                tf.initializers.zeros()
             )
         }
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.units * this.heads * this.queries, this.units],
+            [units * this.heads * this.queriesPerHead, units],
             'float32',
             tf.initializers.glorotUniform()
+        )
+        this.outputBias = this.addWeight(
+            `outputBias`,
+            [units],
+            'float32',
+            tf.initializers.zeros()
         )
         this.residual = customLayers.ResidualConnection()
     }
 
-    call(inputs) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
@@ -991,209 +1027,96 @@ class GroupedQueryAttention extends LayerBase {
             const attentionOutputs = []
 
             for (let i = 0; i < this.heads; i++) {
-                const K = this.applyDense(inputs, this.keyKernels[i])
-                const V = this.applyDense(inputs, this.valueKernels[i])
+                const K = this.applyDense(
+                    inputs,
+                    this.keyKernels[i],
+                    this.keyBiases[i]
+                )
+                const V = this.applyDense(
+                    inputs,
+                    this.valueKernels[i],
+                    this.valueBiases[i]
+                )
 
-                for (let j = 0; j < this.queries; j++) {
-                    const Q = this.applyDense(inputs, this.queryKernels[i][j])
+                for (let j = 0; j < this.queriesPerHead; j++) {
+                    const Q = this.applyDense(
+                        inputs,
+                        this.queryKernels[i][j],
+                        this.queryBiases[i][j]
+                    )
 
                     const scores = tf
                         .matMul(Q, K, false, true)
                         .div(tf.scalar(this.projection).sqrt())
                         .add(mask)
 
-                    const weights = scores.softmax()
-                    const output = tf.matMul(weights, V)
+                    let weights = scores.softmax()
 
+                    weights = kwargs['training']
+                        ? tf.dropout(weights, this.dropout)
+                        : weights
+
+                    const output = tf.matMul(weights, V)
                     attentionOutputs.push(output)
                 }
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-            const outputs = this.applyDense(
+            let outputs = this.applyDense(
                 concatenatedOutputs,
-                this.outputKernel
+                this.outputKernel,
+                this.outputBias
             )
 
-            return this.residual.apply([inputs, outputs])
-        })
-    }
+            outputs = this.residual.apply([inputs, outputs])
 
-    applyDense(x, kernel) {
-        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        return tf.matMul(x, k)
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
+
+            return outputs
+        })
     }
 
     getWeights() {
         return [
             ...this.queryKernels.flat().map((kernel) => kernel.read()),
+            ...this.queryBiases.flat().map((kernel) => kernel.read()),
             ...this.keyKernels.map((kernel) => kernel.read()),
+            ...this.keyBiases.map((kernel) => kernel.read()),
             ...this.valueKernels.map((kernel) => kernel.read()),
-            this.outputKernel.read()
+            ...this.valueBiases.map((kernel) => kernel.read()),
+            this.outputKernel.read(),
+            this.outputBias.read()
         ]
     }
 
     setWeights(weights) {
         let index = 0
         for (let i = 0; i < this.heads; i++) {
-            for (let j = 0; j < this.queries; j++) {
+            for (let j = 0; j < this.queriesPerHead; j++) {
                 this.queryKernels[i][j].write(weights[index++])
+                this.queryBiases[i][j].write(weights[index++])
             }
             this.keyKernels[i].write(weights[index++])
+            this.keyBiases[i].write(weights[index++])
             this.valueKernels[i].write(weights[index++])
+            this.valueBiases[i].write(weights[index++])
         }
-        this.outputKernel.write(weights[index])
+        this.outputKernel.write(weights[index++])
+        this.outputBias.write(weights[index])
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            units: this.units,
             projection: this.projection,
             heads: this.heads,
-            queries: this.queries
+            queriesPerHead: this.queriesPerHead,
+            dropout: this.dropout
         }
     }
 }
-
-// class GroupedQueryAttention extends LayerBase {
-//     constructor(config) {
-//         super({ name: `gqa-${randomString()}`, ...config })
-//         this.units = config.units || 64
-//         this.projection = config.projection || 256
-//         this.groups = config.groups || 8
-//     }
-
-//     build(inputShape) {
-//         this.queryKernels1 = []
-//         this.queryKernels2 = []
-//         this.keyKernels = []
-//         this.valueKernels = []
-
-//         for (let i = 0; i < this.groups; i++) {
-//             this.queryKernels1.push(
-//                 this.addWeight(
-//                     `queryKernel1_${i}`,
-//                     [inputShape[inputShape.length - 1], this.projection],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.queryKernels2.push(
-//                 this.addWeight(
-//                     `queryKernel2_${i}`,
-//                     [inputShape[inputShape.length - 1], this.projection],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.keyKernels.push(
-//                 this.addWeight(
-//                     `keyKernel${i}`,
-//                     [inputShape[inputShape.length - 1], this.projection],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.valueKernels.push(
-//                 this.addWeight(
-//                     `valueKernel${i}`,
-//                     [inputShape[inputShape.length - 1], this.units],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//         }
-
-//         this.outputKernel = this.addWeight(
-//             'outputKernel',
-//             [this.units * this.groups * 2, this.units],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-//         this.residual = customLayers.ResidualConnection()
-//     }
-
-//     call(inputs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             const mask = tf.linalg
-//                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
-//                 .sub(tf.eye(inputs.shape[1]))
-//                 .mul(tf.scalar(-1e9))
-
-//             const attentionOutputs = []
-
-//             for (let i = 0; i < this.groups; i++) {
-//                 const Q1 = this.applyDense(inputs, this.queryKernels1[i])
-//                 const Q2 = this.applyDense(inputs, this.queryKernels2[i])
-//                 const K = this.applyDense(inputs, this.keyKernels[i])
-//                 const V = this.applyDense(inputs, this.valueKernels[i])
-
-//                 const scores1 = tf
-//                     .matMul(Q1, K, false, true)
-//                     .div(tf.scalar(this.projection).sqrt())
-//                     .add(mask)
-
-//                 const scores2 = tf
-//                     .matMul(Q2, K, false, true)
-//                     .div(tf.scalar(this.projection).sqrt())
-//                     .add(mask)
-
-//                 const weights1 = scores1.softmax()
-//                 const weights2 = scores2.softmax()
-
-//                 const output1 = tf.matMul(weights1, V)
-//                 const output2 = tf.matMul(weights2, V)
-
-//                 attentionOutputs.push(output1, output2)
-//             }
-
-//             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-//             const outputs = this.applyDense(
-//                 concatenatedOutputs,
-//                 this.outputKernel
-//             )
-
-//             return this.residual.apply([inputs, outputs])
-//         })
-//     }
-
-//     applyDense(x, kernel) {
-//         const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-//         return tf.matMul(x, k)
-//     }
-
-//     getWeights() {
-//         return [
-//             ...this.queryKernels1.map((kernel) => kernel.read()),
-//             ...this.queryKernels2.map((kernel) => kernel.read()),
-//             ...this.keyKernels.map((kernel) => kernel.read()),
-//             ...this.valueKernels.map((kernel) => kernel.read()),
-//             this.outputKernel.read()
-//         ]
-//     }
-
-//     setWeights(weights) {
-//         for (let i = 0; i < this.groups; i++) {
-//             this.queryKernels1[i].write(weights[i])
-//             this.queryKernels2[i].write(weights[this.groups + i])
-//             this.keyKernels[i].write(weights[this.groups * 2 + i])
-//             this.valueKernels[i].write(weights[this.groups * 3 + i])
-//         }
-//         this.outputKernel.write(weights[this.groups * 4])
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             units: this.units,
-//             projection: this.projection,
-//             groups: this.groups
-//         }
-//     }
-// }
 
 class NystromAttention extends LayerBase {
     constructor(config) {

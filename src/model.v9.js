@@ -8,11 +8,11 @@ export default class OscillatingDistillationExperiment extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 2
-        this.units = config.units || 333
-        this.hiddenDim = config.hiddenDim || this.units * 6
-        this.projection = config.projection || 111
-        this.queries = config.queries || 33
-        this.dropout = config.dropout || 0.333
+        this.units = config.units || 512
+        this.hiddenDim = config.hiddenDim || this.units * 4
+        this.projection = config.projection || 128
+        this.queries = config.queries || 16
+        this.dropout = config.dropout || 0.2
     }
 
     defineBuild() {
@@ -40,10 +40,19 @@ export default class OscillatingDistillationExperiment extends ODE {
                 })
                 .apply(outputs)
 
+            // outputs = this.ode.layers
+            //     .GroupedQueryAttention({
+            //         projection: this.projection,
+            //         heads: 3,
+            //         queriesPerHead: 3,
+            //         dropout: this.dropout
+            //     })
+            //     .apply(outputs)
+
             outputs = this.ode.layers
                 .GatedLinearUnit({
                     innerDim: this.hiddenDim,
-                    activation: 'selu',
+                    activation: 'aptx',
                     dropout: this.dropout
                 })
                 .apply(outputs)

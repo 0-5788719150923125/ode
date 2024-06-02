@@ -84,10 +84,33 @@ class APTx extends tf.serialization.Serializable {
 
 tf.serialization.registerClass(APTx)
 
+/**
+ * Snake activation function
+ */
+class Snake extends tf.serialization.Serializable {
+    /** @nocollapse */
+    static className = 'snake'
+
+    /**
+     * Calculate the activation function.
+     *
+     * @param x Tensor.
+     * @returns a Tensor of the same shape as x
+     */
+    apply(x, alpha = 1.0) {
+        return tf.tidy(() => {
+            return tf.add(x, tf.div(tf.square(tf.sin(tf.mul(alpha, x))), alpha))
+        })
+    }
+}
+
+tf.serialization.registerClass(Snake)
+
 const activations = {
     Gelu: new Gelu(),
     GeluNew: new GeluNew(),
-    APTx: (epsilon, omega, gamma) => new APTx(epsilon, omega, gamma)
+    APTx: new APTx(),
+    Snake: new Snake()
 }
 
 export default activations
