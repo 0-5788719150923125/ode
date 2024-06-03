@@ -106,28 +106,6 @@ class Snake extends tf.serialization.Serializable {
 
 tf.serialization.registerClass(Snake)
 
-/**
- * Snake activation function
- */
-class Snake3 extends tf.serialization.Serializable {
-    /** @nocollapse */
-    static className = 'snake3'
-
-    /**
-     * Calculate the activation function.
-     *
-     * @param x Tensor.
-     * @returns a Tensor of the same shape as x
-     */
-    apply(x, alpha = 3.33) {
-        return tf.tidy(() => {
-            return tf.add(x, tf.div(tf.square(tf.sin(tf.mul(alpha, x))), alpha))
-        })
-    }
-}
-
-tf.serialization.registerClass(Snake3)
-
 const activations = {
     Gelu: new Gelu(),
     GeluNew: new GeluNew(),

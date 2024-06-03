@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import customOps from './ops.js'
+import customActivations from './activations.js'
 import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
 
 const customLayers = {
@@ -44,6 +45,20 @@ class LayerBase extends tf.layers.Layer {
             // stuff should go here
         })
     }
+
+    // Direct application of matMul to x and kernel throws:
+    // > Error in gradient for op BatchMatMul.
+    // > The gradient of input 'b' has shape '16,48,48',
+    // > which does not match the shape of the input '48,48'
+    // Two solutions worked:
+    // 1. Use tf.layers.dense but reassign kernel and bias
+    // 2. Use tf.matMul but expandDims and tile kernel (current)
+    // Another option, of course, is to separate attention logic
+    // from trainable weights completely and use tf.layers.dense
+    // inside a model definition. I was not able to define fully
+    // function regular dense layers inside a custom layer.
+    // Something related to how weights are loaded with this.kernel
+    // and duplicating names
 
     applyDense(x, kernel, bias) {
         const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
@@ -932,7 +947,7 @@ class GroupedQueryAttention extends LayerBase {
         super({ name: `gqa-${randomString()}`, ...config })
         this.projection = config.projection || 256
         this.heads = config.heads || 8
-        this.queriesPerHead = config.queriesPerHead || 2
+        this.queryRatio = config.queryRatio || 2
         this.dropout = config.dropout || 0
     }
 
@@ -949,10 +964,10 @@ class GroupedQueryAttention extends LayerBase {
         for (let i = 0; i < this.heads; i++) {
             const queryKernels = []
             const queryBiases = []
-            for (let j = 0; j < this.queriesPerHead; j++) {
+            for (let j = 0; j < this.queryRatio; j++) {
                 queryKernels.push(
                     this.addWeight(
-                        `queryKernel_${i}_${j}`,
+                        `queryKernel-${i}-${j}`,
                         [units, this.projection],
                         'float32',
                         tf.initializers.glorotUniform()
@@ -960,7 +975,7 @@ class GroupedQueryAttention extends LayerBase {
                 )
                 queryBiases.push(
                     this.addWeight(
-                        `queryBias_${i}_${j}`,
+                        `queryBias-${i}-${j}`,
                         [this.projection],
                         'float32',
                         tf.initializers.zeros()
@@ -972,37 +987,41 @@ class GroupedQueryAttention extends LayerBase {
 
             this.keyKernels.push(
                 this.addWeight(
-                    `keyKernel${i}`,
-                    [inputShape[inputShape.length - 1], this.projection],
+                    `keyKernel-${i}`,
+                    [units, this.projection],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
             )
-            this.keyBiases = this.addWeight(
-                `keyBiases${i}`,
-                [this.projection],
-                'float32',
-                tf.initializers.zeros()
+            this.keyBiases.push(
+                this.addWeight(
+                    `keyBiases-${i}`,
+                    [this.projection],
+                    'float32',
+                    tf.initializers.zeros()
+                )
             )
             this.valueKernels.push(
                 this.addWeight(
-                    `valueKernel${i}`,
-                    [inputShape[inputShape.length - 1], units],
+                    `valueKernel-${i}`,
+                    [units, units],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
             )
-            this.valueBiases = this.addWeight(
-                `valueBiases${i}`,
-                [units],
-                'float32',
-                tf.initializers.zeros()
+            this.valueBiases.push(
+                this.addWeight(
+                    `valueBiases-${i}`,
+                    [units],
+                    'float32',
+                    tf.initializers.zeros()
+                )
             )
         }
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [units * this.heads * this.queriesPerHead, units],
+            [units * this.heads * this.queryRatio, units],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -1038,7 +1057,7 @@ class GroupedQueryAttention extends LayerBase {
                     this.valueBiases[i]
                 )
 
-                for (let j = 0; j < this.queriesPerHead; j++) {
+                for (let j = 0; j < this.queryRatio; j++) {
                     const Q = this.applyDense(
                         inputs,
                         this.queryKernels[i][j],
@@ -1079,22 +1098,30 @@ class GroupedQueryAttention extends LayerBase {
     }
 
     getWeights() {
-        return [
-            ...this.queryKernels.flat().map((kernel) => kernel.read()),
-            ...this.queryBiases.flat().map((kernel) => kernel.read()),
-            ...this.keyKernels.map((kernel) => kernel.read()),
-            ...this.keyBiases.map((kernel) => kernel.read()),
-            ...this.valueKernels.map((kernel) => kernel.read()),
-            ...this.valueBiases.map((kernel) => kernel.read()),
-            this.outputKernel.read(),
-            this.outputBias.read()
-        ]
+        const weights = []
+
+        for (let i = 0; i < this.heads; i++) {
+            for (let j = 0; j < this.queryRatio; j++) {
+                weights.push(this.queryKernels[i][j].read())
+                weights.push(this.queryBiases[i][j].read())
+            }
+            weights.push(this.keyKernels[i].read())
+            weights.push(this.keyBiases[i].read())
+            weights.push(this.valueKernels[i].read())
+            weights.push(this.valueBiases[i].read())
+        }
+
+        weights.push(this.outputKernel.read())
+        weights.push(this.outputBias.read())
+
+        return weights
     }
 
     setWeights(weights) {
         let index = 0
+
         for (let i = 0; i < this.heads; i++) {
-            for (let j = 0; j < this.queriesPerHead; j++) {
+            for (let j = 0; j < this.queryRatio; j++) {
                 this.queryKernels[i][j].write(weights[index++])
                 this.queryBiases[i][j].write(weights[index++])
             }
@@ -1103,6 +1130,7 @@ class GroupedQueryAttention extends LayerBase {
             this.valueKernels[i].write(weights[index++])
             this.valueBiases[i].write(weights[index++])
         }
+
         this.outputKernel.write(weights[index++])
         this.outputBias.write(weights[index])
     }
@@ -1112,7 +1140,7 @@ class GroupedQueryAttention extends LayerBase {
             ...super.getConfig(),
             projection: this.projection,
             heads: this.heads,
-            queriesPerHead: this.queriesPerHead,
+            queryRatio: this.queryRatio,
             dropout: this.dropout
         }
     }
@@ -1748,87 +1776,226 @@ class DenseMultiLayerPerceptron extends LayerBase {
 class Autoencoder extends LayerBase {
     constructor(config) {
         super({ name: `dia-${randomString()}`, ...config })
-        this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.bottleneck = config?.bottleneck || 128
+        this.outputDim = config?.outputDim || 128
         this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
-        this.noise = config?.noise || 0
     }
 
     build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+
         // Initialize dense layers for encoder
-        this.encoder = tf.sequential()
-        this.encoder.add(
-            tf.layers.dense({
-                units: this.innerDim,
-                inputShape: inputShape,
-                activation: this.encoderActivation
-            })
+        this.encoderKernel1 = this.addWeight(
+            'encoderKernel1',
+            [inputDim, this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
         )
-        this.encoder.add(
-            tf.layers.dense({
-                units: this.bottleneck,
-                activation: 'linear'
-            })
+        this.encoderBias1 = this.addWeight(
+            'encoderBias1',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.encoderKernel2 = this.addWeight(
+            'encoderKernel2',
+            [this.innerDim, this.bottleneck],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.encoderBias2 = this.addWeight(
+            'encoderBias2',
+            [this.bottleneck],
+            'float32',
+            tf.initializers.zeros()
         )
 
         // Initialize dense layers for decoder
-        this.decoder = tf.sequential()
-        this.decoder.add(
-            tf.layers.dense({
-                units: this.innerDim,
-                inputShape: [this.bottleneck],
-                activation: this.decoderActivation
-            })
+        this.decoderKernel1 = this.addWeight(
+            'decoderKernel1',
+            [this.bottleneck, this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal()
         )
-        this.decoder.add(
-            tf.layers.dense({
-                units: this.units,
-                activation: 'linear'
-            })
+        this.decoderBias1 = this.addWeight(
+            'decoderBias1',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros()
         )
-
-        // Residual connections/skip connections are critical here
-        this.residual = new ResidualConnection()
+        this.decoderKernel2 = this.addWeight(
+            'decoderKernel2',
+            [this.innerDim, this.outputDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.decoderBias2 = this.addWeight(
+            'decoderBias2',
+            [this.outputDim],
+            'float32',
+            tf.initializers.zeros()
+        )
     }
 
-    call(inputs, kwargs, training = false) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            let processed = inputs
-
-            if (this.noise > 0) {
-                processed = processed.add(
-                    tf.randomNormal(inputs.shape, 0, this.noise)
-                )
-            }
-
             // Encode the inputs to the bottleneck representation
-            let outputs = this.encoder.apply(processed)
-            // Decode the bottleneck representation back to the original dimensionality
-            outputs = this.decoder.apply(outputs)
-            // Apply skip connection
-            return this.residual.apply([inputs, outputs])
+            let outputs = this.applyDense(
+                inputs,
+                this.encoderKernel1,
+                this.encoderBias1
+            )
+            outputs = tf.layers
+                .activation({ activation: this.encoderActivation })
+                .apply(outputs)
+            outputs = this.applyDense(
+                outputs,
+                this.encoderKernel2,
+                this.encoderBias2
+            )
+
+            // Decode the bottleneck representation to the output dimensionality
+            outputs = this.applyDense(
+                outputs,
+                this.decoderKernel1,
+                this.decoderBias1
+            )
+            outputs = tf.layers
+                .activation({ activation: this.decoderActivation })
+                .apply(outputs)
+            outputs = this.applyDense(
+                outputs,
+                this.decoderKernel2,
+                this.decoderBias2
+            )
+
+            return outputs
         })
     }
 
     computeOutputShape(inputShape) {
-        return inputShape
+        return [inputShape[0], this.outputDim]
+    }
+
+    getWeights() {
+        return [
+            this.encoderKernel1.read(),
+            this.encoderBias1.read(),
+            this.encoderKernel2.read(),
+            this.encoderBias2.read(),
+            this.decoderKernel1.read(),
+            this.decoderBias1.read(),
+            this.decoderKernel2.read(),
+            this.decoderBias2.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.encoderKernel1.write(weights[0])
+        this.encoderBias1.write(weights[1])
+        this.encoderKernel2.write(weights[2])
+        this.encoderBias2.write(weights[3])
+        this.decoderKernel1.write(weights[4])
+        this.decoderBias1.write(weights[5])
+        this.decoderKernel2.write(weights[6])
+        this.decoderBias2.write(weights[7])
     }
 
     getConfig() {
         return {
-            units: this.units,
+            ...super.getConfig(),
             innerDim: this.innerDim,
             bottleneck: this.bottleneck,
+            outputDim: this.outputDim,
             encoderActivation: this.encoderActivation,
-            decoderActivation: this.decoderActivation,
-            noise: this.noise
+            decoderActivation: this.decoderActivation
         }
     }
 }
+
+// class Autoencoder extends LayerBase {
+//     constructor(config) {
+//         super({ name: `dia-${randomString()}`, ...config })
+//         this.units = config?.units || 256
+//         this.innerDim = config?.innerDim || 1024
+//         this.bottleneck = config?.bottleneck || 128
+//         this.encoderActivation = config?.encoderActivation || 'relu'
+//         this.decoderActivation = config?.decoderActivation || 'relu'
+//         this.noise = config?.noise || 0
+//     }
+
+//     build(inputShape) {
+//         // Initialize dense layers for encoder
+//         this.encoder = tf.sequential()
+//         this.encoder.add(
+//             tf.layers.dense({
+//                 units: this.innerDim,
+//                 inputShape: inputShape,
+//                 activation: this.encoderActivation
+//             })
+//         )
+//         this.encoder.add(
+//             tf.layers.dense({
+//                 units: this.bottleneck,
+//                 activation: 'linear'
+//             })
+//         )
+
+//         // Initialize dense layers for decoder
+//         this.decoder = tf.sequential()
+//         this.decoder.add(
+//             tf.layers.dense({
+//                 units: this.innerDim,
+//                 inputShape: [this.bottleneck],
+//                 activation: this.decoderActivation
+//             })
+//         )
+//         this.decoder.add(
+//             tf.layers.dense({
+//                 units: this.units,
+//                 activation: 'linear'
+//             })
+//         )
+//     }
+
+//     call(inputs, kwargs, training = false) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             let processed = inputs
+
+//             if (this.noise > 0) {
+//                 processed = processed.add(
+//                     tf.randomNormal(inputs.shape, 0, this.noise)
+//                 )
+//             }
+
+//             // Encode the inputs to the bottleneck representation
+//             let outputs = this.encoder.apply(processed)
+//             // Decode the bottleneck representation back to the original dimensionality
+//             return this.decoder.apply(outputs)
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getConfig() {
+//         return {
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             bottleneck: this.bottleneck,
+//             encoderActivation: this.encoderActivation,
+//             decoderActivation: this.decoderActivation,
+//             noise: this.noise
+//         }
+//     }
+// }
 
 class CapsNet extends LayerBase {
     constructor(config) {
@@ -2114,37 +2281,17 @@ class CausalSelfAttention extends LayerBase {
         return Object.assign({}, config, this.config)
     }
 
-    call(inputs, kwargs, training) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
             if (Array.isArray(inputs)) {
                 inputs = inputs[0]
             }
 
-            // Direct application of matMul to x and kernel throws:
-            // > Error in gradient for op BatchMatMul.
-            // > The gradient of input 'b' has shape '16,48,48',
-            // > which does not match the shape of the input '48,48'
-            // Two solutions worked:
-            // 1. Use tf.layers.dense but reassign kernel and bias
-            // 2. Use tf.matMul but expandDims and tile kernel (current)
-            // Another option, of course, is to separate attention logic
-            // from trainable weights completely and use tf.layers.dense
-            // inside a model definition. I was not able to define fully
-            // function regular dense layers inside a custom layer.
-            // Something related to how weights are loaded with this.kernel
-            // and duplicating names
-
-            const dense = (x, kernel, bias) => {
-                const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-                const m = tf.matMul(x, k)
-                if (this.bias) {
-                    return tf.add(m, bias.read())
-                } else {
-                    return m
-                }
-            }
-
-            const cAttn = dense(inputs, this.cAttnKernel, this.cAttnBias)
+            const cAttn = this.applyDense(
+                inputs,
+                this.cAttnKernel,
+                this.cAttnBias
+            )
 
             // Make order of qkv split to follow minGPT
             let [q, k, v] = tf.split(cAttn, 3, -1)
@@ -2178,7 +2325,7 @@ class CausalSelfAttention extends LayerBase {
 
             outputs = tf.transpose(outputs, [0, 2, 1, 3])
             outputs = tf.reshape(outputs, [B, T, C])
-            outputs = dense(outputs, this.cProjKernel, this.cProjBias)
+            outputs = this.applyDense(outputs, this.cProjKernel, this.cProjBias)
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs

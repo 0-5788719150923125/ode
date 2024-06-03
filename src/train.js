@@ -51,7 +51,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         )
 
         this.batch++
-        if (this.batch % trainArgs.gradientAccumulationSteps === 0) this.step++
+        this.step = this.model.optimizer.iterations
 
         const data = await batchMaker(
             dataGenerator,

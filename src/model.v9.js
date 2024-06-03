@@ -4,15 +4,15 @@ import ODE from './model.v8.js'
  * In development.
  * @extends ODE
  */
-export default class OscillatingDistillationExperiment extends ODE {
+export default class OpenDerivationExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 2
-        this.units = config.units || 512
+        this.layers = config.layers || 4
+        this.units = config.units || 256
         this.hiddenDim = config.hiddenDim || this.units * 4
-        this.projection = config.projection || 128
-        this.queries = config.queries || 16
-        this.dropout = config.dropout || 0.2
+        this.projection = config.projection || 64
+        this.heads = config.heads || 3
+        this.queryRatio = config.queryRatio || 3
     }
 
     defineBuild() {
@@ -20,45 +20,48 @@ export default class OscillatingDistillationExperiment extends ODE {
             shape: [null]
         })
 
-        const embeddings = this.ode.layers.SharedEmbedding({
+        const embeddings = this.ode.layers.embedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
-            embeddingsInitializer: 'glorotUniform',
-            dropout: this.dropout
+            outputDim: this.units * 2,
+            embeddingsInitializer: 'glorotUniform'
         })
 
         const encoding = this.ode.layers.SinusoidalPositionalEncoding()
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
+        const autoencoder = this.ode.layers.Autoencoder({
+            innerDim: this.units * 4,
+            bottleneck: this.units / 2,
+            outputDim: this.units,
+            encoderActivation: 'mish',
+            decoderActivation: 'mish'
+        })
+
+        outputs = autoencoder.apply(outputs)
+
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .MultiQueryAttention({
-                    projection: this.projection,
-                    queries: this.queries,
-                    dropout: this.dropout
+                .GroupedQueryAttention({
+                    heads: this.heads,
+                    queryRatio: this.queryRatio,
+                    projection: this.projection
                 })
                 .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .GroupedQueryAttention({
-            //         projection: this.projection,
-            //         heads: 3,
-            //         queriesPerHead: 3,
-            //         dropout: this.dropout
-            //     })
-            //     .apply(outputs)
-
             outputs = this.ode.layers
                 .GatedLinearUnit({
-                    innerDim: this.hiddenDim,
-                    activation: 'aptx',
-                    dropout: this.dropout
+                    activation: 'selu',
+                    innerDim: this.hiddenDim
                 })
                 .apply(outputs)
         }
 
-        outputs = embeddings.apply(outputs)
+        outputs = this.tf.layers
+            .dense({
+                units: this.tokenizer.getLength()
+            })
+            .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

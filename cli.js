@@ -1,7 +1,7 @@
 import ODE from './src/index.js'
 
 /**
- * Any one of these arguments can be passed to this CLI like this:
+ * Any one of these arguments can be passed to the CLI like this:
  * node cli.js --backend cpu --version 2 --batchSize 3
  */
 const options = {

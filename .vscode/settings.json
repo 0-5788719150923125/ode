@@ -4,7 +4,7 @@
     "prettier.enable": true,
     "prettier.requireConfig": true,
     "prettier.useEditorConfig": true,
-    "terminal.integrated.scrollback": 1000000,
+    "terminal.integrated.scrollback": 100000,
     "workbench.editor.limit.value": 3,
     "workbench.editor.limit.enabled": true
 }

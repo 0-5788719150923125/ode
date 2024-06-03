@@ -152,7 +152,7 @@ class Lion extends tf.SGDOptimizer {
 
     setWeights(weightValues) {
         weightValues.forEach((namedTensor) => {
-            const [name, tensorName] = namedTensor.name.split('_')
+            const [name, tensorName] = namedTensor.name.split('__')
             if (!this.STATE[name]) {
                 this.STATE[name] = {}
             }
@@ -165,11 +165,11 @@ class Lion extends tf.SGDOptimizer {
     getWeights() {
         const weights = []
         Object.entries(this.STATE).forEach(([name, state]) => {
-            weights.push({ name: `${name}_expAvg`, tensor: state.expAvg })
+            weights.push({ name: `${name}__expAvg`, tensor: state.expAvg })
 
             if (this.adaNorm) {
                 weights.push({
-                    name: `${name}_expGradNorm`,
+                    name: `${name}__expGradNorm`,
                     tensor: state.expGradNorm
                 })
             }
