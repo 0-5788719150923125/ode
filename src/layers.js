@@ -1444,7 +1444,7 @@ class MultiLayerPerceptron extends LayerBase {
     }
 }
 
-class GatedLinearUnit extends MultiLayerPerceptron {
+class GatedLinearMLP extends MultiLayerPerceptron {
     constructor(config) {
         super({ name: `glu-${randomString()}`, ...config })
     }
@@ -6098,7 +6098,7 @@ const exportedLayers = [
     EfficientChannelAttention,
     FastMemory,
     FourierFeaturePositionalEncoding,
-    GatedLinearUnit,
+    GatedLinearMLP,
     GroupedQueryAttention,
     InstanceNormalization,
     Interrogator,

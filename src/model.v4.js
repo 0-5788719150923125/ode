@@ -51,8 +51,7 @@ export default class OpportunisticDialogueEngine extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .GatedLinearUnit({
-                    units: this.units,
+                .GatedLinearMLP({
                     innerDim: this.innerDim,
                     epsilon: this.epsilon,
                     activation: 'swish'

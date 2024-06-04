@@ -10,9 +10,9 @@ export default class OpenDoorExperiment extends ODE {
         this.layers = config.layers || 3
         this.units = config.units || 256
         this.embeddings = config.embeddings || 512
-        this.hiddenDim = config.hiddenDim || this.units * 4
-        this.projection = config.projection || 64
+        this.mlpDim = config.mlpDim || this.units * 4
         this.heads = config.heads || 2
+        this.headDim = config.headDim || 64
         this.queryRatio = config.queryRatio || 3
     }
 
@@ -50,15 +50,15 @@ export default class OpenDoorExperiment extends ODE {
             outputs = this.ode.layers
                 .GroupedQueryAttention({
                     heads: this.heads,
-                    queryRatio: this.queryRatio,
-                    projection: this.projection
+                    projection: this.headDim,
+                    queryRatio: this.queryRatio
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .GatedLinearUnit({
+                .GatedLinearMLP({
                     activation: 'selu',
-                    innerDim: this.hiddenDim
+                    innerDim: this.mlpDim
                 })
                 .apply(outputs)
         }
