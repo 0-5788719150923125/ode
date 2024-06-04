@@ -12,8 +12,12 @@ export default class OpenDoorExperiment extends ODE {
         this.embeddings = config.embeddings || 512
         this.hiddenDim = config.hiddenDim || this.units * 4
         this.projection = config.projection || 64
-        this.heads = config.heads || 3
+        this.heads = config.heads || 2
         this.queryRatio = config.queryRatio || 3
+    }
+
+    defineTokenizer(config) {
+        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     }
 
     defineBuild() {

@@ -71,14 +71,14 @@ class BinaryTokenizer extends TokenizerBase {
 }
 
 class CharacterTokenizer extends TokenizerBase {
-    constructor() {
-        super()
+    constructor(config) {
+        super(config)
         this.padToken = '�'
-        this.vocab = Array.from(
-            new Set(
-                `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
-            )
-        )
+        this.corpus =
+            config?.corpus ||
+            // `¶0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?!&'"\`;:(){}[]<>#*^%$@~+-=_|/\\\n `
+            `!"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_\`abcdefghijklmnopqrstuvwxyz{|}~ ¡£§©¬®°±²³µ·¹º»¼½ÀÁÄÅÇÉÎÓÔÖ×ØÜßàáâãäåæçèéêëíîïðñóôõö÷øúüĀāăćČčđēěğħīİıłńōőśşšūůŷźŽžȧȲȳɛʌʻʼˆ˚̸̂̄̅ΑΒΓΔΘΛΠΣΦΨΩέήίαβγδεζηθικλμνοπρςστφχψωόϵкѰḗṓợἴὁ​‐–—‘’“”†•․… ′″⁴⁻₀₁₂₃₄ₖₙ€ℓℕℚℝ™ℤ⅓←↑→↓↔↦⇌⇒⇔⇠⇥∀∂∃∅∆∇∈∉∏∑−∗∘∙√∞∠∧∨∩∪∫∼≅≈≠≡≤≥≫⊂⊆⊕⊙⋅⌈⌉⌘─│└├■□▶◆○●◦♢♥♦✓❤⟨⟩⨯⩽ⱼⲜ。・世前务发后告周在将我报新更末本界的给请财送道𝝅𝝈𝝳`
+        this.vocab = Array.from(new Set(this.corpus))
         this.vocab.unshift(this.padToken)
     }
 

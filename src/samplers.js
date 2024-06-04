@@ -68,6 +68,8 @@ async function directoryReader(dir = './', delimiter = '\n\n') {
 
     readDirSync(dir)
 
+    // console.log(Array.from(new Set(allText)).sort().join(''))
+
     return allText
 }
 
