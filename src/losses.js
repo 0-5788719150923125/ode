@@ -91,6 +91,24 @@ function categoricalFocalCrossEntropy(
     })
 }
 
+function vaeLoss(target, output, z_mean, z_log_var, fromLogits = false) {
+    return tf.tidy(() => {
+        const crossEntropyLoss = tf.losses.softmaxCrossEntropy(
+            target,
+            output,
+            fromLogits
+        )
+
+        const klDivergenceLoss =
+            -0.5 *
+            tf.mean(1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
+
+        const totalLoss = crossEntropyLoss.add(klDivergenceLoss)
+
+        return totalLoss
+    })
+}
+
 const customLosses = {
     categoricalCrossentropy: (target, output, fromLogits) =>
         categoricalCrossentropy(target, output, fromLogits),

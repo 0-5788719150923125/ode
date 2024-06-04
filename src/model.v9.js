@@ -4,11 +4,12 @@ import ODE from './model.v8.js'
  * In development.
  * @extends ODE
  */
-export default class OpenDerivationExperiment extends ODE {
+export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
+        this.layers = config.layers || 3
         this.units = config.units || 256
+        this.embeddings = config.embeddings || 512
         this.hiddenDim = config.hiddenDim || this.units * 4
         this.projection = config.projection || 64
         this.heads = config.heads || 3
@@ -22,7 +23,7 @@ export default class OpenDerivationExperiment extends ODE {
 
         const embeddings = this.ode.layers.embedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units * 2,
+            outputDim: this.embeddings,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -31,6 +32,7 @@ export default class OpenDerivationExperiment extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         const autoencoder = this.ode.layers.Autoencoder({
+            variational: true,
             innerDim: this.units * 4,
             bottleneck: this.units / 2,
             outputDim: this.units,
