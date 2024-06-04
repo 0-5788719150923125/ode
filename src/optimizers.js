@@ -40,7 +40,7 @@ class AdamW extends tf.AdamOptimizer {
 
 tf.serialization.registerClass(AdamW)
 
-class Lion extends tf.SGDOptimizer {
+class Lion extends tf.Optimizer {
     constructor({
         learningRate = 1e-4,
         beta1 = 0.9,
@@ -52,7 +52,7 @@ class Lion extends tf.SGDOptimizer {
         r = 0.95,
         adaNorm = false
     } = {}) {
-        super(learningRate)
+        super()
         this.learningRate = learningRate
         this.beta1 = beta1
         this.beta2 = beta2
@@ -126,7 +126,7 @@ class Lion extends tf.SGDOptimizer {
             })
         })
 
-        super.applyGradients(variableGradients)
+        this.incrementIterations()
     }
 
     getAdaNormGradient(gradient, name) {
@@ -191,6 +191,17 @@ class Lion extends tf.SGDOptimizer {
         }
     }
 
+    static fromConfig(cls, config) {
+        return new cls(config)
+    }
+
+    dispose() {
+        Object.values(this.STATE).forEach((state) => {
+            Object.values(state).forEach((tensor) => tensor.dispose())
+        })
+        this.STATE = {}
+    }
+
     static get className() {
         return 'Lion'
     }
@@ -198,7 +209,7 @@ class Lion extends tf.SGDOptimizer {
 
 tf.serialization.registerClass(Lion)
 
-class Prodigy extends tf.SGDOptimizer {
+class Prodigy extends tf.Optimizer {
     constructor({
         learningRate = 1.0,
         beta1 = 0.9,
@@ -212,15 +223,17 @@ class Prodigy extends tf.SGDOptimizer {
         fixedDecay = false,
         biasCorrection = false,
         safeguardWarmup = false,
-        epsilon = 1e-8
+        epsilon = 1e-8,
+        step = 1
     } = {}) {
-        super(learningRate)
-        this.ENGINE = tf.engine()
-        this.STATE = {}
+        super()
+        this.learningRate = learningRate
         this.beta1 = beta1
         this.beta2 = beta2
         this.beta3 = beta3 || Math.sqrt(beta2)
+        this.d = d0
         this.d0 = d0
+        this.dMax = d0
         this.dCoef = dCoef
         this.growthRate = growthRate
         this.weightDecay = weightDecay
@@ -229,9 +242,9 @@ class Prodigy extends tf.SGDOptimizer {
         this.biasCorrection = biasCorrection
         this.safeguardWarmup = safeguardWarmup
         this.epsilon = epsilon
-        this.d = d0
-        this.dMax = d0
-        this.step = 1
+        this.step = step
+        this.ENGINE = tf.engine()
+        this.STATE = {}
     }
 
     applyGradients(variableGradients) {
@@ -339,7 +352,30 @@ class Prodigy extends tf.SGDOptimizer {
             this.step++
         })
 
-        super.applyGradients(variableGradients)
+        this.incrementIterations()
+    }
+
+    getWeights() {
+        const weights = []
+        Object.entries(this.STATE).forEach(([name, state]) => {
+            weights.push({ name: `${name}__p0`, tensor: state.p0 })
+            weights.push({ name: `${name}__expAvg`, tensor: state.expAvg })
+            weights.push({ name: `${name}__expAvgSq`, tensor: state.expAvgSq })
+            weights.push({ name: `${name}__s`, tensor: state.s })
+        })
+        return weights
+    }
+
+    setWeights(weightValues) {
+        weightValues.forEach((namedTensor) => {
+            const [name, tensorName] = namedTensor.name.split('__')
+            if (!this.STATE[name]) {
+                this.STATE[name] = {}
+            }
+            this.STATE[name][tensorName] = tf.keep(
+                tf.variable(namedTensor.tensor)
+            )
+        })
     }
 
     getConfig() {
@@ -348,16 +384,31 @@ class Prodigy extends tf.SGDOptimizer {
             beta1: this.beta1,
             beta2: this.beta2,
             beta3: this.beta3,
+            d: this.d,
             d0: this.d0,
             dCoef: this.dCoef,
+            dMax: this.dMax,
             growthRate: this.growthRate,
             weightDecay: this.weightDecay,
             weightDecouple: this.weightDecouple,
             fixedDecay: this.fixedDecay,
             biasCorrection: this.biasCorrection,
             safeguardWarmup: this.safeguardWarmup,
-            epsilon: this.epsilon
+            epsilon: this.epsilon,
+            step: this.step
         }
+    }
+
+    static fromConfig(cls, config) {
+        console.log(config)
+        return new cls(config)
+    }
+
+    dispose() {
+        Object.values(this.STATE).forEach((state) => {
+            Object.values(state).forEach((tensor) => tensor.dispose())
+        })
+        this.STATE = {}
     }
 
     static get className() {
@@ -366,6 +417,127 @@ class Prodigy extends tf.SGDOptimizer {
 }
 
 tf.serialization.registerClass(Prodigy)
+
+class Signum extends tf.Optimizer {
+    constructor({
+        learningRate = 1e-3,
+        momentum = 0.9,
+        weightDecay = 0.0,
+        weightDecouple = true
+    } = {}) {
+        super()
+        this.learningRate = learningRate
+        this.momentum = momentum
+        this.weightDecay = weightDecay
+        this.weightDecouple = weightDecouple
+        this.ENGINE = tf.engine()
+        this.STATE = {}
+    }
+
+    applyGradients(variableGradients) {
+        Object.keys(variableGradients).forEach((name) => {
+            const variable = this.ENGINE.registeredVariables[name]
+            const gradient = variableGradients[name]
+
+            tf.tidy(() => {
+                if (
+                    this.weightDecay !== 0 &&
+                    !shouldExcludeFromWeightDecay(name)
+                ) {
+                    if (this.weightDecouple) {
+                        variable.assign(
+                            variable.sub(
+                                variable.mul(
+                                    this.weightDecay * this.learningRate
+                                )
+                            )
+                        )
+                    } else {
+                        gradient.add(variable.mul(this.weightDecay))
+                    }
+                }
+
+                if (this.momentum > 0) {
+                    if (!this.STATE[name]) {
+                        this.STATE[name] = {
+                            momentumBuffer: tf.keep(tf.zerosLike(variable))
+                        }
+                    }
+
+                    const momentumBuffer = tf.clone(
+                        this.STATE[name].momentumBuffer
+                    )
+                    tf.dispose(this.STATE[name].momentumBuffer)
+
+                    const update = momentumBuffer
+                        .mul(this.momentum)
+                        .add(gradient.mul(1 - this.momentum))
+                        .sign()
+
+                    variable.assign(variable.sub(update.mul(this.learningRate)))
+
+                    this.STATE[name].momentumBuffer = tf.keep(update)
+
+                    tf.dispose(momentumBuffer)
+                } else {
+                    const update = gradient.sign()
+                    variable.assign(variable.sub(update.mul(this.learningRate)))
+                }
+            })
+        })
+
+        this.incrementIterations()
+    }
+
+    setWeights(weightValues) {
+        weightValues.forEach((namedTensor) => {
+            const [name, tensorName] = namedTensor.name.split('__')
+            if (!this.STATE[name]) {
+                this.STATE[name] = {}
+            }
+            this.STATE[name][tensorName] = tf.keep(
+                tf.variable(namedTensor.tensor)
+            )
+        })
+    }
+
+    getWeights() {
+        const weights = []
+        Object.entries(this.STATE).forEach(([name, state]) => {
+            weights.push({
+                name: `${name}__momentumBuffer`,
+                tensor: state.momentumBuffer
+            })
+        })
+        return weights
+    }
+
+    getConfig() {
+        return {
+            learningRate: this.learningRate,
+            momentum: this.momentum,
+            weightDecay: this.weightDecay,
+            weightDecouple: this.weightDecouple
+        }
+    }
+
+    static fromConfig(cls, config) {
+        return new cls(config)
+    }
+
+    dispose() {
+        Object.values(this.STATE).forEach((state) => {
+            Object.values(state).forEach((tensor) => tensor.dispose())
+        })
+        this.STATE = {}
+    }
+
+    static get className() {
+        return 'Signum'
+    }
+}
+
+tf.serialization.registerClass(Signum)
 
 function shouldExcludeFromWeightDecay(name) {
     const lowerCaseName = name.toLowerCase()
@@ -379,7 +551,8 @@ function shouldExcludeFromWeightDecay(name) {
 const customOptimizers = {
     AdamW: (config) => new AdamW(config),
     Lion: (config) => new Lion(config),
-    Prodigy: (config) => new Prodigy(config)
+    Prodigy: (config) => new Prodigy(config),
+    Signum: (config) => new Signum(config)
 }
 
 export default customOptimizers

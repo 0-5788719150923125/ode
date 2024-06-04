@@ -71,4 +71,21 @@ export default class OpenDoorExperiment extends ODE {
 
         this.model = this.tf.model({ inputs, outputs })
     }
+
+    defineSchedulers() {
+        this.learningRate = 0.0001
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
+    }
+
+    defineOptimizers() {
+        this.optimizers = [
+            this.ode.optimizers.Signum({
+                learningRate: this.learningRate,
+                weightDecay: 0.1,
+                momentum: 0
+            })
+        ]
+    }
 }

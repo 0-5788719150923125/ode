@@ -16,8 +16,8 @@ import { preprocessData } from './utils.js'
 let tf = tfjs
 
 /**
- * The base model class, which defines a standard template
- * that must remain compatible across all model versions.
+ * The base model class, which defines a standard API
+ * that will remain compatible across all model versions.
  * @constructor
  * @param {Object} config - The configuration settings for the model.
  */
@@ -31,8 +31,8 @@ export default class ModelBase {
             schedulers: customSchedulers,
             samplers: customSamplers
         }
-        this.model
         this.config = config
+        this.model
         this.tokenizer
     }
 
