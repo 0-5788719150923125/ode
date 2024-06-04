@@ -1944,7 +1944,8 @@ class Autoencoder extends LayerBase {
             bottleneck: this.bottleneck,
             outputDim: this.outputDim,
             encoderActivation: this.encoderActivation,
-            decoderActivation: this.decoderActivation
+            decoderActivation: this.decoderActivation,
+            variational: this.variational
         }
     }
 }
