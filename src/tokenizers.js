@@ -1,4 +1,4 @@
-import { createCanvas } from 'canvas'
+// import { createCanvas } from 'canvas'
 import { env } from '@xenova/transformers'
 env.allowLocalModels = false
 import { AutoTokenizer } from '@xenova/transformers'

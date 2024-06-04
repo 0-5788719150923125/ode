@@ -31,9 +31,7 @@
         "@xenova/transformers": "^2.16.1"
     },
     "devDependencies": {
-        "gun": "https://github.com/amark/gun.git",
-        "sharp": "^0.33.3",
-        "canvas": "^2.11.2"
+        "gun": "https://github.com/amark/gun.git"
     },
     "jest": {
         "testEnvironment": "node"

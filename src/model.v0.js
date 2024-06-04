@@ -145,11 +145,11 @@ export default class ModelBase {
     postInit() {
         console.log(this.model.optimizer)
         console.log(this.model.summary())
-        console.log(`Loaded model: v${this.config.version}`)
-        console.log(
-            `Tokenizer is ${this.tokenizer.getLength()} tokens in length.`
-        )
         console.log(this.config)
+        console.log(
+            `\nTokenizer contains ${this.tokenizer.getLength()} tokens.`
+        )
+        console.log(`Loaded model: v${this.config.version}\n`)
     }
 
     async generate({
