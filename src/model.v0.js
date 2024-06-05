@@ -293,9 +293,20 @@ function predictOnce(
         }
 
         if (logits.shape.length === 3) {
-            logits = logits
-                .slice([0, idx.shape[1] - 1, 0], [1, 1, logits.shape[2]])
-                .reshape([logits.shape[2]])
+            const logitsTimesteps = logits.shape[1]
+            const idxTimesteps = idx.shape[1]
+
+            if (logitsTimesteps === idxTimesteps) {
+                // If logits and idx have matching timestep lengths
+                logits = logits
+                    .slice([0, idxTimesteps - 1, 0], [1, 1, logits.shape[2]])
+                    .reshape([logits.shape[2]])
+            } else {
+                // If logits and idx have disparate timestep lengths
+                logits = logits
+                    .slice([0, logitsTimesteps - 1, 0], [1, 1, logits.shape[2]])
+                    .reshape([logits.shape[2]])
+            }
         }
 
         if (repetitionPenalty !== 1) {
