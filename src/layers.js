@@ -1,7 +1,12 @@
 import * as tf from '@tensorflow/tfjs'
 import customOps from './ops.js'
 import customActivations from './activations.js'
-import { randomString, seededPRNG, seededValueFromArray } from './utils.js'
+import {
+    randomString,
+    seededPRNG,
+    seededValueFromArray,
+    shuffleArray
+} from './utils.js'
 
 const customLayers = {
     activation: (config) =>
@@ -1782,6 +1787,10 @@ class Autoencoder extends LayerBase {
         this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
         this.variational = config?.variational || false
+        this.downsampling = config?.downsampling || {
+            strategy: 'truncate',
+            rate: 1.0
+        }
     }
 
     build(inputShape) {
@@ -1841,7 +1850,7 @@ class Autoencoder extends LayerBase {
         )
     }
 
-    calculateVariation(inputs) {
+    computeVariance(inputs) {
         // Split the encoded representation into mean and log-variance
         const mean = inputs.slice([0, 0, 0], [-1, -1, this.bottleneck])
         const logVar = inputs.slice(
@@ -1852,6 +1861,38 @@ class Autoencoder extends LayerBase {
         // Sample from the latent space using the reparameterization trick
         const epsilon = tf.randomNormal(mean.shape)
         return mean.add(epsilon.mul(logVar.exp().sqrt()))
+    }
+
+    computeDownsampling(inputs) {
+        if (this.downsampling.strategy === 'truncate') {
+            // Apply timestep reduction in the bottleneck
+            const inputTimesteps = inputs.shape[1]
+            const reducedTimesteps = Math.floor(
+                inputTimesteps / this.downsampling.rate
+            )
+            return inputs.slice(
+                [0, inputTimesteps - reducedTimesteps, 0],
+                [-1, -1, -1]
+            )
+        } else {
+            // Apply timestep reduction in the bottleneck using random subsampling
+            const inputTimesteps = inputs.shape[1]
+            const reducedTimesteps = Math.floor(
+                inputTimesteps / this.downsampling.rate
+            )
+
+            const indices = Array.from(
+                { length: inputTimesteps },
+                (value, index) => index
+            )
+
+            shuffleArray(indices)
+
+            const selectedIndices = indices.slice(0, reducedTimesteps)
+            selectedIndices.sort((a, b) => a - b)
+
+            return tf.gather(inputs, selectedIndices, 1)
+        }
     }
 
     call(inputs, kwargs) {
@@ -1876,7 +1917,11 @@ class Autoencoder extends LayerBase {
             )
 
             if (this.variational) {
-                outputs = this.calculateVariation(outputs)
+                outputs = this.computeVariance(outputs)
+            }
+
+            if (this.downsampling) {
+                outputs = this.computeDownsampling(outputs)
             }
 
             // Apply causal mask to the latent representations
@@ -1945,102 +1990,8 @@ class Autoencoder extends LayerBase {
             outputDim: this.outputDim,
             encoderActivation: this.encoderActivation,
             decoderActivation: this.decoderActivation,
-            variational: this.variational
-        }
-    }
-}
-
-class TimestepReductionAutoencoder extends Autoencoder {
-    constructor(config) {
-        super(config)
-        this.reductionFactor = config?.reductionFactor || 2
-    }
-
-    build(inputShape) {
-        super.build(inputShape)
-
-        // Initialize timestep reduction weights in the bottleneck
-        this.bottleneckReductionKernel = this.addWeight(
-            'bottleneckReductionKernel',
-            [1, this.bottleneck, this.bottleneck],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Encode the inputs to the bottleneck representation
-            let outputs = this.applyDense(
-                inputs,
-                this.encoderKernel1,
-                this.encoderBias1
-            )
-            outputs = tf.layers
-                .activation({ activation: this.encoderActivation })
-                .apply(outputs)
-            outputs = this.applyDense(
-                outputs,
-                this.encoderKernel2,
-                this.encoderBias2
-            )
-
-            if (this.variational) {
-                outputs = this.calculateVariation(outputs)
-            }
-
-            // Apply timestep reduction in the bottleneck
-            outputs = tf.conv1d(
-                outputs,
-                this.bottleneckReductionKernel.read(),
-                this.reductionFactor,
-                'valid'
-            )
-
-            // Decode the reduced bottleneck representation to the output dimensionality
-            outputs = this.applyDense(
-                outputs,
-                this.decoderKernel1,
-                this.decoderBias1
-            )
-            outputs = tf.layers
-                .activation({ activation: this.decoderActivation })
-                .apply(outputs)
-            outputs = this.applyDense(
-                outputs,
-                this.decoderKernel2,
-                this.decoderBias2
-            )
-
-            return outputs
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        const encodedShape = super.computeOutputShape(inputShape)
-        const reducedShape = [
-            encodedShape[0],
-            Math.floor(encodedShape[1] / this.reductionFactor),
-            encodedShape[2]
-        ]
-        return [reducedShape[0], reducedShape[1], this.outputDim]
-    }
-
-    getWeights() {
-        return [...super.getWeights(), this.bottleneckReductionKernel.read()]
-    }
-
-    setWeights(weights) {
-        super.setWeights(weights.slice(0, 8))
-        this.bottleneckReductionKernel.write(weights[8])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            reductionFactor: this.reductionFactor
+            variational: this.variational,
+            downsampling: this.downsampling
         }
     }
 }
@@ -6022,7 +5973,6 @@ const exportedLayers = [
     Antirectifier,
     AttentionFreeTransformer,
     Autoencoder,
-    TimestepReductionAutoencoder,
     Bias,
     CapsNet,
     CausalSelfAttention,

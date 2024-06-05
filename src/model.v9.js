@@ -14,7 +14,10 @@ export default class OpenDoorExperiment extends ODE {
         this.queryRatio = config.queryRatio || 3
         this.headDim = config.headDim || 64
         this.mlpDim = config.mlpDim || this.units * 4
-        this.reductionFactor = config.reductionFactor || 2
+        this.downsampling = {
+            strategy: 'random',
+            rate: 1.05
+        }
     }
 
     defineTokenizer(config) {
@@ -36,9 +39,9 @@ export default class OpenDoorExperiment extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        const autoencoder = this.ode.layers.TimestepReductionAutoencoder({
+        const autoencoder = this.ode.layers.Autoencoder({
             variational: true,
-            reductionFactor: this.reductionFactor,
+            downsampling: this.downsampling,
             innerDim: this.units * 4,
             bottleneck: this.units / 2,
             outputDim: this.units,
