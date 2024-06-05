@@ -10,10 +10,10 @@ export default class OpenDoorExperiment extends ODE {
         this.layers = config.layers || 3
         this.units = config.units || 256
         this.embeddings = config.embeddings || 512
-        this.mlpDim = config.mlpDim || this.units * 4
         this.heads = config.heads || 2
-        this.headDim = config.headDim || 64
         this.queryRatio = config.queryRatio || 3
+        this.headDim = config.headDim || 64
+        this.mlpDim = config.mlpDim || this.units * 4
     }
 
     defineTokenizer(config) {
@@ -72,20 +72,20 @@ export default class OpenDoorExperiment extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineSchedulers() {
-        this.learningRate = 0.0001
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
-    }
+    // defineSchedulers() {
+    //     this.learningRate = 0.0001
+    //     this.schedulers = [
+    //         this.ode.schedulers.constantScheduler(this.learningRate)
+    //     ]
+    // }
 
-    defineOptimizers() {
-        this.optimizers = [
-            this.ode.optimizers.Signum({
-                learningRate: this.learningRate,
-                weightDecay: 0.1,
-                momentum: 0
-            })
-        ]
-    }
+    // defineOptimizers() {
+    //     this.optimizers = [
+    //         this.ode.optimizers.Signum({
+    //             learningRate: this.learningRate,
+    //             weightDecay: 0.1,
+    //             momentum: 0
+    //         })
+    //     ]
+    // }
 }

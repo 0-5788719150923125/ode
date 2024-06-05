@@ -64,7 +64,8 @@ export default class ModelBase {
     async load(type = 'file', path = `data/models/ode/model.json`) {
         await this.preInit()
         this.model = await this.tf.loadLayersModel(`${type}://${path}`, {
-            strict: true
+            strict: true,
+            streamWeights: true
         })
         console.log('successfully loaded model from disk')
         this.defineSchedulers()
