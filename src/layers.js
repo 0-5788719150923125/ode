@@ -1788,9 +1788,10 @@ class Autoencoder extends LayerBase {
         this.decoderActivation = config?.decoderActivation || 'relu'
         this.variational = config?.variational || false
         this.downsampling = config?.downsampling || {
-            strategy: 'truncate',
+            strategy: 'train',
             rate: 1.0
         }
+        this.largestTimestep = 0
     }
 
     build(inputShape) {
@@ -1864,35 +1865,60 @@ class Autoencoder extends LayerBase {
     }
 
     computeDownsampling(inputs) {
+        const inputTimesteps = inputs.shape[1]
+        const reducedTimesteps = Math.floor(
+            inputTimesteps / this.downsampling.rate
+        )
+
+        if (reducedTimesteps > this.largestTimestep) {
+            this.largestTimestep = reducedTimesteps
+        }
+
+        if (inputTimesteps < this.largestTimestep) {
+            return inputs
+        }
+
         if (this.downsampling.strategy === 'truncate') {
-            // Apply timestep reduction in the bottleneck
-            const inputTimesteps = inputs.shape[1]
-            const reducedTimesteps = Math.floor(
-                inputTimesteps / this.downsampling.rate
-            )
+            // Apply timestep reduction by dropping tokens on the left
             return inputs.slice(
                 [0, inputTimesteps - reducedTimesteps, 0],
                 [-1, -1, -1]
             )
-        } else {
-            // Apply timestep reduction in the bottleneck using random subsampling
-            const inputTimesteps = inputs.shape[1]
-            const reducedTimesteps = Math.floor(
-                inputTimesteps / this.downsampling.rate
+        } else if (this.downsampling.strategy === 'train') {
+            if (!this.trainableIndices) {
+                this.trainableIndices = this.addWeight(
+                    'trainableIndices',
+                    [inputTimesteps],
+                    'float32',
+                    tf.initializers.zeros()
+                )
+            }
+
+            // Use Gumbel-Softmax trick to select timesteps
+            const temperature = 1.0
+            const probabilities = customOps.gumbelSoftmax(
+                this.trainableIndices.read(),
+                temperature
             )
 
-            const indices = Array.from(
-                { length: inputTimesteps },
-                (value, index) => index
-            )
+            // Select top-k timesteps based on probabilities
+            const topkValues = tf.topk(probabilities, reducedTimesteps)
+            const selectedIndices = topkValues.indices.arraySync()
 
-            shuffleArray(indices)
-
-            const selectedIndices = indices.slice(0, reducedTimesteps)
-            selectedIndices.sort((a, b) => a - b)
-
+            // Use tf.gather to select the relevant timesteps
             return tf.gather(inputs, selectedIndices, 1)
         }
+    }
+
+    applyMask(inputs) {
+        // Apply causal mask to the latent representations
+        const mask = tf.linalg
+            .bandPart(tf.ones([inputs.shape[1], inputs.shape[2]]), 0, -1)
+            .sub(tf.eye(inputs.shape[1], inputs.shape[2]))
+            .mul(tf.scalar(-1e9))
+            .expandDims(0)
+
+        return inputs.add(mask)
     }
 
     call(inputs, kwargs) {
@@ -1924,14 +1950,9 @@ class Autoencoder extends LayerBase {
                 outputs = this.computeDownsampling(outputs)
             }
 
-            // Apply causal mask to the latent representations
-            // const mask = tf.linalg
-            //     .bandPart(tf.ones([outputs.shape[1], outputs.shape[2]]), 0, -1)
-            //     .sub(tf.eye(outputs.shape[1], outputs.shape[2]))
-            //     .mul(tf.scalar(-1e9))
-            //     .expandDims(0)
-
-            // outputs = outputs.add(mask)
+            if (this.causalMasking) {
+                outputs = this.applyMask(outputs)
+            }
 
             // Decode the bottleneck representation to the output dimensionality
             outputs = this.applyDense(
@@ -1959,7 +1980,7 @@ class Autoencoder extends LayerBase {
     }
 
     getWeights() {
-        return [
+        const weights = [
             this.encoderKernel1.read(),
             this.encoderBias1.read(),
             this.encoderKernel2.read(),
@@ -1969,6 +1990,7 @@ class Autoencoder extends LayerBase {
             this.decoderKernel2.read(),
             this.decoderBias2.read()
         ]
+        return weights
     }
 
     setWeights(weights) {
@@ -1980,6 +2002,9 @@ class Autoencoder extends LayerBase {
         this.decoderBias1.write(weights[5])
         this.decoderKernel2.write(weights[6])
         this.decoderBias2.write(weights[7])
+        if (weights[8]) {
+            this.trainableIndices.write(weights[8])
+        }
     }
 
     getConfig() {

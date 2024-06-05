@@ -1,5 +1,17 @@
 import * as tf from '@tensorflow/tfjs'
 
+// Helper function to generate Gumbel noise
+function sampleGumbel(shape, epsilon = 1e-8) {
+    const uniform = tf.randomUniform(shape, 0, 1)
+    return tf.neg(tf.log(tf.neg(tf.log(uniform.add(epsilon)))))
+}
+
+// Helper function to apply Gumbel-Softmax trick
+function gumbelSoftmax(logits, temperature = 1.0) {
+    const gumbelNoise = sampleGumbel(logits.shape)
+    return tf.softmax(logits.add(gumbelNoise).div(temperature))
+}
+
 function customGather(inputs, indices) {
     const forward = (inputs, indices, save) => {
         indices = indices.cast('int32')
@@ -180,5 +192,6 @@ export default {
     subliminalSpace,
     subliminalTopk,
     customGather,
-    sparseMixtureOfExpertsGrad
+    sparseMixtureOfExpertsGrad,
+    gumbelSoftmax
 }
