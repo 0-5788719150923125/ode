@@ -64,6 +64,15 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             trainArgs.imageSize
         )
 
+        if (this.reductionFactor) {
+            const newTimeSteps = data.ys.shape[1] / this.reductionFactor
+            data.ys = tf.slice(
+                data.ys,
+                [0, newTimeSteps, 0],
+                [2, newTimeSteps, data.ys.shape[2]]
+            )
+        }
+
         // Fetch data and compute gradients
         await accumulator.compute(data.xs, data.ys)
         await accumulator.step(this.step, this.batch)

@@ -1950,69 +1950,21 @@ class Autoencoder extends LayerBase {
     }
 }
 
-class VariationalAutoencoder extends LayerBase {
+class TimestepReductionAutoencoder extends Autoencoder {
     constructor(config) {
-        super({ name: `vae-${randomString()}`, ...config })
-        this.innerDim = config?.innerDim || 1024
-        this.latentDim = config?.latentDim || 128
-        this.outputDim = config?.outputDim || 256
-        this.encoderActivation = config?.encoderActivation || 'relu'
-        this.decoderActivation = config?.decoderActivation || 'relu'
+        super(config)
+        this.reductionFactor = config?.reductionFactor || 2
     }
 
     build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
+        super.build(inputShape)
 
-        // Initialize dense layers for encoder
-        this.encoderKernel1 = this.addWeight(
-            'encoderKernel1',
-            [inputDim, this.innerDim],
+        // Initialize timestep reduction weights in the bottleneck
+        this.bottleneckReductionKernel = this.addWeight(
+            'bottleneckReductionKernel',
+            [1, this.bottleneck, this.bottleneck],
             'float32',
             tf.initializers.glorotNormal()
-        )
-        this.encoderBias1 = this.addWeight(
-            'encoderBias1',
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.encoderKernel2 = this.addWeight(
-            'encoderKernel2',
-            [this.innerDim, this.latentDim * 2],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.encoderBias2 = this.addWeight(
-            'encoderBias2',
-            [this.latentDim * 2],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        // Initialize dense layers for decoder
-        this.decoderKernel1 = this.addWeight(
-            'decoderKernel1',
-            [this.latentDim, this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.decoderBias1 = this.addWeight(
-            'decoderBias1',
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.decoderKernel2 = this.addWeight(
-            'decoderKernel2',
-            [this.innerDim, this.outputDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.decoderBias2 = this.addWeight(
-            'decoderBias2',
-            [this.outputDim],
-            'float32',
-            tf.initializers.zeros()
         )
     }
 
@@ -2020,7 +1972,7 @@ class VariationalAutoencoder extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Encode the inputs to the latent space
+            // Encode the inputs to the bottleneck representation
             let outputs = this.applyDense(
                 inputs,
                 this.encoderKernel1,
@@ -2035,19 +1987,24 @@ class VariationalAutoencoder extends LayerBase {
                 this.encoderBias2
             )
 
-            // Split the encoded representation into mean and log-variance
-            const mean = outputs.slice([0, 0, 0], [-1, -1, this.latentDim])
-            const logVar = outputs.slice(
-                [0, 0, this.latentDim],
-                [-1, -1, this.latentDim]
+            if (this.variational) {
+                outputs = this.calculateVariation(outputs)
+            }
+
+            // Apply timestep reduction in the bottleneck
+            outputs = tf.conv1d(
+                outputs,
+                this.bottleneckReductionKernel.read(),
+                this.reductionFactor,
+                'valid'
             )
 
-            // Sample from the latent space using the reparameterization trick
-            const epsilon = tf.randomNormal(mean.shape)
-            const z = mean.add(epsilon.mul(logVar.exp().sqrt()))
-
-            // Decode the latent representation to the output dimensionality
-            outputs = this.applyDense(z, this.decoderKernel1, this.decoderBias1)
+            // Decode the reduced bottleneck representation to the output dimensionality
+            outputs = this.applyDense(
+                outputs,
+                this.decoderKernel1,
+                this.decoderBias1
+            )
             outputs = tf.layers
                 .activation({ activation: this.decoderActivation })
                 .apply(outputs)
@@ -2062,41 +2019,28 @@ class VariationalAutoencoder extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], inputShape[1], this.outputDim]
+        const encodedShape = super.computeOutputShape(inputShape)
+        const reducedShape = [
+            encodedShape[0],
+            Math.floor(encodedShape[1] / this.reductionFactor),
+            encodedShape[2]
+        ]
+        return [reducedShape[0], reducedShape[1], this.outputDim]
     }
 
     getWeights() {
-        return [
-            this.encoderKernel1.read(),
-            this.encoderBias1.read(),
-            this.encoderKernel2.read(),
-            this.encoderBias2.read(),
-            this.decoderKernel1.read(),
-            this.decoderBias1.read(),
-            this.decoderKernel2.read(),
-            this.decoderBias2.read()
-        ]
+        return [...super.getWeights(), this.bottleneckReductionKernel.read()]
     }
 
     setWeights(weights) {
-        this.encoderKernel1.write(weights[0])
-        this.encoderBias1.write(weights[1])
-        this.encoderKernel2.write(weights[2])
-        this.encoderBias2.write(weights[3])
-        this.decoderKernel1.write(weights[4])
-        this.decoderBias1.write(weights[5])
-        this.decoderKernel2.write(weights[6])
-        this.decoderBias2.write(weights[7])
+        super.setWeights(weights.slice(0, 8))
+        this.bottleneckReductionKernel.write(weights[8])
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            innerDim: this.innerDim,
-            latentDim: this.latentDim,
-            outputDim: this.outputDim,
-            encoderActivation: this.encoderActivation,
-            decoderActivation: this.decoderActivation
+            reductionFactor: this.reductionFactor
         }
     }
 }
@@ -6078,6 +6022,7 @@ const exportedLayers = [
     Antirectifier,
     AttentionFreeTransformer,
     Autoencoder,
+    TimestepReductionAutoencoder,
     Bias,
     CapsNet,
     CausalSelfAttention,
@@ -6133,8 +6078,7 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    WeightedSum,
-    VariationalAutoencoder
+    WeightedSum
 ]
 
 exportedLayers.forEach((LayerClass) => {

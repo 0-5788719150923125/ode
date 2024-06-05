@@ -14,6 +14,7 @@ export default class OpenDoorExperiment extends ODE {
         this.queryRatio = config.queryRatio || 3
         this.headDim = config.headDim || 64
         this.mlpDim = config.mlpDim || this.units * 4
+        this.reductionFactor = config.reductionFactor || 2
     }
 
     defineTokenizer(config) {
@@ -35,8 +36,9 @@ export default class OpenDoorExperiment extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        const autoencoder = this.ode.layers.Autoencoder({
+        const autoencoder = this.ode.layers.TimestepReductionAutoencoder({
             variational: true,
+            reductionFactor: this.reductionFactor,
             innerDim: this.units * 4,
             bottleneck: this.units / 2,
             outputDim: this.units,
@@ -71,21 +73,4 @@ export default class OpenDoorExperiment extends ODE {
 
         this.model = this.tf.model({ inputs, outputs })
     }
-
-    // defineSchedulers() {
-    //     this.learningRate = 0.0001
-    //     this.schedulers = [
-    //         this.ode.schedulers.constantScheduler(this.learningRate)
-    //     ]
-    // }
-
-    // defineOptimizers() {
-    //     this.optimizers = [
-    //         this.ode.optimizers.Signum({
-    //             learningRate: this.learningRate,
-    //             weightDecay: 0.1,
-    //             momentum: 0
-    //         })
-    //     ]
-    // }
 }
