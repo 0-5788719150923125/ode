@@ -16,7 +16,7 @@ export default class OpenDoorExperiment extends ODE {
         this.mlpDim = config.mlpDim || this.units * 4
         this.downsampling = {
             strategy: 'truncate',
-            rate: 1.23
+            rate: 1.5
         }
     }
 

@@ -3,6 +3,7 @@ import {
     elapsedTimeGenerator,
     emaGenerator,
     findMatches,
+    randomValueFromArray,
     preprocessData,
     randomBetween
 } from './utils.js'
@@ -23,6 +24,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         encoding: this.config.encoding || 'oneHot',
         sourceFormat: this.sourceFormat || 'text',
         imageSize: this.imageSize || 500,
+        downsampling: this.downsampling.rate || 1.0,
         ...args
     }
 
@@ -61,20 +63,23 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             trainArgs.labels,
             trainArgs.encoding,
             trainArgs.sourceFormat,
-            trainArgs.imageSize
+            trainArgs.imageSize,
+            trainArgs.downsampling
         )
 
-        if (this.downsampling && this.downsampling.rate !== 1.0) {
+        if (trainArgs.downsampling !== 1.0) {
             const newTimeSteps = Math.floor(
-                data.ys.shape[1] / this.downsampling.rate
+                data.ys.shape[1] / trainArgs.downsampling
             )
-            const newYs = tf.slice(
-                data.ys,
-                [0, data.ys.shape[1] - newTimeSteps, 0],
-                [trainArgs.batchSize, newTimeSteps, data.ys.shape[2]]
-            )
-            data.ys.dispose()
-            data.ys = newYs
+            if (data.ys.shape[1] > newTimeSteps) {
+                const newYs = tf.slice(
+                    data.ys,
+                    [0, data.ys.shape[1] - newTimeSteps, 0],
+                    [trainArgs.batchSize, newTimeSteps, data.ys.shape[2]]
+                )
+                data.ys.dispose()
+                data.ys = newYs
+            }
         }
 
         // Fetch data and compute gradients
@@ -362,6 +367,10 @@ function accumulateGradients(gradients, accumulatedGrads) {
     return accumulatedGrads
 }
 
+function range(lower, upper) {
+    return Array.from({ length: upper - lower + 1 }, (_, i) => i + lower)
+}
+
 async function batchMaker(
     dataGenerator,
     tokenizer,
@@ -370,13 +379,20 @@ async function batchMaker(
     labels = 'timeDistributed',
     encoding = 'oneHot',
     sourceFormat = 'text',
-    imageSize = 500
+    imageSize = 500,
+    downsampling = 1.0
 ) {
     let xsArray = []
     let ysArray = []
 
+    let sampleLength = inputLength
+
     for (let i = 0; i < batchSize; ++i) {
-        const sample = await dataGenerator.next().value
+        // const maxLength = Math.ceil(Math.ceil(inputLength / downsampling))
+        if (downsampling !== 1.0)
+            sampleLength = randomValueFromArray(range(3, inputLength), 0.8)
+
+        const sample = await dataGenerator.next().value.slice(0, sampleLength)
 
         const textIndices = preprocessData(
             sample,
@@ -384,6 +400,8 @@ async function batchMaker(
             inputLength + 1, // Include the next token to predict
             'left'
         )
+
+        // console.log(JSON.stringify(textIndices))
 
         // Input sequence (excluding the last token for prediction)
         let xs = textIndices.slice(0, inputLength)

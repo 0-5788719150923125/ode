@@ -9,52 +9,30 @@
     <body>
         <canvas id="removalChart" width="800" height="400"></canvas>
         <script>
-            function keepValues(array, numToKeep) {
-                if (numToKeep >= array.length) return array
-
-                const totalElements = array.length
-                const remainingElements = array.slice() // Create a copy of the array
-
-                while (remainingElements.length > numToKeep) {
-                    let removalIndex = getRemovalIndex(remainingElements.length)
-                    removalFrequencies[removalIndex]++
-                    remainingElements.splice(removalIndex, 1)
-                }
-
-                return remainingElements
+            function randomValueFromArray(array, biasFactor = 1) {
+                const randomIndex = Math.floor(
+                    Math.pow(Math.random(), biasFactor) * array.length
+                )
+                return array[randomIndex]
+            }
+            const counts = {}
+            const timesteps = 512
+            for (let i = 0; i < 1000000; i++) {
+                const selection = randomValueFromArray(
+                    Array.from({ length: timesteps }, (value, index) => index),
+                    0.8
+                )
+                let current = counts[selection] || 0
+                counts[selection] = current + 1
             }
 
-            function getRemovalIndex(length) {
-                let sumOfWeights = (length * (length + 1)) / 2 // Sum of the first N natural numbers
-                let randomValue = Math.random() * sumOfWeights
-
-                for (let i = 0; i < length; i++) {
-                    sumOfWeights -= length - i
-                    if (randomValue >= sumOfWeights) {
-                        return i
-                    }
-                }
-            }
-
-            const arraySize = 1000
-            const numToKeep = 50
-            const iterations = 10000
-            let removalFrequencies = Array(arraySize).fill(0)
-
-            for (let i = 0; i < iterations; i++) {
-                let array = Array.from({ length: arraySize }, (_, i) => i + 1)
-                keepValues(array, numToKeep)
-            }
-
-            // Visualization using Chart.js
-            const ctx = document.getElementById('removalChart').getContext('2d')
-            const labels = Array.from({ length: arraySize }, (_, i) => i + 1)
+            const labels = Array.from({ length: timesteps }, (_, i) => i)
             const data = {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Frequency of Removal',
-                        data: removalFrequencies,
+                        label: 'Frequency of Numbers',
+                        data: labels.map((label) => counts[label] || 0),
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         borderColor: 'rgba(75, 192, 192, 1)',
                         borderWidth: 1
@@ -62,6 +40,7 @@
                 ]
             }
 
+            const ctx = document.getElementById('removalChart').getContext('2d')
             const config = {
                 type: 'line',
                 data: data,
