@@ -3,7 +3,7 @@ import {
     elapsedTimeGenerator,
     emaGenerator,
     findMatches,
-    randomValueFromArray,
+    getRandomBiasedNumber,
     preprocessData,
     randomBetween
 } from './utils.js'
@@ -24,7 +24,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         encoding: this.config.encoding || 'oneHot',
         sourceFormat: this.sourceFormat || 'text',
         imageSize: this.imageSize || 500,
-        downsampling: this.downsampling.rate || 1.0,
+        downsampling: this.downsampling?.rate || 1.0,
         ...args
     }
 
@@ -367,10 +367,6 @@ function accumulateGradients(gradients, accumulatedGrads) {
     return accumulatedGrads
 }
 
-function range(lower, upper) {
-    return Array.from({ length: upper - lower + 1 }, (_, i) => i + lower)
-}
-
 async function batchMaker(
     dataGenerator,
     tokenizer,
@@ -388,9 +384,9 @@ async function batchMaker(
     let sampleLength = inputLength
 
     for (let i = 0; i < batchSize; ++i) {
-        // const maxLength = Math.ceil(Math.ceil(inputLength / downsampling))
         if (downsampling !== 1.0)
-            sampleLength = randomValueFromArray(range(3, inputLength), 0.8)
+            sampleLength =
+                inputLength - getRandomBiasedNumber(3, inputLength, 1.5)
 
         const sample = await dataGenerator.next().value.slice(0, sampleLength)
 

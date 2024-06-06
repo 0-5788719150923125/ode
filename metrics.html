@@ -9,19 +9,28 @@
     <body>
         <canvas id="removalChart" width="800" height="400"></canvas>
         <script>
-            function randomValueFromArray(array, biasFactor = 1) {
-                const randomIndex = Math.floor(
-                    Math.pow(Math.random(), biasFactor) * array.length
-                )
-                return array[randomIndex]
+            function logb(val, base) {
+                return Math.log10(val) / Math.log10(base)
             }
+
+            function getRandomNumber(min, max) {
+                return Math.floor(Math.random() * (max - min + 1) + min)
+            }
+
+            function getRandomBiasedNumber(num1, num2, factor) {
+                const min = Math.min(num1, num2)
+                const max = Math.max(num1, num2)
+                const power = factor
+                const rnd = Math.random()
+                const scaledRnd = Math.pow(rnd, power)
+                const result = min + (max - min) * scaledRnd
+                return Math.floor(result)
+            }
+
             const counts = {}
             const timesteps = 512
             for (let i = 0; i < 1000000; i++) {
-                const selection = randomValueFromArray(
-                    Array.from({ length: timesteps }, (value, index) => index),
-                    0.8
-                )
+                const selection = getRandomBiasedNumber(3, timesteps, 1.5)
                 let current = counts[selection] || 0
                 counts[selection] = current + 1
             }

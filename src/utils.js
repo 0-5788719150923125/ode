@@ -29,6 +29,16 @@ export function randomBetween(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
+export function getRandomBiasedNumber(num1, num2, factor) {
+    const min = Math.min(num1, num2)
+    const max = Math.max(num1, num2)
+    const power = factor
+    const rnd = Math.random()
+    const scaledRnd = Math.pow(rnd, power)
+    const result = min + (max - min) * scaledRnd
+    return Math.floor(result)
+}
+
 export function splitLines(text, num = 100) {
     const lines = text.split(/\r?\n/)
     return lines.slice(0, num).join('\n')
