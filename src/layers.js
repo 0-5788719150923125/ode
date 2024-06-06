@@ -1878,13 +1878,15 @@ class Autoencoder extends LayerBase {
             return inputs
         }
 
+        // Apply timestep reduction by dropping tokens on the left
         if (this.downsampling.strategy === 'truncate') {
-            // Apply timestep reduction by dropping tokens on the left
             return inputs.slice(
                 [0, inputTimesteps - reducedTimesteps, 0],
                 [-1, -1, -1]
             )
-        } else if (this.downsampling.strategy === 'train') {
+        }
+        // Apply timestep reduction via subsampling with trainable parameters
+        else if (this.downsampling.strategy === 'train') {
             if (!this.trainableIndices) {
                 this.trainableIndices = this.addWeight(
                     'trainableIndices',
@@ -1907,6 +1909,43 @@ class Autoencoder extends LayerBase {
 
             // Use tf.gather to select the relevant timesteps
             return tf.gather(inputs, selectedIndices, 1)
+        }
+        // Apply timestep reduction using FFT
+        else if (this.downsampling.strategy === 'ifft') {
+            return customOps.reduceTimeStepsWithFFT(inputs, reducedTimesteps)
+        } else if (this.downsampling.strategy === 'threshold') {
+            return customOps.reduceTimeStepsWithActivation(inputs, tf.tanh, 0.5)
+        } else {
+            function keepValues(array, numToKeep) {
+                if (numToKeep >= array.length) return array
+
+                const remainingElements = array.slice() // Create a copy of the array
+
+                while (remainingElements.length > numToKeep) {
+                    let removalIndex = getRemovalIndex(remainingElements.length)
+                    remainingElements.splice(removalIndex, 1)
+                }
+
+                return remainingElements
+            }
+
+            function getRemovalIndex(length) {
+                let sumOfWeights = (length * (length + 1)) / 2 // Sum of the first N natural numbers
+                let randomValue = Math.random() * sumOfWeights
+
+                for (let i = 0; i < length; i++) {
+                    sumOfWeights -= length - i
+                    if (randomValue >= sumOfWeights) {
+                        return i
+                    }
+                }
+            }
+            const array = Array.from(
+                { length: reducedTimesteps },
+                (value, index) => index
+            )
+            const indices = keepValues(array, reducedTimesteps)
+            return tf.gather(inputs, indices, 1)
         }
     }
 

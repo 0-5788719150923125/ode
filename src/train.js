@@ -559,3 +559,26 @@ export class ConsoleLogger {
         )
     }
 }
+
+export class MetricsCollector {
+    constructor(parent) {
+        this.parent = parent
+    }
+
+    async step(stats) {
+        await this.saveStatsToFile('./data/metrics.gg', {
+            batch: stats.batch,
+            step: stats.step,
+            loss: stats.loss
+        })
+    }
+
+    async saveStatsToFile(filename, stats) {
+        if (!this.fs) {
+            this.fs = await import('fs')
+            this.fs.unlinkSync(filename)
+        }
+        const statsString = JSON.stringify(stats) + '\n'
+        this.fs.appendFileSync(filename, statsString, 'utf8')
+    }
+}

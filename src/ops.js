@@ -12,6 +12,89 @@ function gumbelSoftmax(logits, temperature = 1.0) {
     return tf.softmax(logits.add(gumbelNoise).div(temperature))
 }
 
+function reduceTimeStepsWithFFT(tensor, reducedTimeSteps) {
+    const [batchSize, timeSteps, features] = tensor.shape
+
+    // Custom gradient definition
+    return tf.customGrad((tensor) => {
+        // Apply FFT to the time dimension
+        const fftTensor = tf.spectral.fft(
+            tf.complex(tensor, tf.zerosLike(tensor))
+        )
+
+        // Truncate the high-frequency components
+        const truncatedFFT = tf.slice(
+            fftTensor,
+            [0, 0, 0],
+            [batchSize, reducedTimeSteps, features]
+        )
+
+        // Apply inverse FFT to get back to the time domain
+        const ifftTensor = tf.spectral.ifft(truncatedFFT)
+
+        // Return the real part of the result
+        const realOutput = tf.real(ifftTensor)
+
+        // Define the gradient function
+        const gradFunc = (dy) => {
+            // Calculate the gradient with respect to the input tensor
+            const gradReal = tf.complex(dy, tf.zerosLike(dy))
+            const gradIFFT = tf.spectral.fft(gradReal)
+
+            // Pad the real and imaginary parts separately
+            const realPart = tf.real(gradIFFT)
+            const imagPart = tf.imag(gradIFFT)
+
+            const padding = [
+                [0, 0],
+                [0, timeSteps - reducedTimeSteps],
+                [0, 0]
+            ]
+            const paddedReal = tf.pad(realPart, padding)
+            const paddedImag = tf.pad(imagPart, padding)
+
+            // Combine the padded real and imaginary parts into a complex tensor
+            const paddedGradIFFT = tf.complex(paddedReal, paddedImag)
+
+            // Apply inverse FFT to the padded gradient tensor
+            const gradFFT = tf.spectral.ifft(paddedGradIFFT)
+
+            // Return the real part of the gradient
+            return tf.real(gradFFT)
+        }
+
+        return { value: realOutput, gradFunc }
+    })(tensor)
+}
+
+function reduceTimeStepsWithActivation(tensor, activationFunction, threshold) {
+    return tf.tidy(() => {
+        // Apply the activation function to the input tensor
+        const activatedTensor = activationFunction(tensor)
+
+        // Average the values along the feature dimension
+        const averagedTensor = tf.mean(activatedTensor, -1)
+
+        // Create a mask based on the threshold
+        const mask = averagedTensor.greater(threshold)
+
+        // Expand the mask dimensions to match the input tensor shape
+        const expandedMask = mask.expandDims(-1)
+
+        // Select the timesteps based on the mask
+        const selectedTensor = tf.where(
+            expandedMask,
+            tensor,
+            tf.zerosLike(tensor)
+        )
+
+        // Compress the selected tensor by removing the zero timesteps
+        const compressedTensor = tf.compress(selectedTensor, 1, 2)
+
+        return compressedTensor
+    })
+}
+
 function customGather(inputs, indices) {
     const forward = (inputs, indices, save) => {
         indices = indices.cast('int32')
@@ -193,5 +276,7 @@ export default {
     subliminalTopk,
     customGather,
     sparseMixtureOfExpertsGrad,
-    gumbelSoftmax
+    gumbelSoftmax,
+    reduceTimeStepsWithFFT,
+    reduceTimeStepsWithActivation
 }

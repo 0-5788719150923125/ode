@@ -15,8 +15,8 @@ export default class OpenDoorExperiment extends ODE {
         this.headDim = config.headDim || 64
         this.mlpDim = config.mlpDim || this.units * 4
         this.downsampling = {
-            strategy: 'train',
-            rate: 1.05
+            strategy: 'truncate',
+            rate: 1.23
         }
     }
 

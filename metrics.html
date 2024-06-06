@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Metrics Dashboard</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <canvas id="removalChart" width="800" height="400"></canvas>
+        <script>
+            function keepValues(array, numToKeep) {
+                if (numToKeep >= array.length) return array
+
+                const totalElements = array.length
+                const remainingElements = array.slice() // Create a copy of the array
+
+                while (remainingElements.length > numToKeep) {
+                    let removalIndex = getRemovalIndex(remainingElements.length)
+                    removalFrequencies[removalIndex]++
+                    remainingElements.splice(removalIndex, 1)
+                }
+
+                return remainingElements
+            }
+
+            function getRemovalIndex(length) {
+                let sumOfWeights = (length * (length + 1)) / 2 // Sum of the first N natural numbers
+                let randomValue = Math.random() * sumOfWeights
+
+                for (let i = 0; i < length; i++) {
+                    sumOfWeights -= length - i
+                    if (randomValue >= sumOfWeights) {
+                        return i
+                    }
+                }
+            }
+
+            const arraySize = 1000
+            const numToKeep = 50
+            const iterations = 10000
+            let removalFrequencies = Array(arraySize).fill(0)
+
+            for (let i = 0; i < iterations; i++) {
+                let array = Array.from({ length: arraySize }, (_, i) => i + 1)
+                keepValues(array, numToKeep)
+            }
+
+            // Visualization using Chart.js
+            const ctx = document.getElementById('removalChart').getContext('2d')
+            const labels = Array.from({ length: arraySize }, (_, i) => i + 1)
+            const data = {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Frequency of Removal',
+                        data: removalFrequencies,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            }
+
+            const config = {
+                type: 'line',
+                data: data,
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            }
+
+            const removalChart = new Chart(ctx, config)
+        </script>
+    </body>
+</html>
