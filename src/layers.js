@@ -1951,35 +1951,47 @@ class Autoencoder extends LayerBase {
 class FastAssociativeMemory extends LayerBase {
     constructor(config) {
         super({ name: `mem-${randomString()}`, ...config })
-        this.units = config.units || 64
         this.activation = config.activation || 'relu'
         this.steps = config.steps || 3
         this.decayRate = config.decayRate || 0.9
-        this.learningRate = config.learningRate || 0.1
+        this.initialLearningRate = config.initialLearningRate || 0.1
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
         this.W = this.addWeight(
             'W',
-            [this.units, this.units],
+            [inputDim, inputDim],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.C = this.addWeight(
             'C',
-            [inputDim, this.units],
+            [inputDim, inputDim],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.b = this.addWeight(
             'b',
-            [this.units],
+            [inputDim],
             'float32',
             tf.initializers.zeros()
         )
         this.h_prev = null
         this.h_history = []
+        this.lr = []
+        for (let i = 0; i < this.steps; i++) {
+            this.lr.push(
+                this.addWeight(
+                    `lr-${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.constant({
+                        value: this.initialLearningRate
+                    })
+                )
+            )
+        }
     }
 
     call(inputs) {
@@ -1987,19 +1999,8 @@ class FastAssociativeMemory extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             if (!this.h_prev) {
-                this.h_prev = tf.zeros([
-                    inputs.shape[0],
-                    inputs.shape[1],
-                    this.units
-                ])
-            }
-            if (this.h_history.length === 0) {
-                const firstRecord = tf.zeros([
-                    inputs.shape[0],
-                    inputs.shape[1],
-                    this.units
-                ])
-                this.h_history.push(tf.keep(firstRecord))
+                this.h_prev = tf.zerosLike(inputs)
+                this.h_history.push(tf.keep(this.h_prev.clone()))
             }
 
             let h_preliminary = this.applyDense(inputs, this.C, this.b)
@@ -2028,8 +2029,9 @@ class FastAssociativeMemory extends LayerBase {
 
                 const h_next = tf.add(
                     h_preliminary,
-                    tf.mul(attention, this.learningRate)
+                    tf.mul(attention, this.lr[s].read())
                 )
+
                 h = tf.layers
                     .activation({ activation: this.activation })
                     .apply(h_next)
@@ -2043,8 +2045,6 @@ class FastAssociativeMemory extends LayerBase {
             this.h_prev = tf.keep(h)
             this.h_history.push(tf.keep(h))
 
-            // const scaledResidual =
-            // h.print()
             return tf.add(inputs, h)
         })
     }
@@ -2062,14 +2062,14 @@ class FastAssociativeMemory extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            units: this.units,
             activation: this.activation,
             steps: this.steps,
             decayRate: this.decayRate,
-            learningRate: this.learningRate
+            learningRate: this.initialLearningRate
         }
     }
 }
+
 // class Autoencoder extends LayerBase {
 //     constructor(config) {
 //         super({ name: `dia-${randomString()}`, ...config })
