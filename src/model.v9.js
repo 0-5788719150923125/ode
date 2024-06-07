@@ -65,11 +65,10 @@ export default class OpenDoorExperiment extends ODE {
 
         outputs = this.ode.layers
             .FastAssociativeMemory({
-                units: this.units * 2,
                 activation: 'aptx',
                 steps: 3,
                 decayRate: 0.9,
-                initialLearningRate: 0.000001
+                initialLearningRate: 1e-7
             })
             .apply(outputs)
 

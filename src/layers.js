@@ -2050,13 +2050,21 @@ class FastAssociativeMemory extends LayerBase {
     }
 
     getWeights() {
-        return [this.W.read(), this.C.read(), this.b.read()]
+        return [
+            this.W.read(),
+            this.C.read(),
+            this.b.read(),
+            this.lr.map((weight) => weight.read())
+        ].flat()
     }
 
     setWeights(weights) {
         this.W.write(weights[0])
         this.C.write(weights[1])
         this.b.write(weights[2])
+        for (let i = 3; i < this.steps; i++) {
+            this.lr[i].write(weights[i])
+        }
     }
 
     getConfig() {
@@ -2066,6 +2074,45 @@ class FastAssociativeMemory extends LayerBase {
             steps: this.steps,
             decayRate: this.decayRate,
             learningRate: this.initialLearningRate
+        }
+    }
+}
+
+class Medusa extends LayerBase {
+    constructor(config) {
+        super({ name: `med-${randomString()}`, ...config })
+        this.initialAlpha || 1.0
+    }
+
+    build(inputShape) {
+        this.activation = customActivations.Snake
+        this.alpha = this.addWeight(
+            `alpha`,
+            [],
+            'float32',
+            tf.initializers.constant({ value: this.initialAlpha })
+        )
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            return this.activation(inputs, this.alpha.read())
+        })
+    }
+
+    getWeights() {
+        return [this.alpha.read()]
+    }
+
+    setWeights(weights) {
+        this.alpha.write(weights[0])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            initialAlpha: this.initialAlpha
         }
     }
 }
@@ -6365,6 +6412,7 @@ const exportedLayers = [
     LearnedUpsampling,
     LinearAttention,
     LocalSelfAttention,
+    Medusa,
     MixtureOfDepthsRouting,
     MultiHeadAttention,
     MultiHeadMoeBlock,
