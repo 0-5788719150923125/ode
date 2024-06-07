@@ -1962,7 +1962,7 @@ class FastAssociativeMemory extends LayerBase {
         const inputDim = inputShape[inputShape.length - 1]
         this.W = this.addWeight(
             'W',
-            [inputDim, this.units],
+            [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
@@ -1979,7 +1979,7 @@ class FastAssociativeMemory extends LayerBase {
             tf.initializers.zeros()
         )
         this.h_prev = null
-        this.A_prev = null
+        this.h_history = []
     }
 
     call(inputs) {
@@ -1987,44 +1987,65 @@ class FastAssociativeMemory extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             if (!this.h_prev) {
-                this.h_prev = tf.zeros([inputs.shape[0], this.units])
-            }
-
-            if (!this.A_prev) {
-                this.A_prev = tf.zeros([
+                this.h_prev = tf.zeros([
                     inputs.shape[0],
-                    this.units,
+                    inputs.shape[1],
                     this.units
                 ])
             }
+            if (this.h_history.length === 0) {
+                const firstRecord = tf.zeros([
+                    inputs.shape[0],
+                    inputs.shape[1],
+                    this.units
+                ])
+                this.h_history.push(tf.keep(firstRecord))
+            }
 
-            let h_preliminary = tf.add(
-                tf.matMul(h_prev, this.W.read()),
-                tf.matMul(inputs, this.C.read())
+            let h_preliminary = this.applyDense(inputs, this.C, this.b)
+            h_preliminary = h_preliminary.add(
+                this.applyDense(this.h_prev, this.W)
             )
-            h_preliminary = tf.add(h_preliminary, this.b.read())
             h_preliminary = tf.layers
                 .activation({ activation: this.activation })
                 .apply(h_preliminary)
 
             let h = h_preliminary
             for (let s = 0; s < this.steps; s++) {
-                const attention = tf.sum(tf.mul(A_prev, h), 1, true)
-                const h_next = tf.add(h_preliminary, attention)
+                const attentionTerms = this.h_history.map((h_hist, idx) => {
+                    const scalarProduct = tf.sum(tf.mul(h_hist, h), -1, true)
+                    const weightedProduct = tf.mul(
+                        scalarProduct,
+                        Math.pow(
+                            this.decayRate,
+                            this.h_history.length - idx - 1
+                        )
+                    )
+                    return tf.mul(weightedProduct, h_hist)
+                })
+
+                const attention = tf.sum(tf.stack(attentionTerms), 0)
+
+                const h_next = tf.add(
+                    h_preliminary,
+                    tf.mul(attention, this.learningRate)
+                )
                 h = tf.layers
                     .activation({ activation: this.activation })
                     .apply(h_next)
             }
 
-            const A = tf.add(
-                tf.mul(A_prev, this.decayRate),
-                tf.mul(tf.outerProduct(h, h), this.learningRate)
-            )
+            while (this.h_history.length > this.steps) {
+                this.h_history[0].dispose()
+                this.h_history.shift()
+            }
 
-            this.h_prev = h
-            this.A_prev = A
+            this.h_prev = tf.keep(h)
+            this.h_history.push(tf.keep(h))
 
-            return h
+            // const scaledResidual =
+            // h.print()
+            return tf.add(inputs, h)
         })
     }
 
@@ -2049,7 +2070,6 @@ class FastAssociativeMemory extends LayerBase {
         }
     }
 }
-
 // class Autoencoder extends LayerBase {
 //     constructor(config) {
 //         super({ name: `dia-${randomString()}`, ...config })

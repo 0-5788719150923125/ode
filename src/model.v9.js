@@ -64,6 +64,16 @@ export default class OpenDoorExperiment extends ODE {
         }
 
         outputs = this.ode.layers
+            .FastAssociativeMemory({
+                units: this.units,
+                activation: 'selu',
+                steps: 3,
+                decayRate: 0.9,
+                learningRate: 0.00001
+            })
+            .apply(outputs)
+
+        outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength()
             })
