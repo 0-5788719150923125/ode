@@ -63,7 +63,7 @@ export default class OpenDoorExperiment extends ODE {
                 .apply(outputs)
         }
 
-        outputs = this.tf.layers
+        outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength()
             })

@@ -101,8 +101,9 @@ async function orchestrate(options) {
                 const output = await net.generate({
                     prompt: text,
                     doSample: true,
-                    temperature: 0.3,
-                    maxNewTokens: 128
+                    temperature: 0.45,
+                    maxNewTokens: 256,
+                    repetitionPenalty: 1.1
                 })
                 console.log(`OUTPUT: ${output}`)
                 rl.close()

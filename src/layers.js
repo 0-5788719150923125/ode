@@ -1787,7 +1787,6 @@ class Autoencoder extends LayerBase {
         this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
         this.variational = config?.variational || false
-        this.largestTimestep = 0
     }
 
     build(inputShape) {
@@ -1858,11 +1857,6 @@ class Autoencoder extends LayerBase {
         // Sample from the latent space using the reparameterization trick
         const epsilon = tf.randomNormal(mean.shape)
         return mean.add(epsilon.mul(logVar.exp().sqrt()))
-    }
-
-    computeDownsampling(inputs) {
-        const factor = 2
-        return tf.conv1d(inputs, this.reductionKernel.read(), factor, 'valid')
     }
 
     call(inputs, kwargs) {
@@ -1950,6 +1944,108 @@ class Autoencoder extends LayerBase {
             decoderActivation: this.decoderActivation,
             variational: this.variational,
             causalMasking: this.causalMasking
+        }
+    }
+}
+
+class FastAssociativeMemory extends LayerBase {
+    constructor(config) {
+        super({ name: `mem-${randomString()}`, ...config })
+        this.units = config.units || 64
+        this.activation = config.activation || 'relu'
+        this.steps = config.steps || 3
+        this.decayRate = config.decayRate || 0.9
+        this.learningRate = config.learningRate || 0.1
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+        this.W = this.addWeight(
+            'W',
+            [inputDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.C = this.addWeight(
+            'C',
+            [inputDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.b = this.addWeight(
+            'b',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.h_prev = null
+        this.A_prev = null
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            if (!this.h_prev) {
+                this.h_prev = tf.zeros([inputs.shape[0], this.units])
+            }
+
+            if (!this.A_prev) {
+                this.A_prev = tf.zeros([
+                    inputs.shape[0],
+                    this.units,
+                    this.units
+                ])
+            }
+
+            let h_preliminary = tf.add(
+                tf.matMul(h_prev, this.W.read()),
+                tf.matMul(inputs, this.C.read())
+            )
+            h_preliminary = tf.add(h_preliminary, this.b.read())
+            h_preliminary = tf.layers
+                .activation({ activation: this.activation })
+                .apply(h_preliminary)
+
+            let h = h_preliminary
+            for (let s = 0; s < this.steps; s++) {
+                const attention = tf.sum(tf.mul(A_prev, h), 1, true)
+                const h_next = tf.add(h_preliminary, attention)
+                h = tf.layers
+                    .activation({ activation: this.activation })
+                    .apply(h_next)
+            }
+
+            const A = tf.add(
+                tf.mul(A_prev, this.decayRate),
+                tf.mul(tf.outerProduct(h, h), this.learningRate)
+            )
+
+            this.h_prev = h
+            this.A_prev = A
+
+            return h
+        })
+    }
+
+    getWeights() {
+        return [this.W.read(), this.C.read(), this.b.read()]
+    }
+
+    setWeights(weights) {
+        this.W.write(weights[0])
+        this.C.write(weights[1])
+        this.b.write(weights[2])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            units: this.units,
+            activation: this.activation,
+            steps: this.steps,
+            decayRate: this.decayRate,
+            learningRate: this.learningRate
         }
     }
 }
@@ -6236,6 +6332,7 @@ const exportedLayers = [
     DumbCompression,
     EfficientAttention,
     EfficientChannelAttention,
+    FastAssociativeMemory,
     FastMemory,
     FourierFeaturePositionalEncoding,
     GatedLinearMLP,
