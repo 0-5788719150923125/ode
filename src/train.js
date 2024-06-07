@@ -67,20 +67,33 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             trainArgs.downsampling
         )
 
-        if (trainArgs.downsampling !== 1.0) {
-            const newTimeSteps = Math.floor(
-                data.ys.shape[1] / trainArgs.downsampling
-            )
-            if (data.ys.shape[1] > newTimeSteps) {
-                const newYs = tf.slice(
-                    data.ys,
-                    [0, data.ys.shape[1] - newTimeSteps, 0],
-                    [trainArgs.batchSize, newTimeSteps, data.ys.shape[2]]
-                )
-                data.ys.dispose()
-                data.ys = newYs
-            }
-        }
+        // if (trainArgs.downsampling !== 1.0) {
+        //     const newTimeSteps = Math.floor(
+        //         data.ys.shape[1] / trainArgs.downsampling
+        //     )
+        //     if (data.ys.shape[1] > newTimeSteps) {
+        //         const newYs = tf.slice(
+        //             data.ys,
+        //             [0, data.ys.shape[1] - newTimeSteps, 0],
+        //             [trainArgs.batchSize, newTimeSteps, data.ys.shape[2]]
+        //         )
+        //         data.ys.dispose()
+        //         data.ys = newYs
+        //     }
+        // }
+
+        // if (trainArgs.downsampling) {
+        //     const newTimeSteps = Math.floor(data.ys.shape[1] / 2)
+        //     if (data.ys.shape[1] > newTimeSteps) {
+        //         const newYs = tf.slice(
+        //             data.ys,
+        //             [0, data.ys.shape[1] - newTimeSteps, 0],
+        //             [trainArgs.batchSize, newTimeSteps, data.ys.shape[2]]
+        //         )
+        //         data.ys.dispose()
+        //         data.ys = newYs
+        //     }
+        // }
 
         // Fetch data and compute gradients
         await accumulator.compute(data.xs, data.ys)
@@ -384,9 +397,9 @@ async function batchMaker(
     let sampleLength = inputLength
 
     for (let i = 0; i < batchSize; ++i) {
-        if (downsampling !== 1.0)
-            sampleLength =
-                inputLength - getRandomBiasedNumber(3, inputLength, 1.5)
+        // if (downsampling !== 1.0)
+        //     sampleLength =
+        //         inputLength - getRandomBiasedNumber(3, inputLength, 1.5)
 
         const sample = await dataGenerator.next().value.slice(0, sampleLength)
 

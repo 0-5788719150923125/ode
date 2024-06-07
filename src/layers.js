@@ -1787,10 +1787,6 @@ class Autoencoder extends LayerBase {
         this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
         this.variational = config?.variational || false
-        this.downsampling = config?.downsampling || {
-            strategy: 'train',
-            rate: 1.0
-        }
         this.largestTimestep = 0
     }
 
@@ -1865,99 +1861,8 @@ class Autoencoder extends LayerBase {
     }
 
     computeDownsampling(inputs) {
-        const inputTimesteps = inputs.shape[1]
-        const reducedTimesteps = Math.floor(
-            inputTimesteps / this.downsampling.rate
-        )
-
-        if (reducedTimesteps > this.largestTimestep) {
-            this.largestTimestep = reducedTimesteps
-        }
-
-        if (inputTimesteps < this.largestTimestep) {
-            return inputs
-        }
-
-        // Apply timestep reduction by dropping tokens on the left
-        if (this.downsampling.strategy === 'truncate') {
-            return inputs.slice(
-                [0, inputTimesteps - reducedTimesteps, 0],
-                [-1, -1, -1]
-            )
-        }
-        // Apply timestep reduction via subsampling with trainable parameters
-        else if (this.downsampling.strategy === 'train') {
-            if (!this.trainableIndices) {
-                this.trainableIndices = this.addWeight(
-                    'trainableIndices',
-                    [inputTimesteps],
-                    'float32',
-                    tf.initializers.zeros()
-                )
-            }
-
-            // Use Gumbel-Softmax trick to select timesteps
-            const temperature = 1.0
-            const probabilities = customOps.gumbelSoftmax(
-                this.trainableIndices.read(),
-                temperature
-            )
-
-            // Select top-k timesteps based on probabilities
-            const topkValues = tf.topk(probabilities, reducedTimesteps)
-            const selectedIndices = topkValues.indices.arraySync()
-
-            // Use tf.gather to select the relevant timesteps
-            return tf.gather(inputs, selectedIndices, 1)
-        }
-        // Apply timestep reduction using FFT
-        else if (this.downsampling.strategy === 'ifft') {
-            return customOps.reduceTimeStepsWithFFT(inputs, reducedTimesteps)
-        } else if (this.downsampling.strategy === 'threshold') {
-            return customOps.reduceTimeStepsWithActivation(inputs, tf.tanh, 0.5)
-        } else {
-            function keepValues(array, numToKeep) {
-                if (numToKeep >= array.length) return array
-
-                const remainingElements = array.slice() // Create a copy of the array
-
-                while (remainingElements.length > numToKeep) {
-                    let removalIndex = getRemovalIndex(remainingElements.length)
-                    remainingElements.splice(removalIndex, 1)
-                }
-
-                return remainingElements
-            }
-
-            function getRemovalIndex(length) {
-                let sumOfWeights = (length * (length + 1)) / 2 // Sum of the first N natural numbers
-                let randomValue = Math.random() * sumOfWeights
-
-                for (let i = 0; i < length; i++) {
-                    sumOfWeights -= length - i
-                    if (randomValue >= sumOfWeights) {
-                        return i
-                    }
-                }
-            }
-            const array = Array.from(
-                { length: reducedTimesteps },
-                (value, index) => index
-            )
-            const indices = keepValues(array, reducedTimesteps)
-            return tf.gather(inputs, indices, 1)
-        }
-    }
-
-    applyMask(inputs) {
-        // Apply causal mask to the latent representations
-        const mask = tf.linalg
-            .bandPart(tf.ones([inputs.shape[1], inputs.shape[2]]), 0, -1)
-            .sub(tf.eye(inputs.shape[1], inputs.shape[2]))
-            .mul(tf.scalar(-1e9))
-            .expandDims(0)
-
-        return inputs.add(mask)
+        const factor = 2
+        return tf.conv1d(inputs, this.reductionKernel.read(), factor, 'valid')
     }
 
     call(inputs, kwargs) {
@@ -1983,14 +1888,6 @@ class Autoencoder extends LayerBase {
 
             if (this.variational) {
                 outputs = this.computeVariance(outputs)
-            }
-
-            if (this.downsampling) {
-                outputs = this.computeDownsampling(outputs)
-            }
-
-            if (this.causalMasking) {
-                outputs = this.applyMask(outputs)
             }
 
             // Decode the bottleneck representation to the output dimensionality
@@ -2041,9 +1938,6 @@ class Autoencoder extends LayerBase {
         this.decoderBias1.write(weights[5])
         this.decoderKernel2.write(weights[6])
         this.decoderBias2.write(weights[7])
-        if (weights[8]) {
-            this.trainableIndices.write(weights[8])
-        }
     }
 
     getConfig() {
@@ -2055,10 +1949,297 @@ class Autoencoder extends LayerBase {
             encoderActivation: this.encoderActivation,
             decoderActivation: this.decoderActivation,
             variational: this.variational,
-            downsampling: this.downsampling
+            causalMasking: this.causalMasking
         }
     }
 }
+
+// class Autoencoder extends LayerBase {
+//     constructor(config) {
+//         super({ name: `dia-${randomString()}`, ...config })
+//         this.innerDim = config?.innerDim || 1024
+//         this.bottleneck = config?.bottleneck || 128
+//         this.outputDim = config?.outputDim || 256
+//         this.encoderActivation = config?.encoderActivation || 'relu'
+//         this.decoderActivation = config?.decoderActivation || 'relu'
+//         this.variational = config?.variational || false
+//         this.downsampling = config?.downsampling || {
+//             strategy: 'train',
+//             rate: 1.0
+//         }
+//         this.largestTimestep = 0
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+
+//         // Initialize dense layers for encoder
+//         this.encoderKernel1 = this.addWeight(
+//             'encoderKernel1',
+//             [inputDim, this.innerDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.encoderBias1 = this.addWeight(
+//             'encoderBias1',
+//             [this.innerDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         const multiplier = this.variational ? 2 : 1
+//         this.encoderKernel2 = this.addWeight(
+//             'encoderKernel2',
+//             [this.innerDim, this.bottleneck * multiplier],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.encoderBias2 = this.addWeight(
+//             'encoderBias2',
+//             [this.bottleneck * multiplier],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+
+//         // Initialize dense layers for decoder
+//         this.decoderKernel1 = this.addWeight(
+//             'decoderKernel1',
+//             [this.bottleneck, this.innerDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.decoderBias1 = this.addWeight(
+//             'decoderBias1',
+//             [this.innerDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.decoderKernel2 = this.addWeight(
+//             'decoderKernel2',
+//             [this.innerDim, this.outputDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.decoderBias2 = this.addWeight(
+//             'decoderBias2',
+//             [this.outputDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         if (this.downsampling.strategy === 'convolutional') {
+//             this.reductionKernel = this.addWeight(
+//                 'reductionKernel',
+//                 [1, this.bottleneck, this.bottleneck],
+//                 'float32',
+//                 tf.initializers.glorotNormal()
+//             )
+//         }
+//     }
+
+//     computeVariance(inputs) {
+//         // Split the encoded representation into mean and log-variance
+//         const mean = inputs.slice([0, 0, 0], [-1, -1, this.bottleneck])
+//         const logVar = inputs.slice(
+//             [0, 0, this.bottleneck],
+//             [-1, -1, this.bottleneck]
+//         )
+
+//         // Sample from the latent space using the reparameterization trick
+//         const epsilon = tf.randomNormal(mean.shape)
+//         return mean.add(epsilon.mul(logVar.exp().sqrt()))
+//     }
+
+//     // computeDownsampling(inputs) {
+//     //     const inputTimesteps = inputs.shape[1]
+//     //     const reducedTimesteps = Math.floor(
+//     //         inputTimesteps / this.downsampling.rate
+//     //     )
+
+//     //     if (reducedTimesteps > this.largestTimestep) {
+//     //         this.largestTimestep = reducedTimesteps
+//     //     }
+
+//     //     if (inputTimesteps <= this.largestTimestep) {
+//     //         return inputs
+//     //     }
+
+//     //     // Apply timestep reduction by dropping tokens on the left
+//     //     if (this.downsampling.strategy === 'truncate') {
+//     //         return inputs.slice(
+//     //             [0, inputTimesteps - reducedTimesteps, 0],
+//     //             [-1, -1, -1]
+//     //         )
+//     //     }
+//     //     // Apply timestep reduction via subsampling with trainable parameters
+//     //     else if (this.downsampling.strategy === 'train') {
+//     //         if (!this.trainableIndices) {
+//     //             this.trainableIndices = this.addWeight(
+//     //                 'trainableIndices',
+//     //                 [inputTimesteps],
+//     //                 'float32',
+//     //                 tf.initializers.zeros()
+//     //             )
+//     //         }
+
+//     //         // Use Gumbel-Softmax trick to select timesteps
+//     //         const temperature = 1.0
+//     //         const probabilities = customOps.gumbelSoftmax(
+//     //             this.trainableIndices.read(),
+//     //             temperature
+//     //         )
+
+//     //         // Select top-k timesteps based on probabilities
+//     //         const topkValues = tf.topk(probabilities, reducedTimesteps)
+//     //         const selectedIndices = topkValues.indices.arraySync()
+
+//     //         // Use tf.gather to select the relevant timesteps
+//     //         return tf.gather(inputs, selectedIndices, 1)
+//     //     }
+//     //     // Apply timestep reduction using FFT
+//     //     else if (this.downsampling.strategy === 'ifft') {
+//     //         return customOps.reduceTimeStepsWithFFT(inputs, reducedTimesteps)
+//     //     } else if (this.downsampling.strategy === 'threshold') {
+//     //         return customOps.reduceTimeStepsWithActivation(inputs, tf.tanh, 0.5)
+//     //     } else if (this.downsampling.strategy === 'random') {
+//     //         function keepValues(array, numToKeep) {
+//     //             if (numToKeep >= array.length) return array
+
+//     //             const remainingElements = array.slice() // Create a copy of the array
+
+//     //             while (remainingElements.length > numToKeep) {
+//     //                 let removalIndex = getRemovalIndex(remainingElements.length)
+//     //                 remainingElements.splice(removalIndex, 1)
+//     //             }
+
+//     //             return remainingElements
+//     //         }
+
+//     //         function getRemovalIndex(length) {
+//     //             let sumOfWeights = (length * (length + 1)) / 2 // Sum of the first N natural numbers
+//     //             let randomValue = Math.random() * sumOfWeights
+
+//     //             for (let i = 0; i < length; i++) {
+//     //                 sumOfWeights -= length - i
+//     //                 if (randomValue >= sumOfWeights) {
+//     //                     return i
+//     //                 }
+//     //             }
+//     //         }
+//     //         const array = Array.from(
+//     //             { length: reducedTimesteps },
+//     //             (value, index) => index
+//     //         )
+//     //         const indices = keepValues(array, reducedTimesteps)
+//     //         return tf.gather(inputs, indices, 1)
+//     //     } else {
+//     //         return inputs
+//     //     }
+//     // }
+
+//     computeDownsampling(inputs) {
+//         const factor = 2
+//         return tf.conv1d(inputs, this.reductionKernel.read(), factor, 'valid')
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // Encode the inputs to the bottleneck representation
+//             let outputs = this.applyDense(
+//                 inputs,
+//                 this.encoderKernel1,
+//                 this.encoderBias1
+//             )
+
+//             outputs = tf.layers
+//                 .activation({ activation: this.encoderActivation })
+//                 .apply(outputs)
+
+//             outputs = this.applyDense(
+//                 outputs,
+//                 this.encoderKernel2,
+//                 this.encoderBias2
+//             )
+
+//             if (this.variational) {
+//                 outputs = this.computeVariance(outputs)
+//             }
+
+//             // if (this.downsampling.rate !== 1.0) {
+//             //     outputs = this.computeDownsampling(outputs)
+//             // }
+//             outputs = this.computeDownsampling(outputs)
+
+//             // Decode the bottleneck representation to the output dimensionality
+//             outputs = this.applyDense(
+//                 outputs,
+//                 this.decoderKernel1,
+//                 this.decoderBias1
+//             )
+
+//             outputs = tf.layers
+//                 .activation({ activation: this.decoderActivation })
+//                 .apply(outputs)
+
+//             outputs = this.applyDense(
+//                 outputs,
+//                 this.decoderKernel2,
+//                 this.decoderBias2
+//             )
+
+//             return outputs
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [inputShape[0], inputShape[1], this.outputDim]
+//     }
+
+//     getWeights() {
+//         const weights = [
+//             this.encoderKernel1.read(),
+//             this.encoderBias1.read(),
+//             this.encoderKernel2.read(),
+//             this.encoderBias2.read(),
+//             this.decoderKernel1.read(),
+//             this.decoderBias1.read(),
+//             this.decoderKernel2.read(),
+//             this.decoderBias2.read()
+//         ]
+//         // if (this.reductionKernel) {
+//         //     weights.push(this.reductionKernel.read())
+//         // }
+//         return weights
+//     }
+
+//     setWeights(weights) {
+//         this.encoderKernel1.write(weights[0])
+//         this.encoderBias1.write(weights[1])
+//         this.encoderKernel2.write(weights[2])
+//         this.encoderBias2.write(weights[3])
+//         this.decoderKernel1.write(weights[4])
+//         this.decoderBias1.write(weights[5])
+//         this.decoderKernel2.write(weights[6])
+//         this.decoderBias2.write(weights[7])
+//         // if (weights[8]) {
+//         //     this.reductionKernel.write(weights[8])
+//         // }
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             innerDim: this.innerDim,
+//             bottleneck: this.bottleneck,
+//             outputDim: this.outputDim,
+//             encoderActivation: this.encoderActivation,
+//             decoderActivation: this.decoderActivation,
+//             variational: this.variational,
+//             causalMasking: this.causalMasking,
+//             downsampling: this.downsampling
+//         }
+//     }
+// }
 
 class CapsNet extends LayerBase {
     constructor(config) {
