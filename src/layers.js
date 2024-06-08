@@ -1954,7 +1954,7 @@ class FastAssociativeMemory extends LayerBase {
         this.activation = config.activation || 'relu'
         this.steps = config.steps || 3
         this.decayRate = config.decayRate || 0.9
-        this.initialLearningRate = config.initialLearningRate || 0.1
+        this.initialLearningRate = config.initialLearningRate || 0.0001
     }
 
     build(inputShape) {
@@ -1994,19 +1994,74 @@ class FastAssociativeMemory extends LayerBase {
         }
     }
 
+    rmsNorm = (x) => {
+        const rms = tf.sqrt(tf.mean(tf.square(x), -1, true))
+        return x.div(rms)
+    }
+
     call(inputs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
+            const seqLen = inputs.shape[1]
+
             if (!this.h_prev) {
                 this.h_prev = tf.zerosLike(inputs)
                 this.h_history.push(tf.keep(this.h_prev.clone()))
+            } else {
+                const prevSeqLen = this.h_prev.shape[1]
+                if (prevSeqLen < seqLen) {
+                    const paddings = [
+                        [0, 0],
+                        [seqLen - prevSeqLen, 0],
+                        [0, 0]
+                    ]
+                    this.h_prev = this.h_prev.pad(paddings, 1)
+                    this.h_history = this.h_history.map((h) =>
+                        tf.keep(h.pad(paddings, 1))
+                    )
+                } else if (prevSeqLen > seqLen) {
+                    const paddings = [
+                        [0, 0],
+                        [prevSeqLen - seqLen, 0],
+                        [0, 0]
+                    ]
+                    inputs = inputs.pad(paddings, 0)
+                }
             }
+
+            // const seqLen = inputs.shape[1]
+
+            // if (!this.h_prev) {
+            //     this.h_prev = tf.zerosLike(inputs)
+            //     this.h_history.push(tf.keep(this.h_prev.clone()))
+            // } else {
+            //     const prevSeqLen = this.h_prev.shape[1]
+            //     if (prevSeqLen > seqLen) {
+            //         this.h_prev = this.h_prev.slice([0, 0, 0], inputs.shape)
+            //         this.h_history = this.h_history.map((h) =>
+            //             tf.keep(h.slice([0, 0, 0], inputs.shape))
+            //         )
+            //     } else if (prevSeqLen < seqLen) {
+            //         const paddings = [
+            //             [0, 0],
+            //             [seqLen - prevSeqLen, 0],
+            //             [0, 0]
+            //         ]
+            //         this.h_prev = this.h_prev.pad(paddings)
+            //         this.h_history = this.h_history.map((h) =>
+            //             tf.keep(h.pad(paddings))
+            //         )
+            //     }
+            // }
 
             let h_preliminary = this.applyDense(inputs, this.C, this.b)
             h_preliminary = h_preliminary.add(
                 this.applyDense(this.h_prev, this.W)
             )
+
+            h_preliminary = this.rmsNorm(h_preliminary)
+
             h_preliminary = tf.layers
                 .activation({ activation: this.activation })
                 .apply(h_preliminary)
@@ -2015,6 +2070,7 @@ class FastAssociativeMemory extends LayerBase {
             for (let s = 0; s < this.steps; s++) {
                 const attentionTerms = this.h_history.map((h_hist, idx) => {
                     const scalarProduct = tf.sum(tf.mul(h_hist, h), -1, true)
+
                     const weightedProduct = tf.mul(
                         scalarProduct,
                         Math.pow(
@@ -2029,8 +2085,13 @@ class FastAssociativeMemory extends LayerBase {
 
                 const h_next = tf.add(
                     h_preliminary,
-                    tf.mul(attention, this.lr[s].read())
+                    tf.mul(
+                        attention,
+                        tf.clipByValue(this.lr[s].read(), -0.0001, 0.0001)
+                    )
                 )
+
+                h = this.rmsNorm(h_next)
 
                 h = tf.layers
                     .activation({ activation: this.activation })
