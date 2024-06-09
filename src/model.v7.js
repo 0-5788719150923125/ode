@@ -1,14 +1,14 @@
 import ODE from './model.v3.js'
 
 /**
- * A failing mixture of experts.
+ * A mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = 3
-        this.units = 64
+        this.units = 128
         this.experts = 3
         this.topK = 2
     }
@@ -40,15 +40,15 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .MixtureOfExperts({
+                .SparseMixtureOfExperts({
                     experts: this.createAttentionExperts(),
-                    k: this.topK
+                    topK: this.topK
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    innerDim: this.units * 4,
+                    innerDim: this.units * 9,
                     activation: 'mish'
                 })
                 .apply(outputs)
@@ -75,15 +75,15 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         return [
             this.ode.layers.MultiHeadAttention({
                 heads: 4,
-                projection: 32
+                projection: 64
             }),
             this.ode.layers.MultiHeadAttention({
                 heads: 4,
-                projection: 32
+                projection: 64
             }),
             this.ode.layers.MultiHeadAttention({
                 heads: 4,
-                projection: 32
+                projection: 64
             })
         ]
     }

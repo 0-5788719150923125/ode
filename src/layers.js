@@ -1797,6 +1797,93 @@ class GatedLinearMLP extends MultiLayerPerceptron {
     }
 }
 
+class SparseMixtureOfExperts extends LayerBase {
+    constructor(config) {
+        super({ name: `moe-${randomString()}`, ...config })
+        this.experts = config.experts
+        this.numExperts = this.experts.length
+        this.topK = config.topK || 2
+        this.temperature = config?.temperature || 1.0
+    }
+
+    build(inputShape) {
+        this.inputDim = inputShape[inputShape.length - 1]
+        this.outputDim = this.inputDim // Assuming output dimension is the same as input dimension
+
+        // Initialize gating network
+        this.gatingKernel = this.addWeight(
+            'gatingKernel',
+            [this.inputDim, this.numExperts],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gatingBias = this.addWeight(
+            'gatingBias',
+            [this.numExperts],
+            'float32',
+            tf.initializers.zeros()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Gating network
+            const expertLogits = this.applyDense(
+                inputs,
+                this.gatingKernel,
+                this.gatingBias
+            )
+
+            // Apply Gumbel-Softmax trick to make expert-selection differentiable
+            const expertAssignments = customOps.gumbelSoftmax(
+                expertLogits,
+                this.temperature
+            )
+
+            // Select the top-k experts based on their assignment probabilities
+            const topKIndices = tf.topk(expertAssignments, this.topK).indices
+
+            // Compute outputs for the selected top-k experts
+            const selectedExpertOutputs = []
+            for (let i = 0; i < this.topK; i++) {
+                const expertIndex = topKIndices.slice([0, i], [-1, 1]).flatten()
+                const expertOutputs =
+                    this.experts[expertIndex.dataSync()[0]].apply(inputs)
+                selectedExpertOutputs.push(expertOutputs)
+            }
+
+            // Multiply the selected expert outputs together
+            const outputTensor = selectedExpertOutputs.reduce(
+                (accumulator, currentOutput) => {
+                    return accumulator.mul(currentOutput)
+                }
+            )
+
+            return outputTensor
+        })
+    }
+
+    getWeights() {
+        return [this.gatingKernel.read(), this.gatingBias.read()]
+    }
+
+    setWeights(weights) {
+        this.gatingKernel.write(weights[0])
+        this.gatingBias.write(weights[1])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            topK: this.topK,
+            temperature: this.temperature
+        }
+    }
+}
+
 class MixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
@@ -3226,71 +3313,6 @@ class MixtureOfDepthsRouting extends LayerBase {
             ...super.getConfig(),
             k: this.k,
             units: this.units
-        }
-    }
-}
-
-class SparseMixtureOfExperts extends LayerBase {
-    constructor(config) {
-        super({ name: `moe-${randomString()}`, ...config })
-        this.units = config.units || 64
-        this.experts = config.experts
-        this.numExperts = this.experts.length
-        this.topK = config.topK || 2
-    }
-
-    build(inputShape) {
-        this.gateKernel = this.addWeight(
-            'gateKernel',
-            [inputShape[inputShape.length - 1], this.numExperts],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
-        this.gateBias = this.addWeight(
-            'gateBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros()
-        )
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const gatingScores = this.dense(
-                inputs,
-                this.gateKernel,
-                this.gateBias,
-                'softmax'
-            )
-
-            const outputs = customOps.sparseMixtureOfExpertsGrad(
-                inputs,
-                gatingScores,
-                this.experts,
-                this.topK
-            )
-
-            return outputs
-        })
-    }
-
-    dense(x, kernel, bias, activation = null) {
-        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        const m = tf.matMul(x, k)
-        const output = tf.add(m, bias.read())
-        if (activation === 'softmax') {
-            return tf.softmax(output)
-        } else {
-            return output
-        }
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            units: this.units,
-            topK: this.topK
         }
     }
 }
@@ -6797,6 +6819,7 @@ const exportedLayers = [
     LocalSelfAttention,
     Medusa,
     MixtureOfDepthsRouting,
+    MixtureOfExperts,
     MultiHeadAttention,
     MultiHeadMoeBlock,
     MultiLayerPerceptron,
@@ -6821,8 +6844,7 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    WeightedSum,
-    MixtureOfExperts
+    WeightedSum
 ]
 
 exportedLayers.forEach((LayerClass) => {
