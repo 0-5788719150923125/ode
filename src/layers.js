@@ -2268,21 +2268,19 @@ class Autoencoder extends LayerBase {
         const [mean, logVar] = tf.split(inputs, 2, -1)
 
         // Compute the KL Divergence
-        const beta = 3.0
-        let klDivergence = tf
-            .mul(
-                -0.5,
-                tf.mean(logVar.add(1).sub(mean.square()).sub(logVar.exp()))
-            )
-            .mul(beta)
+        let klDivergence = tf.mul(
+            -0.5,
+            tf.mean(logVar.add(1).sub(mean.square()).sub(logVar.exp()))
+        )
 
         // Compute the Total Correlation term
         if (this.disentangle) {
-            const gamma = 7.0
+            const beta = 3.0
+            const gamma = 2.0
             const tcDivergence = this.computeTotalCorrelation(mean, logVar).mul(
                 gamma
             )
-            klDivergence = klDivergence.add(tcDivergence)
+            klDivergence = klDivergence.mul(beta).add(tcDivergence)
         }
 
         // Add it to the loss function
@@ -2294,12 +2292,8 @@ class Autoencoder extends LayerBase {
     }
 
     computeTotalCorrelation(mean, logVar) {
-        const batchSize = mean.shape[0]
-        const seqLen = mean.shape[1]
-        const latentDim = mean.shape[2]
-
         // Sample from the latent distribution using the reparameterization trick
-        const epsilon = tf.randomNormal([batchSize, seqLen, latentDim])
+        const epsilon = tf.randomNormal(mean.shape)
         const z = mean.add(epsilon.mul(logVar.exp().sqrt()))
 
         // Compute the log-density of the samples under the prior distribution
