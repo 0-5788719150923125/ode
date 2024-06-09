@@ -38,7 +38,7 @@ export class GeluNew extends tf.serialization.Serializable {
      * @returns a Tensor of the same shape as x
      */
     apply(x) {
-        return tidy(() => {
+        return tf.tidy(() => {
             return tf.mul(
                 0.5,
                 tf.mul(

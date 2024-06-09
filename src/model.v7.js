@@ -38,18 +38,18 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             })
             .apply(outputs)
 
+        let firstRun = true
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SparseMixtureOfExperts({
-                    experts: this.createAttentionExperts(),
-                    topK: this.topK
+                .MixtureOfExperts({
+                    experts: this.createAttentionExperts()
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
                     innerDim: this.units * 9,
-                    activation: 'mish'
+                    activation: 'gelu_new'
                 })
                 .apply(outputs)
         }
@@ -60,6 +60,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 activation: 'linear'
             })
             .apply(outputs)
+
+        firstRun = false
 
         this.model = this.tf.model({ inputs, outputs })
     }

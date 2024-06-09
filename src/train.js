@@ -253,21 +253,7 @@ function computeGradients(
             model.layers.forEach((layer) => {
                 if (layer.hasOwnProperty('extraLoss')) {
                     lossValue = tf.add(lossValue, layer.extraLoss)
-                }
-                if (
-                    layer.hasOwnProperty('latentMean') &&
-                    layer.hasOwnProperty('latentLogVar')
-                ) {
-                    const klDivergence = tf.mul(
-                        -0.5,
-                        tf.mean(
-                            layer.latentLogVar
-                                .add(1)
-                                .sub(layer.latentMean.square())
-                                .sub(layer.latentLogVar.exp())
-                        )
-                    )
-                    lossValue = tf.add(lossValue, klDivergence)
+                    tf.dispose(layer.extraLoss)
                 }
             })
 

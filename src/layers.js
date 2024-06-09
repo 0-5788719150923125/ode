@@ -1659,6 +1659,8 @@ class MultiLayerPerceptron extends LayerBase {
                 this.inProjBias
             )
 
+            outputs = this.rmsNorm(outputs)
+
             outputs = tf.layers
                 .activation({ activation: this.activation })
                 .apply(outputs)
@@ -1668,8 +1670,6 @@ class MultiLayerPerceptron extends LayerBase {
                 this.outProjKernel,
                 this.outProjBias
             )
-
-            outputs = this.rmsNorm(outputs)
 
             outputs = this.residual.apply([inputs, outputs])
 
@@ -1744,6 +1744,8 @@ class GatedLinearMLP extends MultiLayerPerceptron {
                 this.inProjBias
             )
 
+            proj = this.rmsNorm(proj)
+
             proj = tf.layers
                 .activation({ activation: this.activation })
                 .apply(proj)
@@ -1763,8 +1765,6 @@ class GatedLinearMLP extends MultiLayerPerceptron {
                 this.outProjKernel,
                 this.outProjBias
             )
-
-            outputs = this.rmsNorm(outputs)
 
             outputs = this.residual.apply([inputs, outputs])
 
@@ -1895,18 +1895,17 @@ class MixtureOfExperts extends LayerBase {
 
     build(inputShape) {
         this.inputDim = inputShape[inputShape.length - 1]
-        this.outputDim = this.inputDim // Assuming output dimension is the same as input dimension
 
         // Initialize gating network
         this.gatingKernel = this.addWeight(
             'gatingKernel',
-            [this.inputDim, this.numExperts],
+            [this.inputDim, this.inputDim],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.gatingBias = this.addWeight(
             'gatingBias',
-            [this.numExperts],
+            [this.inputDim],
             'float32',
             tf.initializers.zeros()
         )
@@ -1917,39 +1916,20 @@ class MixtureOfExperts extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Gating network
-            const expertLogits = this.applyDense(
+            const expertWeights = this.applyDense(
                 inputs,
                 this.gatingKernel,
                 this.gatingBias
-            )
-
-            // Apply Gumbel-Softmax trick to get expert assignments
-            const expertAssignments = customOps.gumbelSoftmax(
-                expertLogits,
-                this.temperature
-            )
+            ).sigmoid()
 
             // Expert networks
             const expertOutputs = []
             for (let i = 0; i < this.numExperts; i++) {
                 const expertOutput = this.experts[i].apply(inputs)
-                expertOutputs.push(expertOutput)
+                expertOutputs.push(expertOutput.mul(expertWeights))
             }
-            const expertOutputsTensor = tf.stack(expertOutputs, 1)
 
-            // Reshape expert assignments to match the shape of expertOutputsTensor
-            const expertAssignmentsReshaped = expertAssignments
-                .transpose([0, 2, 1])
-                .expandDims(-1)
-
-            // Multiply expert outputs with reshaped expert assignments
-            const selectedExpertOutputs = tf.mul(
-                expertOutputsTensor,
-                expertAssignmentsReshaped
-            )
-
-            // Sum the selected expert outputs
-            return tf.sum(selectedExpertOutputs, 1)
+            return expertOutputs.reduce((prod, input) => prod.mul(input))
         })
     }
 
@@ -2223,6 +2203,7 @@ class Autoencoder extends LayerBase {
         this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
         this.variational = config?.variational || false
+        this.disentangle = config?.disentangle || false
     }
 
     build(inputShape) {
@@ -2283,18 +2264,67 @@ class Autoencoder extends LayerBase {
     }
 
     computeVariance(inputs) {
-        tf.dispose([this.latentMean, this.latentLogVar])
-
         // Split the encoded representation into mean and log-variance
         const [mean, logVar] = tf.split(inputs, 2, -1)
 
-        // Keep these tensors, using them to compute KL Divergence in the loss calculation
-        this.latentMean = tf.keep(mean)
-        this.latentLogVar = tf.keep(logVar)
+        // Compute the KL Divergence
+        const beta = 3.0
+        let klDivergence = tf
+            .mul(
+                -0.5,
+                tf.mean(logVar.add(1).sub(mean.square()).sub(logVar.exp()))
+            )
+            .mul(beta)
+
+        // Compute the Total Correlation term
+        if (this.disentangle) {
+            const gamma = 7.0
+            const tcDivergence = this.computeTotalCorrelation(mean, logVar).mul(
+                gamma
+            )
+            klDivergence = klDivergence.add(tcDivergence)
+        }
+
+        // Add it to the loss function
+        this.extraLoss = tf.keep(klDivergence)
 
         // Sample from the latent space using the reparameterization trick
-        const epsilon = tf.randomNormal(this.latentMean.shape)
-        return this.latentMean.add(epsilon.mul(this.latentLogVar.exp().sqrt()))
+        const epsilon = tf.randomNormal(mean.shape)
+        return mean.add(epsilon.mul(logVar.exp().sqrt()))
+    }
+
+    computeTotalCorrelation(mean, logVar) {
+        const batchSize = mean.shape[0]
+        const seqLen = mean.shape[1]
+        const latentDim = mean.shape[2]
+
+        // Sample from the latent distribution using the reparameterization trick
+        const epsilon = tf.randomNormal([batchSize, seqLen, latentDim])
+        const z = mean.add(epsilon.mul(logVar.exp().sqrt()))
+
+        // Compute the log-density of the samples under the prior distribution
+        const logPrior = tf.sum(
+            z
+                .square()
+                .neg()
+                .sub(tf.log(2 * Math.PI))
+                .div(2),
+            -1
+        )
+
+        // Compute the log-density of the samples under the approximate posterior distribution
+        const logQz = tf.sum(
+            epsilon
+                .square()
+                .neg()
+                .sub(logVar)
+                .sub(tf.log(2 * Math.PI))
+                .div(2),
+            -1
+        )
+
+        // Estimate the total correlation using the Monte Carlo samples
+        return tf.mean(logQz.sub(logPrior))
     }
 
     call(inputs, kwargs) {
@@ -2381,7 +2411,7 @@ class Autoencoder extends LayerBase {
             encoderActivation: this.encoderActivation,
             decoderActivation: this.decoderActivation,
             variational: this.variational,
-            causalMasking: this.causalMasking
+            disentangle: this.disentangle
         }
     }
 }
@@ -6533,7 +6563,7 @@ class WeightedSum extends LayerBase {
             const weightedInputs = []
 
             for (let i = 0; i < inputs.length; i++) {
-                const weightedInput = this.dense(inputs[i], this.kernel[i])
+                const weightedInput = this.applyDense(inputs[i], this.kernel[i])
                 weightedInputs.push(weightedInput)
             }
 
