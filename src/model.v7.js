@@ -1,14 +1,15 @@
 import ODE from './model.v3.js'
 
 /**
- * A mixture of experts.
+ * A failing mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 6
+        this.layers = 3
         this.units = 64
+        this.experts = 3
         this.topK = 2
     }
 
@@ -26,7 +27,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.units * 4,
+                outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
@@ -37,26 +38,18 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             })
             .apply(outputs)
 
-        outputs = this.tf.layers
-            .dense({
-                units: this.units
-            })
-            .apply(outputs)
-
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SparseMixtureOfExperts({
+                .MixtureOfExperts({
                     experts: this.createAttentionExperts(),
-                    units: this.units,
-                    topK: this.topK
+                    k: this.topK
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .SparseMixtureOfExperts({
-                    experts: this.createFeedforwardExperts(),
-                    units: this.units,
-                    topK: this.topK
+                .MultiLayerPerceptron({
+                    innerDim: this.units * 4,
+                    activation: 'mish'
                 })
                 .apply(outputs)
         }
@@ -80,53 +73,17 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
     createAttentionExperts() {
         return [
-            this.ode.layers.MultiQueryAttention({
-                units: this.units,
-                projection: this.units * 4,
-                queries: 4
-            }),
-            this.ode.layers.MultiQueryAttention({
-                units: this.units,
-                projection: this.units * 4,
-                queries: 4
-            }),
-            this.ode.layers.GroupedQueryAttention({
-                units: this.units,
-                projection: this.units * 4,
-                groups: 4
-            }),
-            this.ode.layers.GroupedQueryAttention({
-                units: this.units,
-                projection: this.units * 4,
-                groups: 4
+            this.ode.layers.MultiHeadAttention({
+                heads: 4,
+                projection: 32
             }),
             this.ode.layers.MultiHeadAttention({
-                units: this.units,
-                heads: 4
+                heads: 4,
+                projection: 32
             }),
             this.ode.layers.MultiHeadAttention({
-                units: this.units,
-                heads: 4
-            })
-        ]
-    }
-
-    createFeedforwardExperts() {
-        return [
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units * 4,
-                activation: 'mish'
-            }),
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units * 4,
-                activation: 'swish'
-            }),
-            this.ode.layers.MultiLayerPerceptron({
-                units: this.units,
-                innerDim: this.units * 4,
-                activation: 'aptx'
+                heads: 4,
+                projection: 32
             })
         ]
     }
