@@ -1,5 +1,8 @@
 import * as tf from '@tensorflow/tfjs'
 
+// const epsilon = tf.backend().epsilon()
+const epsilon = 1e-7
+
 function categoricalCrossentropy(target, output, fromLogits = false) {
     return tf.tidy(() => {
         if (fromLogits) {
@@ -9,7 +12,6 @@ function categoricalCrossentropy(target, output, fromLogits = false) {
             const outputSum = tf.sum(output, output.shape.length - 1, true)
             output = tf.div(output, outputSum)
         }
-        const epsilon = 1e-7
         output = tf.clipByValue(output, epsilon, 1 - epsilon)
         return tf.neg(
             tf.sum(
@@ -26,7 +28,6 @@ function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
         const flatTarget = target.flatten().toInt()
 
         // Clip the output predictions to avoid log(0) error
-        const epsilon = 1e-7
         output = output.clipByValue(epsilon, 1 - epsilon)
 
         // Determine the number of classes from the output shape
@@ -63,7 +64,6 @@ function categoricalFocalCrossEntropy(
 ) {
     return tf.tidy(() => {
         // Clip values to prevent division by zero error
-        const epsilon = tf.backend().epsilon()
         const clippedPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
 
         if (fromLogits) {
@@ -71,7 +71,7 @@ function categoricalFocalCrossEntropy(
         }
 
         // Calculate cross-entropy loss
-        const crossEntropy = tf.mul(tf.neg(yTrue), tf.log(clippedPred))
+        const crossEntropy = tf.losses.softmaxCrossEntropy(yTrue, clippedPred)
 
         let focalLoss
         if (alpha !== null) {
@@ -90,6 +90,47 @@ function categoricalFocalCrossEntropy(
         return tf.mean(tf.sum(focalLoss, -1))
     })
 }
+
+// // https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py
+// function categoricalFocalCrossEntropy(
+//     yTrue,
+//     yPred,
+//     weights,
+//     labelSmoothing = 0,
+//     reduction,
+//     alpha = null,
+//     gamma = 2.0,
+//     fromLogits = false,
+//     axis = -1
+// ) {
+//     return tf.tidy(() => {
+//         // Clip values to prevent division by zero error
+//         const clippedPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
+
+//         if (fromLogits) {
+//             yPred = tf.softmax(yPred, axis)
+//         }
+
+//         // Calculate cross-entropy loss
+//         const crossEntropy = tf.mul(tf.neg(yTrue), tf.log(clippedPred))
+
+//         let focalLoss
+//         if (alpha !== null) {
+//             const alphaWeight = tf.scalar(alpha)
+//             focalLoss = tf.mul(
+//                 tf.mul(alphaWeight, tf.pow(tf.sub(1, clippedPred), gamma)),
+//                 crossEntropy
+//             )
+//         } else {
+//             focalLoss = tf.mul(
+//                 tf.pow(tf.sub(1, clippedPred), gamma),
+//                 crossEntropy
+//             )
+//         }
+
+//         return tf.mean(tf.sum(focalLoss, -1))
+//     })
+// }
 
 function vaeLoss(target, output, z_mean, z_log_var, fromLogits = false) {
     return tf.tidy(() => {

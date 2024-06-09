@@ -35,16 +35,24 @@ export default class OpenDoorExperiment extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        const autoencoder = this.ode.layers.Autoencoder({
-            variational: true,
-            innerDim: this.units * 4,
-            bottleneck: this.units / 2,
-            outputDim: this.units,
-            encoderActivation: 'mish',
-            decoderActivation: 'mish'
-        })
+        outputs = this.ode.layers
+            .Autoencoder({
+                variational: true,
+                innerDim: this.units * 4,
+                bottleneck: this.units / 2,
+                outputDim: this.units,
+                encoderActivation: 'mish',
+                decoderActivation: 'mish'
+            })
+            .apply(outputs)
 
-        outputs = autoencoder.apply(outputs)
+        outputs = this.ode.layers
+            .FastAssociativeMemory({
+                activation: 'tanh',
+                steps: 3,
+                decayRate: 0.9
+            })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -62,15 +70,6 @@ export default class OpenDoorExperiment extends ODE {
                 })
                 .apply(outputs)
         }
-
-        outputs = this.ode.layers
-            .FastAssociativeMemory({
-                activation: 'aptx',
-                steps: 3,
-                decayRate: 0.95,
-                initialLearningRate: 1e-7
-            })
-            .apply(outputs)
 
         outputs = this.ode.layers
             .dense({

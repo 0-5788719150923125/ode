@@ -75,6 +75,11 @@ class LayerBase extends tf.layers.Layer {
         }
     }
 
+    rmsNorm = (x) => {
+        const rms = tf.sqrt(tf.mean(tf.square(x), -1, true))
+        return x.div(rms)
+    }
+
     static get className() {
         return this.name
     }
@@ -1092,6 +1097,8 @@ class GroupedQueryAttention extends LayerBase {
                 this.outputBias
             )
 
+            outputs = this.rmsNorm(outputs)
+
             outputs = this.residual.apply([inputs, outputs])
 
             outputs = kwargs['training']
@@ -1341,7 +1348,6 @@ class MultiLayerPerceptron extends LayerBase {
         super({ name: `mlp-${randomString()}`, ...config })
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
-        this.epsilon = config?.epsilon || false
         this.activation = config?.activation || 'relu'
         this.supportsMasking = true
     }
@@ -1376,13 +1382,6 @@ class MultiLayerPerceptron extends LayerBase {
             tf.initializers.zeros()
         )
 
-        // Initialize layer normalization
-        if (this.epsilon) {
-            this.layernorm = tf.layers.layerNormalization({
-                epsilon: this.epsilon
-            })
-        }
-
         // Residual connections/skip connections are critical here
         this.residual = customLayers.ResidualConnection()
     }
@@ -1408,7 +1407,7 @@ class MultiLayerPerceptron extends LayerBase {
                 this.outProjBias
             )
 
-            if (this.layernorm) outputs = this.layernorm.apply(outputs)
+            outputs = this.rmsNorm(outputs)
 
             outputs = this.residual.apply([inputs, outputs])
 
@@ -1444,7 +1443,8 @@ class MultiLayerPerceptron extends LayerBase {
         return {
             ...super.getConfig(),
             innerDim: this.innerDim,
-            dropout: this.dropout
+            dropout: this.dropout,
+            activation: this.activation
         }
     }
 }
@@ -1502,7 +1502,7 @@ class GatedLinearMLP extends MultiLayerPerceptron {
                 this.outProjBias
             )
 
-            if (this.layernorm) outputs = this.layernorm.apply(outputs)
+            outputs = this.rmsNorm(outputs)
 
             outputs = this.residual.apply([inputs, outputs])
 
@@ -1847,16 +1847,18 @@ class Autoencoder extends LayerBase {
     }
 
     computeVariance(inputs) {
+        tf.dispose([this.latentMean, this.latentLogVar])
+
         // Split the encoded representation into mean and log-variance
-        const mean = inputs.slice([0, 0, 0], [-1, -1, this.bottleneck])
-        const logVar = inputs.slice(
-            [0, 0, this.bottleneck],
-            [-1, -1, this.bottleneck]
-        )
+        const [mean, logVar] = tf.split(inputs, 2, -1)
+
+        // Keep these tensors, using them to compute KL Divergence in the loss calculation
+        this.latentMean = tf.keep(mean)
+        this.latentLogVar = tf.keep(logVar)
 
         // Sample from the latent space using the reparameterization trick
-        const epsilon = tf.randomNormal(mean.shape)
-        return mean.add(epsilon.mul(logVar.exp().sqrt()))
+        const epsilon = tf.randomNormal(this.latentMean.shape)
+        return this.latentMean.add(epsilon.mul(this.latentLogVar.exp().sqrt()))
     }
 
     call(inputs, kwargs) {
@@ -1954,7 +1956,6 @@ class FastAssociativeMemory extends LayerBase {
         this.activation = config.activation || 'relu'
         this.steps = config.steps || 3
         this.decayRate = config.decayRate || 0.9
-        this.initialLearningRate = config.initialLearningRate || 0.0001
     }
 
     build(inputShape) {
@@ -1977,8 +1978,8 @@ class FastAssociativeMemory extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
-        this.h_prev = null
-        this.h_history = []
+        this.hPrev = null
+        this.hHistory = []
         this.lr = []
         for (let i = 0; i < this.steps; i++) {
             this.lr.push(
@@ -1987,16 +1988,16 @@ class FastAssociativeMemory extends LayerBase {
                     [],
                     'float32',
                     tf.initializers.constant({
-                        value: this.initialLearningRate
+                        value: 1e-7
+                    }),
+                    tf.constraints.minMaxNorm({
+                        minValue: 0.0,
+                        maxValue: 0.001,
+                        rate: 0.1
                     })
                 )
             )
         }
-    }
-
-    rmsNorm = (x) => {
-        const rms = tf.sqrt(tf.mean(tf.square(x), -1, true))
-        return x.div(rms)
     }
 
     call(inputs) {
@@ -2005,19 +2006,19 @@ class FastAssociativeMemory extends LayerBase {
 
             const seqLen = inputs.shape[1]
 
-            if (!this.h_prev) {
-                this.h_prev = tf.zerosLike(inputs)
-                this.h_history.push(tf.keep(this.h_prev.clone()))
+            if (!this.hPrev) {
+                this.hPrev = tf.zerosLike(inputs)
+                this.hHistory.push(tf.keep(this.hPrev.clone()))
             } else {
-                const prevSeqLen = this.h_prev.shape[1]
+                const prevSeqLen = this.hPrev.shape[1]
                 if (prevSeqLen < seqLen) {
                     const paddings = [
                         [0, 0],
                         [seqLen - prevSeqLen, 0],
                         [0, 0]
                     ]
-                    this.h_prev = this.h_prev.pad(paddings, 1)
-                    this.h_history = this.h_history.map((h) =>
+                    this.hPrev = this.hPrev.pad(paddings, 1)
+                    this.hHistory = this.hHistory.map((h) =>
                         tf.keep(h.pad(paddings, 1))
                     )
                 } else if (prevSeqLen > seqLen) {
@@ -2030,83 +2031,56 @@ class FastAssociativeMemory extends LayerBase {
                 }
             }
 
-            // const seqLen = inputs.shape[1]
+            let hInitial = this.applyDense(inputs, this.C, this.b)
+            hInitial = hInitial.add(this.applyDense(this.hPrev, this.W))
 
-            // if (!this.h_prev) {
-            //     this.h_prev = tf.zerosLike(inputs)
-            //     this.h_history.push(tf.keep(this.h_prev.clone()))
-            // } else {
-            //     const prevSeqLen = this.h_prev.shape[1]
-            //     if (prevSeqLen > seqLen) {
-            //         this.h_prev = this.h_prev.slice([0, 0, 0], inputs.shape)
-            //         this.h_history = this.h_history.map((h) =>
-            //             tf.keep(h.slice([0, 0, 0], inputs.shape))
-            //         )
-            //     } else if (prevSeqLen < seqLen) {
-            //         const paddings = [
-            //             [0, 0],
-            //             [seqLen - prevSeqLen, 0],
-            //             [0, 0]
-            //         ]
-            //         this.h_prev = this.h_prev.pad(paddings)
-            //         this.h_history = this.h_history.map((h) =>
-            //             tf.keep(h.pad(paddings))
-            //         )
-            //     }
-            // }
+            hInitial = this.rmsNorm(hInitial)
 
-            let h_preliminary = this.applyDense(inputs, this.C, this.b)
-            h_preliminary = h_preliminary.add(
-                this.applyDense(this.h_prev, this.W)
-            )
-
-            h_preliminary = this.rmsNorm(h_preliminary)
-
-            h_preliminary = tf.layers
+            hInitial = tf.layers
                 .activation({ activation: this.activation })
-                .apply(h_preliminary)
+                .apply(hInitial)
 
-            let h = h_preliminary
+            let h = hInitial
             for (let s = 0; s < this.steps; s++) {
-                const attentionTerms = this.h_history.map((h_hist, idx) => {
-                    const scalarProduct = tf.sum(tf.mul(h_hist, h), -1, true)
+                const attentionTerms = this.hHistory.map((hHist, idx) => {
+                    const scalarProduct = tf.sum(tf.mul(hHist, h), -1, true)
 
                     const weightedProduct = tf.mul(
                         scalarProduct,
-                        Math.pow(
-                            this.decayRate,
-                            this.h_history.length - idx - 1
-                        )
+                        Math.pow(this.decayRate, this.hHistory.length - idx - 1)
                     )
-                    return tf.mul(weightedProduct, h_hist)
+                    return tf.mul(weightedProduct, hHist)
                 })
 
                 const attention = tf.sum(tf.stack(attentionTerms), 0)
 
-                const h_next = tf.add(
-                    h_preliminary,
-                    tf.mul(
-                        attention,
-                        tf.clipByValue(this.lr[s].read(), -0.0001, 0.0001)
-                    )
+                // const learningRate = tf.clipByValue(
+                //     tf.abs(this.lr[s].read()),
+                //     0,
+                //     0.0001
+                // )
+                // console.log(this.lr[s].read().arraySync())
+                const hNext = tf.add(
+                    hInitial,
+                    tf.mul(attention, this.lr[s].read())
                 )
 
-                h = this.rmsNorm(h_next)
+                h = this.rmsNorm(hNext)
 
                 h = tf.layers
                     .activation({ activation: this.activation })
-                    .apply(h_next)
+                    .apply(hNext)
             }
 
-            while (this.h_history.length > this.steps) {
-                this.h_history[0].dispose()
-                this.h_history.shift()
+            while (this.hHistory.length > this.steps) {
+                this.hHistory[0].dispose()
+                this.hHistory.shift()
             }
 
-            this.h_prev = tf.keep(h)
-            this.h_history.push(tf.keep(h))
+            this.hPrev = tf.keep(h)
+            this.hHistory.push(tf.keep(h))
 
-            return tf.add(inputs, h)
+            return tf.mul(inputs, h)
         })
     }
 
@@ -2133,8 +2107,7 @@ class FastAssociativeMemory extends LayerBase {
             ...super.getConfig(),
             activation: this.activation,
             steps: this.steps,
-            decayRate: this.decayRate,
-            learningRate: this.initialLearningRate
+            decayRate: this.decayRate
         }
     }
 }
