@@ -2276,11 +2276,7 @@ class Autoencoder extends LayerBase {
         // Compute the Total Correlation term
         if (this.disentangle) {
             const beta = 3.0
-            const gamma = 2.0
-            const tcDivergence = this.computeTotalCorrelation(mean, logVar).mul(
-                gamma
-            )
-            klDivergence = klDivergence.mul(beta).add(tcDivergence)
+            klDivergence = klDivergence.mul(beta)
         }
 
         // Add it to the loss function
@@ -2289,36 +2285,6 @@ class Autoencoder extends LayerBase {
         // Sample from the latent space using the reparameterization trick
         const epsilon = tf.randomNormal(mean.shape)
         return mean.add(epsilon.mul(logVar.exp().sqrt()))
-    }
-
-    computeTotalCorrelation(mean, logVar) {
-        // Sample from the latent distribution using the reparameterization trick
-        const epsilon = tf.randomNormal(mean.shape)
-        const z = mean.add(epsilon.mul(logVar.exp().sqrt()))
-
-        // Compute the log-density of the samples under the prior distribution
-        const logPrior = tf.sum(
-            z
-                .square()
-                .neg()
-                .sub(tf.log(2 * Math.PI))
-                .div(2),
-            -1
-        )
-
-        // Compute the log-density of the samples under the approximate posterior distribution
-        const logQz = tf.sum(
-            epsilon
-                .square()
-                .neg()
-                .sub(logVar)
-                .sub(tf.log(2 * Math.PI))
-                .div(2),
-            -1
-        )
-
-        // Estimate the total correlation using the Monte Carlo samples
-        return tf.mean(logQz.sub(logPrior))
     }
 
     call(inputs, kwargs) {

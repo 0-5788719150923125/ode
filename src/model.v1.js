@@ -30,7 +30,7 @@ export default class OmnipotentDegenerateEntity extends ODE {
                     units: this.units,
                     activation: 'tanh',
                     recurrentActivation: 'sigmoid',
-                    returnSequences: i < this.layers - 1 // False for the last GRU layer
+                    returnSequences: i < this.layers - 1 // False for the last layer
                 })
             )
 
