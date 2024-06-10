@@ -119,15 +119,7 @@ export default class ModelBase {
     }
 
     defineOptimizers() {
-        this.optimizers = [
-            this.tf.train.rmsprop(
-                this.config.learningRate || 1e-2,
-                this.config.decay || 0.9,
-                this.config.momentum || 0.01,
-                this.config.epsilon || 1e-8,
-                this.config.centered || false
-            )
-        ]
+        this.optimizers = [this.tf.train.rmsprop(1e-2, 0.9, 0.01, 1e-8, false)]
     }
 
     defineSchedulers() {

@@ -1920,16 +1920,20 @@ class MixtureOfExperts extends LayerBase {
                 inputs,
                 this.gatingKernel,
                 this.gatingBias
-            ).sigmoid()
+            ).softmax()
 
             // Expert networks
             const expertOutputs = []
             for (let i = 0; i < this.numExperts; i++) {
                 const expertOutput = this.experts[i].apply(inputs)
-                expertOutputs.push(expertOutput.mul(expertWeights))
+                expertOutputs.push(
+                    expertOutput.mul(
+                        expertWeights.slice([0, i], [inputs.shape[0], 1])
+                    )
+                )
             }
 
-            return expertOutputs.reduce((prod, input) => prod.mul(input))
+            return expertOutputs.reduce((sum, output) => sum.add(output))
         })
     }
 
@@ -2222,19 +2226,45 @@ class Autoencoder extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
-        const multiplier = this.variational ? 2 : 1
         this.encoderKernel2 = this.addWeight(
             'encoderKernel2',
-            [this.innerDim, this.bottleneck * multiplier],
+            [this.innerDim, this.bottleneck],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.encoderBias2 = this.addWeight(
             'encoderBias2',
-            [this.bottleneck * multiplier],
+            [this.bottleneck],
             'float32',
             tf.initializers.zeros()
         )
+
+        if (this.variational) {
+            this.encoderMeanKernel = this.addWeight(
+                'encoderMeanKernel',
+                [this.bottleneck, this.bottleneck],
+                'float32',
+                tf.initializers.glorotNormal()
+            )
+            this.encoderMeanBias = this.addWeight(
+                'encoderMeanBias',
+                [this.bottleneck],
+                'float32',
+                tf.initializers.zeros()
+            )
+            this.encoderLogVarKernel = this.addWeight(
+                'encoderLogVarKernel',
+                [this.bottleneck, this.bottleneck],
+                'float32',
+                tf.initializers.glorotNormal()
+            )
+            this.encoderLogVarBias = this.addWeight(
+                'encoderLogVarBias',
+                [this.bottleneck],
+                'float32',
+                tf.initializers.zeros()
+            )
+        }
 
         // Initialize dense layers for decoder
         this.decoderKernel1 = this.addWeight(
@@ -2264,8 +2294,17 @@ class Autoencoder extends LayerBase {
     }
 
     computeVariance(inputs) {
-        // Split the encoded representation into mean and log-variance
-        const [mean, logVar] = tf.split(inputs, 2, -1)
+        // Compute the mean and log-variance
+        const mean = this.applyDense(
+            inputs,
+            this.encoderMeanKernel,
+            this.encoderMeanBias
+        )
+        const logVar = this.applyDense(
+            inputs,
+            this.encoderLogVarKernel,
+            this.encoderLogVarBias
+        )
 
         // Compute the KL Divergence
         let klDivergence = tf.mul(
@@ -2273,7 +2312,7 @@ class Autoencoder extends LayerBase {
             tf.mean(logVar.add(1).sub(mean.square()).sub(logVar.exp()))
         )
 
-        // Compute the Total Correlation term
+        // Disentangle neurons
         if (this.disentangle) {
             const beta = 3.0
             klDivergence = klDivergence.mul(beta)
@@ -2348,6 +2387,12 @@ class Autoencoder extends LayerBase {
             this.decoderKernel2.read(),
             this.decoderBias2.read()
         ]
+        if (this.variational) {
+            weights.push(this.encoderMeanKernel.read())
+            weights.push(this.encoderMeanBias.read())
+            weights.push(this.encoderLogVarKernel.read())
+            weights.push(this.encoderLogVarBias.read())
+        }
         return weights
     }
 
@@ -2360,6 +2405,12 @@ class Autoencoder extends LayerBase {
         this.decoderBias1.write(weights[5])
         this.decoderKernel2.write(weights[6])
         this.decoderBias2.write(weights[7])
+        if (this.variational) {
+            this.encoderMeanKernel.write(weights[8])
+            this.encoderMeanBias.write(weights[9])
+            this.encoderLogVarKernel.write(weights[10])
+            this.encoderLogVarBias.write(weights[11])
+        }
     }
 
     getConfig() {

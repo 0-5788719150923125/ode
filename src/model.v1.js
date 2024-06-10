@@ -10,7 +10,7 @@ export default class OmnipotentDegenerateEntity extends ODE {
         super(config)
         this.layers = config.layers || 3
         this.units = config.units || 128
-        this.config.labels = 'oneLabel'
+        this.labels = 'oneLabel'
     }
 
     defineBuild() {
