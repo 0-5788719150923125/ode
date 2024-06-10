@@ -1955,6 +1955,66 @@ class MixtureOfExperts extends LayerBase {
     }
 }
 
+class PreviousTokenHashMixtureOfExperts extends LayerBase {
+    constructor(config) {
+        super({ name: `moe-${randomString()}`, ...config })
+        this.experts = config.experts
+        this.numExperts = this.experts.length
+    }
+
+    build(inputShape) {
+        this.inputDim = inputShape[inputShape.length - 1]
+        this.outputDim = this.inputDim // Assuming output dimension is the same as input dimension
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Flatten the input token tensor
+            const inputTokenFlat = inputs.flatten()
+
+            // Initialize an empty tensor to store the expert outputs
+            let expertOutputs = tf.zeros([inputs.shape[0], this.outputDim])
+
+            // Iterate over each token index (starting from the second token)
+            for (let i = 1; i < inputTokenFlat.shape[0]; i++) {
+                const previousToken = inputTokenFlat
+                    .slice([i - 1], [1])
+                    .dataSync()[0]
+
+                // Compute the expert index based on the previous token
+                const expertIndex = previousToken % this.numExperts
+
+                // Apply the corresponding expert to the current token
+                const tokenInput = inputs.slice([i], [1])
+                const expertOutput = this.experts[expertIndex].apply(tokenInput)
+
+                // Accumulate the expert output into the expertOutputs tensor
+                expertOutputs = expertOutputs.add(expertOutput)
+            }
+
+            // Handle the first token separately (assign it to a random expert)
+            const firstTokenInput = inputs.slice([0], [1])
+            const firstTokenExpertIndex = Math.floor(
+                Math.random() * this.numExperts
+            )
+            const firstTokenExpertOutput =
+                this.experts[firstTokenExpertIndex].apply(firstTokenInput)
+            expertOutputs = expertOutputs.add(firstTokenExpertOutput)
+
+            return expertOutputs
+        })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts
+        }
+    }
+}
+
 class KolmogorovArnoldNetwork extends LayerBase {
     constructor(config) {
         super({ name: `kan-${randomString()}`, ...config })
@@ -2207,7 +2267,7 @@ class Autoencoder extends LayerBase {
         this.encoderActivation = config?.encoderActivation || 'relu'
         this.decoderActivation = config?.decoderActivation || 'relu'
         this.variational = config?.variational || false
-        this.disentangle = config?.disentangle || false
+        this.beta = config?.beta || 1.0
     }
 
     build(inputShape) {
@@ -2293,7 +2353,7 @@ class Autoencoder extends LayerBase {
         )
     }
 
-    computeVariance(inputs) {
+    computeVariance(inputs, kwargs) {
         // Compute the mean and log-variance
         const mean = this.applyDense(
             inputs,
@@ -2307,19 +2367,15 @@ class Autoencoder extends LayerBase {
         )
 
         // Compute the KL Divergence
-        let klDivergence = tf.mul(
-            -0.5,
-            tf.mean(logVar.add(1).sub(mean.square()).sub(logVar.exp()))
-        )
-
-        // Disentangle neurons
-        if (this.disentangle) {
-            const beta = 3.0
-            klDivergence = klDivergence.mul(beta)
-        }
+        const klDivergence = tf
+            .mul(
+                -0.5,
+                tf.mean(logVar.add(1).sub(mean.square()).sub(logVar.exp()))
+            )
+            .mul(this.beta)
 
         // Add it to the loss function
-        this.extraLoss = tf.keep(klDivergence)
+        if (kwargs.training) this.extraLoss = tf.keep(klDivergence)
 
         // Sample from the latent space using the reparameterization trick
         const epsilon = tf.randomNormal(mean.shape)
@@ -2348,7 +2404,7 @@ class Autoencoder extends LayerBase {
             )
 
             if (this.variational) {
-                outputs = this.computeVariance(outputs)
+                outputs = this.computeVariance(outputs, kwargs)
             }
 
             // Decode the bottleneck representation to the output dimensionality
@@ -2422,7 +2478,7 @@ class Autoencoder extends LayerBase {
             encoderActivation: this.encoderActivation,
             decoderActivation: this.decoderActivation,
             variational: this.variational,
-            disentangle: this.disentangle
+            beta: this.beta
         }
     }
 }

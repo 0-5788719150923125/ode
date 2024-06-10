@@ -38,7 +38,7 @@ export default class OpenDoorExperiment extends ODE {
         outputs = this.ode.layers
             .Autoencoder({
                 variational: true,
-                disentangle: true,
+                beta: 3.0,
                 innerDim: this.units * 4,
                 bottleneck: this.units / 2,
                 outputDim: this.units,
