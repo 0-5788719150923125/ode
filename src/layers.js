@@ -2330,16 +2330,17 @@ class Autoencoder extends LayerBase {
     computeVariance(inputs, kwargs) {
         // Compute the mean and log-variance
         const [mean, logVar] = tf.split(inputs, 2, -1)
+        const expLogVar = logVar.exp()
 
         if (kwargs.training) {
             // Compute the KL Divergence
             const klDivergence = logVar
                 .add(1)
                 .sub(mean.square())
-                .sub(logVar.exp())
+                .sub(expLogVar)
                 .mean()
                 .mul(-0.5)
-            // .mul(this.beta)
+                .mul(this.beta)
 
             // Add it to the loss function
             this.extraLoss = tf.keep(klDivergence)
@@ -2347,7 +2348,7 @@ class Autoencoder extends LayerBase {
 
         // Sample from the latent space using the reparameterization trick
         const epsilon = tf.randomNormal(mean.shape)
-        return mean.add(epsilon.mul(logVar.exp().sqrt()))
+        return mean.add(epsilon.mul(expLogVar.sqrt()))
     }
 
     call(inputs, kwargs) {
