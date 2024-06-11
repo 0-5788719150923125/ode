@@ -604,7 +604,11 @@ export class MetricsCollector {
     async saveStatsToFile(filename, stats) {
         if (!this.fs) {
             this.fs = await import('fs')
-            this.fs.unlinkSync(filename)
+            try {
+                this.fs.unlinkSync(filename)
+            } catch (err) {
+                // pass
+            }
         }
         const statsString = JSON.stringify(stats) + '\n'
         this.fs.appendFileSync(filename, statsString, 'utf8')
