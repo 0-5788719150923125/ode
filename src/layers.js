@@ -77,7 +77,8 @@ class LayerBase extends tf.layers.Layer {
 
     rmsNorm = (x) => {
         const rms = tf.sqrt(tf.mean(tf.square(x), -1, true))
-        return x.div(rms)
+        const epsilon = 1e-7
+        return x.div(rms.add(epsilon))
     }
 
     static get className() {
@@ -2480,9 +2481,9 @@ class FastAssociativeMemory extends LayerBase {
                         value: 1e-7
                     }),
                     tf.constraints.minMaxNorm({
-                        minValue: 0.0,
+                        minValue: -0.001,
                         maxValue: 0.001,
-                        rate: 0.1
+                        rate: 0.99
                     })
                 )
             )
@@ -2595,41 +2596,176 @@ class FastAssociativeMemory extends LayerBase {
     }
 }
 
-class Medusa extends LayerBase {
+class OuroboticMemory extends LayerBase {
     constructor(config) {
-        super({ name: `med-${randomString()}`, ...config })
-        this.initialAlpha || 1.0
+        super({ name: `mem-${randomString()}`, ...config })
+        this.activation = config.activation || 'relu'
+        this.steps = config.steps || 3
+        this.decayRate = config.decayRate || 0.9
     }
 
     build(inputShape) {
-        this.activation = customActivations.Snake
-        this.alpha = this.addWeight(
-            `alpha`,
-            [],
+        const inputDim = inputShape[inputShape.length - 1]
+        this.hPrev = null
+        this.hHistory = []
+        this.learningRate = []
+        this.alpha = []
+        this.snake = customActivations.Snake
+        this.W = this.addWeight(
+            'W',
+            [inputDim, inputDim],
             'float32',
-            tf.initializers.constant({ value: this.initialAlpha })
+            tf.initializers.glorotNormal()
         )
+        this.C = this.addWeight(
+            'C',
+            [inputDim, inputDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.b = this.addWeight(
+            'b',
+            [inputDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+        for (let i = 0; i < this.steps; i++) {
+            this.learningRate.push(
+                this.addWeight(
+                    `learningRate-${i}`,
+                    [],
+                    'float32',
+                    tf.initializers.constant({
+                        value: 1e-7
+                    }),
+                    tf.constraints.minMaxNorm({
+                        minValue: -0.001,
+                        maxValue: 0.001,
+                        rate: 0.99
+                    })
+                )
+            )
+            this.alpha.push(
+                this.addWeight(
+                    `alpha-${i}`,
+                    [inputDim],
+                    'float32',
+                    tf.initializers.ones(),
+                    tf.constraints.minMaxNorm({
+                        minValue: 0.1,
+                        maxValue: 10.0,
+                        rate: 0.999
+                    })
+                )
+            )
+        }
     }
 
     call(inputs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            return this.activation(inputs, this.alpha.read())
+
+            const seqLen = inputs.shape[1]
+
+            if (!this.hPrev) {
+                this.hPrev = tf.zerosLike(inputs)
+                this.hHistory.push(tf.keep(this.hPrev.clone()))
+            } else {
+                const prevSeqLen = this.hPrev.shape[1]
+                if (prevSeqLen < seqLen) {
+                    const paddings = [
+                        [0, 0],
+                        [seqLen - prevSeqLen, 0],
+                        [0, 0]
+                    ]
+                    this.hPrev = this.hPrev.pad(paddings, 1)
+                    this.hHistory = this.hHistory.map((h) =>
+                        tf.keep(h.pad(paddings, 1))
+                    )
+                } else if (prevSeqLen > seqLen) {
+                    const paddings = [
+                        [0, 0],
+                        [prevSeqLen - seqLen, 0],
+                        [0, 0]
+                    ]
+                    inputs = inputs.pad(paddings, 0)
+                }
+            }
+
+            let hInitial = this.applyDense(inputs, this.C, this.b)
+
+            hInitial = hInitial.add(this.applyDense(this.hPrev, this.W))
+
+            hInitial = this.rmsNorm(hInitial)
+
+            hInitial = tf.layers
+                .activation({ activation: this.activation })
+                .apply(hInitial)
+
+            let h = hInitial
+            for (let s = 0; s < this.steps; s++) {
+                const attentionTerms = this.hHistory.map((hHist, idx) => {
+                    const scalarProduct = tf.sum(tf.mul(hHist, h), -1, true)
+
+                    const weightedProduct = tf.mul(
+                        scalarProduct,
+                        Math.pow(this.decayRate, this.hHistory.length - idx - 1)
+                    )
+                    return tf.mul(weightedProduct, hHist)
+                })
+
+                const attention = tf.sum(tf.stack(attentionTerms), 0)
+
+                const hNext = tf.add(
+                    hInitial,
+                    tf.mul(attention, this.learningRate[s].read())
+                )
+
+                h = this.rmsNorm(hNext)
+
+                h = this.snake.apply(hNext, this.alpha[s].read())
+            }
+
+            while (this.hHistory.length > this.steps) {
+                this.hHistory[0].dispose()
+                this.hHistory.shift()
+            }
+
+            this.hPrev = tf.keep(h)
+            this.hHistory.push(tf.keep(h))
+
+            return tf.mul(inputs, h)
         })
     }
 
     getWeights() {
-        return [this.alpha.read()]
+        return [
+            this.W.read(),
+            this.C.read(),
+            this.b.read(),
+            this.learningRate.map((weight) => weight.read()),
+            this.alpha.map((weight) => weight.read())
+        ].flat()
     }
 
     setWeights(weights) {
-        this.alpha.write(weights[0])
+        this.W.write(weights[0])
+        this.C.write(weights[1])
+        this.b.write(weights[2])
+        for (let i = 3; i < this.steps; i++) {
+            this.learningRate[i].write(weights[i])
+        }
+        for (let i = 3 + this.steps; i < this.steps; i++) {
+            this.alpha[i].write(weights[i])
+        }
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            initialAlpha: this.initialAlpha
+            activation: this.activation,
+            steps: this.steps,
+            decayRate: this.decayRate
         }
     }
 }
@@ -6864,7 +7000,6 @@ const exportedLayers = [
     LearnedUpsampling,
     LinearAttention,
     LocalSelfAttention,
-    Medusa,
     MixtureOfDepthsRouting,
     MixtureOfExperts,
     MultiHeadAttention,
@@ -6881,6 +7016,7 @@ const exportedLayers = [
     RotaryPositionalEncoding,
     SelfAttention,
     SequenceExpansionLayer,
+    OuroboticMemory,
     SharedEmbedding,
     SinusoidalPositionalEncoding,
     SparseEstimatedAttention,
