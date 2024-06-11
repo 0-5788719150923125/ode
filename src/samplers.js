@@ -83,6 +83,7 @@ async function fetchURLSampler(
         const response = await fetch(url)
         const text = await response.text()
 
+        fs.mkdirSync('./data/datasets', { recursive: true })
         fs.writeFile(filePath, text, (err) => {
             if (err) {
                 console.error('Error saving file:', err)
