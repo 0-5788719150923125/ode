@@ -47,13 +47,13 @@ export default class OpenDoorExperiment extends ODE {
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .FastAssociativeMemory({
-                activation: 'aptx',
-                steps: 3,
-                decayRate: 0.9
-            })
-            .apply(outputs)
+        // outputs = this.ode.layers
+        //     .FastAssociativeMemory({
+        //         activation: 'aptx',
+        //         steps: 3,
+        //         decayRate: 0.9
+        //     })
+        //     .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

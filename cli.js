@@ -58,7 +58,12 @@ async function orchestrate(options) {
     })
 
     let corpus
-    if (options.corpus) {
+    if (options.corpus.startsWith('http')) {
+        corpus = await net.ode.samplers.fetchURLSampler(
+            options.corpus,
+            options.corpus.split('/')[-1]
+        )
+    } else {
         const gun = net.ode.samplers.gunSampler()
         await gun.init()
         await gun.uploadDirectory('custom', options.corpus)

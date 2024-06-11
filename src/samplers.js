@@ -73,6 +73,30 @@ async function directoryReader(dir = './', delimiter = '\n\n') {
     return allText
 }
 
+async function fetchURLSampler(
+    url = 'https://www.gutenberg.org/files/100/old/shaks12.txt',
+    path = 'shaks12.txt'
+) {
+    const fs = await import('fs')
+
+    async function fetchAndSaveContent(url, filePath) {
+        const response = await fetch(url)
+        const text = await response.text()
+
+        fs.writeFile(filePath, text, (err) => {
+            if (err) {
+                console.error('Error saving file:', err)
+            } else {
+                console.log('File saved successfully!')
+            }
+        })
+        return text
+    }
+    const text = await fetchAndSaveContent(url, `./data/datasets/${path}`)
+    console.log(text.slice(0, 300))
+    return text
+}
+
 class GunSampler {
     constructor(config) {
         this.gun
@@ -132,6 +156,7 @@ const samplers = {
         sequentialStringSampler(sampleLen, overfit, str),
     directorySampler: (sampleLen, overfit, dir, delimiter) =>
         directorySampler(sampleLen, overfit, dir, delimiter),
-    gunSampler: (config) => new GunSampler(config)
+    gunSampler: (config) => new GunSampler(config),
+    fetchURLSampler: (url, path) => fetchURLSampler(url, path)
 }
 export default samplers
