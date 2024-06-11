@@ -2601,7 +2601,6 @@ class OuroboticMemory extends LayerBase {
         super({ name: `mem-${randomString()}`, ...config })
         this.steps = config.steps || 3
         this.decayRate = config.decayRate || 0.9
-        this.activation = customActivations.Snake
     }
 
     build(inputShape) {
@@ -2610,6 +2609,7 @@ class OuroboticMemory extends LayerBase {
         this.hHistory = []
         this.learningRate = []
         this.alpha = []
+        this.activation = customActivations.Snake
         this.W = this.addWeight(
             'W',
             [inputDim, inputDim],
@@ -2772,7 +2772,6 @@ class OuroboticMemory extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            activation: this.activation1,
             steps: this.steps,
             decayRate: this.decayRate
         }
