@@ -2601,8 +2601,7 @@ class OuroboticMemory extends LayerBase {
         super({ name: `mem-${randomString()}`, ...config })
         this.steps = config.steps || 3
         this.decayRate = config.decayRate || 0.9
-        this.activation1 = config.activation || 'tanh'
-        this.activation2 = customActivations.Snake
+        this.activation = customActivations.Snake
     }
 
     build(inputShape) {
@@ -2629,6 +2628,17 @@ class OuroboticMemory extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
+        this.a = this.addWeight(
+            `a`,
+            [],
+            'float32',
+            tf.initializers.constant({ value: 0.2 }),
+            tf.constraints.minMaxNorm({
+                minValue: 0,
+                maxValue: 1.0,
+                rate: 0.9
+            })
+        )
         for (let i = 0; i < this.steps; i++) {
             this.learningRate.push(
                 this.addWeight(
@@ -2653,12 +2663,13 @@ class OuroboticMemory extends LayerBase {
                     tf.initializers.ones(),
                     tf.constraints.minMaxNorm({
                         minValue: 0.1,
-                        maxValue: 3.33,
-                        rate: 0.999
+                        maxValue: 23.0,
+                        rate: 0.99
                     })
                 )
             )
         }
+        this.residual = customLayers.ResidualConnection()
     }
 
     call(inputs) {
@@ -2698,9 +2709,7 @@ class OuroboticMemory extends LayerBase {
 
             hInitial = this.rmsNorm(hInitial)
 
-            hInitial = tf.layers
-                .activation({ activation: this.activation1 })
-                .apply(hInitial)
+            hInitial = hInitial.prelu(this.a.read())
 
             let h = hInitial
             for (let s = 0; s < this.steps; s++) {
@@ -2723,7 +2732,7 @@ class OuroboticMemory extends LayerBase {
 
                 h = this.rmsNorm(hNext)
 
-                h = this.activation2.apply(hNext, this.alpha[s].read())
+                h = this.activation.apply(hNext, this.alpha[s].read())
             }
 
             while (this.hHistory.length > this.steps) {
@@ -2734,7 +2743,7 @@ class OuroboticMemory extends LayerBase {
             this.hPrev = tf.keep(h)
             this.hHistory.push(tf.keep(h))
 
-            return tf.mul(inputs, h)
+            return this.residual.apply([inputs, h])
         })
     }
 
