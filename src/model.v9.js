@@ -49,7 +49,7 @@ export default class OpenDoorExperiment extends ODE {
 
         outputs = this.ode.layers
             .OuroboticMemory({
-                activation: 'aptx',
+                activation: 'tanh',
                 steps: 3,
                 decayRate: 0.9
             })

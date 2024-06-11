@@ -2599,9 +2599,10 @@ class FastAssociativeMemory extends LayerBase {
 class OuroboticMemory extends LayerBase {
     constructor(config) {
         super({ name: `mem-${randomString()}`, ...config })
-        this.activation = config.activation || 'relu'
         this.steps = config.steps || 3
         this.decayRate = config.decayRate || 0.9
+        this.activation1 = config.activation || 'tanh'
+        this.activation2 = customActivations.Snake
     }
 
     build(inputShape) {
@@ -2610,7 +2611,6 @@ class OuroboticMemory extends LayerBase {
         this.hHistory = []
         this.learningRate = []
         this.alpha = []
-        this.snake = customActivations.Snake
         this.W = this.addWeight(
             'W',
             [inputDim, inputDim],
@@ -2653,7 +2653,7 @@ class OuroboticMemory extends LayerBase {
                     tf.initializers.ones(),
                     tf.constraints.minMaxNorm({
                         minValue: 0.1,
-                        maxValue: 10.0,
+                        maxValue: 3.33,
                         rate: 0.999
                     })
                 )
@@ -2699,7 +2699,7 @@ class OuroboticMemory extends LayerBase {
             hInitial = this.rmsNorm(hInitial)
 
             hInitial = tf.layers
-                .activation({ activation: this.activation })
+                .activation({ activation: this.activation1 })
                 .apply(hInitial)
 
             let h = hInitial
@@ -2723,7 +2723,7 @@ class OuroboticMemory extends LayerBase {
 
                 h = this.rmsNorm(hNext)
 
-                h = this.snake.apply(hNext, this.alpha[s].read())
+                h = this.activation2.apply(hNext, this.alpha[s].read())
             }
 
             while (this.hHistory.length > this.steps) {
@@ -2763,7 +2763,7 @@ class OuroboticMemory extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            activation: this.activation,
+            activation: this.activation1,
             steps: this.steps,
             decayRate: this.decayRate
         }
