@@ -3,7 +3,6 @@ import {
     elapsedTimeGenerator,
     emaGenerator,
     findMatches,
-    getRandomBiasedNumber,
     preprocessData,
     randomBetween
 } from './utils.js'

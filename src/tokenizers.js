@@ -73,30 +73,32 @@ class BinaryTokenizer extends TokenizerBase {
 class CharacterTokenizer extends TokenizerBase {
     constructor(config) {
         super(config)
+        const vocab =
+            config?.vocab ||
+            `\n \r\n \r \u2028\u2029!"#$%&'()*+,-.\\/0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_\`abcdefghijklmnopqrstuvwxyz{|}~¡£§©¬®°±²³µ¶·¹º»¼½ÀÁÄÅÇÉÎÓÔÖ×ØÜßàáâãäåæçèéêëíîïðñóôõö÷øúüĀāăćČčđēěğħīİıłńōőśşšūůŷźŽžȧȲȳɛʌʻʼˆ˚̸̂̄̅ΑΒΓΔΘΛΠΣΦΨΩέήίαβγδεζηθικλμνοπρςστφχψωόϵкѰḗṓợἴὁ​‐–—‘’“”†•․… ′″⁴⁻₀₁₂₃₄ₖₙ€ℓℕℚℝ™ℤ⅓←↑→↓↔↦⇌⇒⇔⇠⇥∀∂∃∅∆∇∈∉∏∑−∗∘∙√∞∠∧∨∩∪∫∼≅≈≠≡≤≥≫⊂⊆⊕⊙⋅⌈⌉⌘─│└├■□▶◆○●◦♢♥♦✓❤⟨⟩⨯⩽ⱼⲜ。・世前务发后告周在将我报新更末本界的给请财送道\ud835\ud835𝝅\udf48\udf73`
         this.padToken = '�'
-        this.corpus =
-            config?.corpus ||
-            `\n \r\n \r \u2028\u2029!"#$%&'()*+,-.\\\/0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_\`abcdefghijklmnopqrstuvwxyz{|}~¡£§©¬®°±²³µ¶·¹º»¼½ÀÁÄÅÇÉÎÓÔÖ×ØÜßàáâãäåæçèéêëíîïðñóôõö÷øúüĀāăćČčđēěğħīİıłńōőśşšūůŷźŽžȧȲȳɛʌʻʼˆ˚̸̂̄̅ΑΒΓΔΘΛΠΣΦΨΩέήίαβγδεζηθικλμνοπρςστφχψωόϵкѰḗṓợἴὁ​‐–—‘’“”†•․… ′″⁴⁻₀₁₂₃₄ₖₙ€ℓℕℚℝ™ℤ⅓←↑→↓↔↦⇌⇒⇔⇠⇥∀∂∃∅∆∇∈∉∏∑−∗∘∙√∞∠∧∨∩∪∫∼≅≈≠≡≤≥≫⊂⊆⊕⊙⋅⌈⌉⌘─│└├■□▶◆○●◦♢♥♦✓❤⟨⟩⨯⩽ⱼⲜ。・世前务发后告周在将我报新更末本界的给请财送道\ud835\ud835𝝅\udf48\udf73`
-        this.vocab = Array.from(new Set(this.corpus))
-        this.vocab.unshift(this.padToken)
+        this.tokens = Array.from(new Set(vocab))
+        this.tokens.unshift(this.padToken)
+        console.log('Parsed vocabulary:')
+        console.log(JSON.stringify(this.tokens.sort()))
     }
 
     getLength() {
-        return this.vocab.length
+        return this.tokens.length
     }
 
     encode(string) {
         return Array.from(string).map((char) => {
-            const index = this.vocab.indexOf(char)
-            return index !== -1 ? index : this.vocab.indexOf(this.padToken)
+            const index = this.tokens.indexOf(char)
+            return index !== -1 ? index : this.tokens.indexOf(this.padToken)
         })
     }
 
     decode(array) {
         return array
             .map((index) => {
-                return index >= 0 && index < this.vocab.length
-                    ? this.vocab[index]
+                return index >= 0 && index < this.tokens.length
+                    ? this.tokens[index]
                     : this.padToken
             })
             .join('')

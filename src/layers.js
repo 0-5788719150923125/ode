@@ -865,197 +865,6 @@ class MultiHeadAttention extends LayerBase {
     }
 }
 
-// class MultiHeadAttention extends LayerBase {
-//     constructor(config) {
-//         super({ name: `mha-${randomString()}`, ...config })
-//         this.heads = config.heads || 8
-//         this.projection = config.projection || 64
-//         this.dropout = config.dropout || 0
-//     }
-
-//     build(inputShape) {
-//         const units = inputShape[inputShape.length - 1]
-
-//         this.queryKernels = []
-//         this.queryBiases = []
-//         this.keyKernels = []
-//         this.keyBiases = []
-//         this.valueKernels = []
-//         this.valueBiases = []
-
-//         for (let i = 0; i < this.heads; i++) {
-//             this.queryKernels.push(
-//                 this.addWeight(
-//                     `queryKernel_${i}`,
-//                     [units, this.projection],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.queryBiases.push(
-//                 this.addWeight(
-//                     `queryBias_${i}`,
-//                     [this.projection],
-//                     'float32',
-//                     tf.initializers.zeros()
-//                 )
-//             )
-//             this.keyKernels.push(
-//                 this.addWeight(
-//                     `keyKernel_${i}`,
-//                     [units, this.projection],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.keyBiases.push(
-//                 this.addWeight(
-//                     `keyBias_${i}`,
-//                     [this.projection],
-//                     'float32',
-//                     tf.initializers.zeros()
-//                 )
-//             )
-//             this.valueKernels.push(
-//                 this.addWeight(
-//                     `valueKernel_${i}`,
-//                     [units, this.projection],
-//                     'float32',
-//                     tf.initializers.glorotUniform()
-//                 )
-//             )
-//             this.valueBiases.push(
-//                 this.addWeight(
-//                     `valueBias_${i}`,
-//                     [this.projection],
-//                     'float32',
-//                     tf.initializers.zeros()
-//                 )
-//             )
-//         }
-
-//         this.outputKernel = this.addWeight(
-//             'outputKernel',
-//             [units, units],
-//             'float32',
-//             tf.initializers.glorotUniform()
-//         )
-//         this.outputBias = this.addWeight(
-//             'outputBias',
-//             [units],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//         this.residual = customLayers.ResidualConnection()
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             const mask = tf.linalg
-//                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
-//                 .sub(tf.eye(inputs.shape[1]))
-//                 .mul(tf.scalar(-1e9))
-
-//             const attentionOutputs = []
-
-//             for (let i = 0; i < this.heads; i++) {
-//                 const Q = this.applyDense(
-//                     inputs,
-//                     this.queryKernels[i],
-//                     this.queryBiases[i]
-//                 )
-//                 const K = this.applyDense(
-//                     inputs,
-//                     this.keyKernels[i],
-//                     this.keyBiases[i]
-//                 )
-//                 const V = this.applyDense(
-//                     inputs,
-//                     this.valueKernels[i],
-//                     this.valueBiases[i]
-//                 )
-
-//                 const scores = tf
-//                     .matMul(Q, K, false, true)
-//                     .div(tf.scalar(Math.sqrt(this.projection)))
-//                     .add(mask)
-
-//                 let weights = scores.softmax()
-
-//                 weights = kwargs['training']
-//                     ? tf.dropout(weights, this.dropout)
-//                     : weights
-
-//                 const output = tf.matMul(weights, V)
-
-//                 attentionOutputs.push(output)
-//             }
-
-//             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-//             let outputs = this.applyDense(
-//                 concatenatedOutputs,
-//                 this.outputKernel,
-//                 this.outputBias
-//             )
-
-//             outputs = this.rmsNorm(outputs)
-
-//             outputs = this.residual.apply([inputs, outputs])
-
-//             outputs = kwargs['training']
-//                 ? tf.dropout(outputs, this.dropout)
-//                 : outputs
-
-//             return outputs
-//         })
-//     }
-
-//     getWeights() {
-//         const weights = []
-
-//         for (let i = 0; i < this.heads; i++) {
-//             weights.push(this.queryKernels[i].read())
-//             weights.push(this.queryBiases[i].read())
-//             weights.push(this.keyKernels[i].read())
-//             weights.push(this.keyBiases[i].read())
-//             weights.push(this.valueKernels[i].read())
-//             weights.push(this.valueBiases[i].read())
-//         }
-
-//         weights.push(this.outputKernel.read())
-//         weights.push(this.outputBias.read())
-
-//         return weights
-//     }
-
-//     setWeights(weights) {
-//         let index = 0
-
-//         for (let i = 0; i < this.heads; i++) {
-//             this.queryKernels[i].write(weights[index++])
-//             this.queryBiases[i].write(weights[index++])
-//             this.keyKernels[i].write(weights[index++])
-//             this.keyBiases[i].write(weights[index++])
-//             this.valueKernels[i].write(weights[index++])
-//             this.valueBiases[i].write(weights[index++])
-//         }
-
-//         this.outputKernel.write(weights[index++])
-//         this.outputBias.write(weights[index])
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             heads: this.heads,
-//             projection: this.projection,
-//             dropout: this.dropout
-//         }
-//     }
-// }
-
 class MultiQueryAttention extends LayerBase {
     constructor(config) {
         super({ name: `mqa-${randomString()}`, ...config })
@@ -2223,7 +2032,7 @@ class DenseMultiLayerPerceptron extends LayerBase {
         }
 
         // Residual connections/skip connections are critical here
-        this.residual = new ResidualConnection()
+        this.residual = customLayers.ResidualConnection()
     }
 
     call(inputs, kwargs, training = false) {
@@ -2445,7 +2254,10 @@ class FastAssociativeMemory extends LayerBase {
         super({ name: `mem-${randomString()}`, ...config })
         this.activation = config.activation || 'relu'
         this.steps = config.steps || 3
+        this.learningRate = config.learningRate || 1e-3
         this.decayRate = config.decayRate || 0.9
+        this.hPrev = null
+        this.hHistory = []
     }
 
     build(inputShape) {
@@ -2468,26 +2280,6 @@ class FastAssociativeMemory extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
-        this.hPrev = null
-        this.hHistory = []
-        this.lr = []
-        for (let i = 0; i < this.steps; i++) {
-            this.lr.push(
-                this.addWeight(
-                    `lr-${i}`,
-                    [],
-                    'float32',
-                    tf.initializers.constant({
-                        value: 1e-7
-                    }),
-                    tf.constraints.minMaxNorm({
-                        minValue: -0.001,
-                        maxValue: 0.001,
-                        rate: 0.99
-                    })
-                )
-            )
-        }
     }
 
     call(inputs) {
@@ -2546,14 +2338,14 @@ class FastAssociativeMemory extends LayerBase {
 
                 const hNext = tf.add(
                     hInitial,
-                    tf.mul(attention, this.lr[s].read())
+                    tf.mul(attention, this.learningRate)
                 )
 
                 h = this.rmsNorm(hNext)
 
                 h = tf.layers
                     .activation({ activation: this.activation })
-                    .apply(hNext)
+                    .apply(h)
             }
 
             while (this.hHistory.length > this.steps) {
@@ -2564,26 +2356,18 @@ class FastAssociativeMemory extends LayerBase {
             this.hPrev = tf.keep(h)
             this.hHistory.push(tf.keep(h))
 
-            return tf.mul(inputs, h)
+            return inputs.add(h)
         })
     }
 
     getWeights() {
-        return [
-            this.W.read(),
-            this.C.read(),
-            this.b.read(),
-            this.lr.map((weight) => weight.read())
-        ].flat()
+        return [this.W.read(), this.C.read(), this.b.read()]
     }
 
     setWeights(weights) {
         this.W.write(weights[0])
         this.C.write(weights[1])
         this.b.write(weights[2])
-        for (let i = 3; i < this.steps; i++) {
-            this.lr[i].write(weights[i])
-        }
     }
 
     getConfig() {
@@ -2591,6 +2375,7 @@ class FastAssociativeMemory extends LayerBase {
             ...super.getConfig(),
             activation: this.activation,
             steps: this.steps,
+            learningRate: this.learningRate,
             decayRate: this.decayRate
         }
     }
@@ -2628,13 +2413,13 @@ class OuroboticMemory extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
-        this.a = this.addWeight(
-            `a`,
+        this.pAlpha = this.addWeight(
+            `pAlpha`,
             [],
             'float32',
             tf.initializers.constant({ value: 0.2 }),
             tf.constraints.minMaxNorm({
-                minValue: 0,
+                minValue: -1.0,
                 maxValue: 1.0,
                 rate: 0.9
             })
@@ -2669,7 +2454,6 @@ class OuroboticMemory extends LayerBase {
                 )
             )
         }
-        this.residual = customLayers.ResidualConnection()
     }
 
     call(inputs) {
@@ -2707,9 +2491,7 @@ class OuroboticMemory extends LayerBase {
 
             hInitial = hInitial.add(this.applyDense(this.hPrev, this.W))
 
-            hInitial = this.rmsNorm(hInitial)
-
-            hInitial = hInitial.prelu(this.a.read())
+            hInitial = this.rmsNorm(hInitial).prelu(this.pAlpha.read())
 
             let h = hInitial
             for (let s = 0; s < this.steps; s++) {
@@ -2732,7 +2514,7 @@ class OuroboticMemory extends LayerBase {
 
                 h = this.rmsNorm(hNext)
 
-                h = this.activation.apply(hNext, this.alpha[s].read())
+                h = this.activation.apply(h, this.alpha[s].read())
             }
 
             while (this.hHistory.length > this.steps) {
@@ -2743,7 +2525,7 @@ class OuroboticMemory extends LayerBase {
             this.hPrev = tf.keep(h)
             this.hHistory.push(tf.keep(h))
 
-            return this.residual.apply([inputs, h])
+            return inputs.add(h)
         })
     }
 
@@ -2752,6 +2534,7 @@ class OuroboticMemory extends LayerBase {
             this.W.read(),
             this.C.read(),
             this.b.read(),
+            this.pAlpha.read(),
             this.learningRate.map((weight) => weight.read()),
             this.alpha.map((weight) => weight.read())
         ].flat()
@@ -2761,10 +2544,11 @@ class OuroboticMemory extends LayerBase {
         this.W.write(weights[0])
         this.C.write(weights[1])
         this.b.write(weights[2])
-        for (let i = 3; i < this.steps; i++) {
+        this.pAlpha.write(weights[3])
+        for (let i = 4; i < this.steps; i++) {
             this.learningRate[i].write(weights[i])
         }
-        for (let i = 3 + this.steps; i < this.steps; i++) {
+        for (let i = 4 + this.steps; i < this.steps; i++) {
             this.alpha[i].write(weights[i])
         }
     }

@@ -13,11 +13,11 @@ export default class OpenDoorExperiment extends ODE {
         this.heads = config.heads || 2
         this.queryRatio = config.queryRatio || 3
         this.headDim = config.headDim || 64
-        this.mlpDim = config.mlpDim || this.units * 4
+        this.mlpDim = config.mlpDim || 1024
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+        this.tokenizer = this.ode.tokenizers.CharacterTokenizer(config)
     }
 
     defineBuild() {
@@ -47,13 +47,6 @@ export default class OpenDoorExperiment extends ODE {
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .OuroboticMemory({
-                steps: 3,
-                decayRate: 0.9
-            })
-            .apply(outputs)
-
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .GroupedQueryAttention({
@@ -65,7 +58,7 @@ export default class OpenDoorExperiment extends ODE {
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    activation: 'selu',
+                    activation: 'mish',
                     innerDim: this.mlpDim
                 })
                 .apply(outputs)

@@ -91,65 +91,6 @@ function categoricalFocalCrossEntropy(
     })
 }
 
-// // https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py
-// function categoricalFocalCrossEntropy(
-//     yTrue,
-//     yPred,
-//     weights,
-//     labelSmoothing = 0,
-//     reduction,
-//     alpha = null,
-//     gamma = 2.0,
-//     fromLogits = false,
-//     axis = -1
-// ) {
-//     return tf.tidy(() => {
-//         // Clip values to prevent division by zero error
-//         const clippedPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
-
-//         if (fromLogits) {
-//             yPred = tf.softmax(yPred, axis)
-//         }
-
-//         // Calculate cross-entropy loss
-//         const crossEntropy = tf.mul(tf.neg(yTrue), tf.log(clippedPred))
-
-//         let focalLoss
-//         if (alpha !== null) {
-//             const alphaWeight = tf.scalar(alpha)
-//             focalLoss = tf.mul(
-//                 tf.mul(alphaWeight, tf.pow(tf.sub(1, clippedPred), gamma)),
-//                 crossEntropy
-//             )
-//         } else {
-//             focalLoss = tf.mul(
-//                 tf.pow(tf.sub(1, clippedPred), gamma),
-//                 crossEntropy
-//             )
-//         }
-
-//         return tf.mean(tf.sum(focalLoss, -1))
-//     })
-// }
-
-function vaeLoss(target, output, z_mean, z_log_var, fromLogits = false) {
-    return tf.tidy(() => {
-        const crossEntropyLoss = tf.losses.softmaxCrossEntropy(
-            target,
-            output,
-            fromLogits
-        )
-
-        const klDivergenceLoss =
-            -0.5 *
-            tf.mean(1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-
-        const totalLoss = crossEntropyLoss.add(klDivergenceLoss)
-
-        return totalLoss
-    })
-}
-
 const customLosses = {
     categoricalCrossentropy: (target, output, fromLogits) =>
         categoricalCrossentropy(target, output, fromLogits),
