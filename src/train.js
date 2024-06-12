@@ -401,7 +401,8 @@ async function batchMaker(
         //     sampleLength =
         //         inputLength - getRandomBiasedNumber(3, inputLength, 1.5)
 
-        const sample = await dataGenerator.next().value.slice(0, sampleLength)
+        const sample = await dataGenerator.next().value
+        // .slice(0, sampleLength)
 
         const textIndices = preprocessData(
             sample,
