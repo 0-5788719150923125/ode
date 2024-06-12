@@ -7,6 +7,7 @@ import ODE from './model.v2.js'
 export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
         super(config)
+        this.autoregressive = true
         this.layers = config.layers || 4
         this.heads = config.heads || 8
         this.units = config.units || 128

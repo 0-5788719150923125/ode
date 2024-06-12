@@ -190,7 +190,7 @@ async function generateText({
     const isSingleLabel = this.model.outputs[0].shape.length === 2
 
     return this.tf.tidy(() => {
-        if (this.labels === 'timeDistributed') {
+        if (!this.autoregressive) {
             return predictMany.call(this, { prompt })
         }
 
@@ -327,19 +327,13 @@ function predictOnce(
 
 // this code doesn't really work the way it should
 function predictMany({ prompt } = {}) {
-    const fixedLength = this.config.contextLength
+    let tokenIndices = this.tokenizer.encode(prompt)
 
-    const tokenIndices = preprocessData(
-        prompt,
-        this.tokenizer,
-        fixedLength / 2,
-        'left'
+    const inputs = this.tf.tensor2d(
+        tokenIndices,
+        [1, tokenIndices.length],
+        'int32'
     )
-
-    const half = fixedLength / 2
-    const halved = tokenIndices.slice(0, half)
-
-    const inputs = this.tf.tensor2d(halved, [1, half], 'int32')
 
     // Predict with the model
     const prediction = this.model.predict(inputs)
@@ -356,7 +350,7 @@ function predictMany({ prompt } = {}) {
         predictedSequence.push(sampledIndex.dataSync()[0])
     }
 
-    return this.tokenizer.decode(tokenIndices)
+    return this.tokenizer.decode(predictedSequence)
 }
 
 function applyTemperature(logits, temperature) {

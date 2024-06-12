@@ -154,7 +154,7 @@ export function preprocessData(
         return padding.concat(indices)
     } else if (paddingSide === 'right') {
         return indices.concat(padding)
-    } else {
+    } else if (paddingSide === 'random') {
         while (indices.length < maxSequenceLength) {
             if (Math.random() < 0.5) {
                 indices.push(0)
@@ -162,6 +162,8 @@ export function preprocessData(
                 indices.unshift(0)
             }
         }
+        return indices
+    } else {
         return indices
     }
 }
