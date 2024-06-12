@@ -12,6 +12,7 @@ export default class OmnipresentDiabolicalErudite extends ODE {
         super(config)
         this.layers = config.layers || 3
         this.units = config.units || 256
+        this.labels = 'timeDistributed'
     }
 
     defineBuild() {

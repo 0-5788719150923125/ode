@@ -394,7 +394,7 @@ async function batchMaker(
     let xsArray = []
     let ysArray = []
 
-    let sampleLength = inputLength
+    // let sampleLength = inputLength
 
     for (let i = 0; i < batchSize; ++i) {
         // if (downsampling !== 1.0)

@@ -190,6 +190,10 @@ async function generateText({
     const isSingleLabel = this.model.outputs[0].shape.length === 2
 
     return this.tf.tidy(() => {
+        if (this.labels === 'timeDistributed') {
+            return predictMany.call(this, { prompt })
+        }
+
         let inputs
         if (isSingleLabel) {
             const tokenIndices = preprocessData(
@@ -256,10 +260,7 @@ async function generateText({
 }
 
 function reachedStopToken(string, token) {
-    if (string.endsWith(token)) {
-        return true
-    }
-    return false
+    return string.endsWith(token)
 }
 
 function predictOnce(
@@ -324,6 +325,40 @@ function predictOnce(
     })
 }
 
+// this code doesn't really work the way it should
+function predictMany({ prompt } = {}) {
+    const fixedLength = this.config.contextLength
+
+    const tokenIndices = preprocessData(
+        prompt,
+        this.tokenizer,
+        fixedLength / 2,
+        'left'
+    )
+
+    const half = fixedLength / 2
+    const halved = tokenIndices.slice(0, half)
+
+    const inputs = this.tf.tensor2d(halved, [1, half], 'int32')
+
+    // Predict with the model
+    const prediction = this.model.predict(inputs)
+
+    // Squeeze to remove batch dimension since batch size is 1
+    const squeezedPred = prediction.squeeze()
+
+    let predictedSequence = []
+    for (let i = 0; i < squeezedPred.shape[0]; i++) {
+        const timestepPred = squeezedPred.slice([i, 0], [1, -1])
+
+        let sampledIndex = greedySampling(timestepPred)
+
+        predictedSequence.push(sampledIndex.dataSync()[0])
+    }
+
+    return this.tokenizer.decode(tokenIndices)
+}
+
 function applyTemperature(logits, temperature) {
     return tf.tidy(() => {
         return tf.div(logits, tf.scalar(Math.max(temperature, 1e-6)))
@@ -379,8 +414,7 @@ function sampleFromLogits(logits) {
 
 function greedySampling(logits) {
     return tf.tidy(() => {
-        const predictedIndex = tf.argMax(logits)
-        return predictedIndex.reshape([-1])
+        return tf.argMax(logits).reshape([-1])
     })
 }
 
