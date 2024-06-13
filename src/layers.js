@@ -4590,6 +4590,7 @@ class StateSpace extends LayerBase {
         this.returnSequences = config.returnSequences || false
         this.decayFactor = config.decayFactor || 1.0
         this.activation = config.activation || 'tanh'
+        this.beta = config.beta || 1.0
     }
 
     build(inputShape) {
@@ -4608,7 +4609,7 @@ class StateSpace extends LayerBase {
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.innerDim, this.units],
+            [this.units, this.units], // Change this line
             'float32',
             tf.initializers.glorotNormal()
         )
@@ -4618,8 +4619,62 @@ class StateSpace extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
-
+        this.meanKernel = this.addWeight(
+            'meanKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.meanBias = this.addWeight(
+            'meanBias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.logVarKernel = this.addWeight(
+            'logVarKernel',
+            [this.innerDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.logVarBias = this.addWeight(
+            'logVarBias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros()
+        )
         this.residual = new ResidualConnection()
+    }
+
+    sampleLatentState(innerState, kwargs) {
+        const mean = tf.add(
+            tf.matMul(innerState, this.meanKernel.read()),
+            this.meanBias.read()
+        )
+        const logVar = tf.add(
+            tf.matMul(innerState, this.logVarKernel.read()),
+            this.logVarBias.read()
+        )
+        const expLogVar = logVar.exp()
+
+        if (kwargs.training) {
+            // Compute the KL Divergence
+            const klDivergence = logVar
+                .add(1)
+                .sub(mean.square())
+                .sub(expLogVar)
+                .mean()
+                .mul(-0.5)
+                .mul(this.beta)
+
+            // Add it to the loss function
+            this.extraLoss = tf.keep(klDivergence)
+        }
+
+        // Sample from the latent space using the reparameterization trick
+        const epsilon = tf.randomNormal(mean.shape)
+        const latentState = tf.add(mean, tf.mul(epsilon, expLogVar.sqrt()))
+        return latentState
     }
 
     call(inputs, kwargs) {
@@ -4649,8 +4704,11 @@ class StateSpace extends LayerBase {
                 const activatedState = tf.layers
                     .activation({ activation: this.activation })
                     .apply(innerState)
-
-                const newState = tf.matMul(activatedState, outputKernel)
+                const latentState = this.sampleLatentState(
+                    activatedState,
+                    kwargs
+                )
+                const newState = tf.matMul(latentState, outputKernel)
                 outputs.push(newState)
                 state = newState
             }
@@ -4677,7 +4735,11 @@ class StateSpace extends LayerBase {
             this.kernel.read(),
             this.outputKernel.read(),
             this.recurrentKernel.read(),
-            this.bias.read()
+            this.bias.read(),
+            this.meanKernel.read(),
+            this.meanBias.read(),
+            this.logVarKernel.read(),
+            this.logVarBias.read()
         ]
     }
 
@@ -4686,6 +4748,10 @@ class StateSpace extends LayerBase {
         this.outputKernel.write(weights[1])
         this.recurrentKernel.write(weights[2])
         this.bias.write(weights[3])
+        this.meanKernel.write(weights[4])
+        this.meanBias.write(weights[5])
+        this.logVarKernel.write(weights[6])
+        this.logVarBias.write(weights[7])
     }
 
     getConfig() {
@@ -4695,10 +4761,129 @@ class StateSpace extends LayerBase {
             innerDim: this.innerDim,
             returnSequences: this.returnSequences,
             decayFactor: this.decayFactor,
-            activation: this.activation
+            activation: this.activation,
+            beta: this.beta
         }
     }
 }
+
+// class StateSpace extends LayerBase {
+//     constructor(config) {
+//         super({ name: `ssm-${randomString()}`, ...config })
+//         this.units = config.units || 64
+//         this.innerDim = config.innerDim || 256
+//         this.returnSequences = config.returnSequences || false
+//         this.decayFactor = config.decayFactor || 1.0
+//         this.activation = config.activation || 'tanh'
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[2]
+//         this.kernel = this.addWeight(
+//             'kernel',
+//             [inputDim, this.innerDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.recurrentKernel = this.addWeight(
+//             'recurrentKernel',
+//             [this.units, this.innerDim],
+//             'float32',
+//             tf.initializers.orthogonal({ gain: 1 })
+//         )
+//         this.outputKernel = this.addWeight(
+//             'outputKernel',
+//             [this.innerDim, this.units],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.bias = this.addWeight(
+//             'bias',
+//             [this.innerDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+
+//         this.residual = new ResidualConnection()
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const [batchSize, sequenceLength, inputDim] = inputs.shape
+
+//             let state = tf.zeros([batchSize, this.units])
+//             const outputs = []
+
+//             const kernel = this.kernel.read()
+//             const recurrentKernel = this.recurrentKernel.read()
+//             const outputKernel = this.outputKernel.read()
+//             const bias = this.bias.read()
+
+//             for (let t = 0; t < sequenceLength; t++) {
+//                 const input = inputs
+//                     .slice([0, t, 0], [batchSize, 1, inputDim])
+//                     .reshape([batchSize, inputDim])
+//                 const innerState = tf
+//                     .add(
+//                         tf.matMul(input, kernel),
+//                         tf.matMul(state, recurrentKernel).mul(this.decayFactor)
+//                     )
+//                     .add(bias)
+//                 const activatedState = tf.layers
+//                     .activation({ activation: this.activation })
+//                     .apply(innerState)
+
+//                 const newState = tf.matMul(activatedState, outputKernel)
+//                 outputs.push(newState)
+//                 state = newState
+//             }
+
+//             let output = this.returnSequences
+//                 ? tf.stack(outputs, 1)
+//                 : outputs[outputs.length - 1]
+
+//             output = this.rmsNorm(output)
+
+//             return this.residual.apply([inputs, output])
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         const outputShape = this.returnSequences
+//             ? [inputShape[0], inputShape[1], this.units]
+//             : [inputShape[0], this.units]
+//         return outputShape
+//     }
+
+//     getWeights() {
+//         return [
+//             this.kernel.read(),
+//             this.outputKernel.read(),
+//             this.recurrentKernel.read(),
+//             this.bias.read()
+//         ]
+//     }
+
+//     setWeights(weights) {
+//         this.kernel.write(weights[0])
+//         this.outputKernel.write(weights[1])
+//         this.recurrentKernel.write(weights[2])
+//         this.bias.write(weights[3])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             returnSequences: this.returnSequences,
+//             decayFactor: this.decayFactor,
+//             activation: this.activation
+//         }
+//     }
+// }
 
 class ChunkedStateSpace extends StateSpace {
     constructor(config) {

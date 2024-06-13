@@ -12,6 +12,7 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
         this.innerDim = config.innerDim || 1024
         this.decayFactor = config.decayFactor || 1.0
         this.activation = config.activation || 'softsign'
+        this.beta = config.beta || 1.0
     }
 
     defineTokenizer(config) {
@@ -38,7 +39,8 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
                     innerDim: this.innerDim,
                     returnSequences: true,
                     decayFactor: this.decayFactor,
-                    activation: this.activation
+                    activation: this.activation,
+                    beta: this.beta
                 })
                 .apply(outputs)
         }
