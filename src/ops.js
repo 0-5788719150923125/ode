@@ -89,7 +89,7 @@ function reduceTimeStepsWithActivation(tensor, activationFunction, threshold) {
         )
 
         // Compress the selected tensor by removing the zero timesteps
-        const compressedTensor = tf.compress(selectedTensor, 1, 2)
+        // const compressedTensor = tf.compress(selectedTensor, 1, 2)
 
         return compressedTensor
     })
