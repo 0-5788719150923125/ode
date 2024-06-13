@@ -17,8 +17,14 @@ export default class OpenDoorExperiment extends ODE {
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer(config)
+        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+            model: 'OriginalDesign/beast'
+        })
     }
+
+    // defineTokenizer(config) {
+    //     this.tokenizer = this.ode.tokenizers.CharacterTokenizer(config)
+    // }
 
     defineBuild() {
         const inputs = this.ode.layers.input({
