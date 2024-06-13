@@ -137,9 +137,14 @@ class GradientAccumulator {
                 batch: this.currentBatch
             }
         )
-
-        this.gradients = grads
-        this.loss = loss
+        if (isNaN(loss)) {
+            this.gradients = this.gradients
+            this.loss = this.loss
+            console.warn('Loss was NaN. Skipping this iteration...')
+        } else {
+            this.gradients = grads
+            this.loss = loss
+        }
     }
 
     getLoss() {
