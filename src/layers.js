@@ -4647,34 +4647,40 @@ class StateSpace extends LayerBase {
     }
 
     sampleLatentState(innerState, kwargs) {
-        const mean = tf.add(
-            tf.matMul(innerState, this.meanKernel.read()),
-            this.meanBias.read()
-        )
-        const logVar = tf.add(
-            tf.matMul(innerState, this.logVarKernel.read()),
-            this.logVarBias.read()
-        )
-        const expLogVar = logVar.exp()
+        return tf.tidy(() => {
+            const mean = tf.add(
+                tf.matMul(innerState, this.meanKernel.read()),
+                this.meanBias.read()
+            )
+            const logVar = tf.add(
+                tf.matMul(innerState, this.logVarKernel.read()),
+                this.logVarBias.read()
+            )
+            const expLogVar = logVar.exp()
 
-        if (kwargs.training) {
-            // Compute the KL Divergence
-            const klDivergence = logVar
-                .add(1)
-                .sub(mean.square())
-                .sub(expLogVar)
-                .mean()
-                .mul(-0.5)
-                .mul(this.beta)
+            if (kwargs.training) {
+                // Compute the KL Divergence
+                const klDivergence = logVar
+                    .add(1)
+                    .sub(mean.square())
+                    .sub(expLogVar)
+                    .mean()
+                    .mul(-0.5)
+                    .mul(this.beta)
 
-            // Add it to the loss function
-            this.extraLoss = tf.keep(klDivergence)
-        }
+                // Add it to the loss function
+                if (!this.extraLoss) this.extraLoss = tf.keep(klDivergence)
+                else {
+                    const oldValue = this.extraLoss
+                    this.extraLoss = tf.keep(this.extraLoss.add(klDivergence))
+                    oldValue.dispose()
+                }
+            }
 
-        // Sample from the latent space using the reparameterization trick
-        const epsilon = tf.randomNormal(mean.shape)
-        const latentState = tf.add(mean, tf.mul(epsilon, expLogVar.sqrt()))
-        return latentState
+            // Sample from the latent space using the reparameterization trick
+            const epsilon = tf.randomNormal(mean.shape)
+            return tf.add(mean, tf.mul(epsilon, expLogVar.sqrt()))
+        })
     }
 
     call(inputs, kwargs) {
@@ -4704,10 +4710,9 @@ class StateSpace extends LayerBase {
                 const activatedState = tf.layers
                     .activation({ activation: this.activation })
                     .apply(innerState)
-                const latentState = this.sampleLatentState(
-                    activatedState,
-                    kwargs
-                )
+                const latentState = tf.tidy(() => {
+                    return this.sampleLatentState(activatedState, kwargs)
+                })
                 const newState = tf.matMul(latentState, outputKernel)
                 outputs.push(newState)
                 state = newState

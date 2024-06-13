@@ -253,6 +253,7 @@ function computeGradients(
                 if (layer.hasOwnProperty('extraLoss')) {
                     lossValue = tf.add(lossValue, layer.extraLoss)
                     tf.dispose(layer.extraLoss)
+                    layer.extraLoss = null
                 }
             })
 
