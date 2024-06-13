@@ -4588,7 +4588,8 @@ class StateSpace extends LayerBase {
         this.units = config.units || 64
         this.innerDim = config.innerDim || 256
         this.returnSequences = config.returnSequences || false
-        this.epsilon = config.epsilon || false
+        this.decayFactor = config.decayFactor || 1.0
+        this.activation = config.activation || 'tanh'
     }
 
     build(inputShape) {
@@ -4618,12 +4619,6 @@ class StateSpace extends LayerBase {
             tf.initializers.zeros()
         )
 
-        if (this.epsilon) {
-            this.layernorm = tf.layers.layerNormalization({
-                epsilon: this.epsilon
-            })
-        }
-
         this.residual = new ResidualConnection()
     }
 
@@ -4645,16 +4640,17 @@ class StateSpace extends LayerBase {
                 const input = inputs
                     .slice([0, t, 0], [batchSize, 1, inputDim])
                     .reshape([batchSize, inputDim])
-                const innerState = tf.tanh(
-                    tf.add(
-                        tf.add(
-                            tf.matMul(input, kernel),
-                            tf.matMul(state, recurrentKernel)
-                        ),
-                        bias
+                const innerState = tf
+                    .add(
+                        tf.matMul(input, kernel),
+                        tf.matMul(state, recurrentKernel).mul(this.decayFactor)
                     )
-                )
-                const newState = tf.matMul(innerState, outputKernel)
+                    .add(bias)
+                const activatedState = tf.layers
+                    .activation({ activation: this.activation })
+                    .apply(innerState)
+
+                const newState = tf.matMul(activatedState, outputKernel)
                 outputs.push(newState)
                 state = newState
             }
@@ -4663,7 +4659,7 @@ class StateSpace extends LayerBase {
                 ? tf.stack(outputs, 1)
                 : outputs[outputs.length - 1]
 
-            if (this.layernorm) output = this.layernorm.apply(output)
+            output = this.rmsNorm(output)
 
             return this.residual.apply([inputs, output])
         })
@@ -4698,7 +4694,8 @@ class StateSpace extends LayerBase {
             units: this.units,
             innerDim: this.innerDim,
             returnSequences: this.returnSequences,
-            epsilon: this.epsilon
+            decayFactor: this.decayFactor,
+            activation: this.activation
         }
     }
 }
