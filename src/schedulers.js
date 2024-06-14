@@ -42,7 +42,7 @@ const schedulers = {
     constantScheduler: (max) => constantScheduler(max),
     cosineScheduler: (max, min, totalIterations, modulation) =>
         cosineScheduler(max, min, totalIterations, modulation),
-    cosineWithRestartsScheduler: (max, min, totalIterations) =>
-        cosineWithRestartsScheduler(max, min, totalIterations)
+    cosineWithRestartsScheduler: (min, max, totalIterations) =>
+        cosineWithRestartsScheduler(min, max, totalIterations)
 }
 export default schedulers

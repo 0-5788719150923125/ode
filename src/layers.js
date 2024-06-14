@@ -1052,7 +1052,8 @@ class GroupedQueryAttention extends LayerBase {
                         `queryKernel-${i}-${j}`,
                         [units, this.projection],
                         'float32',
-                        tf.initializers.glorotUniform()
+                        tf.initializers.glorotUniform(),
+                        tf.regularizers.l2({ l2: 0.01 })
                     )
                 )
                 queryBiases.push(
@@ -1060,7 +1061,8 @@ class GroupedQueryAttention extends LayerBase {
                         `queryBias-${i}-${j}`,
                         [this.projection],
                         'float32',
-                        tf.initializers.zeros()
+                        tf.initializers.zeros(),
+                        tf.regularizers.l2({ l2: 0.01 })
                     )
                 )
             }
@@ -1072,7 +1074,8 @@ class GroupedQueryAttention extends LayerBase {
                     `keyKernel-${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.keyBiases.push(
@@ -1080,7 +1083,8 @@ class GroupedQueryAttention extends LayerBase {
                     `keyBiases-${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.zeros(),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.valueKernels.push(
@@ -1088,7 +1092,8 @@ class GroupedQueryAttention extends LayerBase {
                     `valueKernel-${i}`,
                     [units, units],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.valueBiases.push(
@@ -1096,7 +1101,8 @@ class GroupedQueryAttention extends LayerBase {
                     `valueBiases-${i}`,
                     [units],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.zeros(),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
         }
@@ -1105,13 +1111,15 @@ class GroupedQueryAttention extends LayerBase {
             'outputKernel',
             [units * this.heads * this.queryRatio, units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.outputBias = this.addWeight(
             `outputBias`,
             [units],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -1432,26 +1440,30 @@ class MultiLayerPerceptron extends LayerBase {
             'inProjKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.inProjBias = this.addWeight(
             'inProjBias',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
 
         this.outProjKernel = this.addWeight(
             'outProjKernel',
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.outProjBias = this.addWeight(
             'outProjBias',
             [this.units],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
 
         // Residual connections/skip connections are critical here
@@ -1533,13 +1545,15 @@ class GatedLinearMLP extends MultiLayerPerceptron {
             'gateProjKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gateProjBias = this.addWeight(
             'gateProjBias',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
     }
 
@@ -2089,25 +2103,29 @@ class Autoencoder extends LayerBase {
             'encoderKernel1',
             [inputDim, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.encoderBias1 = this.addWeight(
             'encoderBias1',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.encoderKernel2 = this.addWeight(
             'encoderKernel2',
             [this.innerDim, this.bottleneck * multiplier],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.encoderBias2 = this.addWeight(
             'encoderBias2',
             [this.bottleneck * multiplier],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
 
         // Initialize dense layers for decoder
@@ -2115,25 +2133,29 @@ class Autoencoder extends LayerBase {
             'decoderKernel1',
             [this.bottleneck, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.decoderBias1 = this.addWeight(
             'decoderBias1',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.decoderKernel2 = this.addWeight(
             'decoderKernel2',
             [this.innerDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.decoderBias2 = this.addWeight(
             'decoderBias2',
             [this.outputDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
     }
 

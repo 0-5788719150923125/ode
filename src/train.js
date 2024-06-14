@@ -581,7 +581,7 @@ export class ConsoleLogger {
             )}, LOSS=${coloredLoss.old}${color}${
                 coloredLoss.new
             }${white}, LR=${args.learningRate.toFixed(
-                5
+                9
             )}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(
                 elapsed / 1000
             ).toFixed(1)}s, TOTAL=${(

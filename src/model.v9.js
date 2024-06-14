@@ -10,21 +10,22 @@ export default class OpenDoorExperiment extends ODE {
         this.layers = config.layers || 3
         this.units = config.units || 256
         this.embeddings = config.embeddings || 512
-        this.heads = config.heads || 2
-        this.queryRatio = config.queryRatio || 3
-        this.headDim = config.headDim || 64
+        this.heads = config.heads || 3
+        this.queryRatio = config.queryRatio || 2
+        this.headDim = config.headDim || 128
         this.mlpDim = config.mlpDim || 1024
-    }
-
-    defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-            model: 'OriginalDesign/beast'
-        })
+        this.beta = config.beta || 8.0
     }
 
     // defineTokenizer(config) {
-    //     this.tokenizer = this.ode.tokenizers.CharacterTokenizer(config)
+    //     this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+    //         model: 'OriginalDesign/beast'
+    //     })
     // }
+
+    defineTokenizer(config) {
+        this.tokenizer = this.ode.tokenizers.CharacterTokenizer(config)
+    }
 
     defineBuild() {
         const inputs = this.ode.layers.input({
@@ -44,7 +45,7 @@ export default class OpenDoorExperiment extends ODE {
         outputs = this.ode.layers
             .Autoencoder({
                 variational: true,
-                beta: 3.0,
+                beta: this.beta,
                 innerDim: this.units * 4,
                 bottleneck: this.units / 2,
                 outputDim: this.units,
@@ -77,5 +78,27 @@ export default class OpenDoorExperiment extends ODE {
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineSchedulers() {
+        this.minLearningRate = 0.00000001
+        this.maxLearningRate = 0.00022
+        const steps = 1024
+        this.schedulers = [
+            this.ode.schedulers.cosineWithRestartsScheduler(
+                this.minLearningRate,
+                this.maxLearningRate,
+                steps
+            )
+        ]
+    }
+
+    defineOptimizers() {
+        this.optimizers = [
+            this.ode.optimizers.Lion({
+                learningRate: this.maxLearningRate,
+                weightDecay: 0.01
+            })
+        ]
     }
 }
