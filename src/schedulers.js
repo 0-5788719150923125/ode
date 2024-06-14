@@ -27,26 +27,13 @@ function* cosineScheduler(start, end, totalIterations, modulation = 1) {
     }
 }
 
-function* cosineWithRestartsScheduler(start, end, totalIterations) {
-    let i = 0
-    const range = end - start
+function* cosineWithRestartsScheduler(min, max, steps) {
     while (true) {
-        // Calculate cosine value for cyclical annealing
-        let cosValue = Math.cos(
-            Math.PI * ((2 * (i % totalIterations)) / totalIterations - 1)
-        )
-
-        // Adjust current value based on cosine, equally applied at both ends
-        let currentValue = start + (range * (1 + cosValue)) / 2
-
-        yield currentValue
-
-        // Increment iteration
-        i++
-
-        // Hard restart when the total iterations are reached
-        if (i % totalIterations === 0) {
-            i = 0
+        for (let i = 0; i < steps; i++) {
+            const t = i / steps
+            const cosineDecay = 0.5 * (1 + Math.cos(Math.PI * t))
+            const lr = min + (max - min) * cosineDecay
+            yield lr
         }
     }
 }

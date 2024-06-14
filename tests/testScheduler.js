@@ -41,8 +41,7 @@ function plotCosineSchedulerRealTime(
     const generator = schedulers.cosineWithRestartsScheduler(
         min,
         max,
-        iterations,
-        modulation
+        iterations
     )
     let plot = initializePlot(width, height)
 
@@ -60,5 +59,5 @@ function plotCosineSchedulerRealTime(
 
 // Usage
 const modulation = 0.666
-plotCosineSchedulerRealTime(0, 1, 333, 75, 20, 100, modulation)
+plotCosineSchedulerRealTime(0, 1, 333, 75, 20, 100)
 // plotCosineSchedulerRealTime(1, 0, 1000, 75, 20, 100)
