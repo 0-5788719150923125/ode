@@ -14,6 +14,8 @@ export default class OpenDoorExperiment extends ODE {
         this.queryRatio = config.queryRatio || 2
         this.headDim = config.headDim || 128
         this.mlpDim = config.mlpDim || 1024
+        this.encoderDim = config.encoderDim || 1024
+        this.bottleneck = config.bottleneck || 128
         this.beta = config.beta || 8.0
     }
 
@@ -46,8 +48,8 @@ export default class OpenDoorExperiment extends ODE {
             .Autoencoder({
                 variational: true,
                 beta: this.beta,
-                innerDim: this.units * 4,
-                bottleneck: this.units / 2,
+                innerDim: this.encoderDim,
+                bottleneck: this.bottleneck,
                 outputDim: this.units,
                 encoderActivation: 'mish',
                 decoderActivation: 'mish'
