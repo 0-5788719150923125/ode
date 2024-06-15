@@ -8,7 +8,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = 3
-        this.units = 256
+        this.units = 512
         this.experts = 3
     }
 
@@ -23,13 +23,13 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             shape: [null]
         })
 
-        let outputs = this.ode.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
-                embeddingsInitializer: 'glorotUniform'
-            })
-            .apply(inputs)
+        const embeddings = this.ode.layers.SharedEmbedding({
+            inputDim: this.tokenizer.getLength(),
+            outputDim: this.units,
+            embeddingsInitializer: 'glorotUniform'
+        })
+
+        let outputs = embeddings.apply(inputs)
 
         outputs = this.ode.layers
             .RotaryPositionalEncoding({
@@ -38,10 +38,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
+            const experts = this.createAttentionExperts()
             outputs = this.ode.layers
                 .MixtureOfExperts({
-                    experts: this.createAttentionExperts(),
-                    hiddenDim: 128,
+                    experts,
+                    hiddenDim: 256,
                     activation: 'swish'
                 })
                 .apply(outputs)
@@ -54,11 +55,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
         }
 
-        outputs = this.ode.layers
-            .dense({
-                units: this.tokenizer.getLength()
-            })
-            .apply(outputs)
+        outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

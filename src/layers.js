@@ -37,9 +37,6 @@ export default customLayers
 class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        // this.config = config
-        // this.config.className =
-        // this.supportsMasking = true
     }
 
     computeOutputShape(inputShape) {
@@ -87,10 +84,9 @@ class LayerBase extends tf.layers.Layer {
     }
 
     getConfig() {
-        const className = this.getClassName()
         return {
             ...super.getConfig(),
-            class: className.charAt(0).toUpperCase() + className.slice(1)
+            className: this.getClassName()
         }
     }
 }
@@ -1763,14 +1759,7 @@ class MixtureOfExperts extends LayerBase {
         if (!this.experts) {
             this.experts = []
             for (const expert of this.expertConfigs) {
-                this.experts.push(
-                    customLayers[
-                        expert.class.replace(
-                            /^./,
-                            expert.class[0].toUpperCase()
-                        )
-                    ](expert)
-                )
+                this.experts.push(customLayers[expert.className](expert))
             }
         }
     }
@@ -1805,7 +1794,7 @@ class MixtureOfExperts extends LayerBase {
             const combinedOutput = expertOutputs.reduce((sum, output, i) => {
                 const expertWeight = expertWeights.slice(
                     [0, 0, i],
-                    [inputs.shape[0], 1, 1]
+                    [inputs.shape[0], inputs.shape[1], 1]
                 )
                 return sum.add(output.mul(expertWeight))
             }, tf.zeros(expertOutputs[0].shape))
@@ -1820,6 +1809,7 @@ class MixtureOfExperts extends LayerBase {
             this.gatingHiddenBias.read(),
             this.gatingKernel.read(),
             this.gatingBias.read()
+            // this.experts.map((expert) => expert.read())
         ]
     }
 
@@ -1828,6 +1818,9 @@ class MixtureOfExperts extends LayerBase {
         this.gatingHiddenBias.write(weights[1])
         this.gatingKernel.write(weights[2])
         this.gatingBias.write(weights[3])
+        // for (let i = 4; i < this.numExperts; i++) {
+        //     this.experts[i].write(weights[i])
+        // }
     }
 
     getConfig() {

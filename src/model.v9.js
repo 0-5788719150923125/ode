@@ -16,7 +16,7 @@ export default class OpenDoorExperiment extends ODE {
         this.mlpDim = config.mlpDim || 1024
         this.encoderDim = config.encoderDim || 1024
         this.bottleneck = config.bottleneck || 128
-        this.beta = config.beta || 8.0
+        this.beta = config.beta || 10.0
     }
 
     // defineTokenizer(config) {
