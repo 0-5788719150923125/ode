@@ -34,6 +34,7 @@ export default class ModelBase {
         this.config = config
         this.model
         this.tokenizer
+        this.contextLength = config.contextLength
     }
 
     async preInit() {
@@ -186,7 +187,7 @@ async function generateText({
     maxNewTokens,
     stopToken
 } = {}) {
-    const fixedLength = this.config.contextLength
+    const fixedLength = this.contextLength
     const isSingleLabel = this.model.outputs[0].shape.length === 2
 
     return this.tf.tidy(() => {

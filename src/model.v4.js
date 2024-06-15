@@ -36,14 +36,14 @@ export default class OpportunisticDialogueEngine extends ODE {
             .apply(inputs)
 
         outputs = this.ode.layers
-            .RotaryPositionalEncoding({ blockSize: this.config.contextLength })
+            .RotaryPositionalEncoding({ blockSize: this.contextLength })
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .SynthesizerAttention({
                     units: this.units,
-                    blockSize: this.config.contextLength,
+                    blockSize: this.contextLength,
                     heads: this.heads,
                     epsilon: this.epsilon,
                     alpha: this.alpha

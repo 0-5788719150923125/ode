@@ -20,13 +20,7 @@ export default class ObjectivelyDumbExperiment extends ODE {
 
     defineBuild() {
         const inputs = this.ode.layers.input({
-            shape: [
-                -1,
-                this.config.contextLength,
-                this.imageSize,
-                this.imageSize,
-                1
-            ]
+            shape: [-1, this.contextLength, this.imageSize, this.imageSize, 1]
         })
 
         let outputs = inputs
@@ -57,7 +51,7 @@ export default class ObjectivelyDumbExperiment extends ODE {
             outputs = this.tf.layers
                 .reshape({
                     targetShape: [
-                        this.config.contextLength,
+                        this.contextLength,
                         outputs.shape[2],
                         outputs.shape[3]
                         // outputs.shape[4]
@@ -76,10 +70,7 @@ export default class ObjectivelyDumbExperiment extends ODE {
 
         outputs = this.tf.layers
             .reshape({
-                targetShape: [
-                    this.config.contextLength,
-                    filters[filters.length - 1]
-                ]
+                targetShape: [this.contextLength, filters[filters.length - 1]]
             })
             .apply(outputs)
 

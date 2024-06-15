@@ -38,7 +38,7 @@ export default class OriginalDecoderEncoder extends ODE {
         const positionalEmbeddings = this.tf.layers
             .embedding({
                 name: 'wpe',
-                inputDim: this.config.contextLength,
+                inputDim: this.contextLength,
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
             })
@@ -65,7 +65,7 @@ export default class OriginalDecoderEncoder extends ODE {
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .CausalSelfAttention({
-                    blockSize: this.config.contextLength,
+                    blockSize: this.contextLength,
                     units: this.units,
                     heads: this.heads,
                     dropout: this.dropout,
