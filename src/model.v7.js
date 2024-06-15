@@ -9,7 +9,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = 3
         this.units = 256
-        this.experts = 3
+        this.experts = 5
+        this.topK = 2
         this.moeDim = 128
     }
 
@@ -38,8 +39,17 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             const experts = this.createAttentionExperts()
             const expertOutputs = experts.map((expert) => expert.apply(outputs))
 
+            // outputs = this.ode.layers
+            //     .MixtureOfExperts({
+            //         numExperts: experts.length,
+            //         hiddenDim: this.moeDim,
+            //         activation: 'swish'
+            //     })
+            //     .apply([outputs, ...expertOutputs])
+
             outputs = this.ode.layers
-                .MixtureOfExperts({
+                .SparseMixtureOfExperts({
+                    topK: this.topK,
                     numExperts: experts.length,
                     hiddenDim: this.moeDim,
                     activation: 'swish'
@@ -67,16 +77,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     createAttentionExperts() {
-        return [
-            this.ode.layers.SelfAttention({
-                projection: this.units * 4
-            }),
-            this.ode.layers.SelfAttention({
-                projection: this.units * 4
-            }),
-            this.ode.layers.SelfAttention({
-                projection: this.units * 4
-            })
-        ]
+        const experts = []
+        for (let i = 0; i < this.experts; i++) {
+            experts.push(
+                this.ode.layers.SelfAttention({
+                    projection: this.units * 4
+                })
+            )
+        }
+        return experts
     }
 }
