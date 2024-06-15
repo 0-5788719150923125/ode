@@ -106,7 +106,8 @@ class SharedEmbedding extends LayerBase {
             'embeddings',
             [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers[this.embeddingsInitializer]()
+            tf.initializers[this.embeddingsInitializer](),
+            tf.regularizers.l2({ l2: 0.1 })
         )
     }
 
@@ -203,19 +204,22 @@ class SelfAttention extends LayerBase {
             'queryKernel',
             [inputDim, this.projection],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.keyKernel = this.addWeight(
             'keyKernel',
             [inputDim, this.projection],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -700,7 +704,8 @@ class MultiHeadAttention extends LayerBase {
                     `queryKernel_${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
             this.queryBiases.push(
@@ -708,7 +713,8 @@ class MultiHeadAttention extends LayerBase {
                     `queryBias_${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.zeros(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
             this.keyKernels.push(
@@ -716,7 +722,8 @@ class MultiHeadAttention extends LayerBase {
                     `keyKernel_${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
             this.keyBiases.push(
@@ -724,7 +731,8 @@ class MultiHeadAttention extends LayerBase {
                     `keyBias_${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.zeros(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
             this.valueKernels.push(
@@ -732,7 +740,8 @@ class MultiHeadAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
             this.valueBiases.push(
@@ -740,7 +749,8 @@ class MultiHeadAttention extends LayerBase {
                     `valueBias_${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.zeros(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
         }
@@ -749,13 +759,15 @@ class MultiHeadAttention extends LayerBase {
             'outputKernel',
             [this.projection * this.heads, units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.outputBias = this.addWeight(
             'outputBias',
             [units],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -886,7 +898,8 @@ class MultiQueryAttention extends LayerBase {
                     `queryKernel${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
             this.queryBiases.push(
@@ -894,7 +907,8 @@ class MultiQueryAttention extends LayerBase {
                     `queryBiases${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.zeros(),
+                    tf.regularizers.l2({ l2: 0.1 })
                 )
             )
         }
@@ -902,37 +916,43 @@ class MultiQueryAttention extends LayerBase {
             'keyKernel',
             [units, this.projection],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.keyBias = this.addWeight(
             `keyBias`,
             [this.projection],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [units, units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.valueBias = this.addWeight(
             `valueBias`,
             [units],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
             [units * this.queries, units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.outputBias = this.addWeight(
             `outputBias`,
             [units],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.1 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -1604,22 +1624,16 @@ class GatedLinearMLP extends MultiLayerPerceptron {
 
     getWeights() {
         return [
-            this.inProjKernel.read(),
-            this.inProjBias.read(),
+            ...super.getWeights(),
             this.gateProjKernel.read(),
-            this.gateProjBias.read(),
-            this.outProjKernel.read(),
-            this.outProjBias.read()
+            this.gateProjBias.read()
         ]
     }
 
     setWeights(weights) {
-        this.inProjKernel.write(weights[0])
-        this.inProjBias.write(weights[1])
-        this.gateProjKernel.write(weights[2])
-        this.gateProjBias.write(weights[3])
-        this.outProjKernel.write(weights[4])
-        this.outProjBias.write(weights[5])
+        super.setWeights(weights)
+        this.gateProjKernel.write(weights[4])
+        this.gateProjBias.write(weights[5])
     }
 }
 
@@ -1682,12 +1696,12 @@ class MixtureOfExperts extends LayerBase {
             ).softmax()
 
             // Combine expert outputs using weighted sum
-            const combinedOutput = expertInputs.reduce((sum, output, i) => {
+            const combinedOutput = expertInputs.reduce((prev, curr, i) => {
                 const expertWeight = expertWeights.slice(
                     [0, 0, i],
                     [inputs.shape[0], inputs.shape[1], 1]
                 )
-                return sum.add(output.mul(expertWeight))
+                return prev.add(curr.mul(expertWeight))
             }, tf.zeros(expertInputs[0].shape))
 
             return combinedOutput
@@ -4053,34 +4067,23 @@ class Antirectifier extends LayerBase {
 class RotaryPositionalEncoding extends LayerBase {
     constructor(config) {
         super({ name: `rot-${randomString()}`, ...config })
-        this.blockSize = config.blockSize
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const batchSize = inputs.shape[0]
             const seqLen = inputs.shape[1]
             const embeddingDim = inputs.shape[2]
-            const paddedInputs = inputs.pad([
-                [0, 0],
-                [0, Math.max(this.blockSize - seqLen, 0)],
-                [0, 0]
-            ])
-            const paddedSeqLen = paddedInputs.shape[1]
             const posEncoding = this.getRotaryPositionalEmbedding(
-                paddedSeqLen,
+                seqLen,
                 embeddingDim
             )
             const output = this.applyRotaryPositionalEmbedding(
-                paddedInputs,
+                inputs,
                 posEncoding
             )
-            return output.slice(
-                [0, 0, 0],
-                [batchSize, this.blockSize, embeddingDim]
-            )
+            return output.slice([0, 0, 0], inputs.shape)
         })
     }
 
@@ -4126,16 +4129,102 @@ class RotaryPositionalEncoding extends LayerBase {
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], this.blockSize, inputShape[2]]
+        return inputShape
     }
 
     getConfig() {
         return {
-            ...super.getConfig(),
-            blockSize: this.blockSize
+            ...super.getConfig()
         }
     }
 }
+
+// class RotaryPositionalEncoding extends LayerBase {
+//     constructor(config) {
+//         super({ name: `rot-${randomString()}`, ...config })
+//         this.blockSize = config.blockSize
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const batchSize = inputs.shape[0]
+//             const seqLen = inputs.shape[1]
+//             const embeddingDim = inputs.shape[2]
+//             const paddedInputs = inputs.pad([
+//                 [0, 0],
+//                 [0, Math.max(this.blockSize - seqLen, 0)],
+//                 [0, 0]
+//             ])
+//             const paddedSeqLen = paddedInputs.shape[1]
+//             const posEncoding = this.getRotaryPositionalEmbedding(
+//                 paddedSeqLen,
+//                 embeddingDim
+//             )
+//             const output = this.applyRotaryPositionalEmbedding(
+//                 paddedInputs,
+//                 posEncoding
+//             )
+//             return output.slice(
+//                 [0, 0, 0],
+//                 [batchSize, this.blockSize, embeddingDim]
+//             )
+//         })
+//     }
+
+//     getRotaryPositionalEmbedding(seqLen, embeddingDim) {
+//         const pos = tf.range(0, seqLen, 1, 'float32').reshape([-1, 1])
+//         const i = tf.range(0, embeddingDim / 2, 1, 'float32').reshape([1, -1])
+//         const angleRates = tf.pow(10000, tf.div(i, embeddingDim / 2))
+//         const angleRads = tf.mul(pos, tf.div(1, angleRates))
+//         const sin = tf.sin(angleRads)
+//         const cos = tf.cos(angleRads)
+
+//         // Interleave sin and cos values
+//         const sinExpanded = sin.expandDims(2) // Expanding dimension to enable interleaving
+//         const cosExpanded = cos.expandDims(2)
+//         const concatenated = tf.concat([sinExpanded, cosExpanded], 2) // Concatenate along the new axis
+//         const posEncoding = concatenated.reshape([seqLen, embeddingDim])
+//         return posEncoding
+//     }
+
+//     applyRotaryPositionalEmbedding(x, posEncoding) {
+//         const embeddingDim = x.shape[2]
+//         const xDtype = x.dtype
+
+//         // Split the embedding dimension into two halves for sin and cos applications
+//         const rotaryDim = embeddingDim / 2
+//         const [xRot, xPass] = tf.split(x, 2, -1)
+
+//         // Apply sin to the first half and cos to the second half of posEncoding
+//         const sinEncoding = posEncoding.slice([0, 0], [-1, rotaryDim])
+//         const cosEncoding = posEncoding.slice([0, rotaryDim], [-1, -1])
+
+//         // Apply the encodings
+//         const xRotSin = tf.mul(xRot, sinEncoding)
+//         const xRotCos = tf.mul(xRot, cosEncoding)
+
+//         // Reconstruct the rotated embeddings
+//         const rotatedX = tf.concat([xRotSin, xRotCos], -1)
+
+//         // Concatenate the rotated part with the part that does not get rotated
+//         const output = tf.concat([rotatedX, xPass], -1)
+
+//         return output.asType(xDtype)
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [inputShape[0], this.blockSize, inputShape[2]]
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             blockSize: this.blockSize
+//         }
+//     }
+// }
 
 class CompressorHead extends LayerBase {
     constructor(config) {

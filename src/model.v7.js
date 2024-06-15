@@ -30,13 +30,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             embeddingsInitializer: 'glorotUniform'
         })
 
-        let outputs = embeddings.apply(inputs)
+        const encoding = this.ode.layers.RotaryPositionalEncoding()
 
-        outputs = this.ode.layers
-            .RotaryPositionalEncoding({
-                blockSize: this.contextLength
-            })
-            .apply(outputs)
+        let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
             const experts = this.createAttentionExperts()
