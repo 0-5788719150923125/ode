@@ -37,8 +37,9 @@ export default customLayers
 class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.config = config
-        this.supportsMasking = true
+        // this.config = config
+        // this.config.className =
+        // this.supportsMasking = true
     }
 
     computeOutputShape(inputShape) {
@@ -83,6 +84,14 @@ class LayerBase extends tf.layers.Layer {
 
     static get className() {
         return this.name
+    }
+
+    getConfig() {
+        const className = this.getClassName()
+        return {
+            ...super.getConfig(),
+            class: className.charAt(0).toUpperCase() + className.slice(1)
+        }
     }
 }
 
@@ -188,26 +197,26 @@ class SharedEmbedding extends LayerBase {
 class SelfAttention extends LayerBase {
     constructor(config) {
         super({ name: `attn-${randomString()}`, ...config })
-        this.units = config.units || 64
         this.projection = config.projection || 256
     }
 
     build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
         this.queryKernel = this.addWeight(
             'queryKernel',
-            [inputShape[inputShape.length - 1], this.projection],
+            [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             'keyKernel',
-            [inputShape[inputShape.length - 1], this.projection],
+            [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
-            [inputShape[inputShape.length - 1], this.units],
+            [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -234,7 +243,9 @@ class SelfAttention extends LayerBase {
 
             const weights = scores.softmax()
 
-            const outputs = tf.matMul(weights, V)
+            let outputs = tf.matMul(weights, V)
+
+            outputs = this.rmsNorm(outputs)
 
             return this.residual.apply([inputs, outputs])
         })
@@ -262,7 +273,6 @@ class SelfAttention extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            units: this.units,
             projection: this.projection
         }
     }
@@ -1711,28 +1721,44 @@ class SparseMixtureOfExperts extends LayerBase {
 class MixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
-        this.experts = config.experts
-        this.numExperts = this.experts.length
-        this.temperature = config?.temperature || 1.0
-        this.supportsMasking = true
+        this.experts = config?.experts
+        this.numExperts = config?.experts?.length || config.numExperts
+        this.expertConfigs =
+            config?.expertConfigs ||
+            this.experts.map((expert) => expert.getConfig())
     }
 
     build(inputShape) {
-        this.inputDim = inputShape[inputShape.length - 1]
+        const inputDim = inputShape[inputShape.length - 1]
 
         // Initialize gating network
         this.gatingKernel = this.addWeight(
             'gatingKernel',
-            [this.inputDim, this.inputDim],
+            [inputDim, this.numExperts],
             'float32',
             tf.initializers.glorotNormal()
         )
         this.gatingBias = this.addWeight(
             'gatingBias',
-            [this.inputDim],
+            [this.numExperts],
             'float32',
             tf.initializers.zeros()
         )
+
+        // Create expert layers dynamically
+        if (!this.experts) {
+            this.experts = []
+            for (const expert of this.expertConfigs) {
+                this.experts.push(
+                    customLayers[
+                        expert.class.replace(
+                            /^./,
+                            expert.class[0].toUpperCase()
+                        )
+                    ](expert)
+                )
+            }
+        }
     }
 
     call(inputs, kwargs) {
@@ -1750,14 +1776,19 @@ class MixtureOfExperts extends LayerBase {
             const expertOutputs = []
             for (let i = 0; i < this.numExperts; i++) {
                 const expertOutput = this.experts[i].apply(inputs)
-                expertOutputs.push(
-                    expertOutput.mul(
-                        expertWeights.slice([0, i], [inputs.shape[0], 1])
-                    )
-                )
+                expertOutputs.push(expertOutput)
             }
 
-            return expertOutputs.reduce((sum, output) => sum.add(output))
+            // Combine expert outputs using weighted sum
+            const combinedOutput = expertOutputs.reduce((sum, output, i) => {
+                const expertWeight = expertWeights.slice(
+                    [0, 0, i],
+                    [inputs.shape[0], 1, 1]
+                )
+                return sum.add(output.mul(expertWeight))
+            }, tf.zeros(expertOutputs[0].shape))
+
+            return combinedOutput
         })
     }
 
@@ -1774,7 +1805,7 @@ class MixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
-            temperature: this.temperature
+            expertConfigs: this.expertConfigs
         }
     }
 }

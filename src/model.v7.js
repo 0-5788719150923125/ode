@@ -8,7 +8,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = 3
-        this.units = 128
+        this.units = 256
         this.experts = 3
         this.topK = 2
     }
@@ -38,7 +38,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             })
             .apply(outputs)
 
-        let firstRun = true
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .MixtureOfExperts({
@@ -48,20 +47,17 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    innerDim: this.units * 9,
-                    activation: 'gelu_new'
+                    innerDim: this.units * 4,
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }
 
         outputs = this.ode.layers
             .dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
+                units: this.tokenizer.getLength()
             })
             .apply(outputs)
-
-        firstRun = false
 
         this.model = this.tf.model({ inputs, outputs })
     }
@@ -75,17 +71,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
     createAttentionExperts() {
         return [
-            this.ode.layers.MultiHeadAttention({
-                heads: 4,
-                projection: 64
+            this.ode.layers.SelfAttention({
+                projection: this.units * 4
             }),
-            this.ode.layers.MultiHeadAttention({
-                heads: 4,
-                projection: 64
+            this.ode.layers.SelfAttention({
+                projection: this.units * 4
             }),
-            this.ode.layers.MultiHeadAttention({
-                heads: 4,
-                projection: 64
+            this.ode.layers.SelfAttention({
+                projection: this.units * 4
             })
         ]
     }
