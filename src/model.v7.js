@@ -10,7 +10,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.layers = 3
         this.units = 256
         this.experts = 3
-        this.topK = 2
     }
 
     defineTokenizer() {
@@ -41,7 +40,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .MixtureOfExperts({
-                    experts: this.createAttentionExperts()
+                    experts: this.createAttentionExperts(),
+                    hiddenDim: 128,
+                    activation: 'swish'
                 })
                 .apply(outputs)
 

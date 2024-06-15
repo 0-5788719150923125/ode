@@ -1726,15 +1726,29 @@ class MixtureOfExperts extends LayerBase {
         this.expertConfigs =
             config?.expertConfigs ||
             this.experts.map((expert) => expert.getConfig())
+        this.hiddenDim = config.hiddenDim || 128
+        this.activation = config.activation || 'swish'
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
         // Initialize gating network
+        this.gatingHidden = this.addWeight(
+            'gatingHidden',
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gatingHiddenBias = this.addWeight(
+            'gatingHiddenBias',
+            [this.hiddenDim],
+            'float32',
+            tf.initializers.zeros()
+        )
         this.gatingKernel = this.addWeight(
             'gatingKernel',
-            [inputDim, this.numExperts],
+            [this.hiddenDim, this.numExperts],
             'float32',
             tf.initializers.glorotNormal()
         )
@@ -1766,8 +1780,16 @@ class MixtureOfExperts extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Gating network
-            const expertWeights = this.applyDense(
+            const gatingHidden = this.applyDense(
                 inputs,
+                this.gatingHidden,
+                this.gatingHiddenBias
+            )
+            const activatedGate = tf.layers
+                .activation({ activation: this.activation })
+                .apply(gatingHidden)
+            const expertWeights = this.applyDense(
+                activatedGate,
                 this.gatingKernel,
                 this.gatingBias
             ).softmax()
@@ -1793,19 +1815,28 @@ class MixtureOfExperts extends LayerBase {
     }
 
     getWeights() {
-        return [this.gatingKernel.read(), this.gatingBias.read()]
+        return [
+            this.gatingHidden.read(),
+            this.gatingHiddenBias.read(),
+            this.gatingKernel.read(),
+            this.gatingBias.read()
+        ]
     }
 
     setWeights(weights) {
-        this.gatingKernel.write(weights[0])
-        this.gatingBias.write(weights[1])
+        this.gatingHidden.write(weights[0])
+        this.gatingHiddenBias.write(weights[1])
+        this.gatingKernel.write(weights[2])
+        this.gatingBias.write(weights[3])
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
-            expertConfigs: this.expertConfigs
+            expertConfigs: this.expertConfigs,
+            hiddenDim: this.hiddenDim,
+            activation: this.activation
         }
     }
 }
