@@ -1740,17 +1740,75 @@ class MixtureOfExperts extends LayerBase {
 
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
-        super({ name: `sparse-moe-${randomString()}`, ...config })
+        super({ name: `moe-${randomString()}`, ...config })
         this.numExperts = config.numExperts
         this.topK = config.topK || 2
+        this.hiddenDim = config.hiddenDim || 128
+        this.activation = config.activation || 'swish'
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[0][inputShape[0].length - 1]
+
+        // Initialize gating network
+        this.gatingHidden = this.addWeight(
+            'gatingHidden',
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gatingHiddenBias = this.addWeight(
+            'gatingHiddenBias',
+            [this.hiddenDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.gatingKernel = this.addWeight(
+            'gatingKernel',
+            [this.hiddenDim, this.numExperts],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gatingBias = this.addWeight(
+            'gatingBias',
+            [this.numExperts],
+            'float32',
+            tf.initializers.zeros()
+        )
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             const expertInputs = inputs.slice(1)
+            inputs = inputs[0]
+
+            // Gating network
+            const gatingHidden = this.applyDense(
+                inputs,
+                this.gatingHidden,
+                this.gatingHiddenBias
+            )
+            const activatedGate = tf.layers
+                .activation({ activation: this.activation })
+                .apply(gatingHidden)
+            const expertWeights = this.applyDense(
+                activatedGate,
+                this.gatingKernel,
+                this.gatingBias
+            ).softmax()
 
             // Randomly select a subset of experts
             const selectedExpertIndices = this.selectRandomExperts(expertInputs)
+
+            // Create a mask tensor based on the selected expert indices
+            const maskShape = [1, 1, this.numExperts]
+            const mask = tf.zeros(maskShape)
+            selectedExpertIndices.forEach((expertIndex) => {
+                mask.bufferSync().set(1, 0, 0, expertIndex)
+            })
+
+            // Apply the mask to the expert weights
+            const maskedExpertWeights = expertWeights.mul(mask)
 
             // Slice and combine selected expert outputs
             const selectedExpertOutputs = []
@@ -1761,7 +1819,11 @@ class SparseMixtureOfExperts extends LayerBase {
             // Combine expert outputs using weighted sum
             const combinedOutput = selectedExpertOutputs.reduce(
                 (prev, curr, i) => {
-                    return prev.add(curr)
+                    const expertWeight = maskedExpertWeights.slice(
+                        [0, 0, selectedExpertIndices[i]],
+                        [inputs.shape[0], inputs.shape[1], 1]
+                    )
+                    return prev.add(curr.mul(expertWeight))
                 },
                 tf.zeros(expertInputs[0].shape)
             )
@@ -1784,10 +1846,167 @@ class SparseMixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
+            hiddenDim: this.hiddenDim,
+            activation: this.activation,
             topK: this.topK
         }
     }
 }
+
+// class SparseMixtureOfExperts extends LayerBase {
+//     constructor(config) {
+//         super({ name: `moe-${randomString()}`, ...config })
+//         this.numExperts = config.numExperts
+//         this.topK = config.topK || 2
+//         this.hiddenDim = config.hiddenDim || 128
+//         this.activation = config.activation || 'swish'
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[0][inputShape[0].length - 1]
+
+//         // Initialize gating network
+//         this.gatingHidden = this.addWeight(
+//             'gatingHidden',
+//             [inputDim, this.hiddenDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.gatingHiddenBias = this.addWeight(
+//             'gatingHiddenBias',
+//             [this.hiddenDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.gatingKernel = this.addWeight(
+//             'gatingKernel',
+//             [this.hiddenDim, this.numExperts],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.gatingBias = this.addWeight(
+//             'gatingBias',
+//             [this.numExperts],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             const expertInputs = inputs.slice(1)
+//             inputs = inputs[0]
+
+//             // Gating network
+//             const gatingHidden = this.applyDense(
+//                 inputs,
+//                 this.gatingHidden,
+//                 this.gatingHiddenBias
+//             )
+//             const activatedGate = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(gatingHidden)
+//             const expertWeights = this.applyDense(
+//                 activatedGate,
+//                 this.gatingKernel,
+//                 this.gatingBias
+//             ).softmax()
+
+//             // Randomly select a subset of experts
+//             const selectedExpertIndices = this.selectRandomExperts(expertInputs)
+
+//             // Slice and combine selected expert outputs
+//             const selectedExpertOutputs = []
+//             selectedExpertIndices.map((expertIndex) => {
+//                 selectedExpertOutputs.push(expertInputs[expertIndex])
+//             })
+
+//             // Combine expert outputs using weighted sum
+//             const combinedOutput = expertInputs.reduce((prev, curr, i) => {
+//                 const index = selectedExpertIndices[i]
+//                 const expertWeight = expertWeights.slice(
+//                     [0, 0, index],
+//                     [inputs.shape[0], inputs.shape[1], 1]
+//                 )
+//                 return prev.add(curr.mul(expertWeight))
+//             }, tf.zeros(expertInputs[0].shape))
+
+//             console.log(combinedOutput)
+//             return combinedOutput
+//         })
+//     }
+
+//     selectRandomExperts(expertInputs) {
+//         const numExperts = expertInputs.length
+//         const expertIndices = tf.util.createShuffledIndices(numExperts)
+//         return expertIndices.slice(0, this.topK)
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape[0]
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             numExperts: this.numExperts,
+//             hiddenDim: this.hiddenDim,
+//             activation: this.activation,
+//             topK: this.topK
+//         }
+//     }
+// }
+
+// class SparseMixtureOfExperts extends LayerBase {
+//     constructor(config) {
+//         super({ name: `moe-${randomString()}`, ...config })
+//         this.numExperts = config.numExperts
+//         this.topK = config.topK || 2
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             const expertInputs = inputs.slice(1)
+
+//             // Randomly select a subset of experts
+//             const selectedExpertIndices = this.selectRandomExperts(expertInputs)
+
+//             // Slice and combine selected expert outputs
+//             const selectedExpertOutputs = []
+//             selectedExpertIndices.map((expertIndex) => {
+//                 selectedExpertOutputs.push(expertInputs[expertIndex])
+//             })
+
+//             // Combine expert outputs using a simple sum
+//             const combinedOutput = selectedExpertOutputs.reduce(
+//                 (prev, curr, i) => {
+//                     return prev.add(curr)
+//                 },
+//                 tf.zeros(expertInputs[0].shape)
+//             )
+
+//             return combinedOutput
+//         })
+//     }
+
+//     selectRandomExperts(expertInputs) {
+//         const numExperts = expertInputs.length
+//         const expertIndices = tf.util.createShuffledIndices(numExperts)
+//         return expertIndices.slice(0, this.topK)
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape[0]
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             numExperts: this.numExperts,
+//             topK: this.topK
+//         }
+//     }
+// }
 
 // class SparseMixtureOfExperts extends LayerBase {
 //     constructor(config) {
