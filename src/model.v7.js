@@ -8,8 +8,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = 3
-        this.units = 512
+        this.units = 256
         this.experts = 3
+        this.moeDim = 128
     }
 
     defineTokenizer() {
@@ -39,13 +40,15 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             const experts = this.createAttentionExperts()
+            const expertOutputs = experts.map((expert) => expert.apply(outputs))
+
             outputs = this.ode.layers
                 .MixtureOfExperts({
-                    experts,
-                    hiddenDim: 256,
+                    numExperts: experts.length,
+                    hiddenDim: this.moeDim,
                     activation: 'swish'
                 })
-                .apply(outputs)
+                .apply([outputs, ...expertOutputs])
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({

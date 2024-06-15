@@ -198,6 +198,7 @@ class SelfAttention extends LayerBase {
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
+
         this.queryKernel = this.addWeight(
             'queryKernel',
             [inputDim, this.projection],
@@ -245,11 +246,6 @@ class SelfAttention extends LayerBase {
 
             return this.residual.apply([inputs, outputs])
         })
-    }
-
-    applyDense(x, kernel) {
-        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        return tf.matMul(x, k)
     }
 
     getWeights() {
@@ -1627,6 +1623,107 @@ class GatedLinearMLP extends MultiLayerPerceptron {
     }
 }
 
+class MixtureOfExperts extends LayerBase {
+    constructor(config) {
+        super({ name: `moe-${randomString()}`, ...config })
+        this.numExperts = config.numExperts
+        this.hiddenDim = config.hiddenDim || 128
+        this.activation = config.activation || 'swish'
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[0][inputShape[0].length - 1]
+
+        // Initialize gating network
+        this.gatingHidden = this.addWeight(
+            'gatingHidden',
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gatingHiddenBias = this.addWeight(
+            'gatingHiddenBias',
+            [this.hiddenDim],
+            'float32',
+            tf.initializers.zeros()
+        )
+        this.gatingKernel = this.addWeight(
+            'gatingKernel',
+            [this.hiddenDim, this.numExperts],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+        this.gatingBias = this.addWeight(
+            'gatingBias',
+            [this.numExperts],
+            'float32',
+            tf.initializers.zeros()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const expertInputs = inputs.slice(1)
+            inputs = inputs[0]
+
+            // Gating network
+            const gatingHidden = this.applyDense(
+                inputs,
+                this.gatingHidden,
+                this.gatingHiddenBias
+            )
+            const activatedGate = tf.layers
+                .activation({ activation: this.activation })
+                .apply(gatingHidden)
+            const expertWeights = this.applyDense(
+                activatedGate,
+                this.gatingKernel,
+                this.gatingBias
+            ).softmax()
+
+            // Combine expert outputs using weighted sum
+            const combinedOutput = expertInputs.reduce((sum, output, i) => {
+                const expertWeight = expertWeights.slice(
+                    [0, 0, i],
+                    [inputs.shape[0], inputs.shape[1], 1]
+                )
+                return sum.add(output.mul(expertWeight))
+            }, tf.zeros(expertInputs[0].shape))
+
+            return combinedOutput
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape[0]
+    }
+
+    getWeights() {
+        return [
+            this.gatingHidden.read(),
+            this.gatingHiddenBias.read(),
+            this.gatingKernel.read(),
+            this.gatingBias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.gatingHidden.write(weights[0])
+        this.gatingHiddenBias.write(weights[1])
+        this.gatingKernel.write(weights[2])
+        this.gatingBias.write(weights[3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            hiddenDim: this.hiddenDim,
+            activation: this.activation
+        }
+    }
+}
+
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
@@ -1710,126 +1807,6 @@ class SparseMixtureOfExperts extends LayerBase {
             numExperts: this.numExperts,
             topK: this.topK,
             temperature: this.temperature
-        }
-    }
-}
-
-class MixtureOfExperts extends LayerBase {
-    constructor(config) {
-        super({ name: `moe-${randomString()}`, ...config })
-        this.experts = config?.experts
-        this.numExperts = config?.experts?.length || config.numExperts
-        this.expertConfigs =
-            config?.expertConfigs ||
-            this.experts.map((expert) => expert.getConfig())
-        this.hiddenDim = config.hiddenDim || 128
-        this.activation = config.activation || 'swish'
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-
-        // Initialize gating network
-        this.gatingHidden = this.addWeight(
-            'gatingHidden',
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.gatingHiddenBias = this.addWeight(
-            'gatingHiddenBias',
-            [this.hiddenDim],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.gatingKernel = this.addWeight(
-            'gatingKernel',
-            [this.hiddenDim, this.numExperts],
-            'float32',
-            tf.initializers.glorotNormal()
-        )
-        this.gatingBias = this.addWeight(
-            'gatingBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros()
-        )
-
-        // Create expert layers dynamically
-        if (!this.experts) {
-            this.experts = []
-            for (const expert of this.expertConfigs) {
-                this.experts.push(customLayers[expert.className](expert))
-            }
-        }
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Gating network
-            const gatingHidden = this.applyDense(
-                inputs,
-                this.gatingHidden,
-                this.gatingHiddenBias
-            )
-            const activatedGate = tf.layers
-                .activation({ activation: this.activation })
-                .apply(gatingHidden)
-            const expertWeights = this.applyDense(
-                activatedGate,
-                this.gatingKernel,
-                this.gatingBias
-            ).softmax()
-
-            // Expert networks
-            const expertOutputs = []
-            for (let i = 0; i < this.numExperts; i++) {
-                const expertOutput = this.experts[i].apply(inputs)
-                expertOutputs.push(expertOutput)
-            }
-
-            // Combine expert outputs using weighted sum
-            const combinedOutput = expertOutputs.reduce((sum, output, i) => {
-                const expertWeight = expertWeights.slice(
-                    [0, 0, i],
-                    [inputs.shape[0], inputs.shape[1], 1]
-                )
-                return sum.add(output.mul(expertWeight))
-            }, tf.zeros(expertOutputs[0].shape))
-
-            return combinedOutput
-        })
-    }
-
-    getWeights() {
-        return [
-            this.gatingHidden.read(),
-            this.gatingHiddenBias.read(),
-            this.gatingKernel.read(),
-            this.gatingBias.read()
-            // this.experts.map((expert) => expert.read())
-        ]
-    }
-
-    setWeights(weights) {
-        this.gatingHidden.write(weights[0])
-        this.gatingHiddenBias.write(weights[1])
-        this.gatingKernel.write(weights[2])
-        this.gatingBias.write(weights[3])
-        // for (let i = 4; i < this.numExperts; i++) {
-        //     this.experts[i].write(weights[i])
-        // }
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            expertConfigs: this.expertConfigs,
-            hiddenDim: this.hiddenDim,
-            activation: this.activation
         }
     }
 }
