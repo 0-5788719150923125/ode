@@ -120,12 +120,19 @@ export default class ModelBase {
     }
 
     defineOptimizers() {
-        this.optimizers = [this.tf.train.rmsprop(1e-2, 0.9, 0.01, 1e-8, false)]
+        this.learningRate = 1e-3
+        this.optimizers = [
+            this.ode.optimizers.AdamW({
+                learningRate: this.learningRate,
+                weightDecay: 1e-2
+            })
+        ]
     }
 
     defineSchedulers() {
-        const learningRate = 0.00333
-        this.schedulers = [this.ode.schedulers.constantScheduler(learningRate)]
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
     }
 
     compile() {

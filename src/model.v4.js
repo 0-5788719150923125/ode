@@ -1,4 +1,4 @@
-import ODE from './model.v3.js'
+import ODE from './model.v1.js'
 
 /**
  * A small transformer with synthesizer attention, GLU-based feedforward
@@ -35,7 +35,7 @@ export default class OpportunisticDialogueEngine extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.ode.layers.RotaryPositionalEncoding().apply(outputs)
+        outputs = this.ode.layers.SinusoidalPositionalEncoding().apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -65,12 +65,5 @@ export default class OpportunisticDialogueEngine extends ODE {
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
-    }
-
-    defineSchedulers() {
-        this.learningRate = 0.001
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
     }
 }

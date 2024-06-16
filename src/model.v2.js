@@ -1,77 +1,98 @@
-import ODE from './model.v0.js'
+import ODE from './model.v1.js'
 
 /**
- * A GRU-based RNN that uses a time-distributed, dense output
- * layer. This is quite different from common RNNs, in that it functions more
- * like a sequence-to-sequence model. Rather than training on a single label,
- * this model trains on vectors of them, shifted by one to the right.
+ * A GPT-2 clone with causal attention and learned position embeddings.
  * @extends ODE
  */
-export default class OmnipresentDiabolicalErudite extends ODE {
+export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.labels = 'multiLabel'
-        this.autoregressive = false
+        this.autoregressive = true
+        this.layers = config.layers || 4
+        this.heads = config.heads || 8
+        this.units = config.units || 128
+        this.dropout = config.dropout || 0.1
+        this.epsilon = config.epsilon || 1e-5
+    }
+
+    defineTokenizer(config) {
+        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+            model: config?.model || 'openai-community/gpt2'
+        })
     }
 
     defineBuild() {
         const inputs = this.tf.input({ shape: [null] })
-        let outputs = this.tf.layers
+
+        const tokenEmbeddings = this.tf.layers
             .embedding({
+                name: 'wte',
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
+        const range = this.ode.layers.Range().apply(inputs)
+
+        const positionalEmbeddings = this.tf.layers
+            .embedding({
+                name: 'wpe',
+                inputDim: this.contextLength,
+                outputDim: this.units,
+                embeddingsInitializer: 'glorotUniform'
+            })
+            .apply(range)
+
+        let outputs = this.tf.layers
+            .add()
+            .apply([tokenEmbeddings, positionalEmbeddings])
+
+        outputs = this.tf.layers
+            .dropout({
+                name: 'dropout',
+                rate: this.dropout
+            })
+            .apply(outputs)
+
+        outputs = this.tf.layers
+            .layerNormalization({
+                name: 'emb/ln',
+                epsilon: this.epsilon
+            })
+            .apply(outputs)
+
         for (let i = 0; i < this.layers; i++) {
-            outputs = this.tf.layers
-                .gru({
+            outputs = this.ode.layers
+                .CausalSelfAttention({
+                    blockSize: this.contextLength,
                     units: this.units,
-                    activation: 'softsign',
-                    kernelInitializer: 'glorotUniform',
-                    recurrentActivation: 'sigmoid',
-                    recurrentInitializer: 'orthogonal',
-                    returnSequences: true
+                    heads: this.heads,
+                    dropout: this.dropout,
+                    epsilon: this.epsilon,
+                    bias: false
+                })
+                .apply(outputs)
+
+            outputs = this.ode.layers
+                .MultiLayerPerceptron({
+                    units: this.units,
+                    innerDim: this.innerDim,
+                    heads: this.heads,
+                    dropout: this.dropout,
+                    epsilon: this.epsilon,
+                    activation: 'gelu'
                 })
                 .apply(outputs)
         }
 
         outputs = this.tf.layers
-            .timeDistributed({
-                layer: this.tf.layers.dense({
-                    units: this.tokenizer.getLength(),
-                    activation: 'linear'
-                })
+            .dense({
+                name: 'head',
+                units: this.tokenizer.getLength()
             })
             .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
-    }
-
-    defineOptimizers() {
-        this.optimizers = [
-            this.ode.optimizers.AdamW({
-                learningRate: this.config.learningRate || 1e-3,
-                weightDecay: this.config.weightDecay || 1e-2
-            })
-        ]
-    }
-
-    defineSchedulers() {
-        this.learningRate = 0.000333
-        const peakLr = 0.00333
-        const iterations = 333
-        const modulation = 0.666
-        this.schedulers = [
-            this.ode.schedulers.cosineScheduler(
-                this.learningRate,
-                peakLr,
-                iterations,
-                modulation
-            )
-        ]
     }
 }

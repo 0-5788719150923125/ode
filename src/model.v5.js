@@ -1,22 +1,25 @@
-import ODE from './model.v4.js'
+import ODE from './model.v1.js'
 
 /**
- * A state space model.
+ * A sparse mixture of experts.
  * @extends ODE
  */
-export default class OrthogonalDepthwiseEntanglement extends ODE {
+export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.innerDim = config.innerDim || 1024
-        this.decayFactor = config.decayFactor || 1.0
-        this.activation = config.activation || 'softsign'
-        this.beta = config.beta || 1.0
+        this.layers = 3
+        this.units = 256
+        this.experts = 7
+        this.topK = 2
+        this.moeDim = 128
+        this.headDim = 512
+        this.mlpDim = 1024
     }
 
-    defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer(config)
+    defineTokenizer() {
+        super.defineTokenizer({
+            model: 'OriginalDesign/twos'
+        })
     }
 
     defineBuild() {
@@ -30,17 +33,27 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
             embeddingsInitializer: 'glorotUniform'
         })
 
-        let outputs = embeddings.apply(inputs)
+        const encoding = this.ode.layers.RotaryPositionalEncoding()
+
+        let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
+            const experts = this.createAttentionExperts()
+            const expertOutputs = experts.map((expert) => expert.apply(outputs))
+
             outputs = this.ode.layers
-                .StateSpace({
-                    units: this.units,
-                    innerDim: this.innerDim,
-                    returnSequences: true,
-                    decayFactor: this.decayFactor,
-                    activation: this.activation,
-                    beta: this.beta
+                .SparseMixtureOfExperts({
+                    topK: this.topK,
+                    numExperts: experts.length,
+                    hiddenDim: this.moeDim,
+                    activation: 'swish'
+                })
+                .apply([outputs, ...expertOutputs])
+
+            outputs = this.ode.layers
+                .MultiLayerPerceptron({
+                    innerDim: this.mlpDim,
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }
@@ -48,5 +61,17 @@ export default class OrthogonalDepthwiseEntanglement extends ODE {
         outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    createAttentionExperts() {
+        const experts = []
+        for (let i = 0; i < this.experts; i++) {
+            experts.push(
+                this.ode.layers.SelfAttention({
+                    projection: this.headDim
+                })
+            )
+        }
+        return experts
     }
 }
