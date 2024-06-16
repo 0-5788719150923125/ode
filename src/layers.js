@@ -1738,6 +1738,121 @@ class MixtureOfExperts extends LayerBase {
     }
 }
 
+// class SparseMixtureOfExperts extends LayerBase {
+//     constructor(config) {
+//         super({ name: `moe-${randomString()}`, ...config })
+//         this.numExperts = config.numExperts
+//         this.hiddenDim = config.hiddenDim || 128
+//         this.activation = config.activation || 'swish'
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[0][inputShape[0].length - 1]
+
+//         // Initialize gating network
+//         this.gatingHidden = this.addWeight(
+//             'gatingHidden',
+//             [inputDim, this.hiddenDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.gatingHiddenBias = this.addWeight(
+//             'gatingHiddenBias',
+//             [this.hiddenDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.gatingKernel = this.addWeight(
+//             'gatingKernel',
+//             [this.hiddenDim, this.numExperts],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.gatingBias = this.addWeight(
+//             'gatingBias',
+//             [this.numExperts],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             const expertInputs = inputs.slice(1)
+//             inputs = inputs[0]
+
+//             // Gating network
+//             const gatingHidden = this.applyDense(
+//                 inputs,
+//                 this.gatingHidden,
+//                 this.gatingHiddenBias
+//             )
+//             const activatedGate = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(gatingHidden)
+//             const expertWeights = this.applyDense(
+//                 activatedGate,
+//                 this.gatingKernel,
+//                 this.gatingBias
+//             ).softmax()
+
+//             // Select 1 random expert for each time step
+//             const selectedExpertIndices = this.selectRandomExpertsPerTimeStep(
+//                 inputs.shape[1],
+//                 expertInputs.length
+//             )
+
+//             // Slice and combine selected expert outputs
+//             const selectedExpertOutputs = []
+//             const selectedExpertWeights = []
+//             for (let i = 0; i < inputs.shape[1]; i++) {
+//                 const expertIndex = selectedExpertIndices[i]
+//                 const expertOutput = expertInputs[expertIndex].slice(
+//                     [0, i, 0],
+//                     [inputs.shape[0], 1, expertInputs[0].shape[2]]
+//                 )
+//                 const expertWeight = expertWeights.slice(
+//                     [0, i, expertIndex],
+//                     [inputs.shape[0], 1, 1]
+//                 )
+//                 selectedExpertOutputs.push(expertOutput)
+//                 selectedExpertWeights.push(expertWeight)
+//             }
+
+//             // Concatenate the selected expert outputs and weights along the time dimension
+//             const combinedOutput = tf.concat(selectedExpertOutputs, 1)
+//             const combinedWeights = tf.concat(selectedExpertWeights, 1)
+
+//             // Multiply the combined output with the combined weights
+//             const weightedOutput = combinedOutput.mul(combinedWeights)
+
+//             return weightedOutput
+//         })
+//     }
+
+//     selectRandomExpertsPerTimeStep(timeSteps, numExperts) {
+//         const selectedExperts = []
+//         for (let i = 0; i < timeSteps; i++) {
+//             const randomExpertIndex = Math.floor(Math.random() * numExperts)
+//             selectedExperts.push(randomExpertIndex)
+//         }
+//         return selectedExperts
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape[0]
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             numExperts: this.numExperts,
+//             hiddenDim: this.hiddenDim,
+//             activation: this.activation
+//         }
+//     }
+// }
+
 class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
@@ -1905,117 +2020,9 @@ class SparseMixtureOfExperts extends LayerBase {
 //             const expertInputs = inputs.slice(1)
 //             inputs = inputs[0]
 
-//             // Gating network
-//             const gatingHidden = this.applyDense(
-//                 inputs,
-//                 this.gatingHidden,
-//                 this.gatingHiddenBias
-//             )
-//             const activatedGate = tf.layers
-//                 .activation({ activation: this.activation })
-//                 .apply(gatingHidden)
-//             const expertWeights = this.applyDense(
-//                 activatedGate,
-//                 this.gatingKernel,
-//                 this.gatingBias
-//             ).softmax()
-
-//             // Randomly select a subset of experts
-//             const selectedExpertIndices = this.selectRandomExperts(expertInputs)
-
-//             // Create a mask tensor based on the selected expert indices
-//             const maskShape = [1, 1, this.numExperts]
-//             const mask = tf.zeros(maskShape)
-//             selectedExpertIndices.forEach((expertIndex) => {
-//                 mask.bufferSync().set(1, 0, 0, expertIndex)
-//             })
-
-//             // Apply the mask to the expert weights
-//             const maskedExpertWeights = expertWeights.mul(mask)
-
-//             // Slice and combine selected expert outputs
-//             const selectedExpertOutputs = []
-//             selectedExpertIndices.map((expertIndex) => {
-//                 selectedExpertOutputs.push(expertInputs[expertIndex])
-//             })
-
-// // Combine expert outputs using weighted sum
-// const combinedOutput = selectedExpertOutputs.reduce((prev, curr, i) => {
-//     const expertWeight = maskedExpertWeights.slice(
-//         [0, 0, selectedExpertIndices[i]],
-//         [inputs.shape[0], inputs.shape[1], 1]
-//     )
-//     return prev.add(curr.mul(expertWeight))
-// }, tf.zeros(expertInputs[0].shape))
-
-//             return combinedOutput
-//         })
-//     }
-
-//     selectRandomExperts(expertInputs) {
-//         const numExperts = expertInputs.length
-//         const expertIndices = tf.util.createShuffledIndices(numExperts)
-//         return expertIndices.slice(0, this.topK)
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape[0]
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             numExperts: this.numExperts,
-//             hiddenDim: this.hiddenDim,
-//             activation: this.activation,
-//             topK: this.topK
-//         }
-//     }
-// }
-
-// class SparseMixtureOfExperts extends LayerBase {
-//     constructor(config) {
-//         super({ name: `moe-${randomString()}`, ...config })
-//         this.numExperts = config.numExperts
-//         this.topK = config.topK || 2
-//         this.hiddenDim = config.hiddenDim || 128
-//         this.activation = config.activation || 'swish'
-//     }
-
-//     build(inputShape) {
-//         const inputDim = inputShape[0][inputShape[0].length - 1]
-
-//         // Initialize gating network
-//         this.gatingHidden = this.addWeight(
-//             'gatingHidden',
-//             [inputDim, this.hiddenDim],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.gatingHiddenBias = this.addWeight(
-//             'gatingHiddenBias',
-//             [this.hiddenDim],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//         this.gatingKernel = this.addWeight(
-//             'gatingKernel',
-//             [this.hiddenDim, this.numExperts],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.gatingBias = this.addWeight(
-//             'gatingBias',
-//             [this.numExperts],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             const expertInputs = inputs.slice(1)
-//             inputs = inputs[0]
+//             const timeSteps = inputs.shape[1]
+//             const batchSize = inputs.shape[0]
+//             const outputDim = expertInputs[0].shape[2]
 
 //             // Gating network
 //             const gatingHidden = this.applyDense(
@@ -2035,317 +2042,90 @@ class SparseMixtureOfExperts extends LayerBase {
 //             // Randomly select a subset of experts
 //             const selectedExpertIndices = this.selectRandomExperts(expertInputs)
 
-//             // Slice and combine selected expert outputs
-//             const selectedExpertOutputs = []
-//             selectedExpertIndices.map((expertIndex) => {
-//                 selectedExpertOutputs.push(expertInputs[expertIndex])
-//             })
+//             // Create separate arrays for each expert
+//             const expertOutputArrays = Array.from(
+//                 { length: this.topK },
+//                 () => []
+//             )
+//             const expertWeightArrays = Array.from(
+//                 { length: this.topK },
+//                 () => []
+//             )
 
-//             // Combine expert outputs using weighted sum
-//             const combinedOutput = expertInputs.reduce((prev, curr, i) => {
-//                 const index = selectedExpertIndices[i]
-//                 const expertWeight = expertWeights.slice(
-//                     [0, 0, index],
-//                     [inputs.shape[0], inputs.shape[1], 1]
+//             for (let t = 0; t < timeSteps; t++) {
+//                 // Slice the expert weights based on the selected expert indices
+//                 const slicedExpertWeights = this.sliceExpertWeights(
+//                     expertWeights.slice(
+//                         [0, t, 0],
+//                         [batchSize, 1, this.numExperts]
+//                     ),
+//                     selectedExpertIndices
 //                 )
-//                 return prev.add(curr.mul(expertWeight))
-//             }, tf.zeros(expertInputs[0].shape))
 
-//             console.log(combinedOutput)
-//             return combinedOutput
-//         })
-//     }
-
-//     selectRandomExperts(expertInputs) {
-//         const numExperts = expertInputs.length
-//         const expertIndices = tf.util.createShuffledIndices(numExperts)
-//         return expertIndices.slice(0, this.topK)
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape[0]
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             numExperts: this.numExperts,
-//             hiddenDim: this.hiddenDim,
-//             activation: this.activation,
-//             topK: this.topK
-//         }
-//     }
-// }
-
-// class SparseMixtureOfExperts extends LayerBase {
-//     constructor(config) {
-//         super({ name: `moe-${randomString()}`, ...config })
-//         this.numExperts = config.numExperts
-//         this.topK = config.topK || 2
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             const expertInputs = inputs.slice(1)
-
-//             // Randomly select a subset of experts
-//             const selectedExpertIndices = this.selectRandomExperts(expertInputs)
-
-//             // Slice and combine selected expert outputs
-//             const selectedExpertOutputs = []
-//             selectedExpertIndices.map((expertIndex) => {
-//                 selectedExpertOutputs.push(expertInputs[expertIndex])
-//             })
-
-//             // Combine expert outputs using a simple sum
-//             const combinedOutput = selectedExpertOutputs.reduce(
-//                 (prev, curr, i) => {
-//                     return prev.add(curr)
-//                 },
-//                 tf.zeros(expertInputs[0].shape)
-//             )
-
-//             return combinedOutput
-//         })
-//     }
-
-//     selectRandomExperts(expertInputs) {
-//         const numExperts = expertInputs.length
-//         const expertIndices = tf.util.createShuffledIndices(numExperts)
-//         return expertIndices.slice(0, this.topK)
-//     }
-
-//     computeOutputShape(inputShape) {
-//         return inputShape[0]
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             numExperts: this.numExperts,
-//             topK: this.topK
-//         }
-//     }
-// }
-
-// class SparseMixtureOfExperts extends LayerBase {
-//     constructor(config) {
-//         super({ name: `moe-${randomString()}`, ...config })
-//         this.numExperts = config.numExperts
-//         this.topK = config.topK
-//         this.hiddenDim = config.hiddenDim || 128
-//         this.activation = config.activation || 'swish'
-//     }
-
-//     build(inputShape) {
-//         const inputDim = inputShape[0][inputShape[0].length - 1]
-
-//         // Initialize gating network
-//         this.gatingHidden = this.addWeight(
-//             'gatingHidden',
-//             [inputDim, this.hiddenDim],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.gatingHiddenBias = this.addWeight(
-//             'gatingHiddenBias',
-//             [this.hiddenDim],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//         this.gatingKernel = this.addWeight(
-//             'gatingKernel',
-//             [this.hiddenDim, this.numExperts],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.gatingBias = this.addWeight(
-//             'gatingBias',
-//             [this.numExperts],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             const expertInputs = inputs.slice(1)
-//             inputs = inputs[0]
-
-//             // Gating network
-//             const gatingHidden = this.applyDense(
-//                 inputs,
-//                 this.gatingHidden,
-//                 this.gatingHiddenBias
-//             )
-//             const activatedGate = tf.layers
-//                 .activation({ activation: this.activation })
-//                 .apply(gatingHidden)
-//             const expertWeights = this.applyDense(
-//                 activatedGate,
-//                 this.gatingKernel,
-//                 this.gatingBias
-//             ).softmax()
-
-//             // Select top-k experts
-//             const topKIndices = tf.topk(expertWeights, this.topK).indices
-
-//             console.log('expertWeights shape:', expertWeights.shape)
-//             console.log('topKIndices shape:', topKIndices.shape)
-//             console.log('expertInputs shape:', expertInputs[0].shape)
-
-//             // Combine expert outputs using weighted sum
-//             const combinedOutput = tf.tidy(() => {
-//                 const selectedExpertOutputs = []
-//                 for (let i = 0; i < inputs.shape[1]; i++) {
-//                     const expertIndices = topKIndices
-//                         .slice([0, i, 0], [-1, 1, this.topK])
-//                         .squeeze([1])
-//                     console.log('expertIndices shape:', expertIndices.shape)
-//                     const selectedExperts = expertIndices
-//                         .unstack()
-//                         .map((indices) => {
-//                             const expertOutputs = expertInputs.map(
-//                                 (expertInput) =>
-//                                     expertInput.gather(indices).squeeze()
-//                             )
-//                             return expertOutputs
-//                         })
-//                     const weightedOutputs = selectedExperts.map(
-//                         (outputs, j) => {
-//                             const weights = expertWeights
-//                                 .slice([0, i, 0], [-1, 1, this.topK])
-//                                 .squeeze([1])
-//                                 .unstack()[j]
-//                             console.log('weights shape:', weights.shape)
-//                             console.log('outputs shape:', outputs[0].shape)
-//                             return outputs.map((output) => output.mul(weights))
-//                         }
+//                 // Slice the selected expert outputs and push them to separate arrays
+//                 for (let i = 0; i < this.topK; i++) {
+//                     const expertIndex = selectedExpertIndices[i]
+//                     const expertOutput = expertInputs[expertIndex].slice(
+//                         [0, t, 0],
+//                         [batchSize, 1, outputDim]
 //                     )
-//                     const combinedTimeStepOutput = weightedOutputs
-//                         .flat()
-//                         .reduce((acc, output) => acc.add(output))
-//                     selectedExpertOutputs.push(combinedTimeStepOutput)
+//                     expertOutputArrays[i].push(expertOutput)
+//                     expertWeightArrays[i].push(
+//                         slicedExpertWeights.slice([0, 0, i], [batchSize, 1, 1])
+//                     )
 //                 }
-//                 return tf.stack(selectedExpertOutputs, 1)
-//             })
-
-//             return combinedOutput
-//         })
-//     }
-//     computeOutputShape(inputShape) {
-//         return inputShape[0]
-//     }
-
-//     getWeights() {
-//         return [
-//             this.gatingHidden.read(),
-//             this.gatingHiddenBias.read(),
-//             this.gatingKernel.read(),
-//             this.gatingBias.read()
-//         ]
-//     }
-
-//     setWeights(weights) {
-//         this.gatingHidden.write(weights[0])
-//         this.gatingHiddenBias.write(weights[1])
-//         this.gatingKernel.write(weights[2])
-//         this.gatingBias.write(weights[3])
-//     }
-
-//     getConfig() {
-//         return {
-//             ...super.getConfig(),
-//             numExperts: this.numExperts,
-//             hiddenDim: this.hiddenDim,
-//             activation: this.activation
-//         }
-//     }
-// }
-
-// class SparseMixtureOfExperts extends LayerBase {
-//     constructor(config) {
-//         super({ name: `moe-${randomString()}`, ...config })
-//         this.experts = config.experts
-//         this.numExperts = this.experts.length
-//         this.topK = config.topK || 2
-//         this.temperature = config?.temperature || 1.0
-//     }
-
-//     build(inputShape) {
-//         this.inputDim = inputShape[inputShape.length - 1]
-//         this.outputDim = this.inputDim // Assuming output dimension is the same as input dimension
-
-//         // Initialize gating network
-//         this.gatingKernel = this.addWeight(
-//             'gatingKernel',
-//             [this.inputDim, this.numExperts],
-//             'float32',
-//             tf.initializers.glorotNormal()
-//         )
-//         this.gatingBias = this.addWeight(
-//             'gatingBias',
-//             [this.numExperts],
-//             'float32',
-//             tf.initializers.zeros()
-//         )
-//     }
-
-//     call(inputs, kwargs) {
-//         return tf.tidy(() => {
-//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-//             // Gating network
-//             const expertLogits = this.applyDense(
-//                 inputs,
-//                 this.gatingKernel,
-//                 this.gatingBias
-//             )
-
-//             // Apply Gumbel-Softmax trick to make expert-selection differentiable
-//             const expertAssignments = customOps.gumbelSoftmax(
-//                 expertLogits,
-//                 this.temperature
-//             )
-
-//             // Select the top-k experts based on their assignment probabilities
-//             const topKIndices = tf.topk(expertAssignments, this.topK).indices
-
-//             // Compute outputs for the selected top-k experts
-//             const selectedExpertOutputs = []
-//             for (let i = 0; i < this.topK; i++) {
-//                 const expertIndex = topKIndices.slice([0, i], [-1, 1]).flatten()
-//                 const expertOutputs =
-//                     this.experts[expertIndex.dataSync()[0]].apply(inputs)
-//                 selectedExpertOutputs.push(expertOutputs)
 //             }
 
-//             // Multiply the selected expert outputs together
-//             const outputTensor = selectedExpertOutputs.reduce(
-//                 (accumulator, currentOutput) => {
-//                     return accumulator.mul(currentOutput)
-//                 }
+//             // Concatenate the expert outputs and weights along the time dimension
+//             const concatenatedExpertOutputs = expertOutputArrays.map(
+//                 (outputs) => tf.concat(outputs, 1)
+//             )
+//             const concatenatedExpertWeights = expertWeightArrays.map(
+//                 (weights) => tf.concat(weights, 1)
 //             )
 
-//             return outputTensor
+//             // Compute the weighted sum of expert outputs
+//             const weightedExpertOutputs = concatenatedExpertOutputs.map(
+//                 (outputs, i) => outputs.mul(concatenatedExpertWeights[i])
+//             )
+//             const combinedOutput = weightedExpertOutputs.reduce(
+//                 (prev, curr) => prev.add(curr),
+//                 tf.zeros([batchSize, timeSteps, outputDim])
+//             )
+
+//             return combinedOutput
 //         })
 //     }
 
-//     getWeights() {
-//         return [this.gatingKernel.read(), this.gatingBias.read()]
+//     selectRandomExperts(expertInputs) {
+//         const numExperts = expertInputs.length
+//         const expertIndices = tf.util.createShuffledIndices(numExperts)
+//         return expertIndices.slice(0, this.topK)
 //     }
 
-//     setWeights(weights) {
-//         this.gatingKernel.write(weights[0])
-//         this.gatingBias.write(weights[1])
+//     sliceExpertWeights(expertWeights, selectedExpertIndices) {
+//         const selectedWeights = []
+//         selectedExpertIndices.forEach((expertIndex) => {
+//             const expertSlice = expertWeights.slice(
+//                 [0, 0, expertIndex],
+//                 [expertWeights.shape[0], expertWeights.shape[1], 1]
+//             )
+//             selectedWeights.push(expertSlice)
+//         })
+//         return tf.concat(selectedWeights, -1)
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape[0]
 //     }
 
 //     getConfig() {
 //         return {
 //             ...super.getConfig(),
 //             numExperts: this.numExperts,
-//             topK: this.topK,
-//             temperature: this.temperature
+//             hiddenDim: this.hiddenDim,
+//             activation: this.activation,
+//             topK: this.topK
 //         }
 //     }
 // }

@@ -1,7 +1,7 @@
 import ODE from './model.v3.js'
 
 /**
- * A mixture of experts.
+ * A sparse mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
@@ -9,14 +9,16 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = 3
         this.units = 256
-        this.experts = 5
+        this.experts = 7
         this.topK = 2
         this.moeDim = 128
+        this.headDim = 512
+        this.mlpDim = 1024
     }
 
     defineTokenizer() {
         super.defineTokenizer({
-            model: 'OriginalDesign/word'
+            model: 'OriginalDesign/twos'
         })
     }
 
@@ -39,14 +41,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             const experts = this.createAttentionExperts()
             const expertOutputs = experts.map((expert) => expert.apply(outputs))
 
-            // outputs = this.ode.layers
-            //     .MixtureOfExperts({
-            //         numExperts: experts.length,
-            //         hiddenDim: this.moeDim,
-            //         activation: 'swish'
-            //     })
-            //     .apply([outputs, ...expertOutputs])
-
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
                     topK: this.topK,
@@ -58,7 +52,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    innerDim: this.units * 4,
+                    innerDim: this.mlpDim,
                     activation: 'swish'
                 })
                 .apply(outputs)
@@ -81,7 +75,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         for (let i = 0; i < this.experts; i++) {
             experts.push(
                 this.ode.layers.SelfAttention({
-                    projection: this.units * 4
+                    projection: this.headDim
                 })
             )
         }

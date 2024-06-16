@@ -55,10 +55,7 @@ export default class OmnipresentDiabolicalErudite extends ODE {
         this.optimizers = [
             this.ode.optimizers.AdamW({
                 learningRate: this.config.learningRate || 1e-3,
-                beta1: this.config.beta1 || 0.9,
-                beta2: this.config.beta2 || 0.999,
-                epsilon: this.config.epsilon || 1e-7,
-                weightDecay: this.config.weightDecay || 1e-1
+                weightDecay: this.config.weightDecay || 1e-2
             })
         ]
     }
