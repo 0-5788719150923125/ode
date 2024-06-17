@@ -7,12 +7,12 @@ import ODE from './model.v1.js'
 export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
         super(config)
-        this.autoregressive = true
         this.layers = config.layers || 4
         this.heads = config.heads || 8
         this.units = config.units || 128
         this.dropout = config.dropout || 0.1
         this.epsilon = config.epsilon || 1e-5
+        this.labels = 'multiLabel'
     }
 
     defineTokenizer(config) {

@@ -1653,25 +1653,29 @@ class MixtureOfExperts extends LayerBase {
             'gatingHidden',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingHiddenBias = this.addWeight(
             'gatingHiddenBias',
             [this.hiddenDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingKernel = this.addWeight(
             'gatingKernel',
             [this.hiddenDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingBias = this.addWeight(
             'gatingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
     }
 
@@ -1754,25 +1758,29 @@ class MixtureOfExperts extends LayerBase {
 //             'gatingHidden',
 //             [inputDim, this.hiddenDim],
 //             'float32',
-//             tf.initializers.glorotNormal()
+//             tf.initializers.glorotNormal(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //         this.gatingHiddenBias = this.addWeight(
 //             'gatingHiddenBias',
 //             [this.hiddenDim],
 //             'float32',
-//             tf.initializers.zeros()
+//             tf.initializers.zeros(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //         this.gatingKernel = this.addWeight(
 //             'gatingKernel',
 //             [this.hiddenDim, this.numExperts],
 //             'float32',
-//             tf.initializers.glorotNormal()
+//             tf.initializers.glorotNormal(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //         this.gatingBias = this.addWeight(
 //             'gatingBias',
 //             [this.numExperts],
 //             'float32',
-//             tf.initializers.zeros()
+//             tf.initializers.zeros(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //     }
 
@@ -1870,25 +1878,29 @@ class SparseMixtureOfExperts extends LayerBase {
             'gatingHidden',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingHiddenBias = this.addWeight(
             'gatingHiddenBias',
             [this.hiddenDim],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingKernel = this.addWeight(
             'gatingKernel',
             [this.hiddenDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingBias = this.addWeight(
             'gatingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
     }
 
@@ -1993,25 +2005,29 @@ class SparseMixtureOfExperts extends LayerBase {
 //             'gatingHidden',
 //             [inputDim, this.hiddenDim],
 //             'float32',
-//             tf.initializers.glorotNormal()
+//             tf.initializers.glorotNormal(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //         this.gatingHiddenBias = this.addWeight(
 //             'gatingHiddenBias',
 //             [this.hiddenDim],
 //             'float32',
-//             tf.initializers.zeros()
+//             tf.initializers.zeros(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //         this.gatingKernel = this.addWeight(
 //             'gatingKernel',
 //             [this.hiddenDim, this.numExperts],
 //             'float32',
-//             tf.initializers.glorotNormal()
+//             tf.initializers.glorotNormal(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //         this.gatingBias = this.addWeight(
 //             'gatingBias',
 //             [this.numExperts],
 //             'float32',
-//             tf.initializers.zeros()
+//             tf.initializers.zeros(),
+// tf.regularizers.l2({ l2: 0.01 })
 //         )
 //     }
 

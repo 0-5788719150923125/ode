@@ -1,4 +1,4 @@
-import ODE from './model.v1.js'
+import ODE from './model.v2.js'
 
 /**
  * A small transformer with synthesizer attention, GLU-based feedforward

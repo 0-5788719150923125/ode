@@ -1,4 +1,4 @@
-import ODE from './model.v1.js'
+import ODE from './model.v2.js'
 
 /**
  * A sparse mixture of experts.
@@ -7,13 +7,13 @@ import ODE from './model.v1.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = 3
-        this.units = 256
-        this.experts = 7
-        this.topK = 2
-        this.moeDim = 128
-        this.headDim = 512
-        this.mlpDim = 1024
+        this.layers = config.layers || 3
+        this.units = config.units || 256
+        this.experts = config.experts || 7
+        this.topK = config.topK || 2
+        this.moeDim = config.moeDim || 128
+        this.headDim = config.headDim || 512
+        this.mlpDim = config.mlpDim || 1024
     }
 
     defineTokenizer() {

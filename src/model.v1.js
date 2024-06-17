@@ -5,12 +5,13 @@ import ODE from './model.v0.js'
  * will see versions of this model everywhere, in tutorials on the Internet.
  * @extends ODE
  */
-export default class OmnipotentDegenerateEntity extends ODE {
+export default class OmnipresentDegenerateEntity extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 3
         this.units = config.units || 128
         this.labels = 'oneLabel'
+        this.autoregressive = true
     }
 
     defineBuild() {
