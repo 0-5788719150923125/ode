@@ -34,41 +34,54 @@ function* sequentialStringSampler(sampleLen, overfit = 0, str) {
     }
 }
 
-async function directorySampler(
-    sampleLen,
-    overfit = 0,
-    dir = './',
-    delimiter = '\n\n'
-) {
-    let allText = await directoryReader(dir, delimiter)
-    return stringSampler(sampleLen, overfit, allText)
-}
+// async function directorySampler(
+//     sampleLen,
+//     overfit = 0,
+//     dirs = ['./'],
+//     delimiter = '\n\n'
+// ) {
+//     let allText = await directoryReader(dirs, delimiter)
+//     return stringSampler(sampleLen, overfit, allText)
+// }
 
-async function directoryReader(dir = './', delimiter = '\n\n') {
+async function directorySampler(dirs = './', delimiter = '\n\n') {
     const fs = (await import('fs')).default
     const path = (await import('path')).default
 
     let allText = ''
 
-    const readDirSync = (currentPath) => {
-        fs.readdirSync(currentPath, { withFileTypes: true }).forEach(
-            (entry) => {
-                const entryPath = path.join(currentPath, entry.name)
-                if (entry.isDirectory()) {
-                    readDirSync(entryPath)
-                } else {
-                    allText += `${fs.readFileSync(
-                        entryPath,
-                        'utf8'
-                    )}${delimiter}`
+    const readDirSync = (dir) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        for (const entry of entries) {
+            const entryPath = path.join(dir, entry.name)
+            if (entry.isDirectory()) {
+                readDirSync(entryPath)
+            } else {
+                try {
+                    const fileContent = fs.readFileSync(entryPath, 'utf8')
+                    if (fileContent.trim() !== '') {
+                        allText += `${fileContent}${delimiter}`
+                    }
+                } catch (error) {
+                    if (error.code === 'ENOENT') {
+                        // console.warn(`File not found: ${entryPath}`)
+                    } else if (error.message.includes('Invalid UTF-8 data')) {
+                        // console.warn(
+                        //     `Skipping file with invalid UTF-8 encoding: ${entryPath}`
+                        // )
+                    } else {
+                        // console.warn(`Error reading file: ${entryPath}`, error)
+                    }
                 }
             }
-        )
+        }
     }
 
-    readDirSync(dir)
+    const directories = dirs.split(',')
 
-    // console.log(Array.from(new Set(allText)).sort().join(''))
+    for (const directory of directories) {
+        readDirSync(directory)
+    }
 
     return allText
 }
@@ -98,66 +111,12 @@ async function fetchURLSampler(
     return text
 }
 
-class GunSampler {
-    constructor(config) {
-        this.gun
-        this.config = config
-    }
-
-    async init() {
-        const Gun = (await import('gun')).default
-        this.gun = new Gun({
-            peers: ['wss://59.src.eco/gun', 'wss://95.src.eco/gun'],
-            localStorage: true,
-            radisk: false,
-            axe: false,
-            file: './data/gun'
-        })
-    }
-
-    async uploadDirectory(key = 'phi', dir = './src') {
-        await this.putDataset(key, await directoryReader(dir, '\n\n\n'))
-    }
-
-    async putDataset(key, object) {
-        this.gun.get('src').get('datasets').get(key).put(object)
-    }
-
-    async getDataset(key) {
-        let data = false
-        this.gun
-            .get('src')
-            .get('datasets')
-            .get(key)
-            .once(async (node) => {
-                data = node
-            })
-        while (!data) {
-            console.log(`Retreiving [${key}] dataset...`)
-            await delay(5000)
-        }
-        return data
-    }
-
-    async subscribeChannel(key = 'trade') {
-        this.gun
-            .get('src')
-            .get('bullets')
-            .get(key)
-            .on(async (node) => {
-                console.log(node)
-            })
-    }
-}
-
 const samplers = {
     stringSampler: (sampleLen, overfit, str) =>
         stringSampler(sampleLen, overfit, str),
     sequentialStringSampler: (sampleLen, overfit, str) =>
         sequentialStringSampler(sampleLen, overfit, str),
-    directorySampler: (sampleLen, overfit, dir, delimiter) =>
-        directorySampler(sampleLen, overfit, dir, delimiter),
-    gunSampler: (config) => new GunSampler(config),
+    directorySampler: (dir, delimiter) => directorySampler(dir, delimiter),
     fetchURLSampler: (url, path) => fetchURLSampler(url, path)
 }
 export default samplers

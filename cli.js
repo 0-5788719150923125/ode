@@ -64,10 +64,7 @@ async function orchestrate(options) {
             options.corpus.split('/')[-1]
         )
     } else {
-        const gun = net.ode.samplers.gunSampler()
-        await gun.init()
-        await gun.uploadDirectory('custom', options.corpus)
-        corpus = await gun.getDataset('custom')
+        corpus = await net.ode.samplers.directorySampler(options.corpus, '\n\n')
     }
 
     if (['infer', 'continue'].includes(options.mode)) {
