@@ -34,21 +34,15 @@ function* sequentialStringSampler(sampleLen, overfit = 0, str) {
     }
 }
 
-// async function directorySampler(
-//     sampleLen,
-//     overfit = 0,
-//     dirs = ['./'],
-//     delimiter = '\n\n'
-// ) {
-//     let allText = await directoryReader(dirs, delimiter)
-//     return stringSampler(sampleLen, overfit, allText)
-// }
-
 async function directorySampler(dirs = './', delimiter = '\n\n') {
     const fs = (await import('fs')).default
     const path = (await import('path')).default
 
     let allText = ''
+
+    const isValidUtf8 = (buffer) => {
+        return buffer.every((byte) => byte <= 127)
+    }
 
     const readDirSync = (dir) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -57,20 +51,11 @@ async function directorySampler(dirs = './', delimiter = '\n\n') {
             if (entry.isDirectory()) {
                 readDirSync(entryPath)
             } else {
-                try {
-                    const fileContent = fs.readFileSync(entryPath, 'utf8')
+                const fileBuffer = fs.readFileSync(entryPath)
+                if (isValidUtf8(fileBuffer)) {
+                    const fileContent = fileBuffer.toString('utf8')
                     if (fileContent.trim() !== '') {
                         allText += `${fileContent}${delimiter}`
-                    }
-                } catch (error) {
-                    if (error.code === 'ENOENT') {
-                        // console.warn(`File not found: ${entryPath}`)
-                    } else if (error.message.includes('Invalid UTF-8 data')) {
-                        // console.warn(
-                        //     `Skipping file with invalid UTF-8 encoding: ${entryPath}`
-                        // )
-                    } else {
-                        // console.warn(`Error reading file: ${entryPath}`, error)
                     }
                 }
             }

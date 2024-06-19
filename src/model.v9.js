@@ -4,19 +4,15 @@ import ODE from './model.v2.js'
  * In development.
  * @extends ODE
  */
-export default class OpenDoorExperiment extends ODE {
+export default class OutliarDerivativeExponent extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.embeddings = config.embeddings || 512
+        this.units = config.units || 111
         this.heads = config.heads || 3
         this.queryRatio = config.queryRatio || 2
-        this.headDim = config.headDim || 512
-        this.mlpDim = config.mlpDim || 1024
-        this.encoderDim = config.encoderDim || 768
-        this.bottleneck = config.bottleneck || 128
-        this.beta = config.beta || 10.0
+        this.headDim = config.headDim || 111
+        this.mlpDim = config.mlpDim || 999
     }
 
     defineTokenizer(config) {
@@ -33,38 +29,32 @@ export default class OpenDoorExperiment extends ODE {
         let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.embeddings,
+                outputDim: this.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
-        outputs = this.ode.layers
-            .Autoencoder({
-                variational: true,
-                beta: this.beta,
-                innerDim: this.encoderDim,
-                bottleneck: this.bottleneck,
-                outputDim: this.units,
-                encoderActivation: 'mish',
-                decoderActivation: 'swish'
-            })
-            .apply(outputs)
+        const mlp = this.ode.layers.MeltingMLP({
+            activation: 'mish',
+            units: this.units * this.layers,
+            innerDim: this.mlpDim
+        })
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 1; i <= this.layers; i++) {
             outputs = this.ode.layers
                 .GroupedQueryAttention({
-                    heads: this.heads,
-                    projection: this.headDim,
+                    units: this.units * i,
+                    heads: this.heads * i,
+                    projection: this.headDim * i,
                     queryRatio: this.queryRatio
                 })
                 .apply(outputs)
-
             outputs = this.ode.layers
-                .GatedLinearMLP({
-                    activation: 'mish',
-                    innerDim: this.mlpDim
+                .dense({
+                    units: this.units * i
                 })
                 .apply(outputs)
+            outputs = mlp.apply(outputs)
         }
 
         outputs = this.ode.layers
@@ -77,9 +67,9 @@ export default class OpenDoorExperiment extends ODE {
     }
 
     defineSchedulers() {
-        this.minLearningRate = 0.00000001
-        this.maxLearningRate = 0.00022
-        const steps = 1000
+        this.minLearningRate = 0.00000000333
+        this.maxLearningRate = 0.000333
+        const steps = 1111
         this.schedulers = [
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
