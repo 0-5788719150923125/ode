@@ -64,19 +64,10 @@ class LayerBase extends tf.layers.Layer {
     // and duplicating names
 
     applyDense(x, kernel, bias) {
-        let k
-        if (kernel.read) {
-            k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        } else {
-            k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
-        }
+        let k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
         const m = tf.matMul(x, k)
         if (bias) {
-            if (bias.read) {
-                return tf.add(m, bias.read())
-            } else {
-                return tf.add(m, bias)
-            }
+            return tf.add(m, bias)
         } else {
             return m
         }
@@ -1169,20 +1160,20 @@ class GroupedQueryAttention extends LayerBase {
             for (let i = 0; i < this.heads; i++) {
                 const K = this.applyDense(
                     inputs,
-                    this.keyKernels[i],
-                    this.keyBiases[i]
+                    this.keyKernels[i].read(),
+                    this.keyBiases[i].read()
                 )
                 const V = this.applyDense(
                     inputs,
-                    this.valueKernels[i],
-                    this.valueBiases[i]
+                    this.valueKernels[i].read(),
+                    this.valueBiases[i].read()
                 )
 
                 for (let j = 0; j < this.queryRatio; j++) {
                     const Q = this.applyDense(
                         inputs,
-                        this.queryKernels[i][j],
-                        this.queryBiases[i][j]
+                        this.queryKernels[i][j].read(),
+                        this.queryBiases[i][j].read()
                     )
 
                     const scores = tf
@@ -1204,8 +1195,8 @@ class GroupedQueryAttention extends LayerBase {
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
             let outputs = this.applyDense(
                 concatenatedOutputs,
-                this.outputKernel,
-                this.outputBias
+                this.outputKernel.read(),
+                this.outputBias.read()
             )
 
             outputs = this.rmsNorm(outputs)
@@ -1508,8 +1499,8 @@ class MultiLayerPerceptron extends LayerBase {
             // Expand and contract projection via feedforward layers
             let outputs = this.applyDense(
                 inputs,
-                this.inProjKernel,
-                this.inProjBias
+                this.inProjKernel.read(),
+                this.inProjBias.read()
             )
 
             outputs = this.rmsNorm(outputs)
@@ -1520,8 +1511,8 @@ class MultiLayerPerceptron extends LayerBase {
 
             outputs = this.applyDense(
                 outputs,
-                this.outProjKernel,
-                this.outProjBias
+                this.outProjKernel.read(),
+                this.outProjBias.read()
             )
 
             outputs = this.residual.apply([inputs, outputs])
@@ -1596,8 +1587,8 @@ class GatedLinearMLP extends MultiLayerPerceptron {
             // Expand and contract projection via feedforward layers
             let proj = this.applyDense(
                 inputs,
-                this.inProjKernel,
-                this.inProjBias
+                this.inProjKernel.read(),
+                this.inProjBias.read()
             )
 
             proj = this.rmsNorm(proj)
@@ -1608,8 +1599,8 @@ class GatedLinearMLP extends MultiLayerPerceptron {
 
             let gate = this.applyDense(
                 inputs,
-                this.gateProjKernel,
-                this.gateProjBias
+                this.gateProjKernel.read(),
+                this.gateProjBias.read()
             )
 
             gate = tf.layers.activation({ activation: 'sigmoid' }).apply(gate)
@@ -1618,8 +1609,8 @@ class GatedLinearMLP extends MultiLayerPerceptron {
 
             let outputs = this.applyDense(
                 gatedOutput,
-                this.outProjKernel,
-                this.outProjBias
+                this.outProjKernel.read(),
+                this.outProjBias.read()
             )
 
             outputs = this.residual.apply([inputs, outputs])
@@ -7543,6 +7534,231 @@ class AttentionFreeTransformer extends LayerBase {
     }
 }
 
+class PrincipalComponentAnalysis extends LayerBase {
+    constructor(config) {
+        super({ name: `pca-${randomString()}`, ...config })
+        this.outputDim = config.outputDim
+        this.epsilon = config.epsilon || 1e-7
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+        this.W = this.addWeight(
+            'W',
+            [inputDim, this.outputDim],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Center the data
+            const mean = tf.mean(inputs, [0, 1], true)
+            const centered = tf.sub(inputs, mean)
+
+            // Compute covariance matrix (averaged over batch and sequence dimensions)
+            const batchSize = inputs.shape[0]
+            const seqLength = inputs.shape[1]
+            const totalSamples = batchSize * seqLength
+            const flattenedCentered = tf.reshape(centered, [totalSamples, -1])
+            const cov = tf
+                .matMul(flattenedCentered, flattenedCentered, true, false)
+                .div(tf.scalar(totalSamples - 1))
+
+            // Compute approximation of principal components
+            const W = this.approximatePCA(cov)
+
+            // Project data onto principal components
+            const flattenedResult = tf.matMul(flattenedCentered, W)
+            const result = tf.reshape(flattenedResult, [
+                batchSize,
+                seqLength,
+                this.outputDim
+            ])
+
+            return result
+        })
+    }
+
+    approximatePCA(cov) {
+        let W = this.W.read()
+
+        // Power iteration method
+        for (let i = 0; i < 5; i++) {
+            W = tf.matMul(cov, W)
+            // Normalize columns
+            const norms = tf.sqrt(tf.sum(tf.square(W), 0)).add(this.epsilon)
+            W = tf.div(W, norms)
+        }
+
+        return W
+    }
+
+    computeOutputShape(inputShape) {
+        return [...inputShape.slice(0, -1), this.outputDim]
+    }
+
+    getWeights() {
+        return [this.W.read()]
+    }
+
+    setWeights(weights) {
+        this.W.write(weights[0])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            outputDim: this.outputDim,
+            epsilon: this.epsilon
+        }
+    }
+}
+
+// class PrincipalComponentAnalysis extends LayerBase {
+//     constructor(config) {
+//         super({ name: `pca-${randomString()}`, ...config })
+//         this.outputDim = config.outputDim
+//         this.epsilon = config.epsilon || 1e-7
+//         this.maxIterations = config.maxIterations || 100
+//         this.convergenceThreshold = config.convergenceThreshold || 1e-4
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+//         this.W = this.addWeight(
+//             'W',
+//             [inputDim, this.outputDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // Standardize the data (center and scale)
+//             const mean = tf.mean(inputs, [0, 1], true)
+//             const variance = tf.mean(
+//                 tf.square(tf.sub(inputs, mean)),
+//                 [0, 1],
+//                 true
+//             )
+//             const stdDev = tf.sqrt(variance.add(this.epsilon))
+//             const standardized = tf.div(tf.sub(inputs, mean), stdDev)
+
+//             // Compute covariance matrix
+//             const batchSize = inputs.shape[0]
+//             const seqLength = inputs.shape[1]
+//             const totalSamples = batchSize * seqLength
+//             const flattenedStandardized = tf.reshape(standardized, [
+//                 totalSamples,
+//                 -1
+//             ])
+//             const cov = tf
+//                 .matMul(
+//                     flattenedStandardized,
+//                     flattenedStandardized,
+//                     true,
+//                     false
+//                 )
+//                 .div(tf.scalar(totalSamples - 1))
+
+//             // Compute principal components
+//             const [eigenvectors, eigenvalues] = this.computeEigenvectors(cov)
+
+//             // Project data onto principal components
+//             const flattenedResult = tf.matMul(
+//                 flattenedStandardized,
+//                 eigenvectors
+//             )
+//             const result = tf.reshape(flattenedResult, [
+//                 batchSize,
+//                 seqLength,
+//                 this.outputDim
+//             ])
+
+//             return result
+//         })
+//     }
+
+//     computeEigenvectors(cov) {
+//         const inputDim = cov.shape[0]
+//         let eigenvectors = []
+//         let eigenvalues = []
+
+//         for (let i = 0; i < this.outputDim; i++) {
+//             // Initialize a random vector
+//             let vector = tf.randomNormal([inputDim, 1])
+//             let prevEigenvalue = 0
+
+//             for (let iter = 0; iter < this.maxIterations; iter++) {
+//                 // Power iteration
+//                 vector = tf.matMul(cov, vector)
+
+//                 // Normalize the vector
+//                 const norm = tf.norm(vector)
+//                 vector = tf.div(vector, norm)
+
+//                 // Compute the Rayleigh quotient (eigenvalue estimate)
+//                 const eigenvalue = tf
+//                     .sum(tf.mul(tf.matMul(vector, vector, true), cov))
+//                     .squeeze()
+
+//                 // Check for convergence
+//                 if (
+//                     Math.abs(eigenvalue.dataSync()[0] - prevEigenvalue) <
+//                     this.convergenceThreshold
+//                 ) {
+//                     break
+//                 }
+//                 prevEigenvalue = eigenvalue.dataSync()[0]
+//             }
+
+//             eigenvectors.push(vector)
+//             eigenvalues.push(prevEigenvalue)
+
+//             // Deflate the covariance matrix
+//             const projection = tf.matMul(vector, vector, true)
+//             cov = tf.sub(cov, tf.mul(projection, prevEigenvalue))
+//         }
+
+//         // Combine eigenvectors into a matrix
+//         const eigenvectorMatrix = tf.concat(eigenvectors, 1)
+
+//         // Update the layer weights
+//         this.W.write(eigenvectorMatrix)
+
+//         return [eigenvectorMatrix, tf.tensor(eigenvalues)]
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape.slice(0, -1), this.outputDim]
+//     }
+
+//     getWeights() {
+//         return [this.W.read()]
+//     }
+
+//     setWeights(weights) {
+//         this.W.write(weights[0])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             outputDim: this.outputDim,
+//             epsilon: this.epsilon,
+//             maxIterations: this.maxIterations,
+//             convergenceThreshold: this.convergenceThreshold
+//         }
+//     }
+// }
+
 const exportedLayers = [
     Antirectifier,
     AttentionFreeTransformer,
@@ -7588,6 +7804,7 @@ const exportedLayers = [
     NearestNeighborUpsampling,
     NystromAttention,
     PerformerAttention,
+    PrincipalComponentAnalysis,
     PseudoQuantumState,
     QuantumStateMachine,
     Range,

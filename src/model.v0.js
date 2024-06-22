@@ -445,11 +445,8 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
         const sequenceLength = outputSequence.shape[1]
         const vocabularySize = logits.shape[0]
 
-        // Create a tensor of shape [sequenceLength, vocabularySize] filled with the repetition penalty value
-        const penaltyTensor = tf.fill(
-            [sequenceLength, vocabularySize],
-            repetitionPenalty
-        )
+        // Create a tensor of shape [vocabularySize] filled with the repetition penalty value
+        const penaltyTensor = tf.fill([vocabularySize], repetitionPenalty)
 
         // Create a mask tensor to identify the previous tokens
         const outputSequenceMask = tf.cast(
@@ -457,29 +454,20 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
             'float32'
         )
 
-        // Reshape the output sequence mask to match the shape of the penalty tensor
-        const outputSequenceMaskReshaped = outputSequenceMask
-            .reshape([sequenceLength, 1])
-            .tile([1, vocabularySize])
-
-        // Create a tensor of shape [sequenceLength, vocabularySize] representing the penalty factors
+        // Create a tensor of shape [sequenceLength] representing the penalty factors
         // The penalty factors decrease linearly from 1 to 0 over the sequence length
-        const penaltyFactors = tf
-            .linspace(1, 0, sequenceLength)
-            .expandDims(1)
-            .tile([1, vocabularySize])
+        const penaltyFactors = tf.linspace(1, 0, sequenceLength)
 
-        // Calculate the effective penalty tensor by element-wise multiplication
-        const effectivePenalty = tf.mul(
-            penaltyTensor,
-            tf.mul(outputSequenceMaskReshaped, penaltyFactors)
-        )
-
-        // Reshape the effective penalty tensor to match the shape of the logits
-        const effectivePenaltyReshaped = effectivePenalty.sum(0).expandDims(0)
+        // Calculate the effective penalty for each token in the vocabulary
+        const effectivePenalty = tf.tidy(() => {
+            const oneHot = tf.oneHot(outputSequence.flatten(), vocabularySize)
+            const weightedOneHot = tf.mul(oneHot, penaltyFactors.expandDims(1))
+            return weightedOneHot.sum(0)
+        })
 
         // Apply the repetition penalty to the logits
-        const penalizedLogits = tf.sub(logits, effectivePenaltyReshaped)
+        const penaltyMask = tf.mul(penaltyTensor.sub(1), effectivePenalty)
+        const penalizedLogits = logits.sub(penaltyMask)
 
         return penalizedLogits
     })
