@@ -7,15 +7,15 @@ import ODE from './model.v2.js'
 export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
+        this.layers = config.layers || 6
+        this.units = config.units || 128
         this.embeddings = config.embeddings || 512
         this.heads = config.heads || 3
         this.queryRatio = config.queryRatio || 2
-        this.headDim = config.headDim || 512
+        this.headDim = config.headDim || 256
         this.mlpDim = config.mlpDim || 1024
         this.encoderDim = config.encoderDim || 768
-        this.bottleneck = config.bottleneck || 128
+        this.bottleneck = config.bottleneck || 96
         this.beta = config.beta || 10.0
     }
 

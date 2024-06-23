@@ -2332,6 +2332,361 @@ class PreviousTokenHashMixtureOfExperts extends LayerBase {
     }
 }
 
+class KANLayer extends LayerBase {
+    constructor(config) {
+        super({ name: `kan-${randomString()}`, ...config })
+        this.inDim = config.inDim
+        this.outDim = config.outDim
+        this.size = this.outDim * this.inDim
+        this.num = config.num || 5
+        this.k = config.k || 3
+        this.noiseScale = config.noiseScale || 0.1
+        this.scaleBase = config.scaleBase || 1.0
+        this.scaleSp = config.scaleSp || 1.0
+        this.baseFun = config.baseFun || ((x) => tf.relu(x))
+        this.gridEps = config.gridEps || 0.02
+        this.gridRange = config.gridRange || [-1, 1]
+        this.spTrainable =
+            config.spTrainable !== undefined ? config.spTrainable : true
+        this.sbTrainable =
+            config.sbTrainable !== undefined ? config.sbTrainable : true
+    }
+
+    build(inputShape) {
+        // Initialize grid
+        this.grid = this.addWeight(
+            'grid',
+            [this.size, this.num + 1],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        // Initialize coefficients
+        this.coef = this.addWeight(
+            'coef',
+            [this.size, this.num + this.k],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
+
+        // Initialize scales
+        this.scaleBase = this.addWeight(
+            'scaleBase',
+            [this.size],
+            'float32',
+            tf.initializers.constant({ value: this.scaleBase }),
+            undefined,
+            this.sbTrainable
+        )
+
+        this.scaleSp = this.addWeight(
+            'scaleSp',
+            [this.size],
+            'float32',
+            tf.initializers.constant({ value: this.scaleSp }),
+            undefined,
+            this.spTrainable
+        )
+
+        // Initialize mask
+        this.mask = this.addWeight(
+            'mask',
+            [this.size],
+            'float32',
+            tf.initializers.ones(),
+            undefined,
+            false
+        )
+
+        this.weightSharing = tf.range(0, this.size).cast('int32')
+        this.lockCounter = 0
+        this.lockId = tf.zeros([this.size])
+    }
+
+    B_batch(x, grid, k = 0, extend = true) {
+        return tf.tidy(() => {
+            console.log('B_batch input x shape:', x.shape)
+            console.log('B_batch input grid shape:', grid.shape)
+
+            const extendGrid = (grid, kExtend = 0) => {
+                console.log('extendGrid input shape:', grid.shape)
+
+                const lastCol = grid.slice([0, grid.shape[1] - 1], [-1, 1])
+                const firstCol = grid.slice([0, 0], [-1, 1])
+                console.log('lastCol shape:', lastCol.shape)
+                console.log('firstCol shape:', firstCol.shape)
+
+                const h = lastCol.sub(firstCol).div(grid.shape[1] - 1)
+                console.log('h shape:', h.shape)
+
+                let extendedGrid = grid
+                for (let i = 0; i < kExtend; i++) {
+                    const leftExtension = firstCol.sub(h)
+                    const rightExtension = lastCol.add(h)
+                    console.log('leftExtension shape:', leftExtension.shape)
+                    console.log('rightExtension shape:', rightExtension.shape)
+
+                    extendedGrid = tf.concat(
+                        [leftExtension, extendedGrid, rightExtension],
+                        1
+                    )
+                    console.log(
+                        'extendedGrid shape after extension:',
+                        extendedGrid.shape
+                    )
+                }
+                return extendedGrid
+            }
+
+            if (extend) {
+                grid = extendGrid(grid, k)
+            }
+
+            console.log('Extended grid shape:', grid.shape)
+
+            // Reshape x and grid to 2D, maintaining the last dimension
+            const x2d = x.reshape([-1, x.shape[x.shape.length - 1]])
+            const grid2d = grid.reshape([-1, grid.shape[grid.shape.length - 1]])
+
+            console.log('Reshaped x2d shape:', x2d.shape)
+            console.log('Reshaped grid2d shape:', grid2d.shape)
+
+            const sliceGrid = (g, start, size) => {
+                size = Math.max(0, Math.min(size, g.shape[0] - start))
+                return g.slice([start, 0], [size, g.shape[1]])
+            }
+
+            // Initialize B with the base case (k = 0)
+            let gridSlice1 = sliceGrid(grid2d, 0, grid2d.shape[0] - 1)
+            let gridSlice2 = sliceGrid(grid2d, 1, grid2d.shape[0] - 1)
+
+            // Ensure gridSlice1 and gridSlice2 have the same number of rows as x2d
+            const paddings = [
+                [0, x2d.shape[0] - gridSlice1.shape[0]],
+                [0, 0]
+            ]
+            gridSlice1 = tf.pad(gridSlice1, paddings)
+            gridSlice2 = tf.pad(gridSlice2, paddings)
+
+            console.log('Adjusted grid slice 1 shape:', gridSlice1.shape)
+            console.log('Adjusted grid slice 2 shape:', gridSlice2.shape)
+            console.log('x2d shape:', x2d.shape)
+
+            const compareGreaterEqual = (x, y) =>
+                tf
+                    .gather(x, tf.range(0, x.shape[1], undefined, 'int32'), 1)
+                    .greaterEqual(y)
+            const compareLess = (x, y) =>
+                tf
+                    .gather(x, tf.range(0, x.shape[1], undefined, 'int32'), 1)
+                    .less(y)
+
+            let B = compareGreaterEqual(x2d, gridSlice1)
+                .logicalAnd(compareLess(x2d, gridSlice2))
+                .toFloat()
+
+            console.log('Initial B shape:', B.shape)
+
+            // Iteratively compute B for increasing k
+            for (let i = 1; i <= k; i++) {
+                let slice1 = sliceGrid(grid2d, 0, grid2d.shape[0] - (i + 1))
+                let slice2 = sliceGrid(grid2d, i, grid2d.shape[0] - i)
+                let slice3 = sliceGrid(grid2d, i + 1, grid2d.shape[0] - (i + 1))
+                let slice4 = sliceGrid(grid2d, 1, grid2d.shape[0] - i)
+
+                // Ensure slice1, slice2, slice3, and slice4 have the same number of rows as x2d
+                slice1 = tf.pad(slice1, paddings)
+                slice2 = tf.pad(slice2, paddings)
+                slice3 = tf.pad(slice3, paddings)
+                slice4 = tf.pad(slice4, paddings)
+
+                console.log(
+                    `Iteration ${i} - Slice shapes:`,
+                    slice1.shape,
+                    slice2.shape,
+                    slice3.shape,
+                    slice4.shape
+                )
+
+                const B_slice = B.slice([0, 0], [B.shape[0] - 1, B.shape[1]])
+                console.log(`Iteration ${i} - B_slice shape:`, B_slice.shape)
+
+                const sub1 = tf
+                    .gather(
+                        x2d,
+                        tf.range(0, x2d.shape[1], undefined, 'int32'),
+                        1
+                    )
+                    .sub(slice1)
+                console.log(`Iteration ${i} - sub1 shape:`, sub1.shape)
+
+                const sub2 = slice2.sub(slice1)
+                console.log(`Iteration ${i} - sub2 shape:`, sub2.shape)
+
+                const div1 = sub1.div(sub2)
+                console.log(`Iteration ${i} - div1 shape:`, div1.shape)
+
+                const term1 = div1.mul(B_slice)
+                console.log(`Iteration ${i} - term1 shape:`, term1.shape)
+
+                const sub3 = slice3.sub(
+                    tf.gather(
+                        x2d,
+                        tf.range(0, x2d.shape[1], undefined, 'int32'),
+                        1
+                    )
+                )
+                console.log(`Iteration ${i} - sub3 shape:`, sub3.shape)
+
+                const sub4 = slice3.sub(slice4)
+                console.log(`Iteration ${i} - sub4 shape:`, sub4.shape)
+
+                const div2 = sub3.div(sub4)
+                console.log(`Iteration ${i} - div2 shape:`, div2.shape)
+
+                const term2 = div2.mul(
+                    B.slice([1, 0], [B.shape[0] - 1, B.shape[1]])
+                )
+                console.log(`Iteration ${i} - term2 shape:`, term2.shape)
+
+                B = term1.add(term2)
+                console.log(`Iteration ${i} - B shape:`, B.shape)
+            }
+
+            // Reshape B back to match x's original shape
+            const B3d = B.reshape(x.shape)
+            console.log('B_batch output shape:', B3d.shape)
+            return B3d
+        })
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const [batch, timeSteps, features] = inputs.shape
+
+            console.log('Input shape:', [batch, timeSteps, features])
+
+            // Reshape inputs to 2D: [batch * timeSteps, features]
+            const flatInputs = inputs.reshape([-1, features])
+
+            console.log('Flat inputs shape:', flatInputs.shape)
+
+            // Apply KAN operations on flattened input
+            const x = tf
+                .einsum('ij,k->ikj', flatInputs, tf.ones([this.outDim]))
+                .reshape([batch * timeSteps, this.size])
+                .transpose()
+
+            console.log('X shape after einsum:', x.shape)
+
+            const preacts = x
+                .transpose()
+                .reshape([batch * timeSteps, this.outDim, this.inDim])
+
+            console.log('Preacts shape:', preacts.shape)
+
+            const base = this.baseFun(x).transpose()
+
+            console.log('Base shape:', base.shape)
+
+            const y = this.coef2curve(
+                x,
+                this.grid.read().gather(this.weightSharing),
+                this.coef.read().gather(this.weightSharing),
+                this.k
+            ).transpose()
+
+            console.log('Y shape:', y.shape)
+
+            const postspline = y.reshape([
+                batch * timeSteps,
+                this.outDim,
+                this.inDim
+            ])
+
+            console.log('Postspline shape:', postspline.shape)
+
+            const output = this.scaleBase
+                .read()
+                .expandDims(0)
+                .mul(base)
+                .add(this.scaleSp.read().expandDims(0).mul(y))
+
+            console.log('Output shape:', output.shape)
+
+            const maskedOutput = this.mask.read().expandDims(0).mul(output)
+
+            console.log('Masked output shape:', maskedOutput.shape)
+
+            const postacts = maskedOutput.reshape([
+                batch * timeSteps,
+                this.outDim,
+                this.inDim
+            ])
+
+            console.log('Postacts shape:', postacts.shape)
+
+            const result = maskedOutput
+                .reshape([batch * timeSteps, this.outDim, this.inDim])
+                .sum(2)
+
+            console.log('Result shape:', result.shape)
+
+            // Reshape result back to 3D: [batch, timeSteps, outDim]
+            const reshapedResult = result.reshape([
+                batch,
+                timeSteps,
+                this.outDim
+            ])
+
+            console.log('Reshaped result shape:', reshapedResult.shape)
+
+            return [
+                reshapedResult,
+                preacts.reshape([batch, timeSteps, this.outDim, this.inDim]),
+                postacts.reshape([batch, timeSteps, this.outDim, this.inDim]),
+                postspline.reshape([batch, timeSteps, this.outDim, this.inDim])
+            ]
+        })
+    }
+
+    coef2curve(xEval, grid, coef, k) {
+        return tf.tidy(() => {
+            return tf.einsum('ij,ijk->ik', coef, this.B_batch(xEval, grid, k))
+        })
+    }
+
+    curve2coef(xEval, yEval, grid, k) {
+        return tf.tidy(() => {
+            const mat = this.B_batch(xEval, grid, k).transpose([0, 2, 1])
+            return tf.linalg.lstSquares(mat, yEval.expandDims(2)).squeeze(2)
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.outDim]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            inDim: this.inDim,
+            outDim: this.outDim,
+            num: this.num,
+            k: this.k,
+            noiseScale: this.noiseScale,
+            scaleBase: this.scaleBase,
+            scaleSp: this.scaleSp,
+            baseFun: this.baseFun,
+            gridEps: this.gridEps,
+            gridRange: this.gridRange,
+            spTrainable: this.spTrainable,
+            sbTrainable: this.sbTrainable
+        }
+    }
+}
+
 class KolmogorovArnoldNetwork extends LayerBase {
     constructor(config) {
         super({ name: `kan-${randomString()}`, ...config })
@@ -2683,8 +3038,8 @@ class Autoencoder extends LayerBase {
             // Encode the inputs to the bottleneck representation
             let outputs = this.applyDense(
                 inputs,
-                this.encoderKernel1,
-                this.encoderBias1
+                this.encoderKernel1.read(),
+                this.encoderBias1.read()
             )
 
             outputs = tf.layers
@@ -2693,8 +3048,8 @@ class Autoencoder extends LayerBase {
 
             outputs = this.applyDense(
                 outputs,
-                this.encoderKernel2,
-                this.encoderBias2
+                this.encoderKernel2.read(),
+                this.encoderBias2.read()
             )
 
             if (this.variational) {
@@ -2704,8 +3059,8 @@ class Autoencoder extends LayerBase {
             // Decode the bottleneck representation to the output dimensionality
             outputs = this.applyDense(
                 outputs,
-                this.decoderKernel1,
-                this.decoderBias1
+                this.decoderKernel1.read(),
+                this.decoderBias1.read()
             )
 
             outputs = tf.layers
@@ -2714,8 +3069,8 @@ class Autoencoder extends LayerBase {
 
             outputs = this.applyDense(
                 outputs,
-                this.decoderKernel2,
-                this.decoderBias2
+                this.decoderKernel2.read(),
+                this.decoderBias2.read()
             )
 
             return outputs
@@ -7534,20 +7889,23 @@ class AttentionFreeTransformer extends LayerBase {
     }
 }
 
-class PrincipalComponentAnalysis extends LayerBase {
+class IncrementalPowerIterationPCA extends LayerBase {
     constructor(config) {
         super({ name: `pca-${randomString()}`, ...config })
         this.outputDim = config.outputDim
         this.epsilon = config.epsilon || 1e-7
+        this.numIterations = config.numIterations || 10
+        this.mean = null
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
-        this.W = this.addWeight(
-            'W',
-            [inputDim, this.outputDim],
+        this.inputDim = inputDim
+        this.components = this.addWeight(
+            'components',
+            [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({})
         )
     }
 
@@ -7555,68 +7913,419 @@ class PrincipalComponentAnalysis extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
+            this.fit(inputs)
+
             // Center the data
-            const mean = tf.mean(inputs, [0, 1], true)
-            const centered = tf.sub(inputs, mean)
-
-            // Compute covariance matrix (averaged over batch and sequence dimensions)
-            const batchSize = inputs.shape[0]
-            const seqLength = inputs.shape[1]
-            const totalSamples = batchSize * seqLength
-            const flattenedCentered = tf.reshape(centered, [totalSamples, -1])
-            const cov = tf
-                .matMul(flattenedCentered, flattenedCentered, true, false)
-                .div(tf.scalar(totalSamples - 1))
-
-            // Compute approximation of principal components
-            const W = this.approximatePCA(cov)
+            const centered = tf.sub(inputs, this.mean)
 
             // Project data onto principal components
-            const flattenedResult = tf.matMul(flattenedCentered, W)
-            const result = tf.reshape(flattenedResult, [
-                batchSize,
-                seqLength,
+            const flattenedCentered = tf.reshape(centered, [-1, this.inputDim])
+            const components = this.components.read()
+
+            const result = tf.matMul(flattenedCentered, components)
+            const reshapedResult = tf.reshape(result, [
+                ...inputs.shape.slice(0, -1),
                 this.outputDim
             ])
 
-            return result
+            return reshapedResult
         })
     }
 
-    approximatePCA(cov) {
-        let W = this.W.read()
+    fit(X) {
+        tf.tidy(() => {
+            const flattenedX = tf.reshape(X, [-1, this.inputDim])
 
-        // Power iteration method
-        for (let i = 0; i < 5; i++) {
-            W = tf.matMul(cov, W)
-            // Normalize columns
-            const norms = tf.sqrt(tf.sum(tf.square(W), 0)).add(this.epsilon)
-            W = tf.div(W, norms)
-        }
+            // Compute mean
+            this.mean = tf.mean(flattenedX, 0, true)
 
-        return W
+            // Center the data
+            const centered = tf.sub(flattenedX, this.mean)
+
+            // Compute covariance matrix
+            const cov = tf
+                .matMul(centered, centered, true, false)
+                .div(tf.scalar(centered.shape[0] - 1))
+
+            // Compute principal components using power iteration
+            const components = this.powerIteration(cov)
+        })
+    }
+
+    powerIteration(cov) {
+        return tf.tidy(() => {
+            const [n] = cov.shape
+            let components = tf.randomNormal([n, this.outputDim])
+
+            for (let iter = 0; iter < this.numIterations; iter++) {
+                // Power iteration
+                components = tf.matMul(cov, components)
+
+                // Orthogonalize
+                components = tf.linalg.gramSchmidt(components)
+            }
+
+            return components
+        })
     }
 
     computeOutputShape(inputShape) {
         return [...inputShape.slice(0, -1), this.outputDim]
     }
 
-    getWeights() {
-        return [this.W.read()]
-    }
-
-    setWeights(weights) {
-        this.W.write(weights[0])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),
             outputDim: this.outputDim,
-            epsilon: this.epsilon
+            epsilon: this.epsilon,
+            numIterations: this.numIterations
         }
     }
 }
+
+// class PrincipalComponentAnalysis extends LayerBase {
+//     constructor(config) {
+//         super({ name: `pca-${randomString()}`, ...config })
+//         this.outputDim = config.outputDim
+//         this.epsilon = config.epsilon || 1e-7
+//         this.maxIterations = config.maxIterations || 1000
+//         this.centered = false
+//         this.mean = null
+//         this.components = null
+//         this.explainedVariance = null
+//         this.debugMode = config.debugMode || false
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+//         this.inputDim = inputDim
+//         if (this.debugMode)
+//             console.log(`PCA: Input dimension is ${this.inputDim}`)
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             if (this.debugMode) console.log(`PCA: Input shape: ${inputs.shape}`)
+
+//             if (!this.centered) {
+//                 if (this.debugMode) console.log('PCA: Fitting data...')
+//                 this.fit(inputs)
+//             }
+
+//             // Center the data
+//             const centered = tf.sub(inputs, this.mean)
+//             if (this.debugMode)
+//                 console.log(`PCA: Centered data shape: ${centered.shape}`)
+
+//             // Project data onto principal components
+//             const flattenedCentered = tf.reshape(centered, [-1, this.inputDim])
+//             if (this.debugMode)
+//                 console.log(
+//                     `PCA: Flattened centered data shape: ${flattenedCentered.shape}`
+//                 )
+
+//             const flattenedResult = tf.matMul(
+//                 flattenedCentered,
+//                 this.components
+//             )
+//             if (this.debugMode)
+//                 console.log(
+//                     `PCA: Flattened result shape: ${flattenedResult.shape}`
+//                 )
+
+//             const result = tf.reshape(flattenedResult, [
+//                 ...inputs.shape.slice(0, -1),
+//                 this.outputDim
+//             ])
+//             if (this.debugMode)
+//                 console.log(`PCA: Final result shape: ${result.shape}`)
+
+//             return result
+//         })
+//     }
+
+//     fit(X) {
+//         tf.tidy(() => {
+//             if (this.debugMode)
+//                 console.log(`PCA: Fitting data with shape ${X.shape}`)
+
+//             // Center the data
+//             this.mean = tf.mean(X, [0, 1], true)
+//             if (this.debugMode)
+//                 console.log(`PCA: Computed mean with shape ${this.mean.shape}`)
+
+//             const centered = tf.sub(X, this.mean)
+//             if (this.debugMode)
+//                 console.log(`PCA: Centered data shape: ${centered.shape}`)
+
+//             // Compute covariance matrix
+//             const flattenedCentered = tf.reshape(centered, [-1, this.inputDim])
+//             if (this.debugMode)
+//                 console.log(
+//                     `PCA: Flattened centered data shape: ${flattenedCentered.shape}`
+//                 )
+
+//             const scaleFactor = 1 / (flattenedCentered.shape[0] - 1)
+//             const cov = tf.tidy(() => {
+//                 const covMatrix = tf.matMul(
+//                     flattenedCentered,
+//                     flattenedCentered,
+//                     true,
+//                     false
+//                 )
+//                 return tf.mul(covMatrix, scaleFactor)
+//             })
+//             if (this.debugMode)
+//                 console.log(`PCA: Covariance matrix shape: ${cov.shape}`)
+
+//             // Compute principal components using power iteration
+//             try {
+//                 const { components, eigenvalues } = this.powerIteration(
+//                     cov,
+//                     this.outputDim
+//                 )
+//                 this.components = components
+//                 this.explainedVariance = eigenvalues
+
+//                 if (this.debugMode) {
+//                     console.log(
+//                         `PCA: Components shape: ${this.components.shape}`
+//                     )
+//                     console.log(
+//                         `PCA: Explained variance shape: ${this.explainedVariance.shape}`
+//                     )
+//                 }
+
+//                 this.centered = true
+//             } catch (error) {
+//                 console.error('Error during power iteration:', error)
+//                 throw new Error(
+//                     'PCA computation failed. The input data might be ill-conditioned or contain invalid values.'
+//                 )
+//             }
+//         })
+//     }
+
+//     powerIteration(matrix, numComponents) {
+//         return tf.tidy(() => {
+//             const [n, m] = matrix.shape
+//             let components = tf.randomNormal([n, numComponents])
+//             let eigenvalues = tf.zeros([numComponents])
+
+//             for (let i = 0; i < numComponents; i++) {
+//                 let eigenvector = components.slice([0, i], [-1, 1])
+//                 let eigenvalue = tf.scalar(0)
+
+//                 for (let iter = 0; iter < this.maxIterations; iter++) {
+//                     // Power iteration
+//                     eigenvector = tf.matMul(matrix, eigenvector)
+//                     eigenvalue = tf.norm(eigenvector)
+//                     eigenvector = eigenvector.div(eigenvalue)
+
+//                     // Check for convergence
+//                     if (
+//                         iter > 0 &&
+//                         Math.abs(
+//                             eigenvalue.sub(tf.scalar(eigenvalue)).dataSync()[0]
+//                         ) < this.epsilon
+//                     ) {
+//                         break
+//                     }
+//                 }
+
+//                 // Deflate the matrix
+//                 const outer = tf.matMul(eigenvector, eigenvector, false, true)
+//                 matrix = matrix.sub(outer.mul(eigenvalue))
+
+//                 // Store the component and eigenvalue
+//                 components.slice([0, i], [-1, 1]).assign(eigenvector)
+//                 eigenvalues.slice([i], [1]).assign(eigenvalue)
+//             }
+
+//             return { components, eigenvalues }
+//         })
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape.slice(0, -1), this.outputDim]
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             outputDim: this.outputDim,
+//             epsilon: this.epsilon,
+//             maxIterations: this.maxIterations,
+//             debugMode: this.debugMode
+//         }
+//     }
+// }
+
+// class PrincipalComponentAnalysis extends LayerBase {
+//     constructor(config) {
+//         super({ name: `pca-${randomString()}`, ...config })
+//         this.outputDim = config.outputDim
+//         this.epsilon = config.epsilon || 1e-7
+//         this.powerIterations = config.powerIterations || 10
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+//         this.W = this.addWeight(
+//             'W',
+//             [inputDim, this.outputDim],
+//             'float32',
+//             tf.initializers.orthogonal({ gain: 1.0 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // Center the data
+//             const mean = tf.mean(inputs, [0, 1], true)
+//             const centered = tf.sub(inputs, mean)
+
+//             // Compute covariance matrix
+//             const [batchSize, seqLength, inputDim] = inputs.shape
+//             const flattenedCentered = tf.reshape(centered, [-1, inputDim])
+//             const cov = tf
+//                 .matMul(flattenedCentered, flattenedCentered, true, false)
+//                 .div(tf.scalar(flattenedCentered.shape[0] - 1))
+
+//             // Compute approximation of principal components
+//             const W = this.approximatePCA(cov)
+
+//             // Project data onto principal components
+//             const result = tf.matMul(flattenedCentered, W)
+//             return tf.reshape(result, [batchSize, seqLength, this.outputDim])
+//         })
+//     }
+
+//     approximatePCA(cov) {
+//         let W = this.W.read()
+
+//         for (let i = 0; i < this.powerIterations; i++) {
+//             // Power iteration
+//             W = tf.matMul(cov, W)
+
+//             // Orthogonalize and normalize
+//             W = tf.linalg.gramSchmidt(W)
+//         }
+
+//         // Update the weight variable correctly
+//         this.W.write(W)
+
+//         return W
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape.slice(0, -1), this.outputDim]
+//     }
+
+//     getWeights() {
+//         return [this.W.read()]
+//     }
+
+//     setWeights(weights) {
+//         this.W.write(weights[0])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             outputDim: this.outputDim,
+//             epsilon: this.epsilon,
+//             powerIterations: this.powerIterations
+//         }
+//     }
+// }
+
+// class PrincipalComponentAnalysis extends LayerBase {
+//     constructor(config) {
+//         super({ name: `pca-${randomString()}`, ...config })
+//         this.outputDim = config.outputDim
+//         this.epsilon = config.epsilon || 1e-7
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+//         this.W = this.addWeight(
+//             'W',
+//             [inputDim, this.outputDim],
+//             'float32',
+//             tf.initializers.orthogonal({ gain: 1.0 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // Center the data
+//             const mean = tf.mean(inputs, [0, 1], true)
+//             const centered = tf.sub(inputs, mean)
+
+//             // Compute covariance matrix (averaged over batch and sequence dimensions)
+//             const batchSize = inputs.shape[0]
+//             const seqLength = inputs.shape[1]
+//             const totalSamples = batchSize * seqLength
+//             const flattenedCentered = tf.reshape(centered, [totalSamples, -1])
+//             const cov = tf
+//                 .matMul(flattenedCentered, flattenedCentered, true, false)
+//                 .div(tf.scalar(totalSamples - 1))
+
+//             // Compute approximation of principal components
+//             const W = this.approximatePCA(cov)
+
+//             // Project data onto principal components
+//             const flattenedResult = tf.matMul(flattenedCentered, W)
+//             const result = tf.reshape(flattenedResult, [
+//                 batchSize,
+//                 seqLength,
+//                 this.outputDim
+//             ])
+
+//             return result
+//         })
+//     }
+
+//     approximatePCA(cov) {
+//         let W = this.W.read()
+
+//         // Power iteration method
+//         for (let i = 0; i < 5; i++) {
+//             W = tf.matMul(cov, W)
+//             // Normalize columns
+//             const norms = tf.sqrt(tf.sum(tf.square(W), 0)).add(this.epsilon)
+//             W = tf.div(W, norms)
+//         }
+
+//         return W
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return [...inputShape.slice(0, -1), this.outputDim]
+//     }
+
+//     getWeights() {
+//         return [this.W.read()]
+//     }
+
+//     setWeights(weights) {
+//         this.W.write(weights[0])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             outputDim: this.outputDim,
+//             epsilon: this.epsilon
+//         }
+//     }
+// }
 
 // class PrincipalComponentAnalysis extends LayerBase {
 //     constructor(config) {
@@ -7788,6 +8497,7 @@ const exportedLayers = [
     GroupedQueryAttention,
     InstanceNormalization,
     Interrogator,
+    KANLayer,
     KolmogorovArnoldNetwork,
     LambdaLayer,
     LazyMixtureOfExperts,
@@ -7804,7 +8514,7 @@ const exportedLayers = [
     NearestNeighborUpsampling,
     NystromAttention,
     PerformerAttention,
-    PrincipalComponentAnalysis,
+    IncrementalPowerIterationPCA,
     PseudoQuantumState,
     QuantumStateMachine,
     Range,

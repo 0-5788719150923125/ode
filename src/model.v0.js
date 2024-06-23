@@ -137,6 +137,7 @@ export default class ModelBase {
 
     compile() {
         // this.model = enableGradientCheckpointing(this.model)
+        // this.model = enableGradientCheckpointing(this.model, 5)
         this.model.compile({
             optimizer: this.optimizers[0],
             loss: this.lossFunctions[0].function
@@ -473,6 +474,51 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
     })
 }
 
+function enableGradientCheckpointing(model, numSegments = 3) {
+    const originalCall = model.call.bind(model)
+
+    model.call = function (inputs, kwargs) {
+        return tf.tidy(() => {
+            const checkpointedCall = tf.customGrad((x, save) => {
+                save([x])
+
+                const forwardPass = (input) => {
+                    let current = input
+                    for (const layer of model.layers) {
+                        if (layer.getClassName() !== 'InputLayer') {
+                            current = layer.apply(current)
+                        }
+                    }
+                    return current
+                }
+
+                const output = forwardPass(x)
+
+                const gradFunc = (dy, saved) => {
+                    const [originalInput] = saved
+
+                    const { grads } = tf.variableGrads(() => {
+                        const recomputedOutput = forwardPass(originalInput)
+                        return tf.sum(tf.mul(recomputedOutput, dy))
+                    })
+
+                    const inputGrad = tf.grad((x) => {
+                        const y = forwardPass(x)
+                        return tf.sum(tf.mul(y, dy))
+                    })(originalInput)
+
+                    return inputGrad
+                }
+
+                return { value: output, gradFunc }
+            })
+
+            return checkpointedCall(inputs)
+        })
+    }
+
+    return model
+}
 // function enableGradientCheckpointing(model) {
 //     model.layers.forEach((layer) => {
 //         const originalCall = layer.call

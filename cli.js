@@ -117,5 +117,6 @@ async function orchestrate(options) {
 }
 
 ;(async function () {
+    console.clear()
     await orchestrate(options)
 })()
