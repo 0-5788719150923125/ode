@@ -164,7 +164,8 @@ export default class ModelBase {
         maxNewTokens = 50,
         stopToken = null
     } = {}) {
-        return await generateText.call(this, {
+        if (this.stateful) this.model.resetStates()
+        const output = await generateText.call(this, {
             prompt,
             doSample,
             temperature,
@@ -174,6 +175,8 @@ export default class ModelBase {
             maxNewTokens,
             stopToken
         })
+        if (this.stateful) this.model.resetStates()
+        return output
     }
 
     async train(dataGenerator, args, callbacks) {

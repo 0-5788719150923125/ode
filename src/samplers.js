@@ -10,27 +10,14 @@ function* stringSampler(sampleLen, overfit = 0, str = '') {
     }
 }
 
-function* sinWaveOscillator(min, max) {
-    let i = 0
-    const amplitude = (max - min) / 2 // Height from center to peak
-    const offset = (max + min) / 2 // Midpoint between max and min
-    while (true) {
-        const value = Math.sin(i) * amplitude + offset
-        yield Math.round(value)
-        i += 0.1 // Increment angle to move along the sine wave
-    }
-}
-
-function* sequentialStringSampler(sampleLen, overfit = 0, str) {
-    let index = 0
-    const oscillator = sinWaveOscillator(1, 64)
-    if (overfit > 0) str = splitLines(str, overfit)
+function* sequentialStringSampler(sampleLen, str) {
+    let index = Math.floor(Math.random() * (str.length - sampleLen + 1))
     while (true) {
         if (index + sampleLen > str.length) {
             index = 0
         }
         yield str.substring(index, index + sampleLen) // Yield a substring of length sampleLen
-        index = index + oscillator.next().value // Make [x] time step over the str
+        index++
     }
 }
 
@@ -99,8 +86,8 @@ async function fetchURLSampler(
 const samplers = {
     stringSampler: (sampleLen, overfit, str) =>
         stringSampler(sampleLen, overfit, str),
-    sequentialStringSampler: (sampleLen, overfit, str) =>
-        sequentialStringSampler(sampleLen, overfit, str),
+    sequentialStringSampler: (sampleLen, str) =>
+        sequentialStringSampler(sampleLen, str),
     directorySampler: (dir, delimiter) => directorySampler(dir, delimiter),
     fetchURLSampler: (url, path) => fetchURLSampler(url, path)
 }

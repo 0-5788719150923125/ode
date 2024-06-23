@@ -30,7 +30,15 @@ const customLayers = {
     multiply: (config) =>
         tf.layers.multiply({ name: `mul-${randomString()}`, ...config }),
     timeDistributed: (config) =>
-        tf.layers.timeDistributed({ name: `time-${randomString()}`, ...config })
+        tf.layers.timeDistributed({
+            name: `time-${randomString()}`,
+            ...config
+        }),
+    gru: (config) =>
+        tf.layers.gru({ name: `gru-${randomString()}`, ...config }),
+    lstm: (config) =>
+        tf.layers.lstm({ name: `lstm-${randomString()}`, ...config }),
+    rnn: (config) => tf.layers.gru({ name: `rnn-${randomString()}`, ...config })
 }
 export default customLayers
 
@@ -126,7 +134,6 @@ class SharedEmbedding extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
             if (inputs.shape.length === 2) {
                 // Input embedding
                 const flatInputs = tf.reshape(inputs, [-1])

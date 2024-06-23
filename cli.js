@@ -74,11 +74,20 @@ async function orchestrate(options) {
     }
 
     if (['train', 'continue'].includes(options.mode)) {
-        const dataset = net.ode.samplers.stringSampler(
-            options.sampleLength * 6,
-            0,
-            corpus
-        )
+        let dataset
+        if (options.samplingMethod === 'sequential') {
+            dataset = net.ode.samplers.sequentialStringSampler(
+                options.sampleLength,
+                corpus
+            )
+        } else {
+            dataset = net.ode.samplers.stringSampler(
+                options.sampleLength * 6,
+                0,
+                corpus
+            )
+        }
+
         const {
             ConsoleLogger,
             MetricsCollector,

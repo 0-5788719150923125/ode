@@ -385,15 +385,8 @@ async function batchMaker(
     let xsArray = []
     let ysArray = []
 
-    // let sampleLength = inputLength
-
     for (let i = 0; i < batchSize; ++i) {
-        // if (downsampling !== 1.0)
-        //     sampleLength =
-        //         inputLength - getRandomBiasedNumber(3, inputLength, 1.5)
-
         const sample = await dataGenerator.next().value
-        // .slice(0, sampleLength)
 
         const textIndices = preprocessData(
             sample,
@@ -401,8 +394,6 @@ async function batchMaker(
             inputLength + 1, // Include the next token to predict
             'left'
         )
-
-        // console.log(JSON.stringify(textIndices))
 
         // Input sequence (excluding the last token for prediction)
         let xs = textIndices.slice(0, inputLength)
