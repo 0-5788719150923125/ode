@@ -172,16 +172,16 @@ function subliminalTopk(input, k) {
 //         return updatedGradInput
 //     }
 
-//     const customTopk = tf.customGrad((input, save) => {
-//         const { values, indices } = tf.topk(input, k)
-//         save([indices])
-//         const gradFunc = (dy, saved) => {
-//             const [savedIndices] = saved
-//             const gradInput = topkGrad(dy, savedIndices)
-//             return gradInput
-//         }
-//         return { value: values, gradFunc }
-//     })
+// const customTopk = tf.customGrad((input, save) => {
+//     const { values, indices } = tf.topk(input, k)
+//     save([indices])
+//     const gradFunc = (dy, saved) => {
+//         const [savedIndices] = saved
+//         const gradInput = topkGrad(dy, savedIndices)
+//         return gradInput
+//     }
+//     return { value: values, gradFunc }
+// })
 
 //     const value = customTopk(input)
 //     const indices = tf.topk(input, k).indices

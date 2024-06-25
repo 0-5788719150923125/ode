@@ -1,6 +1,6 @@
 // import { createCanvas } from 'canvas'
 import { env } from '@xenova/transformers'
-env.allowLocalModels = false
+env.allowLocalModels = typeof window !== 'undefined' ? true : false
 import { AutoTokenizer } from '@xenova/transformers'
 
 class TokenizerBase {

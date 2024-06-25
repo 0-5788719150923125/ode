@@ -9,14 +9,10 @@ export default class OpenDoorExperiment extends ODE {
         super(config)
         this.layers = config.layers || 6
         this.units = config.units || 128
-        this.embeddings = config.embeddings || 512
-        this.heads = config.heads || 3
+        this.heads = config.heads || 4
         this.queryRatio = config.queryRatio || 2
         this.headDim = config.headDim || 256
-        this.mlpDim = config.mlpDim || 1024
-        this.encoderDim = config.encoderDim || 768
-        this.bottleneck = config.bottleneck || 96
-        this.beta = config.beta || 10.0
+        this.mlpDim = config.mlpDim || 512
     }
 
     defineTokenizer(config) {
@@ -30,25 +26,13 @@ export default class OpenDoorExperiment extends ODE {
             shape: [null]
         })
 
-        let outputs = this.ode.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.embeddings,
-                embeddingsInitializer: 'glorotUniform'
-            })
-            .apply(inputs)
+        const embeddings = this.ode.layers.SharedEmbedding({
+            inputDim: this.tokenizer.getLength(),
+            outputDim: this.units,
+            embeddingsInitializer: 'glorotUniform'
+        })
 
-        outputs = this.ode.layers
-            .Autoencoder({
-                variational: true,
-                beta: this.beta,
-                innerDim: this.encoderDim,
-                bottleneck: this.bottleneck,
-                outputDim: this.units,
-                encoderActivation: 'mish',
-                decoderActivation: 'swish'
-            })
-            .apply(outputs)
+        let outputs = embeddings.apply(inputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -67,11 +51,7 @@ export default class OpenDoorExperiment extends ODE {
                 .apply(outputs)
         }
 
-        outputs = this.ode.layers
-            .dense({
-                units: this.tokenizer.getLength()
-            })
-            .apply(outputs)
+        outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }

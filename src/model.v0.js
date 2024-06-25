@@ -137,7 +137,6 @@ export default class ModelBase {
 
     compile() {
         // this.model = enableGradientCheckpointing(this.model)
-        // this.model = enableGradientCheckpointing(this.model, 5)
         this.model.compile({
             optimizer: this.optimizers[0],
             loss: this.lossFunctions[0].function
@@ -477,86 +476,29 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
     })
 }
 
-function enableGradientCheckpointing(model, numSegments = 3) {
-    const originalCall = model.call.bind(model)
+function enableGradientCheckpointing(model) {
+    model.layers.forEach((layer) => {
+        if (layer.getClassName() !== 'InputLayer') {
+            const originalCall = layer.call
 
-    model.call = function (inputs, kwargs) {
-        return tf.tidy(() => {
-            const checkpointedCall = tf.customGrad((x, save) => {
-                save([x])
+            layer.call = function (inputs, kwargs) {
+                const self = this
 
-                const forwardPass = (input) => {
-                    let current = input
-                    for (const layer of model.layers) {
-                        if (layer.getClassName() !== 'InputLayer') {
-                            current = layer.apply(current)
-                        }
+                return tf.customGrad((x, save) => {
+                    const output = originalCall.apply(self, [x, kwargs])
+                    save([x])
+
+                    const gradFunc = (dy, saved) => {
+                        const inputGrad = tf.mul(dy, saved[0])
+
+                        return [inputGrad]
                     }
-                    return current
-                }
 
-                const output = forwardPass(x)
-
-                const gradFunc = (dy, saved) => {
-                    const [originalInput] = saved
-
-                    const { grads } = tf.variableGrads(() => {
-                        const recomputedOutput = forwardPass(originalInput)
-                        return tf.sum(tf.mul(recomputedOutput, dy))
-                    })
-
-                    const inputGrad = tf.grad((x) => {
-                        const y = forwardPass(x)
-                        return tf.sum(tf.mul(y, dy))
-                    })(originalInput)
-
-                    return inputGrad
-                }
-
-                return { value: output, gradFunc }
-            })
-
-            return checkpointedCall(inputs)
-        })
-    }
+                    return { value: output, gradFunc }
+                })(inputs[0])
+            }
+        }
+    })
 
     return model
 }
-// function enableGradientCheckpointing(model) {
-//     model.layers.forEach((layer) => {
-//         const originalCall = layer.call
-//         layer.call = function (inputs, kwargs) {
-//             const inputTensors = Array.isArray(inputs) ? inputs : [inputs]
-
-//             const output = tf.customGrad((inputs, save) => {
-//                 inputs = Array.isArray(inputs) ? inputs : [inputs]
-
-//                 save(inputs)
-
-//                 const output = originalCall.apply(layer, [inputs, kwargs])
-
-//                 save([output])
-
-//                 return {
-//                     value: output,
-//                     gradFunc: (dy, saved) => {
-//                         const savedTensors = saved[0]
-
-//                         const inputs = savedTensors.slice(0, inputs.length)
-
-//                         const gradients = tf.grads((outputs) => outputs[0])(
-//                             inputs,
-//                             dy
-//                         )
-
-//                         return gradients
-//                     }
-//                 }
-//             })(...inputTensors)
-
-//             return output
-//         }
-//     })
-
-//     return model
-// }
