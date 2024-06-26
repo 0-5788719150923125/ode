@@ -87,6 +87,14 @@ class LayerBase extends tf.layers.Layer {
         return x.div(rms.add(epsilon))
     }
 
+    findLayer(key) {
+        const lowercaseKey = key.toLowerCase()
+        const match = Object.keys(customLayers).find(
+            (k) => k.toLowerCase() === lowercaseKey
+        )
+        return match ? customLayers[match] : undefined
+    }
+
     static get className() {
         return this.name
     }
@@ -2286,8 +2294,10 @@ class TransientMixtureOfExperts extends LayerBase {
         this.topK = config.topK || 2
         this.hiddenDim = config.hiddenDim || 128
         this.activation = config.activation || 'swish'
-        this.expertType = config.expertType || 'SelfAttention'
-        this.expertArgs = config.expertArgs || { projection: 64 }
+        this.expertArgs = config.expertArgs || {
+            type: 'SelfAttention',
+            projection: 64
+        }
     }
 
     build(inputShape) {
@@ -2409,10 +2419,7 @@ class TransientMixtureOfExperts extends LayerBase {
     createAttentionExperts() {
         const experts = []
         for (let i = 0; i < this.numExperts; i++) {
-            const fixed =
-                this.expertType.charAt(0).toUpperCase() +
-                this.expertType.slice(1)
-            experts.push(customLayers[fixed](this.expertArgs))
+            experts.push(this.findLayer(this.expertArgs.type)(this.expertArgs))
         }
         return experts
     }
@@ -2444,7 +2451,6 @@ class TransientMixtureOfExperts extends LayerBase {
             hiddenDim: this.hiddenDim,
             activation: this.activation,
             topK: this.topK,
-            expertType: this.expertType,
             expertArgs: this.expertArgs
         }
     }

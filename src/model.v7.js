@@ -7,7 +7,7 @@ import ODE from './model.v6.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 5
+        this.layers = config.layers || 4
         this.units = config.units || 64
         this.experts = config.experts || 7
         this.topK = config.topK || 2
@@ -43,9 +43,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     topK: this.topK,
                     numExperts: this.experts,
                     hiddenDim: this.moeDim,
-                    activation: 'swish',
-                    expertType: 'SelfAttention',
-                    expertArgs: { projection: this.headDim }
+                    activation: 'mish',
+                    expertArgs: {
+                        type: 'SelfAttention',
+                        projection: this.headDim
+                    }
                 })
                 .apply(outputs)
 
@@ -54,9 +56,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     topK: this.topK,
                     numExperts: this.experts,
                     hiddenDim: this.moeDim,
-                    activation: 'swish',
-                    expertType: 'GatedLinearMLP',
-                    expertArgs: { innerDim: this.mlpDim, activation: 'swish' }
+                    activation: 'mish',
+                    expertArgs: {
+                        type: 'GatedLinearMLP',
+                        innerDim: this.mlpDim,
+                        activation: 'mish'
+                    }
                 })
                 .apply(outputs)
         }
