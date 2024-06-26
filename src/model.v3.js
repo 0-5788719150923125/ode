@@ -44,7 +44,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .MultiLayerPerceptron({
                     units: this.units,
                     innerDim: this.units * 4,
-                    activation: 'mish'
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }
