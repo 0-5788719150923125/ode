@@ -9,7 +9,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = config.layers || 4
         this.units = config.units || 128
-        this.experts = config.experts || 7
+        this.experts = config.experts || 3
         this.topK = config.topK || 2
         this.moeDim = config.moeDim || 256
         this.headDim = config.headDim || 256
@@ -37,10 +37,10 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        const attentionExperts = this.createAttentionExperts()
-        const feedforwardExperts = this.createAttentionExperts()
-
         for (let i = 0; i < this.layers; i++) {
+            const attentionExperts = this.createAttentionExperts()
+            const feedforwardExperts = this.createAttentionExperts()
+
             const attentionOutputs = attentionExperts.map((expert) =>
                 expert.apply(outputs)
             )
