@@ -1,24 +1,24 @@
 import ODE from './model.v6.js'
 
 /**
- * A better sparse mixture of experts.
+ * A sparse mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 4
-        this.units = config.units || 64
+        this.units = config.units || 128
         this.experts = config.experts || 7
         this.topK = config.topK || 2
-        this.moeDim = config.moeDim || 128
+        this.moeDim = config.moeDim || 256
         this.headDim = config.headDim || 256
         this.mlpDim = config.mlpDim || 512
     }
 
     defineTokenizer(config) {
         this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-            model: 'OriginalDesign/beast'
+            model: 'OriginalDesign/thrice'
         })
     }
 
@@ -37,37 +37,64 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
+        const attentionExperts = this.createAttentionExperts()
+        const feedforwardExperts = this.createAttentionExperts()
+
         for (let i = 0; i < this.layers; i++) {
-            outputs = this.ode.layers
-                .TransientMixtureOfExperts({
-                    topK: this.topK,
-                    numExperts: this.experts,
-                    hiddenDim: this.moeDim,
-                    activation: 'mish',
-                    expertArgs: {
-                        type: 'SelfAttention',
-                        projection: this.headDim
-                    }
-                })
-                .apply(outputs)
+            const attentionOutputs = attentionExperts.map((expert) =>
+                expert.apply(outputs)
+            )
 
             outputs = this.ode.layers
-                .TransientMixtureOfExperts({
+                .SparseMixtureOfExperts({
                     topK: this.topK,
-                    numExperts: this.experts,
+                    numExperts: attentionExperts.length,
                     hiddenDim: this.moeDim,
-                    activation: 'mish',
-                    expertArgs: {
-                        type: 'GatedLinearMLP',
-                        innerDim: this.mlpDim,
-                        activation: 'mish'
-                    }
+                    activation: 'mish'
                 })
-                .apply(outputs)
+                .apply([outputs, ...attentionOutputs])
+
+            const feedforwardOutputs = feedforwardExperts.map((expert) =>
+                expert.apply(outputs)
+            )
+
+            outputs = this.ode.layers
+                .SparseMixtureOfExperts({
+                    topK: this.topK,
+                    numExperts: feedforwardExperts.length,
+                    hiddenDim: this.moeDim,
+                    activation: 'mish'
+                })
+                .apply([outputs, ...feedforwardOutputs])
         }
 
         outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    createAttentionExperts() {
+        const experts = []
+        for (let i = 0; i < this.experts; i++) {
+            experts.push(
+                this.ode.layers.SelfAttention({
+                    projection: this.headDim
+                })
+            )
+        }
+        return experts
+    }
+
+    createFeedforwardExperts() {
+        const experts = []
+        for (let i = 0; i < this.experts; i++) {
+            experts.push(
+                this.ode.layers.GatedLinearMLP({
+                    innerDim: this.mlpDim,
+                    activation: 'mish'
+                })
+            )
+        }
+        return experts
     }
 }

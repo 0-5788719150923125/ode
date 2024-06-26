@@ -2053,16 +2053,16 @@ class SparseMixtureOfExperts extends LayerBase {
             // Gating network
             const gatingHidden = this.applyDense(
                 inputs,
-                this.gatingHidden,
-                this.gatingHiddenBias
+                this.gatingHidden.read(),
+                this.gatingHiddenBias.read()
             )
             const activatedGate = tf.layers
                 .activation({ activation: this.activation })
                 .apply(gatingHidden)
             const expertWeights = this.applyDense(
                 activatedGate,
-                this.gatingKernel,
-                this.gatingBias
+                this.gatingKernel.read(),
+                this.gatingBias.read()
             ).softmax()
 
             // Randomly select a subset of experts
@@ -2365,22 +2365,20 @@ class TransientMixtureOfExperts extends LayerBase {
             )
 
             // Perform inference for each expert
-            const selectedExpertOutputs = []
+            const expertOutputs = []
             selectedExpertIndices.map((index) =>
-                selectedExpertOutputs.push(this.experts[index].apply(inputs))
+                expertOutputs.push(this.experts[index].apply(inputs))
             )
+            // console.log(expertOutputs)
 
             // Combine expert outputs using weighted sum
-            const combinedOutput = selectedExpertOutputs.reduce(
-                (prev, curr, i) => {
-                    const expertWeight = selectedExpertWeights.slice(
-                        [0, 0, i],
-                        [inputs.shape[0], inputs.shape[1], 1]
-                    )
-                    return prev.add(curr.mul(expertWeight))
-                },
-                tf.zeros(inputs.shape)
-            )
+            const combinedOutput = expertOutputs.reduce((prev, curr, i) => {
+                const expertWeight = selectedExpertWeights.slice(
+                    [0, 0, i],
+                    [inputs.shape[0], inputs.shape[1], 1]
+                )
+                return prev.add(curr.mul(expertWeight))
+            }, tf.zeros(inputs.shape))
 
             return combinedOutput
         })
