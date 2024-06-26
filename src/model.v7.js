@@ -1,24 +1,24 @@
-import ODE from './model.v2.js'
+import ODE from './model.v6.js'
 
 /**
- * A sparse mixture of experts.
+ * A better sparse mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
+        this.layers = config.layers || 5
+        this.units = config.units || 64
         this.experts = config.experts || 7
         this.topK = config.topK || 2
         this.moeDim = config.moeDim || 128
-        this.headDim = config.headDim || 512
-        this.mlpDim = config.mlpDim || 1024
+        this.headDim = config.headDim || 256
+        this.mlpDim = config.mlpDim || 512
     }
 
-    defineTokenizer() {
-        super.defineTokenizer({
-            model: 'OriginalDesign/twos'
+    defineTokenizer(config) {
+        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+            model: 'OriginalDesign/beast'
         })
     }
 
@@ -38,22 +38,25 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
-            const experts = this.createAttentionExperts()
-            const expertOutputs = experts.map((expert) => expert.apply(outputs))
-
             outputs = this.ode.layers
-                .SparseMixtureOfExperts({
+                .TransientMixtureOfExperts({
                     topK: this.topK,
-                    numExperts: experts.length,
+                    numExperts: this.experts,
                     hiddenDim: this.moeDim,
-                    activation: 'swish'
+                    activation: 'swish',
+                    expertType: 'SelfAttention',
+                    expertArgs: { projection: this.headDim }
                 })
-                .apply([outputs, ...expertOutputs])
+                .apply(outputs)
 
             outputs = this.ode.layers
-                .MultiLayerPerceptron({
-                    innerDim: this.mlpDim,
-                    activation: 'swish'
+                .TransientMixtureOfExperts({
+                    topK: this.topK,
+                    numExperts: this.experts,
+                    hiddenDim: this.moeDim,
+                    activation: 'swish',
+                    expertType: 'GatedLinearMLP',
+                    expertArgs: { innerDim: this.mlpDim, activation: 'swish' }
                 })
                 .apply(outputs)
         }
@@ -61,17 +64,5 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
-    }
-
-    createAttentionExperts() {
-        const experts = []
-        for (let i = 0; i < this.experts; i++) {
-            experts.push(
-                this.ode.layers.SelfAttention({
-                    projection: this.headDim
-                })
-            )
-        }
-        return experts
     }
 }

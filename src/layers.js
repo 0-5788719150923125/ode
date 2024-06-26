@@ -235,9 +235,9 @@ class SelfAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const Q = this.applyDense(inputs, this.queryKernel)
-            const K = this.applyDense(inputs, this.keyKernel)
-            const V = this.applyDense(inputs, this.valueKernel)
+            const Q = this.applyDense(inputs, this.queryKernel.read())
+            const K = this.applyDense(inputs, this.keyKernel.read())
+            const V = this.applyDense(inputs, this.valueKernel.read())
 
             const mask = tf.linalg
                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
@@ -2278,6 +2278,177 @@ class SparseMixtureOfExperts extends LayerBase {
 //         }
 //     }
 // }
+
+class TransientMixtureOfExperts extends LayerBase {
+    constructor(config) {
+        super({ name: `moe-${randomString()}`, ...config })
+        this.numExperts = config.numExperts
+        this.topK = config.topK || 2
+        this.hiddenDim = config.hiddenDim || 128
+        this.activation = config.activation || 'swish'
+        this.expertType = config.expertType || 'SelfAttention'
+        this.expertArgs = config.expertArgs || { projection: 64 }
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+
+        this.experts = this.createAttentionExperts()
+
+        // Initialize gating network
+        this.gatingHidden = this.addWeight(
+            'gatingHidden',
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+        this.gatingHiddenBias = this.addWeight(
+            'gatingHiddenBias',
+            [this.hiddenDim],
+            'float32',
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+        this.gatingKernel = this.addWeight(
+            'gatingKernel',
+            [this.hiddenDim, this.numExperts],
+            'float32',
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+        this.gatingBias = this.addWeight(
+            'gatingBias',
+            [this.numExperts],
+            'float32',
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Gating network
+            const gatingHidden = this.applyDense(
+                inputs,
+                this.gatingHidden.read(),
+                this.gatingHiddenBias.read()
+            )
+            const activatedGate = tf.layers
+                .activation({ activation: this.activation })
+                .apply(gatingHidden)
+            const expertWeights = this.applyDense(
+                activatedGate,
+                this.gatingKernel.read(),
+                this.gatingBias.read()
+            ).softmax()
+
+            // Randomly select a subset of experts
+            const selectedExpertIndices = this.selectRandomExperts(this.experts)
+
+            // // Slice the expert weights based on the selected expert indices
+            const selectedExpertWeights = this.sliceExpertWeights(
+                expertWeights,
+                selectedExpertIndices
+            )
+
+            // Perform inference for each expert
+            const selectedExpertOutputs = []
+            selectedExpertIndices.map((index) =>
+                selectedExpertOutputs.push(this.experts[index].apply(inputs))
+            )
+
+            // Combine expert outputs using weighted sum
+            const combinedOutput = selectedExpertOutputs.reduce(
+                (prev, curr, i) => {
+                    const expertWeight = selectedExpertWeights.slice(
+                        [0, 0, i],
+                        [inputs.shape[0], inputs.shape[1], 1]
+                    )
+                    return prev.add(curr.mul(expertWeight))
+                },
+                tf.zeros(inputs.shape)
+            )
+
+            return combinedOutput
+        })
+    }
+
+    selectRandomExperts(experts) {
+        const numExperts = experts.length
+        const expertIndices = tf.util.createShuffledIndices(numExperts)
+        return expertIndices.slice(0, this.topK)
+    }
+
+    queryExperts(expertWeights, selectedExpertIndices) {
+        const selectedWeights = []
+        selectedExpertIndices.forEach((expertIndex) => {
+            const expertSlice = expertWeights.slice(
+                [0, 0, expertIndex],
+                [expertWeights.shape[0], expertWeights.shape[1], 1]
+            )
+            selectedWeights.push(expertSlice)
+        })
+        return tf.concat(selectedWeights, -1)
+    }
+
+    sliceExpertWeights(expertWeights, selectedExpertIndices) {
+        const selectedWeights = []
+        selectedExpertIndices.forEach((expertIndex) => {
+            const expertSlice = expertWeights.slice(
+                [0, 0, expertIndex],
+                [expertWeights.shape[0], expertWeights.shape[1], 1]
+            )
+            selectedWeights.push(expertSlice)
+        })
+        return tf.concat(selectedWeights, -1)
+    }
+
+    createAttentionExperts() {
+        const experts = []
+        for (let i = 0; i < this.numExperts; i++) {
+            const fixed =
+                this.expertType.charAt(0).toUpperCase() +
+                this.expertType.slice(1)
+            experts.push(customLayers[fixed](this.expertArgs))
+        }
+        return experts
+    }
+
+    computeOutputShape(inputShape) {
+        return inputShape
+    }
+
+    getWeights() {
+        return [
+            this.gatingHidden.read(),
+            this.gatingHiddenBias.read(),
+            this.gatingKernel.read(),
+            this.gatingBias.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.gatingHidden.write(weights[0])
+        this.gatingHiddenBias.write(weights[1])
+        this.gatingKernel.write(weights[2])
+        this.gatingBias.write(weights[3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            numExperts: this.numExperts,
+            hiddenDim: this.hiddenDim,
+            activation: this.activation,
+            topK: this.topK,
+            expertType: this.expertType,
+            expertArgs: this.expertArgs
+        }
+    }
+}
 
 class PreviousTokenHashMixtureOfExperts extends LayerBase {
     constructor(config) {
@@ -8540,7 +8711,8 @@ const exportedLayers = [
     SynthesizerAttention,
     TemporalPooling,
     ToOneHot,
-    WeightedSum
+    WeightedSum,
+    TransientMixtureOfExperts
 ]
 
 exportedLayers.forEach((LayerClass) => {
