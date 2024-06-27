@@ -2550,9 +2550,15 @@ class AdaptiveMixtureOfExperts extends TransientMixtureOfExperts {
             )
 
             // Select top-k experts for each batch
-            const avgSwitchingScores = switchingScores.mean(1)
+            // const avgSwitchingScores = switchingScores.mean(1)
+            // const selectedExpertIndices =
+            //     this.selectTopExperts(avgSwitchingScores)
+            const [batchSize, timeSteps, numExperts] = switchingScores.shape
+            const lastTimeStepScores = switchingScores
+                .slice([0, timeSteps - 1, 0], [batchSize, 1, numExperts])
+                .squeeze([1])
             const selectedExpertIndices =
-                this.selectTopExperts(avgSwitchingScores)
+                this.selectTopExperts(lastTimeStepScores)
 
             // Slice the expert weights based on the selected expert indices
             const selectedExpertWeights = this.sliceExpertWeights(
