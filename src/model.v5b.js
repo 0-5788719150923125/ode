@@ -8,12 +8,13 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 4
-        this.units = config.units || 64
+        this.units = config.units || 128
         this.experts = config.experts || 7
         this.topK = config.topK || 2
-        this.moeDim = config.moeDim || 128
-        this.headDim = config.headDim || 256
-        this.mlpDim = config.mlpDim || 512
+        this.moeDim = config.moeDim || 256
+        this.switchingDim = config.switchingDim || 64
+        this.headDim = config.headDim || 512
+        this.mlpDim = config.mlpDim || 1024
     }
 
     defineTokenizer(config) {
@@ -39,10 +40,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .TransientMixtureOfExperts({
+                .AdaptiveMixtureOfExperts({
                     topK: this.topK,
                     numExperts: this.experts,
                     hiddenDim: this.moeDim,
+                    switchingDim: this.switchingDim,
                     activation: 'mish',
                     expertArgs: {
                         type: 'SelfAttention',
@@ -52,10 +54,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .TransientMixtureOfExperts({
+                .AdaptiveMixtureOfExperts({
                     topK: this.topK,
                     numExperts: this.experts,
                     hiddenDim: this.moeDim,
+                    switchingDim: this.switchingDim,
                     activation: 'mish',
                     expertArgs: {
                         type: 'GatedLinearMLP',
