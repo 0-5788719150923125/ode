@@ -2566,27 +2566,70 @@ class AdaptiveMixtureOfExperts extends TransientMixtureOfExperts {
                 selectedExpertIndices
             )
 
-            const batchOutputs = []
-            for (let i = 0; i < inputs.shape[0]; i++) {
-                const batchInputs = inputs.slice([i, 0], [1, -1])
-                const batchWeights = selectedExpertWeights.slice(
-                    [i, 0, 0],
-                    [1, -1, -1]
-                )
-
-                let batchOutput = tf.zeros(batchInputs.shape)
+            // Group inputs and weights by expert
+            const expertInputs = {}
+            const expertWeightsSliced = {}
+            const expertMetadata = {}
+            for (let i = 0; i < batchSize; i++) {
                 for (let j = 0; j < this.topK; j++) {
                     const expertIndex = selectedExpertIndices[i][j]
-                    const expertOutput =
-                        this.experts[expertIndex].apply(batchInputs)
-                    const expertWeight = batchWeights.slice(
-                        [0, 0, j],
-                        [1, -1, 1]
+                    if (!(expertIndex in expertInputs)) {
+                        expertInputs[expertIndex] = []
+                        expertWeightsSliced[expertIndex] = []
+                        expertMetadata[expertIndex] = []
+                    }
+                    expertInputs[expertIndex].push(
+                        inputs.slice([i, 0, 0], [1, -1, -1])
                     )
-                    batchOutput = batchOutput.add(
-                        expertOutput.mul(expertWeight)
+                    expertWeightsSliced[expertIndex].push(
+                        selectedExpertWeights.slice([i, 0, j], [1, -1, 1])
                     )
+                    expertMetadata[expertIndex].push({
+                        batchIndex: i,
+                        expertIndex: j
+                    })
                 }
+            }
+
+            // Apply experts to combined batches
+            const expertOutputs = {}
+            for (const expertIndex in expertInputs) {
+                const combinedInputs = tf.concat(expertInputs[expertIndex], 0)
+                const combinedWeights = tf.concat(
+                    expertWeightsSliced[expertIndex],
+                    0
+                )
+                const expertOutput =
+                    this.experts[expertIndex].apply(combinedInputs)
+                expertOutputs[expertIndex] = expertOutput.mul(combinedWeights)
+            }
+
+            // Recombine expert outputs for each batch
+            const batchOutputs = []
+            for (let i = 0; i < batchSize; i++) {
+                const batchExpertOutputs = {}
+                for (const expertIndex in expertMetadata) {
+                    const metadata = expertMetadata[expertIndex]
+                    const batchIndices = metadata
+                        .filter((item) => item.batchIndex === i)
+                        .map((item) => item.expertIndex)
+                    if (batchIndices.length > 0) {
+                        const expertOutput = expertOutputs[expertIndex]
+                        const batchExpertOutput = expertOutput.slice(
+                            [0, 0, 0],
+                            [
+                                batchIndices.length,
+                                expertOutput.shape[1],
+                                expertOutput.shape[2]
+                            ]
+                        )
+                        batchExpertOutputs[expertIndex] = batchExpertOutput
+                    }
+                }
+                const batchOutput = Object.values(batchExpertOutputs).reduce(
+                    (acc, output) => acc.add(output),
+                    tf.zeros([1, inputs.shape[1], inputs.shape[2]])
+                )
                 batchOutputs.push(batchOutput)
             }
 
@@ -2657,6 +2700,191 @@ class AdaptiveMixtureOfExperts extends TransientMixtureOfExperts {
         }
     }
 }
+
+// class AdaptiveMixtureOfExperts extends TransientMixtureOfExperts {
+//     constructor(config) {
+//         super(config)
+//         this.switchingDim = config?.switchingDim || 64
+//     }
+
+//     build(inputShape) {
+//         super.build(inputShape)
+
+//         const inputDim = inputShape[inputShape.length - 1]
+
+//         // Initialize switching network
+//         this.switchingHidden = this.addWeight(
+//             'switchingHidden',
+//             [inputDim, this.switchingDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.switchingHiddenBias = this.addWeight(
+//             'switchingHiddenBias',
+//             [this.switchingDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.switchingKernel = this.addWeight(
+//             'switchingKernel',
+//             [this.switchingDim, this.numExperts],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.switchingBias = this.addWeight(
+//             'switchingBias',
+//             [this.numExperts],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             // Gating network (same as before)
+//             const gatingHidden = this.applyDense(
+//                 inputs,
+//                 this.gatingHidden.read(),
+//                 this.gatingHiddenBias.read()
+//             )
+//             const activatedGate = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(gatingHidden)
+//             const expertWeights = this.applyDense(
+//                 activatedGate,
+//                 this.gatingKernel.read(),
+//                 this.gatingBias.read()
+//             ).softmax()
+
+//             // Switching network
+//             const switchingHidden = this.applyDense(
+//                 inputs,
+//                 this.switchingHidden.read(),
+//                 this.switchingHiddenBias.read()
+//             )
+//             const activatedSwitching = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(switchingHidden)
+//             const switchingScores = this.applyDense(
+//                 activatedSwitching,
+//                 this.switchingKernel.read(),
+//                 this.switchingBias.read()
+//             )
+
+//             // Select top-k experts for each batch
+//             // const avgSwitchingScores = switchingScores.mean(1)
+//             // const selectedExpertIndices =
+//             //     this.selectTopExperts(avgSwitchingScores)
+//             const [batchSize, timeSteps, numExperts] = switchingScores.shape
+//             const lastTimeStepScores = switchingScores
+//                 .slice([0, timeSteps - 1, 0], [batchSize, 1, numExperts])
+//                 .squeeze([1])
+//             const selectedExpertIndices =
+//                 this.selectTopExperts(lastTimeStepScores)
+
+//             // Slice the expert weights based on the selected expert indices
+//             const selectedExpertWeights = this.sliceExpertWeights(
+//                 expertWeights,
+//                 selectedExpertIndices
+//             )
+
+//             const batchOutputs = []
+//             for (let i = 0; i < inputs.shape[0]; i++) {
+//                 const batchInputs = inputs.slice([i, 0], [1, -1])
+//                 const batchWeights = selectedExpertWeights.slice(
+//                     [i, 0, 0],
+//                     [1, -1, -1]
+//                 )
+
+//                 let batchOutput = tf.zeros(batchInputs.shape)
+//                 for (let j = 0; j < this.topK; j++) {
+//                     const expertIndex = selectedExpertIndices[i][j]
+//                     const expertOutput =
+//                         this.experts[expertIndex].apply(batchInputs)
+//                     const expertWeight = batchWeights.slice(
+//                         [0, 0, j],
+//                         [1, -1, 1]
+//                     )
+//                     batchOutput = batchOutput.add(
+//                         expertOutput.mul(expertWeight)
+//                     )
+//                 }
+//                 batchOutputs.push(batchOutput)
+//             }
+
+//             return tf.concat(batchOutputs, 0)
+//         })
+//     }
+
+//     selectTopExperts(switchingScores) {
+//         const topKIndices = tf.topk(switchingScores, this.topK).indices
+//         return topKIndices.arraySync()
+//     }
+
+//     sliceExpertWeights(expertWeights, selectedExpertIndices) {
+//         return tf.tidy(() => {
+//             const batchSize = expertWeights.shape[0]
+//             const sequenceLength = expertWeights.shape[1]
+
+//             const selectedWeights = []
+//             for (let i = 0; i < batchSize; i++) {
+//                 const batchWeights = expertWeights.slice([i, 0, 0], [1, -1, -1])
+//                 const batchSelectedWeights = []
+//                 for (let j = 0; j < this.topK; j++) {
+//                     const expertIndex = selectedExpertIndices[i][j]
+//                     batchSelectedWeights.push(
+//                         batchWeights.slice(
+//                             [0, 0, expertIndex],
+//                             [1, sequenceLength, 1]
+//                         )
+//                     )
+//                 }
+//                 selectedWeights.push(tf.concat(batchSelectedWeights, 2))
+//             }
+//             return tf.concat(selectedWeights, 0)
+//         })
+//     }
+
+//     getWeights() {
+//         return [
+//             ...super.getWeights(),
+//             this.switchingHidden.read(),
+//             this.switchingHiddenBias.read(),
+//             this.switchingKernel.read(),
+//             this.switchingBias.read()
+//         ]
+//     }
+
+//     setWeights(weights) {
+//         super.setWeights(
+//             weights.slice(
+//                 0,
+//                 4 + this.experts.length * this.experts[0].countParams()
+//             )
+//         )
+
+//         const switchingWeights = weights.slice(
+//             4 + this.experts.length * this.experts[0].countParams()
+//         )
+//         this.switchingHidden.write(switchingWeights[0])
+//         this.switchingHiddenBias.write(switchingWeights[1])
+//         this.switchingKernel.write(switchingWeights[2])
+//         this.switchingBias.write(switchingWeights[3])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             switchingHiddenDim: this.switchingDim
+//         }
+//     }
+// }
 
 class PreviousTokenHashMixtureOfExperts extends LayerBase {
     constructor(config) {
