@@ -123,13 +123,11 @@ class GradientAccumulator {
             }
         )
         if (isNaN(loss)) {
-            this.gradients = this.gradients
-            this.loss = this.loss
-            console.warn('Loss was NaN. Skipping this iteration...')
-        } else {
-            this.gradients = grads
-            this.loss = loss
+            console.error('Loss was NaN. Failing...')
+            throw 'Loss was NaN. Failing..'
         }
+        this.gradients = grads
+        this.loss = loss
     }
 
     getLoss() {

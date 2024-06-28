@@ -7,7 +7,7 @@ import ODE from './model.v6.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
+        this.layers = config.layers || 4
         this.units = config.units || 128
         this.experts = config.experts || 7
         this.topK = config.topK || 2
