@@ -2481,18 +2481,28 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             type: 'SelfAttention',
             projection: 64
         }
+        this.expertNames = config.expertNames || []
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        // this.experts = this.createExperts()
-
         this.experts = []
+        const createNewExperts = this.expertNames.length > 0 ? false : true
         for (let i = 0; i < this.numExperts; i++) {
+            if (!createNewExperts) {
+                // console.log(this.name)
+                this.expertArgs.name = this.expertNames[i]
+            }
             const expert = new Expert({ ...this.expertArgs, inputShape })
             this.experts.push(expert.model)
+            if (!createNewExperts) continue
+            expert.model.layers.map((layer) => {
+                if (layer.name.startsWith('inp')) return
+                this.expertNames.push(layer.name)
+            })
         }
+        console.log(this.experts[0].layers)
 
         // Initialize switching network
         this.switchingHidden = this.addWeight(
@@ -2593,14 +2603,6 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         })
     }
 
-    // createExperts() {
-    //     const experts = []
-    //     for (let i = 0; i < this.numExperts; i++) {
-    //         experts.push(this.findLayer(this.expertArgs.type)(this.expertArgs))
-    //     }
-    //     return experts
-    // }
-
     selectTopExperts(switchingScores) {
         const topKIndices = tf.topk(switchingScores, this.topK).indices
         return topKIndices.arraySync()
@@ -2652,10 +2654,11 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
+            expertNames: this.expertNames,
+            expertArgs: this.expertArgs,
             switchingDim: this.switchingDim,
             activation: this.activation,
-            topK: this.topK,
-            expertArgs: this.expertArgs
+            topK: this.topK
         }
     }
 }

@@ -76,6 +76,7 @@ export default class ModelBase {
             if (layer.experts) {
                 for (let i in layer.experts) {
                     const idx = Number(i) + 1
+                    // console.log(layer.experts)
                     layer.experts[i] = await this.tf.loadLayersModel(
                         `${type}://${path}/experts/model${idx}/model.json`,
                         {

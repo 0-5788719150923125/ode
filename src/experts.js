@@ -11,6 +11,7 @@ export default class ExpertBase {
             type: 'SelfAttention',
             projection: 64
         }
+        // console.log(this.expertArgs)
         this.expertType = this.expertArgs.type
         this.inputShape = this.expertArgs.inputShape
         this.defineExpert()
