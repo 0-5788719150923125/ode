@@ -2497,34 +2497,34 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         this.experts = this.createExperts()
 
         // Initialize gating network
-        this.gatingHidden = this.addWeight(
-            'gatingHidden',
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingHiddenBias = this.addWeight(
-            'gatingHiddenBias',
-            [this.hiddenDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingKernel = this.addWeight(
-            'gatingKernel',
-            [this.hiddenDim, this.numExperts],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingBias = this.addWeight(
-            'gatingBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+        // this.gatingHidden = this.addWeight(
+        //     'gatingHidden',
+        //     [inputDim, this.hiddenDim],
+        //     'float32',
+        //     tf.initializers.glorotNormal(),
+        //     tf.regularizers.l2({ l2: 0.01 })
+        // )
+        // this.gatingHiddenBias = this.addWeight(
+        //     'gatingHiddenBias',
+        //     [this.hiddenDim],
+        //     'float32',
+        //     tf.initializers.zeros(),
+        //     tf.regularizers.l2({ l2: 0.01 })
+        // )
+        // this.gatingKernel = this.addWeight(
+        //     'gatingKernel',
+        //     [this.hiddenDim, this.numExperts],
+        //     'float32',
+        //     tf.initializers.glorotNormal(),
+        //     tf.regularizers.l2({ l2: 0.01 })
+        // )
+        // this.gatingBias = this.addWeight(
+        //     'gatingBias',
+        //     [this.numExperts],
+        //     'float32',
+        //     tf.initializers.zeros(),
+        //     tf.regularizers.l2({ l2: 0.01 })
+        // )
 
         // Initialize switching network
         this.switchingHidden = this.addWeight(
@@ -2555,26 +2555,21 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             tf.initializers.zeros(),
             tf.regularizers.l2({ l2: 0.01 })
         )
+        this.outputProjection = this.addWeight(
+            'outputProjection',
+            [
+                this.topK * this.experts[0].computeOutputShape(inputShape)[2],
+                inputDim
+            ],
+            'float32',
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Gating network
-            const gatingHidden = this.applyDense(
-                inputs,
-                this.gatingHidden.read(),
-                this.gatingHiddenBias.read()
-            )
-            const activatedGate = tf.layers
-                .activation({ activation: this.activation })
-                .apply(gatingHidden)
-            const expertWeights = this.applyDense(
-                activatedGate,
-                this.gatingKernel.read(),
-                this.gatingBias.read()
-            ).softmax()
 
             // Switching network
             const switchingHidden = this.applyDense(
@@ -2591,6 +2586,21 @@ class AdaptiveMixtureOfExperts extends LayerBase {
                 this.switchingBias.read()
             )
 
+            // Gating network
+            // const gatingHidden = this.applyDense(
+            //     inputs,
+            //     this.gatingHidden.read(),
+            //     this.gatingHiddenBias.read()
+            // )
+            // const activatedGate = tf.layers
+            //     .activation({ activation: this.activation })
+            //     .apply(gatingHidden)
+            // const expertWeights = this.applyDense(
+            //     activatedGate,
+            //     this.gatingKernel.read(),
+            //     this.gatingBias.read()
+            // )
+
             // Select top-k experts for each batch
             const [batchSize, timeSteps, numExperts] = switchingScores.shape
             const linearWeights = tf
@@ -2606,36 +2616,31 @@ class AdaptiveMixtureOfExperts extends LayerBase {
                 this.selectTopExperts(weightedAvgScores)
 
             // Slice the expert weights based on the selected expert indices
-            const selectedExpertWeights = this.sliceExpertWeights(
-                expertWeights,
-                selectedExpertIndices
-            )
+            // const selectedExpertWeights = this.sliceExpertWeights(
+            //     expertWeights,
+            //     selectedExpertIndices
+            // )
 
             const batchOutputs = []
             for (let i = 0; i < inputs.shape[0]; i++) {
                 const batchInputs = inputs.slice([i, 0], [1, -1])
-                const batchWeights = selectedExpertWeights.slice(
-                    [i, 0, 0],
-                    [1, -1, -1]
-                )
-
-                let batchOutput = tf.zeros(batchInputs.shape)
+                const expertOutputs = []
                 for (let j = 0; j < this.topK; j++) {
                     const expertIndex = selectedExpertIndices[i][j]
                     const expertOutput =
                         this.experts[expertIndex].apply(batchInputs)
-                    const expertWeight = batchWeights.slice(
-                        [0, 0, j],
-                        [1, -1, 1]
-                    )
-                    batchOutput = batchOutput.add(
-                        expertOutput.mul(expertWeight)
-                    )
+                    expertOutputs.push(expertOutput)
                 }
-                batchOutputs.push(batchOutput)
+                const concatenatedOutput = tf.concat(expertOutputs, -1)
+                batchOutputs.push(concatenatedOutput)
             }
 
-            return this.rmsNorm(tf.concat(batchOutputs, 0))
+            const outputProjected = this.applyDense(
+                tf.concat(batchOutputs, 0),
+                this.outputProjection.read()
+            )
+
+            return outputProjected
         })
     }
 
