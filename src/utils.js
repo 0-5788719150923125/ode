@@ -15,7 +15,7 @@ export function shuffleArray(array) {
 }
 
 export function randomString(
-    len = 3,
+    len = 4,
     chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
 ) {
     let text = ''

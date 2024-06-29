@@ -7,9 +7,9 @@ import ODE from './model.v2.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 6
+        this.layers = config.layers || 3
         this.units = config.units || 256
-        this.routerDim = config.routerDim || 64
+        this.routerDim = config.routerDim || 128
         this.headDim = config.headDim || 512
         this.mlpDim = config.mlpDim || 1024
     }
@@ -36,28 +36,24 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
-            const attn = this.ode.layers.SelfAttention({
-                projection: this.headDim
-            })
-
             outputs = this.ode.layers
                 .MixtureOfDepths({
-                    layer: attn,
                     routerDim: this.routerDim,
-                    activation: 'swish'
+                    activation: 'aptx',
+                    layer: this.ode.layers.SelfAttention({
+                        projection: this.headDim
+                    })
                 })
                 .apply(outputs)
 
-            const ffd = this.ode.layers.GatedLinearMLP({
-                innerDim: this.mlpDim,
-                activation: 'gelu_new'
-            })
-
             outputs = this.ode.layers
                 .MixtureOfDepths({
-                    layer: ffd,
                     routerDim: this.routerDim,
-                    activation: 'swish'
+                    activation: 'aptx',
+                    layer: this.ode.layers.GatedLinearMLP({
+                        innerDim: this.mlpDim,
+                        activation: 'gelu_new'
+                    })
                 })
                 .apply(outputs)
         }
@@ -96,7 +92,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.maxLearningRate,
-                weightDecay: 0.1
+                weightDecay: 0.01
             })
         ]
     }
