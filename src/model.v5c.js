@@ -39,21 +39,26 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .AdaptiveMixtureOfExperts({
-                    topK: this.topK,
-                    switchingDim: this.switchingDim,
-                    activation: 'mish',
-                    experts: this.createAttentionExperts(outputs.shape)
+                .MixtureOfDepths({
+                    layer: this.ode.layers.SelfAttention({
+                        projection: this.headDim
+                    })
                 })
                 .apply(outputs)
 
+            // outputs = this.ode.layers
+            //     .MixtureOfDepths({
+            //         layer: this.ode.layers.GatedLinearMLP({
+            //             type: 'GatedLinearMLP',
+            //             innerDim: this.mlpDim,
+            //             activation: 'gelu_new'
+            //         })
+            //     })
+            //     .apply(outputs)
             outputs = this.ode.layers
-                .AdaptiveMixtureOfExperts({
-                    topK: this.topK,
-                    numExperts: this.experts,
-                    switchingDim: this.switchingDim,
+                .GatedLinearMLP({
                     activation: 'mish',
-                    experts: this.createFeedforwardExperts(outputs.shape)
+                    innerDim: this.mlpDim
                 })
                 .apply(outputs)
         }
@@ -71,19 +76,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     type: 'SelfAttention',
                     inputShape,
                     projection: this.headDim
-                })
-            })
-    }
-
-    createFeedforwardExperts(inputShape) {
-        return Array(this.numExperts)
-            .fill(0)
-            .map((_, i) => {
-                return this.ode.expert({
-                    type: 'GatedLinearMLP',
-                    inputShape,
-                    innerDim: this.mlpDim,
-                    activation: 'mish'
                 })
             })
     }

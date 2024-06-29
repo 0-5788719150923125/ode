@@ -1,9 +1,8 @@
-import * as tfjs from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs'
 import customLayers from './layers.js'
 
 class ExpertBase {
     constructor(config) {
-        this.tf = tfjs
         this.ode = {
             layers: customLayers
         }
@@ -14,6 +13,7 @@ class ExpertBase {
         this.expertType = this.expertArgs.type
         this.inputShape = this.expertArgs.inputShape
         this.defineExpert()
+        return this.model
     }
 
     defineExpert() {
@@ -25,7 +25,7 @@ class ExpertBase {
 
         const outputs = layer.apply(inputs)
 
-        this.model = this.tf.model({ inputs, outputs })
+        this.model = tf.model({ inputs, outputs })
     }
 
     findLayerByType(key) {
@@ -35,25 +35,6 @@ class ExpertBase {
         )
         return match ? this.ode.layers[match] : undefined
     }
-
-    // async load(type = 'file', path = `data/models/ode/model.json`) {
-    //     await this.preInit()
-    //     this.model = await this.tf.loadLayersModel(`${type}://${path}`, {
-    //         strict: true,
-    //         streamWeights: true
-    //     })
-    //     console.log('successfully loaded model from disk')
-    //     this.defineSchedulers()
-    //     this.postInit()
-    // }
-
-    // async save(type = 'file', path = `data/models/ode`) {
-    //     if (type === 'file') {
-    //         const fs = await import('fs')
-    //         fs.mkdirSync(path, { recursive: true })
-    //     }
-    //     await this.model.save(`${type}://${path}`, { includeOptimizer: true })
-    // }
 }
 
 const expertHandler = (config) => new ExpertBase(config)

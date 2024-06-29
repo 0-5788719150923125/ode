@@ -2024,6 +2024,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
     }
 }
 
+// https://arxiv.org/abs/2404.02258
 class MixtureOfDepths extends LayerBase {
     constructor(config) {
         super({ name: `mod-${randomString()}`, ...config })
@@ -2034,29 +2035,16 @@ class MixtureOfDepths extends LayerBase {
         this.decay = config.decay || 0.1
         this.utilizationEMA = 1 / 2
         this.emaAlpha = config.emaAlpha || 0.9
+        this.trainingStep = 0
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        // Initialize router network
-        this.routerHidden = this.addWeight(
-            'routerHidden',
-            [inputDim, this.routerDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.routerHiddenBias = this.addWeight(
-            'routerHiddenBias',
-            [this.routerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+        // Initialize router weights
         this.routerKernel = this.addWeight(
             'routerKernel',
-            [this.routerDim, 1],
+            [inputDim, 1],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -2073,90 +2061,61 @@ class MixtureOfDepths extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const [batchSize, timeSteps, inputDim] = inputs.shape
 
             // Router network
-            const routerHidden = this.applyDense(
-                inputs,
-                this.routerHidden.read(),
-                this.routerHiddenBias.read()
-            )
-            const routerActivated = tf.layers
-                .activation({ activation: this.activation })
-                .apply(routerHidden)
-            const routerScores = this.applyDense(
-                routerActivated,
-                this.routerKernel.read(),
-                this.routerBias.read()
-            )
+            const routerScores = tf
+                .reshape(inputs, [batchSize * timeSteps, inputDim])
+                .matMul(this.routerKernel.read())
+                .add(this.routerBias.read())
+                .reshape([batchSize, timeSteps, 1])
 
-            // Select top tokens to route to the layer
-            const [batchSize, timeSteps] = inputs.shape
-            const numTokens = batchSize * timeSteps
-            const k = Math.floor(this.capacity * numTokens)
-            const topKIndices = this.selectTopTokens(
-                routerScores.reshape([numTokens]),
-                k
-            )
+            // Update capacity during training
+            if (kwargs.training) {
+                this.trainingStep += 1
+                this.capacity =
+                    0.125 +
+                    (1 - 0.125) * (1 / Math.min(this.trainingStep, 1000))
+            }
 
-            if (kwargs.training) this.computeUtilizationLoss(topKIndices.length)
+            const k = Math.max(1, Math.floor(this.capacity * timeSteps))
+            const topKIndices = tf
+                .topk(routerScores.reshape([batchSize, timeSteps]), k)
+                .indices.arraySync()
+            const selectedMask = tf.zeros([batchSize, timeSteps, 1])
+            for (let i = 0; i < batchSize; i++) {
+                for (let j = 0; j < k; j++) {
+                    const index = topKIndices[i][j]
+                    selectedMask.bufferSync().set(1, i, index, 0)
+                }
+            }
+
+            if (kwargs.training)
+                this.computeUtilizationLoss(inputs, selectedMask)
 
             // Split inputs into routed and residual tokens
-            const routedInputs = this.gatherByIndices(
-                inputs.reshape([numTokens, -1]),
-                topKIndices
-            )
-            const residualIndices = tf.setDiff1dAsync(
-                tf.range(0, numTokens),
-                topKIndices
-            )
-            const residualInputs = this.gatherByIndices(
-                inputs.reshape([numTokens, -1]),
-                residualIndices
+            const selectedTokens = inputs.mul(selectedMask)
+            const residualTokens = inputs.mul(
+                tf.onesLike(selectedMask).sub(selectedMask)
             )
 
             // Apply layer to routed tokens
-            const routedOutputs = this.layer.apply(
-                routedInputs.reshape([batchSize, k, -1])
-            )
+            const selectedOutputs = this.layer.apply(selectedTokens)
 
-            // Scatter outputs back to original positions
-            const outputShape = inputs.shape.slice()
-            outputShape[outputShape.length - 1] = this.layer.computeOutputShape(
-                inputs.shape
-            )[2]
-            const outputs = tf.zeros(outputShape)
-            outputs = outputs.reshape([numTokens, -1])
-            outputs = tf.scatterND(
-                topKIndices.expandDims(1),
-                routedOutputs.reshape([k, -1]),
-                outputs.shape
-            )
-            outputs = tf.scatterND(
-                residualIndices.expandDims(1),
-                residualInputs,
-                outputs.shape
-            )
+            const weightedSelectedOutputs = selectedOutputs.mul(selectedMask)
 
-            return outputs.reshape(outputShape)
+            // Combine processed tokens with residual tokens
+            const output = weightedSelectedOutputs.add(residualTokens)
+
+            return output
         })
     }
 
-    selectTopTokens(scores, k) {
-        const { values, indices } = tf.topk(scores, k)
-        return indices
-    }
-
-    gatherByIndices(inputs, indices) {
-        const updatedInputs = tf.gather(
-            inputs.reshape([-1, inputs.shape[2]]),
-            indices
-        )
-        return updatedInputs
-    }
-
-    computeUtilizationLoss(numRoutedTokens) {
-        const utilization =
-            numRoutedTokens / (inputs.shape[0] * inputs.shape[1])
+    computeUtilizationLoss(inputs, selectedMask) {
+        const utilization = selectedMask
+            .sum()
+            .div(inputs.shape[0] * inputs.shape[1])
+            .arraySync()
 
         // Update the utilization EMA
         this.utilizationEMA =
@@ -2170,22 +2129,6 @@ class MixtureOfDepths extends LayerBase {
         const utilizationLoss = tf.scalar(absUtilizationDifference)
 
         this.extraLoss = tf.keep(utilizationLoss.mul(this.decay))
-    }
-
-    getWeights() {
-        return [
-            this.routerHidden.read(),
-            this.routerHiddenBias.read(),
-            this.routerKernel.read(),
-            this.routerBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.routerHidden.write(weights[0])
-        this.routerHiddenBias.write(weights[1])
-        this.routerKernel.write(weights[2])
-        this.routerBias.write(weights[3])
     }
 
     getConfig() {
