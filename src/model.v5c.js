@@ -1,17 +1,15 @@
 import ODE from './model.v2.js'
 
 /**
- * A better sparse mixture of experts.
+ * A maybe-sparse mixture of depths.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 128
-        this.numExperts = config.numExperts || 7
-        this.topK = config.topK || 2
-        this.switchingDim = config.switchingDim || 64
+        this.layers = config.layers || 6
+        this.units = config.units || 256
+        this.routerDim = config.routerDim || 64
         this.headDim = config.headDim || 512
         this.mlpDim = config.mlpDim || 1024
     }
@@ -38,27 +36,28 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
+            const attn = this.ode.layers.SelfAttention({
+                projection: this.headDim
+            })
+
             outputs = this.ode.layers
                 .MixtureOfDepths({
-                    layer: this.ode.layers.SelfAttention({
-                        projection: this.headDim
-                    })
+                    layer: attn,
+                    routerDim: this.routerDim,
+                    activation: 'swish'
                 })
                 .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .MixtureOfDepths({
-            //         layer: this.ode.layers.GatedLinearMLP({
-            //             type: 'GatedLinearMLP',
-            //             innerDim: this.mlpDim,
-            //             activation: 'gelu_new'
-            //         })
-            //     })
-            //     .apply(outputs)
+            const ffd = this.ode.layers.GatedLinearMLP({
+                innerDim: this.mlpDim,
+                activation: 'gelu_new'
+            })
+
             outputs = this.ode.layers
-                .GatedLinearMLP({
-                    activation: 'mish',
-                    innerDim: this.mlpDim
+                .MixtureOfDepths({
+                    layer: ffd,
+                    routerDim: this.routerDim,
+                    activation: 'swish'
                 })
                 .apply(outputs)
         }
