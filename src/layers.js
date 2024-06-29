@@ -2662,68 +2662,115 @@ class CapsNet extends LayerBase {
 
     build(inputShape) {
         // Initialize dense layers for projection
-        this.inProj = tf.layers.dense({
-            units: this.innerDim,
-            inputDim: this.units,
-            activation: this.activation
-        })
-        this.outProj = tf.layers.dense({
-            units: this.units,
-            inputDim: this.capsuleDim * this.numCapsules,
-            activation: 'linear'
-        })
+        this.inProjKernel = this.addWeight(
+            'inProjKernel',
+            [this.units, this.innerDim],
+            'float32',
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+        this.inProjBias = this.addWeight(
+            'inProjBias',
+            [this.innerDim],
+            'float32',
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
 
-        // Initialize capsule layers
-        this.primaryCaps = tf.layers.dense({
-            units: this.numCapsules * this.capsuleDim,
-            inputDim: this.innerDim,
-            activation: 'linear'
-        })
+        this.outProjKernel = this.addWeight(
+            'outProjKernel',
+            [this.numCapsules * this.capsuleDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+        this.outProjBias = this.addWeight(
+            'outProjBias',
+            [this.units],
+            'float32',
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+
+        // Initialize weights for primary capsules
+        this.primaryCapsKernel = this.addWeight(
+            'primaryCapsKernel',
+            [this.innerDim, this.numCapsules * this.capsuleDim],
+            'float32',
+            tf.initializers.glorotNormal(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+        this.primaryCapsBias = this.addWeight(
+            'primaryCapsBias',
+            [this.numCapsules * this.capsuleDim],
+            'float32',
+            tf.initializers.zeros(),
+            tf.regularizers.l2({ l2: 0.01 })
+        )
+
         this.digitCaps = new DigitCaps({
             numCapsules: this.numCapsules,
             capsuleDim: this.capsuleDim,
             routingIterations: this.routingIterations
         })
 
-        // Manually call build on layers to initialize weights
-        this.inProj.build(inputShape)
-        this.primaryCaps.build([inputShape[0], this.innerDim])
-        this.digitCaps.build([inputShape[0], this.numCapsules, this.capsuleDim])
-        this.outProj.build([inputShape[0], this.numCapsules * this.capsuleDim])
-
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
-
-        super.build(inputShape)
     }
 
     call(inputs, kwargs, training = false) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const inputShape = inputs.shape
+            const batchSize = inputShape[0]
+            const sequenceLength = inputShape[1]
 
             // Expand and contract projection via feedforward layers
-            let outputs = this.inProj.apply(inputs)
+            let outputs = this.applyDense(
+                inputs,
+                this.inProjKernel.read(),
+                this.inProjBias.read()
+            )
+            // Activate inputs
+            outputs = tf.layers
+                .activation({ activation: this.activation })
+                .apply(outputs)
+            // Apply layer norm
+            outputs = this.rmsNorm(outputs)
             // Apply primary capsules
-            outputs = this.primaryCaps.apply(outputs)
+            outputs = this.applyDense(
+                outputs,
+                this.primaryCapsKernel.read(),
+                this.primaryCapsBias.read()
+            )
+
+            // Reshape for primary capsules
             outputs = tf.reshape(outputs, [
-                -1,
+                batchSize * sequenceLength,
                 this.numCapsules,
                 this.capsuleDim
             ])
+
             // Apply digit capsules with dynamic routing
             outputs = this.digitCaps.apply(outputs)
+
+            // Reshape back to original sequence shape
             outputs = tf.reshape(outputs, [
-                -1,
+                batchSize,
+                sequenceLength,
                 this.numCapsules * this.capsuleDim
             ])
-            outputs = this.outProj.apply(outputs)
+
+            outputs = this.applyDense(
+                outputs,
+                this.outProjKernel.read(),
+                this.outProjBias.read()
+            )
+
             // If training, apply residual dropout
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
-            outputs = tf.reshape(outputs, inputs.shape)
-            // Apply layer norm
-            outputs = this.rmsNorm(outputs)
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
@@ -2731,6 +2778,28 @@ class CapsNet extends LayerBase {
 
     computeOutputShape(inputShape) {
         return inputShape
+    }
+
+    getWeights() {
+        return [
+            this.inProjKernel.read(),
+            this.inProjBias.read(),
+            this.primaryCapsKernel.read(),
+            this.primaryCapsBias.read(),
+            this.outProjKernel.read(),
+            this.outProjBias.read(),
+            ...this.digitCaps.getWeights()
+        ]
+    }
+
+    setWeights(weights) {
+        this.inProjKernel.write(weights[0])
+        this.inProjBias.write(weights[1])
+        this.primaryCapsKernel.write(weights[2])
+        this.primaryCapsBias.write(weights[3])
+        this.outProjKernel.write(weights[4])
+        this.outProjBias.write(weights[5])
+        this.digitCaps.setWeights(weights.slice(6))
     }
 
     getConfig() {
@@ -2806,6 +2875,14 @@ class DigitCaps extends LayerBase {
 
     computeOutputShape(inputShape) {
         return [inputShape[0], this.numCapsules, this.capsuleDim]
+    }
+
+    getWeights() {
+        return [this.W.read()]
+    }
+
+    setWeights(weights) {
+        this.W.write(weights[0])
     }
 
     getConfig() {
