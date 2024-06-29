@@ -2479,6 +2479,11 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
         this.expertOutputDim = config.expertOutputDim || null
+        this.expertDecay = config.expertDecay || 0.1
+        this.expertUtilizationEMA = Array(this.numExperts).fill(
+            1 / this.numExperts
+        )
+        this.emaAlpha = config.emaAlpha || 0.9
     }
 
     build(inputShape) {
@@ -2559,6 +2564,8 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             const selectedExpertIndices =
                 this.selectTopExperts(weightedAvgScores)
 
+            if (kwargs.training) this.computeExpertLoss(selectedExpertIndices)
+
             // Predict on top-k experts, for every batch
             const batchOutputs = []
             for (let i = 0; i < inputs.shape[0]; i++) {
@@ -2589,28 +2596,41 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         return topKIndices.arraySync()
     }
 
-    sliceExpertWeights(expertWeights, selectedExpertIndices) {
-        return tf.tidy(() => {
-            const batchSize = expertWeights.shape[0]
-            const sequenceLength = expertWeights.shape[1]
-
-            const selectedWeights = []
-            for (let i = 0; i < batchSize; i++) {
-                const batchWeights = expertWeights.slice([i, 0, 0], [1, -1, -1])
-                const batchSelectedWeights = []
-                for (let j = 0; j < this.topK; j++) {
-                    const expertIndex = selectedExpertIndices[i][j]
-                    batchSelectedWeights.push(
-                        batchWeights.slice(
-                            [0, 0, expertIndex],
-                            [1, sequenceLength, 1]
-                        )
-                    )
-                }
-                selectedWeights.push(tf.concat(batchSelectedWeights, 2))
+    computeExpertLoss(selectedExpertIndices) {
+        const expertCounts = Array(this.numExperts).fill(0)
+        for (let i = 0; i < selectedExpertIndices.length; i++) {
+            for (let j = 0; j < this.topK; j++) {
+                const expertIndex = selectedExpertIndices[i][j]
+                expertCounts[expertIndex]++
             }
-            return tf.concat(selectedWeights, 0)
-        })
+        }
+
+        const totalSelections = selectedExpertIndices.length * this.topK
+        const expertUtilization = expertCounts.map(
+            (count) => count / totalSelections
+        )
+
+        // Update the expert utilization EMA
+        this.expertUtilizationEMA = this.expertUtilizationEMA.map(
+            (emaUtil, i) =>
+                this.emaAlpha * emaUtil +
+                (1 - this.emaAlpha) * expertUtilization[i]
+        )
+
+        const targetUtilization = 1 / this.numExperts
+        const utilizationDifferences = this.expertUtilizationEMA.map(
+            (util) => util - targetUtilization
+        )
+        const absUtilizationDifferences = utilizationDifferences.map((diff) =>
+            Math.abs(diff)
+        )
+        const meanAbsUtilizationDifference =
+            absUtilizationDifferences.reduce((sum, diff) => sum + diff, 0) /
+            this.numExperts
+
+        const loadBalancingLoss = tf.scalar(meanAbsUtilizationDifference)
+
+        this.extraLoss = tf.keep(loadBalancingLoss.mul(this.expertDecay))
     }
 
     getWeights() {
@@ -2638,7 +2658,10 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             switchingDim: this.switchingDim,
             activation: this.activation,
             topK: this.topK,
-            expertOutputDim: this.expertOutputDim
+            expertOutputDim: this.expertOutputDim,
+            expertDecay: this.expertDecay,
+            expertUtilizationEMA: this.expertUtilizationEMA,
+            emaAlpha: this.emaAlpha
         }
     }
 }
