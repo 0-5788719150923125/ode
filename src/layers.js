@@ -2473,36 +2473,20 @@ class TransientMixtureOfExperts extends LayerBase {
 class AdaptiveMixtureOfExperts extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
-        this.numExperts = config.numExperts
+        this.experts = config.experts || []
+        this.numExperts = config.numExperts || this.experts.length
         this.topK = config.topK || 2
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
-        this.expertArgs = config.expertArgs || {
-            type: 'SelfAttention',
-            projection: 64
-        }
-        this.expertNames = config.expertNames || []
+        this.expertOutputDim = config.expertOutputDim || null
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
-
-        this.experts = []
-        const createNewExperts = this.expertNames.length > 0 ? false : true
-        for (let i = 0; i < this.numExperts; i++) {
-            if (!createNewExperts) {
-                // console.log(this.name)
-                this.expertArgs.name = this.expertNames[i]
-            }
-            const expert = new Expert({ ...this.expertArgs, inputShape })
-            this.experts.push(expert.model)
-            if (!createNewExperts) continue
-            expert.model.layers.map((layer) => {
-                if (layer.name.startsWith('inp')) return
-                this.expertNames.push(layer.name)
-            })
+        if (this.expertOutputDim === null) {
+            this.expertOutputDim =
+                this.experts[0].computeOutputShape(inputShape)[2]
         }
-        console.log(this.experts[0].layers)
 
         // Initialize switching network
         this.switchingHidden = this.addWeight(
@@ -2535,10 +2519,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
-            [
-                this.topK * this.experts[0].computeOutputShape(inputShape)[2],
-                inputDim
-            ],
+            [this.topK * this.expertOutputDim, inputDim],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -2654,11 +2635,10 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
-            expertNames: this.expertNames,
-            expertArgs: this.expertArgs,
             switchingDim: this.switchingDim,
             activation: this.activation,
-            topK: this.topK
+            topK: this.topK,
+            expertOutputDim: this.expertOutputDim
         }
     }
 }

@@ -8,6 +8,7 @@ import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
 import customSchedulers from './schedulers.js'
 import customSamplers from './samplers.js'
+import Expert from './experts.js'
 import './activations.js'
 import './ops.js'
 import { trainModel } from './train.js'
@@ -29,7 +30,8 @@ export default class ModelBase {
             optimizers: customOptimizers,
             tokenizers: customTokenizers,
             schedulers: customSchedulers,
-            samplers: customSamplers
+            samplers: customSamplers,
+            expert: Expert
         }
         this.config = config
         this.model
@@ -71,12 +73,12 @@ export default class ModelBase {
                 streamWeights: true
             }
         )
+
         // if a layer has experts
         for (const layer of this.model.layers) {
             if (layer.experts) {
-                for (let i in layer.experts) {
-                    const idx = Number(i) + 1
-                    // console.log(layer.experts)
+                for (let i = 0; i < layer.numExperts; i++) {
+                    const idx = i + 1
                     layer.experts[i] = await this.tf.loadLayersModel(
                         `${type}://${path}/experts/model${idx}/model.json`,
                         {

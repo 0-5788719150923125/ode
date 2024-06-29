@@ -1,7 +1,7 @@
 import * as tfjs from '@tensorflow/tfjs'
 import customLayers from './layers.js'
 
-export default class ExpertBase {
+class ExpertBase {
     constructor(config) {
         this.tf = tfjs
         this.ode = {
@@ -11,7 +11,6 @@ export default class ExpertBase {
             type: 'SelfAttention',
             projection: 64
         }
-        // console.log(this.expertArgs)
         this.expertType = this.expertArgs.type
         this.inputShape = this.expertArgs.inputShape
         this.defineExpert()
@@ -56,3 +55,6 @@ export default class ExpertBase {
     //     await this.model.save(`${type}://${path}`, { includeOptimizer: true })
     // }
 }
+
+const expertHandler = (config) => new ExpertBase(config)
+export default expertHandler

@@ -9,7 +9,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = config.layers || 3
         this.units = config.units || 128
-        this.experts = config.experts || 7
+        this.numExperts = config.numExperts || 7
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 64
         this.headDim = config.headDim || 512
@@ -41,13 +41,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             outputs = this.ode.layers
                 .AdaptiveMixtureOfExperts({
                     topK: this.topK,
-                    numExperts: this.experts,
                     switchingDim: this.switchingDim,
                     activation: 'mish',
-                    expertArgs: {
-                        type: 'SelfAttention',
-                        projection: this.headDim
-                    }
+                    experts: this.createAttentionExperts(outputs.shape)
                 })
                 .apply(outputs)
 
@@ -57,11 +53,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     numExperts: this.experts,
                     switchingDim: this.switchingDim,
                     activation: 'mish',
-                    expertArgs: {
-                        type: 'GatedLinearMLP',
-                        innerDim: this.mlpDim,
-                        activation: 'mish'
-                    }
+                    experts: this.createFeedforwardExperts(outputs.shape)
                 })
                 .apply(outputs)
         }
@@ -69,6 +61,33 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    createAttentionExperts(inputShape) {
+        return Array(this.numExperts)
+            .fill(0)
+            .map((_, i) => {
+                const expert = this.ode.expert({
+                    type: 'SelfAttention',
+                    inputShape,
+                    projection: this.headDim
+                })
+                return expert.model
+            })
+    }
+
+    createFeedforwardExperts(inputShape) {
+        return Array(this.numExperts)
+            .fill(0)
+            .map((_, i) => {
+                const expert = this.ode.expert({
+                    type: 'GatedLinearMLP',
+                    inputShape,
+                    innerDim: this.mlpDim,
+                    activation: 'mish'
+                })
+                return expert.model
+            })
     }
 
     defineSchedulers() {
