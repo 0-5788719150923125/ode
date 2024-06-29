@@ -62,12 +62,30 @@ export default class ModelBase {
         this.postInit()
     }
 
-    async load(type = 'file', path = `data/models/ode/model.json`) {
+    async load(type = 'file', path = `data/models/ode`) {
         await this.preInit()
-        this.model = await this.tf.loadLayersModel(`${type}://${path}`, {
-            strict: true,
-            streamWeights: true
-        })
+        this.model = await this.tf.loadLayersModel(
+            `${type}://${path}/model.json`,
+            {
+                strict: true,
+                streamWeights: true
+            }
+        )
+        // if a layer has experts
+        for (const layer of this.model.layers) {
+            if (layer.experts) {
+                for (let i in layer.experts) {
+                    const idx = Number(i) + 1
+                    layer.experts[i] = await this.tf.loadLayersModel(
+                        `${type}://${path}/experts/model${idx}/model.json`,
+                        {
+                            strict: true,
+                            streamWeights: true
+                        }
+                    )
+                }
+            }
+        }
         console.log('successfully loaded model from disk')
         this.defineSchedulers()
         this.postInit()
@@ -79,6 +97,22 @@ export default class ModelBase {
             fs.mkdirSync(path, { recursive: true })
         }
         await this.model.save(`${type}://${path}`, { includeOptimizer: true })
+        // if a layer has experts
+        for (const layer of this.model.layers) {
+            if (layer.experts) {
+                for (const expert of layer.experts) {
+                    if (type === 'file') {
+                        const fs = await import('fs')
+                        fs.mkdirSync(`${path}/experts/${expert.name}`, {
+                            recursive: true
+                        })
+                    }
+                    await expert.save(
+                        `${type}://${path}/experts/${expert.name}`
+                    )
+                }
+            }
+        }
     }
 
     getStats() {

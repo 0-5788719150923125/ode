@@ -1,6 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import customOps from './ops.js'
 import customActivations from './activations.js'
+import Expert from './experts.js'
 import {
     randomString,
     seededPRNG,
@@ -87,13 +88,13 @@ class LayerBase extends tf.layers.Layer {
         return x.div(rms.add(epsilon))
     }
 
-    findLayer(key) {
-        const lowercaseKey = key.toLowerCase()
-        const match = Object.keys(customLayers).find(
-            (k) => k.toLowerCase() === lowercaseKey
-        )
-        return match ? customLayers[match] : undefined
-    }
+    // findLayer(key) {
+    //     const lowercaseKey = key.toLowerCase()
+    //     const match = Object.keys(customLayers).find(
+    //         (k) => k.toLowerCase() === lowercaseKey
+    //     )
+    //     return match ? customLayers[match] : undefined
+    // }
 
     static get className() {
         return this.name
@@ -210,31 +211,27 @@ class SelfAttention extends LayerBase {
     constructor(config) {
         super({ name: `attn-${randomString()}`, ...config })
         this.projection = config.projection || 256
-        this.idx = config.idx || 0
-        this.createWeights = config.createWeights ?? true
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        if (!this.createWeights) return
-
         this.queryKernel = this.addWeight(
-            `queryKernel-${this.idx}`,
+            `queryKernel`,
             [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.1 })
         )
         this.keyKernel = this.addWeight(
-            `keyKernel-${this.idx}`,
+            `keyKernel`,
             [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.1 })
         )
         this.valueKernel = this.addWeight(
-            `valueKernel-${this.idx}`,
+            `valueKernel`,
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform(),
@@ -288,8 +285,6 @@ class SelfAttention extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            idx: this.idx,
-            createWeights: this.createWeights,
             projection: this.projection
         }
     }
@@ -1473,7 +1468,6 @@ class MultiLayerPerceptron extends LayerBase {
         this.dropout = config?.dropout || 0
         this.activation = config?.activation || 'relu'
         this.units = config.units || null
-        this.idx = config.idx || 0
     }
 
     build(inputShape) {
@@ -1481,14 +1475,14 @@ class MultiLayerPerceptron extends LayerBase {
 
         // Initialize dense layers for projection
         this.inProjKernel = this.addWeight(
-            `inProjKernel-${this.idx}`,
+            `inProjKernel`,
             [this.units, this.innerDim],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.inProjBias = this.addWeight(
-            `inProjBias-${this.idx}`,
+            `inProjBias`,
             [this.innerDim],
             'float32',
             tf.initializers.zeros(),
@@ -1496,14 +1490,14 @@ class MultiLayerPerceptron extends LayerBase {
         )
 
         this.outProjKernel = this.addWeight(
-            `outProjKernel-${this.idx}`,
+            `outProjKernel`,
             [this.innerDim, this.units],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.outProjBias = this.addWeight(
-            `outProjBias-${this.idx}`,
+            `outProjBias`,
             [this.units],
             'float32',
             tf.initializers.zeros(),
@@ -1570,7 +1564,6 @@ class MultiLayerPerceptron extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            idx: this.idx,
             units: this.units,
             innerDim: this.innerDim,
             dropout: this.dropout,
@@ -1588,14 +1581,14 @@ class GatedLinearMLP extends MultiLayerPerceptron {
         super.build(inputShape)
 
         this.gateProjKernel = this.addWeight(
-            `gateProjKernel-${this.idx}`,
+            `gateProjKernel`,
             [this.units, this.innerDim],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.gateProjBias = this.addWeight(
-            `gateProjBias-${this.idx}`,
+            `gateProjBias`,
             [this.innerDim],
             'float32',
             tf.initializers.zeros(),
@@ -2482,7 +2475,6 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         super({ name: `moe-${randomString()}`, ...config })
         this.numExperts = config.numExperts
         this.topK = config.topK || 2
-        this.hiddenDim = config.hiddenDim || 128
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
         this.expertArgs = config.expertArgs || {
@@ -2494,37 +2486,13 @@ class AdaptiveMixtureOfExperts extends LayerBase {
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        this.experts = this.createExperts()
+        // this.experts = this.createExperts()
 
-        // Initialize gating network
-        // this.gatingHidden = this.addWeight(
-        //     'gatingHidden',
-        //     [inputDim, this.hiddenDim],
-        //     'float32',
-        //     tf.initializers.glorotNormal(),
-        //     tf.regularizers.l2({ l2: 0.01 })
-        // )
-        // this.gatingHiddenBias = this.addWeight(
-        //     'gatingHiddenBias',
-        //     [this.hiddenDim],
-        //     'float32',
-        //     tf.initializers.zeros(),
-        //     tf.regularizers.l2({ l2: 0.01 })
-        // )
-        // this.gatingKernel = this.addWeight(
-        //     'gatingKernel',
-        //     [this.hiddenDim, this.numExperts],
-        //     'float32',
-        //     tf.initializers.glorotNormal(),
-        //     tf.regularizers.l2({ l2: 0.01 })
-        // )
-        // this.gatingBias = this.addWeight(
-        //     'gatingBias',
-        //     [this.numExperts],
-        //     'float32',
-        //     tf.initializers.zeros(),
-        //     tf.regularizers.l2({ l2: 0.01 })
-        // )
+        this.experts = []
+        for (let i = 0; i < this.numExperts; i++) {
+            const expert = new Expert({ ...this.expertArgs, inputShape })
+            this.experts.push(expert.model)
+        }
 
         // Initialize switching network
         this.switchingHidden = this.addWeight(
@@ -2577,29 +2545,14 @@ class AdaptiveMixtureOfExperts extends LayerBase {
                 this.switchingHidden.read(),
                 this.switchingHiddenBias.read()
             )
-            const activatedSwitching = tf.layers
+            const switchingActivated = tf.layers
                 .activation({ activation: this.activation })
                 .apply(switchingHidden)
             const switchingScores = this.applyDense(
-                activatedSwitching,
+                switchingActivated,
                 this.switchingKernel.read(),
                 this.switchingBias.read()
             )
-
-            // Gating network
-            // const gatingHidden = this.applyDense(
-            //     inputs,
-            //     this.gatingHidden.read(),
-            //     this.gatingHiddenBias.read()
-            // )
-            // const activatedGate = tf.layers
-            //     .activation({ activation: this.activation })
-            //     .apply(gatingHidden)
-            // const expertWeights = this.applyDense(
-            //     activatedGate,
-            //     this.gatingKernel.read(),
-            //     this.gatingBias.read()
-            // )
 
             // Select top-k experts for each batch
             const [batchSize, timeSteps, numExperts] = switchingScores.shape
@@ -2615,12 +2568,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             const selectedExpertIndices =
                 this.selectTopExperts(weightedAvgScores)
 
-            // Slice the expert weights based on the selected expert indices
-            // const selectedExpertWeights = this.sliceExpertWeights(
-            //     expertWeights,
-            //     selectedExpertIndices
-            // )
-
+            // Predict on top-k experts, for every batch
             const batchOutputs = []
             for (let i = 0; i < inputs.shape[0]; i++) {
                 const batchInputs = inputs.slice([i, 0], [1, -1])
@@ -2635,6 +2583,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
                 batchOutputs.push(concatenatedOutput)
             }
 
+            // Concat expert outputs, and project them into the proper dimension
             const outputProjected = this.applyDense(
                 tf.concat(batchOutputs, 0),
                 this.outputProjection.read()
@@ -2644,13 +2593,13 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         })
     }
 
-    createExperts() {
-        const experts = []
-        for (let i = 0; i < this.numExperts; i++) {
-            experts.push(this.findLayer(this.expertArgs.type)(this.expertArgs))
-        }
-        return experts
-    }
+    // createExperts() {
+    //     const experts = []
+    //     for (let i = 0; i < this.numExperts; i++) {
+    //         experts.push(this.findLayer(this.expertArgs.type)(this.expertArgs))
+    //     }
+    //     return experts
+    // }
 
     selectTopExperts(switchingScores) {
         const topKIndices = tf.topk(switchingScores, this.topK).indices
@@ -2681,41 +2630,29 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         })
     }
 
-    // getWeights() {
-    //     return [
-    //         this.gatingHidden.read(),
-    //         this.gatingHiddenBias.read(),
-    //         this.gatingKernel.read(),
-    //         this.gatingBias.read(),
-    //         this.switchingHidden.read(),
-    //         this.switchingHiddenBias.read(),
-    //         this.switchingKernel.read(),
-    //         this.switchingBias.read(),
-    //         ...this.experts.map((expert) => expert.getWeights())
-    //     ]
-    // }
+    getWeights() {
+        return [
+            this.switchingHidden.read(),
+            this.switchingHiddenBias.read(),
+            this.switchingKernel.read(),
+            this.switchingBias.read(),
+            this.outputProjection.read()
+        ]
+    }
 
-    // setWeights(weights) {
-    //     this.gatingHidden.write(weights[0])
-    //     this.gatingHiddenBias.write(weights[1])
-    //     this.gatingKernel.write(weights[2])
-    //     this.gatingBias.write(weights[3])
-    //     this.switchingHidden.write(weights[4])
-    //     this.switchingHiddenBias.write(weights[5])
-    //     this.switchingKernel.write(weights[6])
-    //     this.switchingBias.write(weights[7])
-    //     for (let i = 0; i < this.numExperts; i++) {
-    //         const idx = i + 8
-    //         this.experts[i].setWeights(weights[idx])
-    //     }
-    // }
+    setWeights(weights) {
+        this.switchingHidden.write(weights[0])
+        this.switchingHiddenBias.write(weights[1])
+        this.switchingKernel.write(weights[2])
+        this.switchingBias.write(weights[3])
+        this.outputProjection.write(weights[4])
+    }
 
     getConfig() {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
-            hiddenDim: this.hiddenDim,
-            switchingHiddenDim: this.switchingDim,
+            switchingDim: this.switchingDim,
             activation: this.activation,
             topK: this.topK,
             expertArgs: this.expertArgs

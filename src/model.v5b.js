@@ -11,13 +11,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.units = config.units || 128
         this.experts = config.experts || 7
         this.topK = config.topK || 2
-        this.weightingDim = config.weightingDim || 64
         this.switchingDim = config.switchingDim || 64
         this.headDim = config.headDim || 512
         this.mlpDim = config.mlpDim || 1024
     }
 
-    defineTokenizer(config) {
+    defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
             model: 'OriginalDesign/thrice'
         })
@@ -34,7 +33,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             embeddingsInitializer: 'glorotUniform'
         })
 
-        const encoding = this.ode.layers.RotaryPositionalEncoding()
+        const encoding = this.ode.layers.SinusoidalPositionalEncoding()
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
@@ -43,7 +42,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .AdaptiveMixtureOfExperts({
                     topK: this.topK,
                     numExperts: this.experts,
-                    hiddenDim: this.weightingDim,
                     switchingDim: this.switchingDim,
                     activation: 'mish',
                     expertArgs: {
@@ -57,7 +55,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .AdaptiveMixtureOfExperts({
                     topK: this.topK,
                     numExperts: this.experts,
-                    hiddenDim: this.weightingDim,
                     switchingDim: this.switchingDim,
                     activation: 'mish',
                     expertArgs: {
