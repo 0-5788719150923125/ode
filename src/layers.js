@@ -2653,7 +2653,6 @@ class CapsNet extends LayerBase {
         this.units = config?.units || 256
         this.innerDim = config?.innerDim || 1024
         this.dropout = config?.dropout || 0
-        this.epsilon = config?.epsilon || 1e-5
         this.numCapsules = config?.numCapsules || 8
         this.capsuleDim = config?.capsuleDim || 16
         this.routingIterations = config?.routingIterations || 3
@@ -2692,12 +2691,6 @@ class CapsNet extends LayerBase {
         this.digitCaps.build([inputShape[0], this.numCapsules, this.capsuleDim])
         this.outProj.build([inputShape[0], this.numCapsules * this.capsuleDim])
 
-        // Initialize layer normalization
-        this.layernorm = tf.layers.layerNormalization({
-            epsilon: this.epsilon
-        })
-        this.layernorm.build(inputShape)
-
         // Residual connections/skip connections are critical here
         this.residual = new ResidualConnection()
 
@@ -2730,7 +2723,7 @@ class CapsNet extends LayerBase {
                 : outputs
             outputs = tf.reshape(outputs, inputs.shape)
             // Apply layer norm
-            outputs = this.layernorm.apply(outputs)
+            outputs = this.rmsNorm(outputs)
             // Apply skip connection
             return this.residual.apply([inputs, outputs])
         })
@@ -2746,7 +2739,9 @@ class CapsNet extends LayerBase {
             innerDim: this.innerDim,
             dropout: this.dropout,
             numCapsules: this.numCapsules,
-            capsuleDim: this.capsuleDim
+            capsuleDim: this.capsuleDim,
+            activation: this.activation,
+            routingIterations: this.routingIterations
         }
     }
 }
