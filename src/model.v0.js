@@ -218,10 +218,6 @@ export default class ModelBase {
     async train(dataGenerator, args, callbacks) {
         return await trainModel.call(this, dataGenerator, args, callbacks)
     }
-
-    debug(inputs) {
-        console.log(new this.ode.layers.DebugLayer().apply(inputs))
-    }
 }
 
 async function generateText({

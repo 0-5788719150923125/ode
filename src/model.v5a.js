@@ -1,7 +1,7 @@
 import ODE from './model.v2.js'
 
 /**
- * A sparse mixture of experts.
+ * A kinda-sparse mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
