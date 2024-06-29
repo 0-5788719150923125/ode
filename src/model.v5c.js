@@ -7,11 +7,12 @@ import ODE from './model.v2.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
+        this.layers = config.layers || 6
         this.units = config.units || 256
         this.routerDim = config.routerDim || 128
         this.headDim = config.headDim || 512
         this.mlpDim = config.mlpDim || 1024
+        this.temperature = config.temperature || 0.4
     }
 
     defineTokenizer() {
@@ -40,6 +41,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .MixtureOfDepths({
                     routerDim: this.routerDim,
                     activation: 'aptx',
+                    temperature: this.temperature,
                     layer: this.ode.layers.SelfAttention({
                         projection: this.headDim
                     })
@@ -50,6 +52,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .MixtureOfDepths({
                     routerDim: this.routerDim,
                     activation: 'aptx',
+                    temperature: this.temperature,
                     layer: this.ode.layers.GatedLinearMLP({
                         innerDim: this.mlpDim,
                         activation: 'gelu_new'

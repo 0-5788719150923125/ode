@@ -46,6 +46,9 @@ export default customLayers
 class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
+        this.ode = {
+            ops: customOps
+        }
     }
 
     computeOutputShape(inputShape) {
@@ -2030,40 +2033,22 @@ class MixtureOfDepths extends LayerBase {
         super({ name: `mod-${randomString()}`, ...config })
         this.layer = config.layer
         this.capacity = config.capacity || 0.5
-        this.routerDim = config.routerDim || 64
-        this.activation = config.activation || 'relu'
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        this.routerKernel1 = this.addWeight(
-            'routerKernel1',
-            [inputDim, this.routerDim],
+        this.routerKernel = this.addWeight(
+            'routerKernel',
+            [inputDim, 1],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
-        this.routerBias1 = this.addWeight(
-            'routerBias1',
-            [this.routerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.routerKernel2 = this.addWeight(
-            'routerKernel2',
-            [this.routerDim, 1],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.routerBias2 = this.addWeight(
-            'routerBias2',
+        this.routerBias = this.addWeight(
+            'routerBias',
             [1],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
     }
 
@@ -2073,17 +2058,11 @@ class MixtureOfDepths extends LayerBase {
         const [batchSize, timeSteps, inputDim] = inputs.shape
 
         // Router network
-        const routerHidden = tf
-            .reshape(inputs, [batchSize * timeSteps, inputDim])
-            .matMul(this.routerKernel1.read())
-            .add(this.routerBias1.read())
-        const routerActivation = tf.layers
-            .activation({ activation: this.activation })
-            .apply(routerHidden)
-        const routerLogits = routerActivation
-            .matMul(this.routerKernel2.read())
-            .add(this.routerBias2.read())
-            .reshape([batchSize, timeSteps])
+        const routerLogits = this.applyDense(
+            inputs,
+            this.routerKernel.read(),
+            this.routerBias.read()
+        ).reshape([batchSize, timeSteps])
 
         return tf.customGrad((inputs, save) => {
             // Compute top-k threshold
@@ -2147,12 +2126,520 @@ class MixtureOfDepths extends LayerBase {
         return {
             ...super.getConfig(),
             layer: this.layer.getConfig(),
-            capacity: this.capacity,
-            routerDim: this.routerDim,
-            activation: this.activation
+            capacity: this.capacity
         }
     }
 }
+
+// class MixtureOfDepths extends LayerBase {
+//     constructor(config) {
+//         super({
+//             name: `mod-${randomString()}`,
+//             ...config
+//         })
+//         this.layer = config.layer
+//         this.capacity = config.capacity || 0.5
+//         this.routerDim = config.routerDim || 64
+//         this.activation = config.activation || 'relu'
+//         this.p = config.p || 1.33 // Use p-norm regularization with p between 1 and 2
+//         this.lambda = config.lambda || 1e-4 // Regularization strength
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+
+//         this.routerKernel1 = this.addWeight(
+//             'routerKernel1',
+//             [inputDim, this.routerDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerBias1 = this.addWeight(
+//             'routerBias1',
+//             [this.routerDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerKernel2 = this.addWeight(
+//             'routerKernel2',
+//             [this.routerDim, 1],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerBias2 = this.addWeight(
+//             'routerBias2',
+//             [1],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//         const [batchSize, timeSteps, inputDim] = inputs.shape
+
+//         // Router network
+//         const routerHidden = tf
+//             .reshape(inputs, [batchSize * timeSteps, inputDim])
+//             .matMul(this.routerKernel1.read())
+//             .add(this.routerBias1.read())
+//         const routerActivation = tf.layers
+//             .activation({ activation: this.activation })
+//             .apply(routerHidden)
+//         const routerLogits = routerActivation
+//             .matMul(this.routerKernel2.read())
+//             .add(this.routerBias2.read())
+//             .reshape([batchSize, timeSteps])
+
+//         return tf.tidy(() => {
+//             // Compute top-k mask using isotonic optimization
+//             const k = Math.floor(this.capacity * timeSteps)
+//             const topkMask = this.isotonicTopK(routerLogits, k)
+
+//             // Split inputs into routed and residual tokens
+//             const selectedTokens = inputs.mul(topkMask)
+//             const residualTokens = inputs.mul(tf.sub(1, topkMask))
+
+//             // Apply layer to routed tokens
+//             const selectedOutputs = this.layer.apply(selectedTokens)
+
+//             // Combine processed tokens with residual tokens
+//             const output = selectedOutputs.mul(topkMask).add(residualTokens)
+
+//             return output
+//         })
+//     }
+
+//     isotonicTopK(logits, k) {
+//         // Sort the logits in descending order
+//         const sortedLogits = tf.reverse(
+//             tf.topk(logits, logits.shape[1]).values,
+//             1
+//         )
+
+//         // Perform isotonic optimization using PAV or Dykstra algorithm
+//         // (implementation of PAV or Dykstra algorithm not shown)
+//         const isotonicSolution = this.isotonicOptimization(sortedLogits)
+
+//         // Create top-k mask
+//         const threshold = isotonicSolution.slice(
+//             [0, k - 1],
+//             [logits.shape[0], 1]
+//         )
+//         const topkMask = tf.cast(tf.greater(logits, threshold), 'float32')
+
+//         return topkMask
+//     }
+
+//     relaxedTopK(logits, k) {
+//         // Compute p-norm regularized top-k
+//         const regularizer = tf
+//             .pow(tf.abs(logits), this.p)
+//             .sum(1)
+//             .mul(this.lambda / this.p)
+//         const scores = logits.sub(regularizer.expandDims(-1))
+//         const { values, indices } = tf.topk(scores, k)
+//         const threshold = values.slice([0, k - 1], [logits.shape[0], 1])
+//         const topk = tf.sigmoid(scores.sub(threshold.arraySync()).mul(1e4))
+//         return topk
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getWeights() {
+//         return [
+//             this.routerKernel1.read(),
+//             this.routerBias1.read(),
+//             this.routerKernel2.read(),
+//             this.routerBias2.read()
+//         ]
+//     }
+
+//     setWeights(weights) {
+//         this.routerKernel1.write(weights[0])
+//         this.routerBias1.write(weights[1])
+//         this.routerKernel2.write(weights[2])
+//         this.routerBias2.write(weights[3])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             layer: this.layer.getConfig(),
+//             capacity: this.capacity,
+//             routerDim: this.routerDim,
+//             activation: this.activation,
+//             p: this.p,
+//             lambda: this.lambda
+//         }
+//     }
+// }
+
+// class MixtureOfDepths extends LayerBase {
+//     constructor(config) {
+//         super({ name: `mod-${randomString()}`, ...config })
+//         this.layer = config.layer
+//         this.capacity = config.capacity || 0.5
+//         this.routerDim = config.routerDim || 64
+//         this.activation = config.activation || 'relu'
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+
+//         this.routerKernel1 = this.addWeight(
+//             'routerKernel1',
+//             [inputDim, this.routerDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerBias1 = this.addWeight(
+//             'routerBias1',
+//             [this.routerDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerKernel2 = this.addWeight(
+//             'routerKernel2',
+//             [this.routerDim, 1],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerBias2 = this.addWeight(
+//             'routerBias2',
+//             [1],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//         return tf.customGrad((inputs, save) => {
+//             const [batchSize, timeSteps, inputDim] = inputs.shape
+
+//             // Router network
+//             const routerHidden = tf
+//                 .reshape(inputs, [batchSize * timeSteps, inputDim])
+//                 .matMul(this.routerKernel1.read())
+//                 .add(this.routerBias1.read())
+//             const routerActivation = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(routerHidden)
+//             const routerLogits = routerActivation
+//                 .matMul(this.routerKernel2.read())
+//                 .add(this.routerBias2.read())
+//                 .reshape([batchSize, timeSteps])
+
+//             // Compute top-k threshold
+//             const k = Math.floor(this.capacity * timeSteps)
+//             const { values } = tf.topk(routerLogits, k)
+//             const threshold = values.slice([0, k - 1], [batchSize, 1])
+
+//             // Create boolean mask
+//             const booleanMask = routerLogits
+//                 .greaterEqual(threshold)
+//                 .expandDims(-1)
+
+//             save([booleanMask, inputs])
+
+//             // Split inputs into routed and residual tokens
+//             const selectedTokens = inputs.mul(booleanMask)
+//             const residualTokens = inputs.mul(booleanMask.logicalNot())
+
+//             // Apply layer to routed tokens
+//             const selectedOutputs = this.layer.apply(selectedTokens)
+
+//             // Combine processed tokens with residual tokens
+//             const output = selectedOutputs.mul(booleanMask).add(residualTokens)
+
+//             // Define gradient function
+//             const gradFunc = (dy, saved) => {
+//                 const [booleanMask, originalInputs] = saved
+//                 const layerGrads = this.layer.apply(dy.mul(booleanMask))
+//                 const residualGrads = dy.mul(booleanMask.logicalNot())
+//                 return originalInputs
+//                     .zerosLike()
+//                     .add(layerGrads)
+//                     .add(residualGrads)
+//             }
+
+//             return { value: output, gradFunc }
+//         })(inputs)
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getWeights() {
+//         return [
+//             this.routerKernel1.read(),
+//             this.routerBias1.read(),
+//             this.routerKernel2.read(),
+//             this.routerBias2.read()
+//         ]
+//     }
+
+//     setWeights(weights) {
+//         this.routerKernel1.write(weights[0])
+//         this.routerBias1.write(weights[1])
+//         this.routerKernel2.write(weights[2])
+//         this.routerBias2.write(weights[3])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             layer: this.layer.getConfig(),
+//             capacity: this.capacity,
+//             routerDim: this.routerDim,
+//             activation: this.activation
+//         }
+//     }
+// }
+
+// class MixtureOfDepths extends LayerBase {
+//     constructor(config) {
+//         super({ name: `mod-${randomString()}`, ...config })
+//         this.layer = config.layer
+//         this.capacity = config.capacity || 0.5
+//         this.routerDim = config.routerDim || 64
+//         this.activation = config.activation || 'relu'
+//         this.temperature = config.temperature || 0.9
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+
+//         this.routerKernel1 = this.addWeight(
+//             'routerKernel1',
+//             [inputDim, this.routerDim],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.routerBias1 = this.addWeight(
+//             'routerBias1',
+//             [this.routerDim],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//         this.routerKernel2 = this.addWeight(
+//             'routerKernel2',
+//             [this.routerDim, 1],
+//             'float32',
+//             tf.initializers.glorotNormal()
+//         )
+//         this.routerBias2 = this.addWeight(
+//             'routerBias2',
+//             [1],
+//             'float32',
+//             tf.initializers.zeros()
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//         const [batchSize, timeSteps, inputDim] = inputs.shape
+
+//         // Router network
+//         const routerHidden = tf
+//             .reshape(inputs, [batchSize * timeSteps, inputDim])
+//             .matMul(this.routerKernel1.read())
+//             .add(this.routerBias1.read())
+//         const routerActivation = tf.layers
+//             .activation({ activation: this.activation })
+//             .apply(routerHidden)
+//         const routerLogits = routerActivation
+//             .matMul(this.routerKernel2.read())
+//             .add(this.routerBias2.read())
+//             .reshape([batchSize, timeSteps])
+
+//         // Gumbel-Softmax for differentiable token selection
+//         const selectionProbs = this.ode.ops.gumbelSoftmax(
+//             routerLogits,
+//             this.temperature
+//         )
+//         const mask = selectionProbs
+//             .mul(tf.scalar(1 / this.capacity))
+//             .expandDims(-1)
+
+//         // Apply mask to inputs
+//         const maskedInputs = inputs.mul(mask)
+
+//         // Apply layer to masked inputs
+//         const processedOutputs = this.layer.apply(maskedInputs)
+
+//         // Combine processed outputs with residual inputs
+//         const output = processedOutputs.add(
+//             inputs.mul(tf.onesLike(mask).sub(mask))
+//         )
+
+//         return output
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getWeights() {
+//         return [
+//             this.routerKernel1.read(),
+//             this.routerBias1.read(),
+//             this.routerKernel2.read(),
+//             this.routerBias2.read()
+//         ]
+//     }
+
+//     setWeights(weights) {
+//         this.routerKernel1.write(weights[0])
+//         this.routerBias1.write(weights[1])
+//         this.routerKernel2.write(weights[2])
+//         this.routerBias2.write(weights[3])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             layer: this.layer.getConfig(),
+//             capacity: this.capacity,
+//             routerDim: this.routerDim,
+//             activation: this.activation,
+//             temperature: this.temperature
+//         }
+//     }
+// }
+
+// class MixtureOfDepths extends LayerBase {
+//     constructor(config) {
+//         super({
+//             name: `mod-${randomString()}`,
+//             ...config
+//         })
+//         this.layer = config.layer
+//         this.capacity = config.capacity || 0.5
+//         this.routerDim = config.routerDim || 64
+//         this.activation = config.activation || 'relu'
+//         this.temperature = config.temperature || 1.0
+//     }
+
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+
+//         this.routerKernel1 = this.addWeight(
+//             'routerKernel1',
+//             [inputDim, this.routerDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerBias1 = this.addWeight(
+//             'routerBias1',
+//             [this.routerDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerKernel2 = this.addWeight(
+//             'routerKernel2',
+//             [this.routerDim, 1],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerBias2 = this.addWeight(
+//             'routerBias2',
+//             [1],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//         const [batchSize, timeSteps, inputDim] = inputs.shape
+
+//         // Router network
+//         const routerHidden = tf
+//             .reshape(inputs, [batchSize * timeSteps, inputDim])
+//             .matMul(this.routerKernel1.read())
+//             .add(this.routerBias1.read())
+//         const routerActivation = tf.layers
+//             .activation({ activation: this.activation })
+//             .apply(routerHidden)
+//         const routerLogits = routerActivation
+//             .matMul(this.routerKernel2.read())
+//             .add(this.routerBias2.read())
+//             .reshape([batchSize, timeSteps])
+
+//         // Sigmoid-based top-k approximation
+//         const k = Math.floor(this.capacity * timeSteps)
+//         const softmask = tf
+//             .sigmoid(
+//                 (routerLogits -
+//                     tf
+//                         .topk(routerLogits, k)
+//                         .values.slice([0, k - 1], [batchSize, 1])) /
+//                     this.temperature
+//             )
+//             .expandDims(-1)
+
+//         // Split inputs into routed and residual tokens
+//         const selectedTokens = inputs.mul(softmask)
+//         const residualTokens = inputs.mul(tf.sub(1, softmask))
+
+//         // Apply layer to routed tokens
+//         const selectedOutputs = this.layer.apply(selectedTokens)
+
+//         // Combine processed tokens with residual tokens
+//         const output = selectedOutputs.mul(softmask).add(residualTokens)
+
+//         return output
+//     }
+
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
+
+//     getWeights() {
+//         return [
+//             this.routerKernel1.read(),
+//             this.routerBias1.read(),
+//             this.routerKernel2.read(),
+//             this.routerBias2.read()
+//         ]
+//     }
+
+//     setWeights(weights) {
+//         this.routerKernel1.write(weights[0])
+//         this.routerBias1.write(weights[1])
+//         this.routerKernel2.write(weights[2])
+//         this.routerBias2.write(weights[3])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             layer: this.layer.getConfig(),
+//             capacity: this.capacity,
+//             routerDim: this.routerDim,
+//             activation: this.activation,
+//             temperature: this.temperature
+//         }
+//     }
+// }
 
 // class MixtureOfDepths extends LayerBase {
 //     constructor(config) {
