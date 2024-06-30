@@ -7,13 +7,13 @@ import ODE from './model.v2.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
+        this.layers = config.layers || 3
         this.units = config.units || 256
         this.routerDim = config.routerDim || 128
         this.headDim = config.headDim || 512
         this.mlpDim = config.mlpDim || 1024
         this.capacity = config.capacity || 0.5
-        this.temperature = config.temperature || 0.1
+        this.temperature = config.temperature || 0.5
     }
 
     defineTokenizer() {
@@ -38,44 +38,44 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
-            if (i % 2 === 0) {
-                outputs = this.ode.layers
-                    .SelfAttention({
-                        units: this.units,
-                        projection: this.headDim
-                    })
-                    .apply(outputs)
+            // if (i % 2 === 0) {
+            //     outputs = this.ode.layers
+            //         .SelfAttention({
+            //             units: this.units,
+            //             projection: this.headDim
+            //         })
+            //         .apply(outputs)
 
-                outputs = this.ode.layers
-                    .GatedLinearMLP({
-                        units: this.units,
-                        innerDim: this.mlpDim,
-                        activation: 'swish'
-                    })
-                    .apply(outputs)
-            } else {
-                outputs = this.ode.layers
-                    .MixtureOfDepths({
-                        routerDim: this.routerDim,
-                        activation: 'softsign',
-                        capacity: this.capacity,
-                        temperature: this.temperature,
-                        experts: [
-                            this.ode.expert({
-                                type: 'SelfAttention',
-                                inputShape: outputs.shape,
-                                projection: this.headDim
-                            }),
-                            this.ode.expert({
-                                type: 'GatedLinearMLP',
-                                inputShape: outputs.shape,
-                                innerDim: this.mlpDim,
-                                activation: 'gelu_new'
-                            })
-                        ]
-                    })
-                    .apply(outputs)
-            }
+            //     outputs = this.ode.layers
+            //         .GatedLinearMLP({
+            //             units: this.units,
+            //             innerDim: this.mlpDim,
+            //             activation: 'swish'
+            //         })
+            //         .apply(outputs)
+            // } else {
+            outputs = this.ode.layers
+                .MixtureOfDepths({
+                    routerDim: this.routerDim,
+                    activation: 'gelu_new',
+                    capacity: this.capacity,
+                    temperature: this.temperature,
+                    experts: [
+                        this.ode.expert({
+                            type: 'SelfAttention',
+                            inputShape: outputs.shape,
+                            projection: this.headDim
+                        }),
+                        this.ode.expert({
+                            type: 'GatedLinearMLP',
+                            inputShape: outputs.shape,
+                            innerDim: this.mlpDim,
+                            activation: 'gelu_new'
+                        })
+                    ]
+                })
+                .apply(outputs)
+            // }
         }
 
         outputs = embeddings.apply(outputs)
