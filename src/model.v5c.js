@@ -12,7 +12,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.routerDim = config.routerDim || 128
         this.headDim = config.headDim || 512
         this.mlpDim = config.mlpDim || 1024
-        this.temperature = config.temperature || 0.4
+        this.temperature = config.temperature || 0.1
     }
 
     defineTokenizer() {
