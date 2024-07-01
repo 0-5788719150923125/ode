@@ -2125,22 +2125,14 @@ class MixtureOfDepths extends LayerBase {
                         auxLoss = saved[3]
                     }
 
-                    // // Backward pass: Gumbel-Softmax
-                    const gumbelMask = this.ode.ops
-                        .gumbelSoftmax(routerLogits, this.temperature)
-                        .expandDims(-1)
-                    const scaledGumbelMask = gumbelMask.mul(
-                        tf.scalar(timeSteps / this.capacity)
-                    )
-
-                    // Compute gradients
-                    let layerGrads = dy.mul(scaledGumbelMask)
+                    // Compute gradients using the topkMask from the forward pass
+                    let layerGrads = dy.mul(topkMask)
                     for (const expert of this.experts) {
                         layerGrads = expert.apply(layerGrads)
                     }
 
                     const residualGrads = dy.mul(
-                        tf.onesLike(scaledGumbelMask).sub(scaledGumbelMask)
+                        tf.onesLike(topkMask).sub(topkMask)
                     )
                     let inputGrads = layerGrads.add(residualGrads)
 
@@ -2194,57 +2186,6 @@ class MixtureOfDepths extends LayerBase {
             return loss
         })
     }
-
-    // computeAuxLoss(topKValues, topKIndices) {
-    //     const [batchSize, k] = topKValues.shape
-    //     const numExperts = this.experts.length
-
-    //     // Compute expert usage
-    //     const expertUsage = tf
-    //         .oneHot(topKIndices, numExperts)
-    //         .sum([0, 1])
-    //         .div(tf.scalar(batchSize * k))
-
-    //     // Encourage balanced use of experts
-    //     const balanceLoss = tf
-    //         .sub(expertUsage, 1 / numExperts)
-    //         .abs()
-    //         .mean()
-
-    //     // Penalize over-specialization
-    //     const specializationLoss = tf.softmax(topKValues, 1).max(1).mean()
-
-    //     // Combine losses
-    //     const loss = balanceLoss.add(specializationLoss)
-    //     console.log(loss.dataSync()[0])
-    //     return loss
-    // }
-
-    // computeAuxLoss(topKValues, topKIndices) {
-    //     return tf.tidy(() => {
-    //         const [batchSize, k] = topKValues.shape
-    //         const numExperts = this.experts.length
-
-    //         // Compute importance: [batchSize, k] -> [numExperts]
-    //         const importance = tf
-    //             .softmax(topKValues, 1)
-    //             .expandDims(2)
-    //             .mul(tf.oneHot(topKIndices, numExperts).asType('float32'))
-    //             .sum([0, 1])
-    //             .div(tf.scalar(batchSize * k))
-
-    //         // Compute load: [batchSize, k] -> [numExperts]
-    //         const load = tf
-    //             .oneHot(topKIndices, numExperts)
-    //             .sum([0, 1])
-    //             .div(tf.scalar(batchSize * k))
-
-    //         // Compute auxiliary loss (we use mean squared error here)
-    //         const loss = tf.losses.meanSquaredError(importance, load)
-    //         console.log(loss.dataSync())
-    //         return loss
-    //     })
-    // }
 
     getWeights() {
         return [this.routerKernel.read(), this.routerBias.read()]
