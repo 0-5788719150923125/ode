@@ -7,8 +7,8 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
-        this.units = config.units || 256
+        this.layers = config.layers || 6
+        this.units = config.units || 128
     }
 
     defineTokenizer(config) {
