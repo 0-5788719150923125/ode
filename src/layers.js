@@ -1840,15 +1840,10 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         this.topK = config.topK || 2
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
-        this.expertOutputDim = config.expertOutputDim || null
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
-        if (this.expertOutputDim === null) {
-            this.expertOutputDim =
-                this.experts[0].computeOutputShape(inputShape)[2]
-        }
 
         // Initialize switching network
         this.switchingHidden = this.addWeight(
@@ -1881,7 +1876,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
-            [this.topK * this.expertOutputDim, inputDim],
+            [this.topK * inputDim, inputDim],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -1974,8 +1969,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             numExperts: this.numExperts,
             switchingDim: this.switchingDim,
             activation: this.activation,
-            topK: this.topK,
-            expertOutputDim: this.expertOutputDim
+            topK: this.topK
         }
     }
 }

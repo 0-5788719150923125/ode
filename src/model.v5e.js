@@ -12,7 +12,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 256
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
-        this.headDim = config.headDim || 1024
+        this.headDim = config.headDim || 4096
         this.mlpDim = config.mlpDim || 512
     }
 
