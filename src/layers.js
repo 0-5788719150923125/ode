@@ -2274,6 +2274,7 @@ class SwarmOfExperts extends LayerBase {
     }
 }
 
+// https://arxiv.org/abs/2306.03745
 class SMEARMoE extends LayerBase {
     constructor(config) {
         super({ name: `moe-${randomString()}`, ...config })
