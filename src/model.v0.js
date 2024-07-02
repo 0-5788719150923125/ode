@@ -183,11 +183,32 @@ export default class ModelBase {
     postInit() {
         console.log(this.model.optimizer)
         console.log(this.model.summary())
+        this.countParams()
         console.log(this.config)
         console.log(
             `\nTokenizer contains ${this.tokenizer.getLength()} tokens.`
         )
         console.log(`Loaded model: v${this.config.version}\n`)
+    }
+
+    countParams() {
+        let layerParams = 0
+        let expertParams = 0
+        for (const layer of this.model.layers) {
+            layerParams += layer.countParams()
+            if (layer.experts) {
+                for (const expert of layer.experts) {
+                    expertParams += expert.countParams()
+                }
+            }
+        }
+        const oneMillion = 1_000_000
+        console.log(
+            (layerParams / oneMillion).toFixed(2) + 'M',
+            'layer params,',
+            (expertParams / oneMillion).toFixed(2) + 'M',
+            'expert params'
+        )
     }
 
     async generate({
