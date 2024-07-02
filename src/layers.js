@@ -389,8 +389,7 @@ class RandomFeatureAttention extends LayerBase {
                 // Sum over the feature dimension
                 const QF_D_sum = tf.sum(QF_D, -1, true)
 
-                // Apply attention mechanism
-                // Manual implementation of division with epsilon for numerical stability
+                // Implementation of attention mechanism with epsilon for numerical stability
                 return tf.div(QF_KFV, tf.add(QF_D_sum, this.eps))
             })
 
