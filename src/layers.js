@@ -383,8 +383,7 @@ class RandomFeatureAttention extends LayerBase {
                 // Compute attention scores
                 const QF_KFV = tf.matMul(QF, KFV)
 
-                // Compute normalization term
-                // Use element-wise multiplication for efficient broadcasting
+                // Compute normalization term via element-wise multiplication for efficient broadcasting
                 const QF_D = tf.mul(QF, D)
                 // Sum over the feature dimension
                 const QF_D_sum = tf.sum(QF_D, -1, true)
