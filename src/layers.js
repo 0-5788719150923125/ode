@@ -1841,11 +1841,6 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
         this.expertOutputDim = config.expertOutputDim || null
-        this.expertDecay = config.expertDecay || 0.1
-        this.expertUtilizationEMA = Array(this.numExperts).fill(
-            1 / this.numExperts
-        )
-        this.emaAlpha = config.emaAlpha || 0.9
     }
 
     build(inputShape) {
@@ -1925,8 +1920,6 @@ class AdaptiveMixtureOfExperts extends LayerBase {
 
             const expertIndices = this.selectTopExperts(weightedAvgScores)
 
-            if (kwargs.training) this.computeExpertLoss(expertIndices)
-
             // Predict on top-k experts, for every batch
             const batchOutputs = []
             for (let i = 0; i < inputs.shape[0]; i++) {
@@ -1957,43 +1950,6 @@ class AdaptiveMixtureOfExperts extends LayerBase {
         return topKIndices.arraySync()
     }
 
-    computeExpertLoss(selectedExpertIndices) {
-        const expertCounts = Array(this.numExperts).fill(0)
-        for (let i = 0; i < selectedExpertIndices.length; i++) {
-            for (let j = 0; j < this.topK; j++) {
-                const expertIndex = selectedExpertIndices[i][j]
-                expertCounts[expertIndex]++
-            }
-        }
-
-        const totalSelections = selectedExpertIndices.length * this.topK
-        const expertUtilization = expertCounts.map(
-            (count) => count / totalSelections
-        )
-
-        // Update the expert utilization EMA
-        this.expertUtilizationEMA = this.expertUtilizationEMA.map(
-            (emaUtil, i) =>
-                this.emaAlpha * emaUtil +
-                (1 - this.emaAlpha) * expertUtilization[i]
-        )
-
-        const targetUtilization = 1 / this.numExperts
-        const utilizationDifferences = this.expertUtilizationEMA.map(
-            (util) => util - targetUtilization
-        )
-        const absUtilizationDifferences = utilizationDifferences.map((diff) =>
-            Math.abs(diff)
-        )
-        const meanAbsUtilizationDifference =
-            absUtilizationDifferences.reduce((sum, diff) => sum + diff, 0) /
-            this.numExperts
-
-        const loadBalancingLoss = tf.scalar(meanAbsUtilizationDifference)
-
-        this.extraLoss = tf.keep(loadBalancingLoss.mul(this.expertDecay))
-    }
-
     getWeights() {
         return [
             this.switchingHidden.read(),
@@ -2019,10 +1975,7 @@ class AdaptiveMixtureOfExperts extends LayerBase {
             switchingDim: this.switchingDim,
             activation: this.activation,
             topK: this.topK,
-            expertOutputDim: this.expertOutputDim,
-            expertDecay: this.expertDecay,
-            expertUtilizationEMA: this.expertUtilizationEMA,
-            emaAlpha: this.emaAlpha
+            expertOutputDim: this.expertOutputDim
         }
     }
 }
