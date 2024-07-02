@@ -129,18 +129,17 @@ class XenovaTokenizer extends TokenizerBase {
     }
 }
 
-// import TokenMonster from './tokenizers/tokenmonster.cjs'
-
-class TokenMonsterTokenizer extends TokenizerBase {
+// https://github.com/alasdairforsythe/tokenmonster
+class TokenMonster extends TokenizerBase {
     constructor(config) {
         super(config)
         this.model = config.model || 'englishcode-32000-consistent-v1'
     }
 
     async init() {
-        const TokenMonster = (await import('./tokenizers/tokenmonster.cjs'))
+        const TokenMonsterCore = (await import('./tokenizers/tokenmonster.cjs'))
             .default
-        this.tokenizer = new TokenMonster()
+        this.tokenizer = new TokenMonsterCore()
         await this.tokenizer.load(
             `https://huggingface.co/alasdairforsythe/tokenmonster/raw/main/vocabs/${this.model}.vocab`
         )
@@ -384,7 +383,7 @@ const tokenizers = {
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),
     XenovaTokenizer: (config) => new XenovaTokenizer(config),
-    TokenMonsterTokenizer: (config) => new TokenMonsterTokenizer(config),
+    TokenMonsterTokenizer: (config) => new TokenMonster(config),
     Text2Image: (config) => new Text2Image(config)
 }
 export default tokenizers
