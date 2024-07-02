@@ -2032,6 +2032,7 @@ class MixtureOfDepths extends LayerBase {
     constructor(config) {
         super({ name: `mod-${randomString()}`, ...config })
         this.experts = config.experts || []
+        this.numExperts = config.numExperts || this.experts.length
         this.capacity = config.capacity || 0.125
         this.temperature = config.temperature || 0.1
         this.auxLossWeight = config.auxLossWeight || 0.01
@@ -2058,10 +2059,7 @@ class MixtureOfDepths extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
-        this.expertUsageEMA = tf.variable(
-            tf.zeros([this.experts.length]),
-            false
-        )
+        this.expertUsageEMA = tf.variable(tf.zeros([this.numExperts]), false)
     }
 
     call(inputs, kwargs) {
@@ -2084,6 +2082,7 @@ class MixtureOfDepths extends LayerBase {
                     routerLogits,
                     k
                 )
+
                 const topkMask = tf
                     .oneHot(topKIndices, timeSteps)
                     .sum(1)
@@ -2154,7 +2153,7 @@ class MixtureOfDepths extends LayerBase {
     computeAuxLoss(topKIndices) {
         return tf.tidy(() => {
             const [batchSize, k] = topKIndices.shape
-            const numExperts = this.experts.length
+            const numExperts = this.numExperts
 
             // Compute current expert usage
             const currentUsage = tf
@@ -2199,6 +2198,7 @@ class MixtureOfDepths extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
+            numExperts: this.numExperts,
             capacity: this.capacity,
             temperature: this.temperature,
             auxLossWeight: this.auxLossWeight,
