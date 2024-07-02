@@ -13,6 +13,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
         this.headDim = config.headDim || 1024
+        this.numFeatures = config.numFeatures || 256
         this.mlpDim = config.mlpDim || 512
     }
 
@@ -46,9 +47,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SelfAttention({
-                    units: this.units,
-                    projection: this.headDim
+                .RandomFeatureAttention({
+                    hiddenDim: this.headDim,
+                    numFeatures: this.numFeatures
                 })
                 .apply(outputs)
 

@@ -293,6 +293,132 @@ class SelfAttention extends LayerBase {
     }
 }
 
+// Loosely-inspired by Performer:
+// https://arxiv.org/abs/2009.14794
+class RandomFeatureAttention extends LayerBase {
+    constructor(config) {
+        super({ name: `attn-${randomString()}`, ...config })
+        this.hiddenDim = config.hiddenDim || 256
+        this.numFeatures = config.numFeatures || 256
+        this.eps = 1e-6
+    }
+
+    build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
+        this.inputDim = inputDim
+
+        this.queryKernel = this.addWeight(
+            `queryKernel`,
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
+        )
+        this.keyKernel = this.addWeight(
+            `keyKernel`,
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
+        )
+        this.valueKernel = this.addWeight(
+            `valueKernel`,
+            [inputDim, this.hiddenDim],
+            'float32',
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
+        )
+        this.outputKernel = this.addWeight(
+            `outputKernel`,
+            [this.hiddenDim, inputDim],
+            'float32',
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.1 })
+        )
+        this.residual = customLayers.ResidualConnection()
+
+        this.randomMatrix = tf.randomNormal(
+            [this.hiddenDim, this.numFeatures],
+            0,
+            1 / Math.sqrt(this.numFeatures)
+        )
+    }
+
+    call(inputs) {
+        return tf.tidy(() => {
+            // Ensure inputs is a tensor, not an array
+            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Linear transformations to create query, key, and value
+            const Q = this.applyDense(inputs, this.queryKernel.read())
+            const K = this.applyDense(inputs, this.keyKernel.read())
+            const V = this.applyDense(inputs, this.valueKernel.read())
+
+            // Apply random feature map to query and key
+            const QF = this.applyFeatureMap(Q)
+            const KF = this.applyFeatureMap(K)
+
+            // Compute key-value representation
+            const KFV = tf.matMul(KF, V, true, false)
+            // Compute normalization factor
+            const D = tf.sum(KF, -2, true)
+
+            // Compute attention scores
+            const QF_KFV = tf.matMul(QF, KFV)
+
+            // Compute normalization term
+            // Use element-wise multiplication for efficient broadcasting
+            const QF_D = tf.mul(QF, D)
+            // Sum over the feature dimension
+            const QF_D_sum = tf.sum(QF_D, -1, true)
+
+            // Apply attention mechanism
+            // Manual implementation of division with epsilon for numerical stability
+            let outputs = tf.div(QF_KFV, tf.add(QF_D_sum, this.eps))
+
+            // Apply layer normalization
+            outputs = this.rmsNorm(outputs)
+            // Apply output projection
+            outputs = this.applyDense(outputs, this.outputKernel.read())
+            // Scale down outputs for stability
+            outputs = tf.mul(outputs, tf.scalar(0.1))
+
+            // Apply residual connection
+            return this.residual.apply([inputs, outputs])
+        })
+    }
+
+    applyFeatureMap(x) {
+        const projection = tf.matMul(x, this.randomMatrix)
+        // ReLU activation for sparsity and efficiency
+        return tf.relu(projection)
+    }
+
+    getWeights() {
+        return [
+            this.queryKernel.read(),
+            this.keyKernel.read(),
+            this.valueKernel.read(),
+            this.outputKernel.read()
+        ]
+    }
+
+    setWeights(weights) {
+        this.queryKernel.write(weights[0])
+        this.keyKernel.write(weights[1])
+        this.valueKernel.write(weights[2])
+        this.outputKernel.write(weights[3])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            projection: this.hiddenDim,
+            numFeatures: this.numFeatures
+        }
+    }
+}
+
 // https://github.com/cmsflash/efficient-attention/blob/master/efficient_attention.py
 // currently failing, because the causal mask makes loss values extremely high
 class EfficientAttention extends LayerBase {
@@ -4552,6 +4678,7 @@ const exportedLayers = [
     IncrementalPowerIterationPCA,
     LambdaLayer,
     LinearAttention,
+    RandomFeatureAttention,
     LocalSelfAttention,
     VariableDimensionMLP,
     MixtureOfDepths,
