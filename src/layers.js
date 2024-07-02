@@ -297,9 +297,11 @@ class SelfAttention extends LayerBase {
 // https://arxiv.org/abs/2009.14794
 class RandomFeatureAttention extends LayerBase {
     constructor(config) {
-        super({ name: `attn-${randomString()}`, ...config })
+        super({ name: `multi-head-linear-attn-${randomString()}`, ...config })
         this.hiddenDim = config.hiddenDim || 256
         this.numFeatures = config.numFeatures || 256
+        this.numHeads = config.numHeads || 8
+        this.headDim = Math.floor(this.hiddenDim / this.numHeads)
         this.eps = 1e-6
     }
 
@@ -307,27 +309,40 @@ class RandomFeatureAttention extends LayerBase {
         const inputDim = inputShape[inputShape.length - 1]
         this.inputDim = inputDim
 
-        this.queryKernel = this.addWeight(
-            `queryKernel`,
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
-        )
-        this.keyKernel = this.addWeight(
-            `keyKernel`,
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
-        )
-        this.valueKernel = this.addWeight(
-            `valueKernel`,
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
-        )
+        // Create weight matrices for each head
+        this.queryKernels = []
+        this.keyKernels = []
+        this.valueKernels = []
+        for (let i = 0; i < this.numHeads; i++) {
+            this.queryKernels.push(
+                this.addWeight(
+                    `queryKernel_${i}`,
+                    [inputDim, this.headDim],
+                    'float32',
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
+                )
+            )
+            this.keyKernels.push(
+                this.addWeight(
+                    `keyKernel_${i}`,
+                    [inputDim, this.headDim],
+                    'float32',
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
+                )
+            )
+            this.valueKernels.push(
+                this.addWeight(
+                    `valueKernel_${i}`,
+                    [inputDim, this.headDim],
+                    'float32',
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.1 })
+                )
+            )
+        }
+
         this.outputKernel = this.addWeight(
             `outputKernel`,
             [this.hiddenDim, inputDim],
@@ -338,7 +353,7 @@ class RandomFeatureAttention extends LayerBase {
         this.residual = customLayers.ResidualConnection()
 
         this.randomMatrix = tf.randomNormal(
-            [this.hiddenDim, this.numFeatures],
+            [this.headDim, this.numFeatures],
             0,
             1 / Math.sqrt(this.numFeatures)
         )
@@ -349,32 +364,38 @@ class RandomFeatureAttention extends LayerBase {
             // Ensure inputs is a tensor, not an array
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Linear transformations to create query, key, and value
-            const Q = this.applyDense(inputs, this.queryKernel.read())
-            const K = this.applyDense(inputs, this.keyKernel.read())
-            const V = this.applyDense(inputs, this.valueKernel.read())
+            // Process each head
+            const headOutputs = this.queryKernels.map((queryKernel, i) => {
+                // Linear transformations to create query, key, and value for this head
+                const Q = this.applyDense(inputs, queryKernel.read())
+                const K = this.applyDense(inputs, this.keyKernels[i].read())
+                const V = this.applyDense(inputs, this.valueKernels[i].read())
 
-            // Apply random feature map to query and key
-            const QF = this.applyFeatureMap(Q)
-            const KF = this.applyFeatureMap(K)
+                // Apply random feature map to query and key
+                const QF = this.applyFeatureMap(Q)
+                const KF = this.applyFeatureMap(K)
 
-            // Compute key-value representation
-            const KFV = tf.matMul(KF, V, true, false)
-            // Compute normalization factor
-            const D = tf.sum(KF, -2, true)
+                // Compute key-value representation
+                const KFV = tf.matMul(KF, V, true, false)
+                // Compute normalization factor
+                const D = tf.sum(KF, -2, true)
 
-            // Compute attention scores
-            const QF_KFV = tf.matMul(QF, KFV)
+                // Compute attention scores
+                const QF_KFV = tf.matMul(QF, KFV)
 
-            // Compute normalization term
-            // Use element-wise multiplication for efficient broadcasting
-            const QF_D = tf.mul(QF, D)
-            // Sum over the feature dimension
-            const QF_D_sum = tf.sum(QF_D, -1, true)
+                // Compute normalization term
+                // Use element-wise multiplication for efficient broadcasting
+                const QF_D = tf.mul(QF, D)
+                // Sum over the feature dimension
+                const QF_D_sum = tf.sum(QF_D, -1, true)
 
-            // Apply attention mechanism
-            // Manual implementation of division with epsilon for numerical stability
-            let outputs = tf.div(QF_KFV, tf.add(QF_D_sum, this.eps))
+                // Apply attention mechanism
+                // Manual implementation of division with epsilon for numerical stability
+                return tf.div(QF_KFV, tf.add(QF_D_sum, this.eps))
+            })
+
+            // Concatenate head outputs
+            let outputs = tf.concat(headOutputs, -1)
 
             // Apply layer normalization
             outputs = this.rmsNorm(outputs)
@@ -396,25 +417,33 @@ class RandomFeatureAttention extends LayerBase {
 
     getWeights() {
         return [
-            this.queryKernel.read(),
-            this.keyKernel.read(),
-            this.valueKernel.read(),
+            ...this.queryKernels.map((k) => k.read()),
+            ...this.keyKernels.map((k) => k.read()),
+            ...this.valueKernels.map((k) => k.read()),
             this.outputKernel.read()
         ]
     }
 
     setWeights(weights) {
-        this.queryKernel.write(weights[0])
-        this.keyKernel.write(weights[1])
-        this.valueKernel.write(weights[2])
-        this.outputKernel.write(weights[3])
+        const headWeights = weights.slice(0, -1)
+        const numHeadWeights = headWeights.length
+        const weightsPerHead = numHeadWeights / 3
+
+        for (let i = 0; i < this.numHeads; i++) {
+            this.queryKernels[i].write(headWeights[i])
+            this.keyKernels[i].write(headWeights[i + weightsPerHead])
+            this.valueKernels[i].write(headWeights[i + 2 * weightsPerHead])
+        }
+
+        this.outputKernel.write(weights[weights.length - 1])
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            projection: this.hiddenDim,
-            numFeatures: this.numFeatures
+            hiddenDim: this.hiddenDim,
+            numFeatures: this.numFeatures,
+            numHeads: this.numHeads
         }
     }
 }
