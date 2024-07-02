@@ -16,14 +16,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.mlpDim = config.mlpDim || 512
     }
 
-    // defineTokenizer() {
-    //     super.defineTokenizer({
-    //         model: 'OriginalDesign/thrice'
-    //     })
-    // }
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonsterTokenizer({
-            model: 'englishcode-4096-balanced-v1'
+            model: 'englishcode-4096-clean-v1'
         })
     }
 

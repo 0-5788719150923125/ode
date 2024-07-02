@@ -148,8 +148,7 @@ class TokenMonsterTokenizer extends TokenizerBase {
     }
 
     getLength() {
-        const val = this.model.split('-')[1]
-        return Number(val)
+        return this.tokenizer.vocab_size
     }
 
     encode(string) {

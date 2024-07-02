@@ -1,200 +1,4 @@
 // https://github.com/alasdairforsythe/tokenmonster
-
-class Uint8ArrayHashMap {
-    constructor() {
-        this.buckets = Array.from({ length: 65536 }, () => [])
-        this.bloom20to40 = BigInt(0)
-        this.bloom30to40 = BigInt(0)
-        this.bloom10to20 = BigInt(0)
-        this.bloom5to10 = BigInt(0)
-    }
-
-    _hash(key, length = key.length) {
-        let hash = 0
-        for (let i = 0; i < length; i++) {
-            hash = ((hash << 5) - hash + key[i]) | 0
-        }
-        return hash & 0xffff
-    }
-
-    _equals(a, b) {
-        if (a.length !== b.length) return false
-        for (let i = 0; i < a.length; i++) {
-            if (a[i] !== b[i]) return false
-        }
-        return true
-    }
-
-    _addToBloom(bloomFilter, key, length) {
-        const hash = this._hash(key, length)
-        return bloomFilter | (BigInt(1) << BigInt(hash))
-    }
-
-    _checkBloom(bloomFilter, key, length) {
-        const hash = this._hash(key, length)
-        return (bloomFilter & (BigInt(1) << BigInt(hash))) === BigInt(0)
-    }
-
-    set(key, value) {
-        const hash = this._hash(key)
-        const bucket = this.buckets[hash]
-        for (const pair of bucket) {
-            if (this._equals(pair[0], key)) {
-                pair[1] = value
-                return
-            }
-        }
-        bucket.push([key, value])
-        if (key.length > 20) {
-            this.bloom20to40 = this._addToBloom(this.bloom20to40, key, 20)
-            if (key.length > 30)
-                this.bloom30to40 = this._addToBloom(this.bloom30to40, key, 30)
-        } else if (key.length > 10) {
-            this.bloom10to20 = this._addToBloom(this.bloom10to20, key, 10)
-        } else if (key.length > 5) {
-            this.bloom5to10 = this._addToBloom(this.bloom5to10, key, 5)
-        }
-    }
-
-    get(key) {
-        const hash = this._hash(key)
-        const bucket = this.buckets[hash]
-        for (const pair of bucket) {
-            if (this._equals(pair[0], key)) {
-                return pair[1]
-            }
-        }
-        return -1
-    }
-
-    findLargestSubarray(arr) {
-        let len = arr.length
-        if (len > 20) {
-            if (this._checkBloom(this.bloom20to40, arr, 20)) {
-                len = 20
-            } else if (len > 30) {
-                if (this._checkBloom(this.bloom30to40, arr, 30)) {
-                    len = 30
-                }
-            }
-        }
-        if (len > 10 && len <= 20) {
-            if (this._checkBloom(this.bloom10to20, arr, 10)) {
-                len = 10
-            }
-        }
-        if (len > 5 && len <= 10) {
-            if (this._checkBloom(this.bloom5to10, arr, 5)) {
-                len = 5
-            }
-        }
-        while (len > 0) {
-            const value = this.get(arr.subarray(0, len))
-            if (value !== -1) {
-                return [value, len, true]
-            }
-            len--
-        }
-        return [-1, 0, false]
-    }
-}
-
-function displayString1(key, capcode) {
-    const decoder = new TextDecoder('utf-8')
-    const keystr = decoder.decode(key)
-    if (capcode == 2) {
-        const replacedString = keystr.replace(
-            /("|\n|\r|\t| |W|D|C)/g,
-            (match, capture) => {
-                if (capture === '"') {
-                    return '&quot;'
-                } else if (capture === '\n') {
-                    return '\\n'
-                } else if (capture === '\r') {
-                    return '\\r'
-                } else if (capture === '\t') {
-                    return '\\t'
-                } else if (capture === ' ') {
-                    return '&nbsp;'
-                } else if (capture === 'W') {
-                    return '\u21EA' // caps lock symbol
-                } else if (capture === 'D') {
-                    return '\u2326' // forward delete symbol
-                } else if (capture === 'C') {
-                    return '\u21E7' // shift symbol
-                }
-            }
-        )
-        return replacedString
-    } else {
-        const replacedString = keystr.replace(
-            /("|\n|\r|\t| |[\x7F])/g,
-            (match, capture) => {
-                if (capture === '"') {
-                    return '&quot;'
-                } else if (capture === '\n') {
-                    return '\\n'
-                } else if (capture === '\r') {
-                    return '\\r'
-                } else if (capture === '\t') {
-                    return '\\t'
-                } else if (capture === ' ') {
-                    return '\u2007' //'&nbsp;';
-                } else if (capture === '\x7F') {
-                    return '\u2326'
-                }
-            }
-        )
-        return replacedString
-    }
-}
-
-function displayString2(key, capcode) {
-    const decoder = new TextDecoder('utf-8')
-    const keystr = decoder.decode(key)
-    if (capcode == 2) {
-        const replacedString = keystr.replace(
-            /(\r\n|\n|\r|W|D|C)/g,
-            (match, capture) => {
-                if (capture === '\r\n') {
-                    return '↵\r\n'
-                }
-                if (capture === '\n') {
-                    return '↵\n'
-                } else if (capture === '\r') {
-                    return '↵\r'
-                } else if (capture === 'W') {
-                    return '\u21EA' // caps lock symbol
-                } else if (capture === 'D') {
-                    return '\u2326' // forward delete symbol
-                } else if (capture === 'C') {
-                    return '\u21E7' // shift symbol
-                }
-            }
-        )
-        return replacedString
-    } else {
-        const replacedString = keystr.replace(
-            /(\r\n|\n|\r|[\x7F])/g,
-            (match, capture) => {
-                if (capture === '\r\n') {
-                    return '↵\r\n'
-                }
-                if (capture === '\n') {
-                    return '↵\n'
-                } else if (capture === '\r') {
-                    return '↵\r'
-                } else if (capture === ' ') {
-                    return '\u2007' //'&nbsp;';
-                } else if (capture === '\x7F') {
-                    return '\u2326'
-                }
-            }
-        )
-        return replacedString
-    }
-}
-
 class TokenMonster {
     constructor() {
         this.word2index = new Uint8ArrayHashMap()
@@ -1028,6 +832,201 @@ class TokenMonster {
             }
         }
         return decoded
+    }
+}
+
+class Uint8ArrayHashMap {
+    constructor() {
+        this.buckets = Array.from({ length: 65536 }, () => [])
+        this.bloom20to40 = BigInt(0)
+        this.bloom30to40 = BigInt(0)
+        this.bloom10to20 = BigInt(0)
+        this.bloom5to10 = BigInt(0)
+    }
+
+    _hash(key, length = key.length) {
+        let hash = 0
+        for (let i = 0; i < length; i++) {
+            hash = ((hash << 5) - hash + key[i]) | 0
+        }
+        return hash & 0xffff
+    }
+
+    _equals(a, b) {
+        if (a.length !== b.length) return false
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false
+        }
+        return true
+    }
+
+    _addToBloom(bloomFilter, key, length) {
+        const hash = this._hash(key, length)
+        return bloomFilter | (BigInt(1) << BigInt(hash))
+    }
+
+    _checkBloom(bloomFilter, key, length) {
+        const hash = this._hash(key, length)
+        return (bloomFilter & (BigInt(1) << BigInt(hash))) === BigInt(0)
+    }
+
+    set(key, value) {
+        const hash = this._hash(key)
+        const bucket = this.buckets[hash]
+        for (const pair of bucket) {
+            if (this._equals(pair[0], key)) {
+                pair[1] = value
+                return
+            }
+        }
+        bucket.push([key, value])
+        if (key.length > 20) {
+            this.bloom20to40 = this._addToBloom(this.bloom20to40, key, 20)
+            if (key.length > 30)
+                this.bloom30to40 = this._addToBloom(this.bloom30to40, key, 30)
+        } else if (key.length > 10) {
+            this.bloom10to20 = this._addToBloom(this.bloom10to20, key, 10)
+        } else if (key.length > 5) {
+            this.bloom5to10 = this._addToBloom(this.bloom5to10, key, 5)
+        }
+    }
+
+    get(key) {
+        const hash = this._hash(key)
+        const bucket = this.buckets[hash]
+        for (const pair of bucket) {
+            if (this._equals(pair[0], key)) {
+                return pair[1]
+            }
+        }
+        return -1
+    }
+
+    findLargestSubarray(arr) {
+        let len = arr.length
+        if (len > 20) {
+            if (this._checkBloom(this.bloom20to40, arr, 20)) {
+                len = 20
+            } else if (len > 30) {
+                if (this._checkBloom(this.bloom30to40, arr, 30)) {
+                    len = 30
+                }
+            }
+        }
+        if (len > 10 && len <= 20) {
+            if (this._checkBloom(this.bloom10to20, arr, 10)) {
+                len = 10
+            }
+        }
+        if (len > 5 && len <= 10) {
+            if (this._checkBloom(this.bloom5to10, arr, 5)) {
+                len = 5
+            }
+        }
+        while (len > 0) {
+            const value = this.get(arr.subarray(0, len))
+            if (value !== -1) {
+                return [value, len, true]
+            }
+            len--
+        }
+        return [-1, 0, false]
+    }
+}
+
+function displayString1(key, capcode) {
+    const decoder = new TextDecoder('utf-8')
+    const keystr = decoder.decode(key)
+    if (capcode == 2) {
+        const replacedString = keystr.replace(
+            /("|\n|\r|\t| |W|D|C)/g,
+            (match, capture) => {
+                if (capture === '"') {
+                    return '&quot;'
+                } else if (capture === '\n') {
+                    return '\\n'
+                } else if (capture === '\r') {
+                    return '\\r'
+                } else if (capture === '\t') {
+                    return '\\t'
+                } else if (capture === ' ') {
+                    return '&nbsp;'
+                } else if (capture === 'W') {
+                    return '\u21EA' // caps lock symbol
+                } else if (capture === 'D') {
+                    return '\u2326' // forward delete symbol
+                } else if (capture === 'C') {
+                    return '\u21E7' // shift symbol
+                }
+            }
+        )
+        return replacedString
+    } else {
+        const replacedString = keystr.replace(
+            /("|\n|\r|\t| |[\x7F])/g,
+            (match, capture) => {
+                if (capture === '"') {
+                    return '&quot;'
+                } else if (capture === '\n') {
+                    return '\\n'
+                } else if (capture === '\r') {
+                    return '\\r'
+                } else if (capture === '\t') {
+                    return '\\t'
+                } else if (capture === ' ') {
+                    return '\u2007' //'&nbsp;';
+                } else if (capture === '\x7F') {
+                    return '\u2326'
+                }
+            }
+        )
+        return replacedString
+    }
+}
+
+function displayString2(key, capcode) {
+    const decoder = new TextDecoder('utf-8')
+    const keystr = decoder.decode(key)
+    if (capcode == 2) {
+        const replacedString = keystr.replace(
+            /(\r\n|\n|\r|W|D|C)/g,
+            (match, capture) => {
+                if (capture === '\r\n') {
+                    return '↵\r\n'
+                }
+                if (capture === '\n') {
+                    return '↵\n'
+                } else if (capture === '\r') {
+                    return '↵\r'
+                } else if (capture === 'W') {
+                    return '\u21EA' // caps lock symbol
+                } else if (capture === 'D') {
+                    return '\u2326' // forward delete symbol
+                } else if (capture === 'C') {
+                    return '\u21E7' // shift symbol
+                }
+            }
+        )
+        return replacedString
+    } else {
+        const replacedString = keystr.replace(
+            /(\r\n|\n|\r|[\x7F])/g,
+            (match, capture) => {
+                if (capture === '\r\n') {
+                    return '↵\r\n'
+                }
+                if (capture === '\n') {
+                    return '↵\n'
+                } else if (capture === '\r') {
+                    return '↵\r'
+                } else if (capture === ' ') {
+                    return '\u2007' //'&nbsp;';
+                } else if (capture === '\x7F') {
+                    return '\u2326'
+                }
+            }
+        )
+        return replacedString
     }
 }
 
