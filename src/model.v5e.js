@@ -1,19 +1,19 @@
 import ODE from './model.v2.js'
 
 /**
- * A kinda-sparse mixture of experts.
+ * A Soft Merging of Experts with Adaptive Routing.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 8
-        this.units = config.units || 32
+        this.layers = config.layers || 6
+        this.units = config.units || 128
         this.embeddings = config.embeddings || 256
-        this.numExperts = config.numExperts || 23
-        this.moeDim = config.moeDim || 128
+        this.numExperts = config.numExperts || 8
+        this.moeDim = config.moeDim || 256
         this.headDim = config.headDim || 1024
-        this.mlpDim = config.mlpDim || 64
+        this.mlpDim = config.mlpDim || 512
     }
 
     defineTokenizer() {
@@ -53,7 +53,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .SwarmOfExperts({
+                .SMEARMoE({
                     activation: 'mish',
                     hiddenDim: this.moeDim,
                     experts: this.createFeedforwardExperts(outputs.shape)
