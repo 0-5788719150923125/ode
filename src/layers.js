@@ -2476,9 +2476,8 @@ class SMEARMoE extends LayerBase {
                 this.routerHiddenBias.read()
             )
 
-            // Apply layer normalization to the inputs to our router
+            // Apply layer normalization before activating the logits of our router
             const normalizedState = this.rmsNorm(gatingHidden)
-
             const activatedGate = tf.layers
                 .activation({ activation: this.activation })
                 .apply(normalizedState)
@@ -2498,7 +2497,7 @@ class SMEARMoE extends LayerBase {
                 routingProbabilities
             )
 
-            // Apply merged expert to inputs
+            // Pass inputs to merged expert
             return mergedExpert.apply(inputs)
         })
     }
