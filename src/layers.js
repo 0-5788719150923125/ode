@@ -2124,16 +2124,24 @@ class MixtureOfDepths extends LayerBase {
                         auxLoss = saved[3]
                     }
 
-                    // Compute gradients using the topkMask from the forward pass
-                    let layerGrads = dy.mul(topkMask)
+                    // Backward pass: Gumbel-Softmax
+                    const gumbelMask = this.ode.ops
+                        .gumbelSoftmax(routerLogits, this.temperature)
+                        .expandDims(-1)
+
+                    // Compute gradients for the selected tokens
+                    let selectedGrads = dy.mul(gumbelMask)
                     for (const expert of this.experts) {
-                        layerGrads = expert.apply(layerGrads)
+                        selectedGrads = expert.apply(selectedGrads)
                     }
 
+                    // Compute gradients for the residual tokens
                     const residualGrads = dy.mul(
-                        tf.onesLike(topkMask).sub(topkMask)
+                        tf.onesLike(gumbelMask).sub(gumbelMask)
                     )
-                    let inputGrads = layerGrads.add(residualGrads)
+
+                    // Combine the selected and residual gradients
+                    let inputGrads = selectedGrads.add(residualGrads)
 
                     // Add auxiliary loss gradient
                     if (kwargs.training) {
