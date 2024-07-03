@@ -2503,8 +2503,10 @@ class SMEARMoE extends LayerBase {
     }
 
     mergeExperts(experts, weights) {
-        // Create a shallow copy of the first expert
+        // We modify the first expert in-place
         const mergedExpert = experts[0]
+        // We skip the first expert during averaging
+        const usedExperts = experts.slice(1)
 
         for (let i = 0; i < mergedExpert.layers.length; i++) {
             const layer = mergedExpert.layers[i]
@@ -2512,7 +2514,7 @@ class SMEARMoE extends LayerBase {
 
             // Compute weighted average of weights for this layer across all experts
             const averagedWeights = layerWeights.map((_, weightIndex) => {
-                const expertWeights = experts.map(
+                const expertWeights = usedExperts.map(
                     (expert) => expert.layers[i].getWeights()[weightIndex]
                 )
                 console.assert(
