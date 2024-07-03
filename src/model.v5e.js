@@ -29,7 +29,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             shape: [null]
         })
 
-        const embeddings = this.ode.layers.embedding({
+        const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
             outputDim: this.embeddings,
             embeddingsInitializer: 'glorotUniform'
@@ -71,14 +71,26 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             })
             .apply(outputs)
 
-        outputs = this.ode.layers
-            .dense({
-                units: this.tokenizer.getLength(),
-                activation: 'linear'
-            })
-            .apply(outputs)
+        outputs = embeddings.apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
+    }
+
+    defineOptimizers() {
+        this.learningRate = 1e-3
+        this.optimizers = [
+            this.ode.optimizers.AdamW({
+                learningRate: this.learningRate,
+                weightDecay: 1e-2
+            })
+        ]
+    }
+
+    defineSchedulers() {
+        this.learningRate = 1e-3
+        this.schedulers = [
+            this.ode.schedulers.constantScheduler(this.learningRate)
+        ]
     }
 
     createFeedforwardExperts(inputShape) {

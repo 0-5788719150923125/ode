@@ -167,6 +167,7 @@ export default class ModelBase {
     }
 
     defineSchedulers() {
+        this.learningRate = 1e-3
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]

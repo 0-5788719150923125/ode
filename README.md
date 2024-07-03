@@ -31,7 +31,7 @@ This library implements:
 
 # todo
 
--   [] in cross attention, queries are generated from one embedding, and keys/values from another (A "pier" is all you need)
+-   [] in cross attention, queries are generated from one embedding, and keys/values from another (A "peer" is all you need)
 -   [] explore model parallelism, sharding, peer-to-peer capabilities
 -   [] reinforcement learning, to teach the models "when" to respond, and when to remain quiet
 -   [] cross-modal models (i.e. a picture of text predicts a character)

@@ -383,7 +383,7 @@ const tokenizers = {
     BasicSubwordTokenizer: (maxVocabSize, trainIterations, corpus) =>
         new BasicSubwordTokenizer(maxVocabSize, trainIterations, corpus),
     XenovaTokenizer: (config) => new XenovaTokenizer(config),
-    TokenMonsterTokenizer: (config) => new TokenMonster(config),
+    TokenMonster: (config) => new TokenMonster(config),
     Text2Image: (config) => new Text2Image(config)
 }
 export default tokenizers

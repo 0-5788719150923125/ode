@@ -90,7 +90,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 step: this.step,
                 loss: this.loss,
                 dataGenerator,
-                learningRate: this.model.optimizer.learningRate,
+                learningRate: this.model.optimizer?.learningRate,
                 ...trainArgs
             })
         }

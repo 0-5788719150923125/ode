@@ -10,7 +10,8 @@ class AdamW extends tf.AdamOptimizer {
     } = {}) {
         super(learningRate, beta1, beta2, epsilon)
         this.ENGINE = tf.engine()
-        this.weightDecay = weightDecay
+        this.learningRate = Number(learningRate)
+        this.weightDecay = Number(weightDecay)
     }
 
     applyGradients(variableGradients) {
@@ -35,6 +36,20 @@ class AdamW extends tf.AdamOptimizer {
 
     static get className() {
         return 'AdamW'
+    }
+
+    static fromConfig(cls, config) {
+        return new cls(config)
+    }
+
+    getConfig() {
+        return {
+            learningRate: this.learningRate,
+            beta1: this.beta1,
+            beta2: this.beta2,
+            epsilon: this.epsilon,
+            weightDecay: this.weightDecay
+        }
     }
 }
 
@@ -400,7 +415,6 @@ class Prodigy extends tf.Optimizer {
     }
 
     static fromConfig(cls, config) {
-        console.log(config)
         return new cls(config)
     }
 
