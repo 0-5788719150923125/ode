@@ -297,7 +297,7 @@ class SelfAttention extends LayerBase {
 // https://arxiv.org/abs/2009.14794
 class RandomFeatureAttention extends LayerBase {
     constructor(config) {
-        super({ name: `multi-head-linear-attn-${randomString()}`, ...config })
+        super({ name: `attn-${randomString()}`, ...config })
         this.hiddenDim = config.hiddenDim || 256
         this.numFeatures = config.numFeatures || 256
         this.numHeads = config.numHeads || 8
@@ -2515,6 +2515,10 @@ class SMEARMoE extends LayerBase {
                 const expertWeights = experts.map(
                     (expert) => expert.layers[i].getWeights()[weightIndex]
                 )
+                console.assert(
+                    weights.shape[1] > 0,
+                    `Weights shape[1] should be greater than 0, but is: ${weights.shape}`
+                )
                 const weightedSum = expertWeights.reduce(
                     (sum, weight, expertIndex) => {
                         const expertWeight = weights
@@ -3403,8 +3407,8 @@ class CausalSelfAttention extends LayerBase {
 
             const cAttn = this.applyDense(
                 inputs,
-                this.cAttnKernel,
-                this.cAttnBias
+                this.cAttnKernel.read(),
+                this.cAttnBias.read()
             )
 
             // Make order of qkv split to follow minGPT
@@ -3439,7 +3443,11 @@ class CausalSelfAttention extends LayerBase {
 
             outputs = tf.transpose(outputs, [0, 2, 1, 3])
             outputs = tf.reshape(outputs, [B, T, C])
-            outputs = this.applyDense(outputs, this.cProjKernel, this.cProjBias)
+            outputs = this.applyDense(
+                outputs,
+                this.cProjKernel.read(),
+                this.cProjBias.read()
+            )
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs

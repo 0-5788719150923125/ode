@@ -16,6 +16,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.numHeads = config.numHeads || 2
         this.numFeatures = config.numFeatures || 256
         this.mlpDim = config.mlpDim || 512
+        this.learningRate = 1e-4
     }
 
     defineTokenizer() {
@@ -77,17 +78,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     defineOptimizers() {
-        this.learningRate = 1e-3
         this.optimizers = [
-            this.ode.optimizers.AdamW({
-                learningRate: this.learningRate,
-                weightDecay: 1e-2
+            this.ode.optimizers.Lion({
+                learningRate: this.learningRate
             })
         ]
     }
 
     defineSchedulers() {
-        this.learningRate = 1e-3
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]
