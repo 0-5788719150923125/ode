@@ -12,33 +12,46 @@ if (typeof window !== 'undefined') await wasmInit()
 export default class CosmopediaDataset {
     constructor(config) {
         this.dataset = 'HuggingFaceTB/cosmopedia'
+        this.slices = [
+            'auto_math_text',
+            'khanacademy',
+            'openstax',
+            'stanford',
+            'stories',
+            'web_samples_v1',
+            'web_samples_v2',
+            'wikihow'
+        ]
         this.slice = 'stories'
         this.split = 'train'
         this.shards = generatePaddedNumbers(0, 43, 5)
         this.delimiter = '\n\n'
         this.cacheSize = 20000
         this.cachedText = ''
+        this.cycleShardInterval = 100
+        this.batches = 0
     }
 
     async init() {
-        await this.fetchShard()
-        this.moveDataIntoTable()
+        await this.fetchRandomShard()
     }
 
-    async fetchShard() {
+    async fetchRandomShard() {
         const shard = randomValueFromArray(this.shards)
+        console.log('fetching shard:', shard)
         const path = `data/${this.slice}/${
             this.split
         }-${shard}-of-${this.shards.slice(-1)}.parquet`
         const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
-        console.log(url)
         const response = await fetch(url)
-
+        console.log('received shard:', shard)
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`)
         }
 
         this.buffer = new Uint8Array(await response.arrayBuffer())
+        this.moveDataIntoTable()
+        console.log('moved shard to table:', shard)
     }
 
     moveDataIntoTable() {
@@ -70,25 +83,43 @@ export default class CosmopediaDataset {
 
     fillCache() {
         while (this.cachedText.length < this.cacheSize) {
-            const batchIdx = randomBetween(0, this.table.batches.length)
+            let idx = 0
+            let batchIdx = 0
+            let rowIdx = 0
+            try {
+                batchIdx = randomBetween(0, this.table.batches.length)
 
-            const text = []
+                const text = []
 
-            let rowIdx
-            for (const obj of this.schema) {
-                const column = this.table.batches[batchIdx].getChildAt(obj.idx)
-                if (!rowIdx) {
-                    rowIdx = randomBetween(0, column.length)
+                rowIdx = null
+                for (const obj of this.schema) {
+                    idx = obj.idx
+                    const column = this.table.batches[batchIdx].getChildAt(
+                        obj.idx
+                    )
+                    if (rowIdx === null) {
+                        rowIdx = randomBetween(0, column.length)
+                    }
+                    const prefix = obj.value
+                    text.push(prefix + column.get(rowIdx))
                 }
-                const prefix = obj.value
-                text.push(prefix + column.get(rowIdx))
-            }
 
-            this.cachedText += text.join(this.delimiter) + this.delimiter
+                this.cachedText += text.join(this.delimiter) + this.delimiter
+            } catch (err) {
+                console.error(err)
+                console.log('idx was:', idx)
+                console.log('batch idx was:', batchIdx)
+                console.log('row idx was:', rowIdx)
+            }
         }
     }
 
     async getSample(size = 512) {
+        this.batches++
+        if (this.batches > this.cycleShardInterval) {
+            this.batches = 0
+            this.fetchRandomShard()
+        }
         this.fillCache()
         const sample = this.cachedText.slice(0, size)
         this.cachedText = this.cachedText.slice(size, -1)
@@ -96,16 +127,16 @@ export default class CosmopediaDataset {
     }
 }
 
-async function main() {
-    const sampler = new CosmopediaDataset()
-    await sampler.init()
-    sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
-    for (let i = 0; i < 10; i++) {
-        console.log(sampler.getSample())
-        console.log('---')
-        console.log('---')
-        console.log('---')
-    }
-}
+// async function main() {
+//     const sampler = new CosmopediaDataset()
+//     await sampler.init()
+//     sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
+//     for (let i = 0; i < 10; i++) {
+//         console.log(sampler.getSample())
+//         console.log('---')
+//         console.log('---')
+//         console.log('---')
+//     }
+// }
 
-main()
+// main()
