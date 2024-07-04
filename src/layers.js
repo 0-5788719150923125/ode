@@ -4690,7 +4690,137 @@ class IncrementalPowerIterationPCA extends LayerBase {
     }
 }
 
+class IndependentComponentAnalysis extends LayerBase {
+    constructor(config) {
+        super({ name: `ica-${randomString()}`, ...config })
+        this.outputDim = config.outputDim
+        this.maxIterations = config.maxIterations || 10
+        this.tolerance = config.tolerance || 1e-4
+        this.debug = config.debug || false
+    }
+
+    build(inputShape) {
+        this.inputDim = inputShape[inputShape.length - 1]
+        this.kernelShape = [this.outputDim, this.inputDim]
+        this.kernel = this.addWeight(
+            'kernel',
+            this.kernelShape,
+            'float32',
+            tf.initializers.orthogonal({ gain: 1.0 })
+        )
+        if (this.debug) {
+            console.log(
+                `Build: inputShape=${JSON.stringify(
+                    inputShape
+                )}, kernelShape=${JSON.stringify(this.kernelShape)}`
+            )
+        }
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const input = inputs[0]
+            const [batchSize, seqLength, featureDim] = input.shape
+            if (this.debug) {
+                console.log(`Call: input shape=${JSON.stringify(input.shape)}`)
+            }
+
+            // Reshape to 2D for processing
+            const reshapedInput = input.reshape([-1, featureDim])
+
+            const centered = tf.sub(reshapedInput, tf.mean(reshapedInput, 0))
+            const whitened = this.whiten(centered)
+            const ica = this.fixedPointIteration(whitened)
+            const output = tf.matMul(whitened, ica.transpose())
+
+            // Reshape back to 3D
+            return output.reshape([batchSize, seqLength, this.outputDim])
+        })
+    }
+
+    whiten(X) {
+        // Simple whitening: normalize each feature
+        const mean = tf.mean(X, 0)
+        const variance = tf.mean(tf.square(tf.sub(X, mean)), 0)
+        return tf.div(tf.sub(X, mean), tf.sqrt(tf.add(variance, 1e-8))) // Add small constant to avoid division by zero
+    }
+
+    fixedPointIteration(X) {
+        let W = tf.randomNormal(this.kernelShape)
+        if (this.debug) {
+            console.log(
+                `FixedPointIteration: X shape=${JSON.stringify(
+                    X.shape
+                )}, W shape=${JSON.stringify(W.shape)}`
+            )
+        }
+
+        for (let i = 0; i < this.maxIterations; i++) {
+            const Wprev = W
+
+            // Simplified FastICA algorithm
+            W = tf.tidy(() => {
+                const WX = tf.matMul(W, X.transpose())
+                if (this.debug) {
+                    console.log(
+                        `Iteration ${i}: WX shape=${JSON.stringify(WX.shape)}`
+                    )
+                }
+
+                const G = tf.tanh(WX)
+                const Gder = tf.sub(1, tf.square(tf.tanh(WX)))
+                const newW = tf.sub(
+                    tf.matMul(G, X).div(X.shape[0]),
+                    tf.mean(Gder, 1, true).mul(W)
+                )
+                // Normalize rows
+                return tf.div(newW, tf.norm(newW, 2, 1, true))
+            })
+
+            const distanceW = tf.mean(tf.abs(tf.sub(W, Wprev)))
+
+            if (this.debug) {
+                console.log(
+                    `Iteration ${i}: distanceW=${distanceW.dataSync()[0]}`
+                )
+            }
+
+            if (distanceW.dataSync()[0] < this.tolerance) {
+                if (this.debug) {
+                    console.log(`Converged after ${i} iterations`)
+                }
+                break
+            }
+        }
+
+        return W
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.outputDim]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            outputDim: this.outputDim,
+            maxIterations: this.maxIterations,
+            tolerance: this.tolerance,
+            debug: this.debug
+        }
+    }
+
+    getWeights() {
+        return [this.kernel.read()]
+    }
+
+    setWeights(weights) {
+        this.kernel.write(weights[0])
+    }
+}
+
 const exportedLayers = [
+    IndependentComponentAnalysis,
     AdaptiveMixtureOfExperts,
     Antirectifier,
     AttentionFreeTransformer,

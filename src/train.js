@@ -137,6 +137,7 @@ class GradientAccumulator {
         this.currentStep = step
         this.currentBatch = batch
         this.accumulationCounter++
+
         this.accumulatedGrads = accumulateGradients(
             this.gradients,
             this.accumulatedGrads
@@ -224,6 +225,7 @@ function computeGradients(
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
             const predictions = model.call(currentXs, meta)
+
             let lossValue = lossFunction(
                 currentYs,
                 predictions[0],
@@ -244,10 +246,13 @@ function computeGradients(
             })
 
             loss = lossValue.dataSync()[0]
+
             return lossValue
         })
     )
+
     tf.dispose([currentXs, currentYs, value])
+
     return { grads, loss }
 }
 

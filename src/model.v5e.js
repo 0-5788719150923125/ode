@@ -41,11 +41,16 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         outputs = this.ode.layers
-            .dense({
-                units: this.units,
-                activation: 'mish'
+            .IndependentComponentAnalysis({
+                outputDim: this.units
             })
             .apply(outputs)
+
+        // outputs = this.ode.layers
+        //     .dense({
+        //         units: this.units
+        //     })
+        //     .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -67,8 +72,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.embeddings,
-                activation: 'mish'
+                units: this.embeddings
             })
             .apply(outputs)
 
