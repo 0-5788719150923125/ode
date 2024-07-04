@@ -36,10 +36,8 @@ export default class CosmopediaDataset {
     async fetchRandomShard() {
         const { slice, shards } = randomValueFromArray(this.slices)
         const allShards = generatePaddedNumbers(0, shards, 5)
-        const shard =
-            allShards.length === 1
-                ? allShards[0]
-                : randomValueFromArray(allShards.slice(0, -2))
+        const shard = randomValueFromArray(allShards.slice(0, -2))
+        if (typeof shard === 'undefined') shard = '00000'
         console.log('fetching shard:', shard, 'slice:', slice)
         const path = `data/${slice}/${this.split}-${shard}-of-${allShards.slice(
             -1
@@ -117,12 +115,11 @@ export default class CosmopediaDataset {
         }
     }
 
-    getSample(size = 512) {
-        this.batches++
-        if (this.batches > this.cycleShardInterval) {
-            this.batches = 0
-            this.fetchRandomShard()
+    async getSample(size = 512) {
+        if (this.batches % this.cycleShardInterval === 0) {
+            await this.fetchRandomShard()
         }
+        this.batches++
         this.fillCache()
         const sample = this.cachedText.slice(0, size)
         this.cachedText = this.cachedText.slice(size, -1)

@@ -87,13 +87,13 @@ async function CosmopediaDataset() {
     const CosmopediaDataset = (await import('./samplers/cosmopedia.js')).default
     const sampler = new CosmopediaDataset()
     await sampler.init()
-    sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
+    sampler.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
     return sampler
 }
 
-function* simpleSampler(sampleLen, dataset) {
+async function* simpleSampler(sampleLen, dataset) {
     while (true) {
-        yield dataset.getSample(sampleLen)
+        yield await dataset.getSample(sampleLen)
     }
 }
 
