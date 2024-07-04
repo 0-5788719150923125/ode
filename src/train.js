@@ -51,9 +51,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             this.schedulers
         )
 
-        this.batch++
-        this.step = this.model.optimizer.iterations
-
         const data = await batchMaker(
             dataGenerator,
             this.tokenizer,
@@ -94,6 +91,9 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 ...trainArgs
             })
         }
+
+        this.batch++
+        this.step = this.model.optimizer.iterations
     }
 }
 
