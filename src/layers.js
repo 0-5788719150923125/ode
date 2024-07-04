@@ -4695,7 +4695,7 @@ class IndependentComponentAnalysis extends LayerBase {
         super({ name: `ica-${randomString()}`, ...config })
         this.outputDim = config.outputDim
         this.maxIterations = config.maxIterations || 10
-        this.tolerance = config.tolerance || 1e-4
+        this.tolerance = config.tolerance || 1e-6
         this.debug = config.debug || false
     }
 
@@ -4728,9 +4728,12 @@ class IndependentComponentAnalysis extends LayerBase {
             // Reshape to 2D for processing
             const reshapedInput = input.reshape([-1, featureDim])
 
+            if (this.debug) {
+                console.log(`Call: input shape=${JSON.stringify(input.shape)}`)
+            }
             const centered = tf.sub(reshapedInput, tf.mean(reshapedInput, 0))
             const whitened = this.whiten(centered)
-            const ica = this.fixedPointIteration(whitened)
+            const ica = this.fastICA(whitened)
             const output = tf.matMul(whitened, ica.transpose())
 
             // Reshape back to 3D
@@ -4739,56 +4742,152 @@ class IndependentComponentAnalysis extends LayerBase {
     }
 
     whiten(X) {
-        // Simple whitening: normalize each feature
-        const mean = tf.mean(X, 0)
-        const variance = tf.mean(tf.square(tf.sub(X, mean)), 0)
-        return tf.div(tf.sub(X, mean), tf.sqrt(tf.add(variance, 1e-8))) // Add small constant to avoid division by zero
+        if (this.debug) {
+            console.log(`Whiten: X shape=${JSON.stringify(X.shape)}`)
+        }
+        const { u, s } = this.approximateSVD(X)
+        const whitened = tf.matMul(X, u)
+        const scaled = tf.div(whitened, tf.sqrt(s.add(1e-8)))
+        return scaled
     }
 
-    fixedPointIteration(X) {
-        let W = tf.randomNormal(this.kernelShape)
+    approximateSVD(X) {
         if (this.debug) {
-            console.log(
-                `FixedPointIteration: X shape=${JSON.stringify(
-                    X.shape
-                )}, W shape=${JSON.stringify(W.shape)}`
-            )
+            console.log(`ApproximateSVD: X shape=${JSON.stringify(X.shape)}`)
         }
+        const { mean, stdev } = tf.moments(X, 0)
+        const centered = tf.sub(X, mean)
+        const covMatrix = tf
+            .matMul(centered.transpose(), centered)
+            .div(X.shape[0] - 1)
+        const { eigenvectors, eigenvalues } = this.powerIteration(
+            covMatrix,
+            this.inputDim
+        )
+        return { u: eigenvectors, s: eigenvalues }
+    }
+
+    powerIteration(A, numEigenvectors, maxIterations = 100, tolerance = 1e-6) {
+        let Q = tf.randomNormal([A.shape[0], numEigenvectors])
+        // let Q = tf.eye(A.shape[0]).slice([0, 0], [A.shape[0], numEigenvectors])
+        // let Q = tf.tidy(() => {
+        //     const eye = tf
+        //         .eye(A.shape[0])
+        //         .slice([0, 0], [A.shape[0], numEigenvectors])
+        //     const noise = tf.randomNormal(
+        //         [A.shape[0], numEigenvectors],
+        //         0.01,
+        //         0.1
+        //     )
+        //     return tf.add(eye, noise)
+        // })
+        let Qprev = Q
+        let eigenvalues = tf.zeros([numEigenvectors])
+
+        for (let i = 0; i < maxIterations; i++) {
+            Q = tf.matMul(A, Q)
+            const norms = tf.sqrt(tf.sum(tf.square(Q), 0))
+            Q = tf.div(Q, norms)
+
+            eigenvalues = tf.sum(tf.mul(Q, tf.matMul(A, Q)), 0)
+
+            const diff = tf.mean(tf.abs(tf.sub(Q, Qprev)))
+            if (this.debug) {
+                console.log(
+                    `PowerIteration: iteration=${i}, diff=${diff.dataSync()[0]}`
+                )
+            }
+            if (diff.bufferSync().get(0) < tolerance) {
+                break
+            }
+            Qprev = Q
+        }
+
+        return { eigenvectors: Q, eigenvalues }
+    }
+
+    fastICA(X) {
+        let W = tf.randomNormal([this.outputDim, X.shape[1]])
 
         for (let i = 0; i < this.maxIterations; i++) {
             const Wprev = W
 
-            // Simplified FastICA algorithm
             W = tf.tidy(() => {
                 const WX = tf.matMul(W, X.transpose())
                 if (this.debug) {
                     console.log(
-                        `Iteration ${i}: WX shape=${JSON.stringify(WX.shape)}`
+                        `FastICA: iteration=${i}, WX shape=${JSON.stringify(
+                            WX.shape
+                        )}`
+                    )
+                }
+                const G = tf.tanh(WX)
+                if (this.debug) {
+                    console.log(
+                        `FastICA: iteration=${i}, G shape=${JSON.stringify(
+                            G.shape
+                        )}`
+                    )
+                }
+                const Gder = tf.sub(1, tf.square(tf.tanh(WX)))
+                if (this.debug) {
+                    console.log(
+                        `FastICA: iteration=${i}, Gder shape=${JSON.stringify(
+                            Gder.shape
+                        )}`
+                    )
+                }
+                const GX = tf.matMul(G, X)
+                if (this.debug) {
+                    console.log(
+                        `FastICA: iteration=${i}, GX shape=${JSON.stringify(
+                            GX.shape
+                        )}`
+                    )
+                    console.log(
+                        `FastICA: iteration=${i}, X shape=${JSON.stringify(
+                            X.shape
+                        )}`
+                    )
+                }
+                const newW = tf.sub(
+                    GX.div(X.shape[0]),
+                    tf.mean(Gder, 1, true).mul(W)
+                )
+                if (this.debug) {
+                    console.log(
+                        `FastICA: iteration=${i}, newW shape=${JSON.stringify(
+                            newW.shape
+                        )}`
                     )
                 }
 
-                const G = tf.tanh(WX)
-                const Gder = tf.sub(1, tf.square(tf.tanh(WX)))
-                const newW = tf.sub(
-                    tf.matMul(G, X).div(X.shape[0]),
-                    tf.mean(Gder, 1, true).mul(W)
+                // Orthogonalize W
+                const { u } = this.approximateSVD(newW)
+                if (this.debug) {
+                    console.log(
+                        `FastICA: iteration=${i}, u shape=${JSON.stringify(
+                            u.shape
+                        )}`
+                    )
+                }
+                return tf.matMul(
+                    u.slice([0, 0], [this.outputDim, this.outputDim]),
+                    W
                 )
-                // Normalize rows
-                return tf.div(newW, tf.norm(newW, 2, 1, true))
             })
 
-            const distanceW = tf.mean(tf.abs(tf.sub(W, Wprev)))
-
+            const distanceW = tf.mean(
+                tf.abs(tf.sub(W, Wprev.slice([0, 0], W.shape)))
+            )
             if (this.debug) {
                 console.log(
-                    `Iteration ${i}: distanceW=${distanceW.dataSync()[0]}`
+                    `FastICA: iteration=${i}, distanceW=${
+                        distanceW.dataSync()[0]
+                    }`
                 )
             }
-
-            if (distanceW.dataSync()[0] < this.tolerance) {
-                if (this.debug) {
-                    console.log(`Converged after ${i} iterations`)
-                }
+            if (distanceW.bufferSync()[0] < this.tolerance) {
                 break
             }
         }
