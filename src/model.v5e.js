@@ -40,8 +40,13 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
+        // outputs = this.ode.layers
+        //     .IndependentComponentAnalysis({
+        //         outputDim: this.units
+        //     })
+        //     .apply(outputs)
         outputs = this.ode.layers
-            .IndependentComponentAnalysis({
+            .RandomProjectionFeatureReduction({
                 outputDim: this.units
             })
             .apply(outputs)

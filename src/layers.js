@@ -4695,9 +4695,8 @@ class IndependentComponentAnalysis extends LayerBase {
         super({ name: `ica-${randomString()}`, ...config })
         this.outputDim = config.outputDim
         this.maxIterations = config.maxIterations || 10
-        this.maxPowerIterations = config.maxPowerIterations || 100
         this.tolerance = config.tolerance || 1e-6
-        this.activation = config.activation || 'softsign'
+        this.learningRate = config.learningRate || 0.01
     }
 
     build(inputShape) {
@@ -4707,7 +4706,8 @@ class IndependentComponentAnalysis extends LayerBase {
             'kernel',
             this.kernelShape,
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({ seed: 42 }),
+            tf.regularizers.l2({ l2: 0.01 })
         )
     }
 
@@ -4719,97 +4719,55 @@ class IndependentComponentAnalysis extends LayerBase {
             // Reshape to 2D for processing
             const reshapedInput = input.reshape([-1, featureDim])
 
-            const centered = tf.sub(reshapedInput, tf.mean(reshapedInput, 0))
-            const whitened = this.whiten(centered)
-            const ica = this.fastICA(whitened)
-            const output = tf.matMul(whitened, ica.transpose())
+            // Normalize the input data
+            const { mean, variance } = tf.moments(reshapedInput, 0)
+            const normalizedInput = tf.div(
+                tf.sub(reshapedInput, mean),
+                tf.sqrt(variance)
+            )
+
+            const ica = this.fastICA(normalizedInput)
+            const output = tf.matMul(normalizedInput, ica.transpose())
 
             // Reshape back to 3D
             return output.reshape([batchSize, seqLength, this.outputDim])
         })
     }
 
-    whiten(X) {
-        const { u, s } = this.approximateSVD(X)
-        const whitened = tf.matMul(X, u)
-        const epsilon = 1e-8
-        const scaled = tf.div(whitened, tf.sqrt(tf.maximum(s, epsilon)))
-        return scaled
-    }
-
-    approximateSVD(X) {
-        const { mean, stdev } = tf.moments(X, 0)
-        const centered = tf.sub(X, mean)
-        const covMatrix = tf
-            .matMul(centered.transpose(), centered)
-            .div(X.shape[0] - 1)
-        const { eigenvectors, eigenvalues } = this.powerIteration(
-            covMatrix,
-            this.inputDim,
-            this.maxPowerIterations
-        )
-        return { u: eigenvectors, s: eigenvalues }
-    }
-
-    powerIteration(A, numEigenvectors, maxIterations = 100, tolerance = 1e-6) {
-        let Q = tf.randomNormal([A.shape[0], numEigenvectors])
-        let Qprev = Q
-        let eigenvalues = tf.zeros([numEigenvectors])
-
-        for (let i = 0; i < maxIterations; i++) {
-            Q = tf.matMul(A, Q)
-            const norms = tf.sqrt(tf.sum(tf.square(Q), 0))
-            Q = tf.div(Q, norms)
-
-            eigenvalues = tf.sum(tf.mul(Q, tf.matMul(A, Q)), 0)
-
-            const diff = tf.mean(tf.abs(tf.sub(Q, Qprev)))
-            if (diff.bufferSync().get(0) < tolerance) {
-                break
-            }
-            Qprev = Q
-        }
-
-        return { eigenvectors: Q, eigenvalues }
-    }
-
     fastICA(X) {
-        let W = tf.randomNormal([this.outputDim, X.shape[1]])
+        let W = tf.randomNormal(
+            [this.outputDim, X.shape[1]],
+            0,
+            1,
+            'float32',
+            42
+        )
 
         for (let i = 0; i < this.maxIterations; i++) {
             const Wprev = W
 
             W = tf.tidy(() => {
                 const WX = tf.matMul(W, X.transpose())
-                const G = tf.layers
-                    .activation({ activation: this.activation })
-                    .apply(WX)
-                const Gder = tf.sub(
-                    1,
-                    tf.square(
-                        tf.layers
-                            .activation({ activation: this.activation })
-                            .apply(WX)
-                    )
-                )
+                const G = tf.tanh(WX)
+                const Gder = tf.sub(1, tf.square(G))
                 const GX = tf.matMul(G, X)
                 const newW = tf.sub(
                     GX.div(X.shape[0]),
                     tf.mean(Gder, 1, true).mul(W)
                 )
 
-                // Orthogonalize W
-                const { u } = this.approximateSVD(newW)
-                return tf.matMul(
-                    u.slice([0, 0], [this.outputDim, this.outputDim]),
-                    W
-                )
+                // Apply the learning rate to the weight update
+                const updateW = tf.mul(newW.sub(W), this.learningRate).add(W)
+
+                // Normalize rows of W
+                const rowNorms = tf.sqrt(tf.sum(tf.square(updateW), 1, true))
+                return tf.div(updateW, rowNorms)
             })
 
             const distanceW = tf.mean(
                 tf.abs(tf.sub(W, Wprev.slice([0, 0], W.shape)))
             )
-            if (distanceW.bufferSync()[0] < this.tolerance) {
+            if (distanceW.bufferSync().get(0) < this.tolerance) {
                 break
             }
         }
@@ -4834,9 +4792,57 @@ class IndependentComponentAnalysis extends LayerBase {
             ...super.getConfig(),
             outputDim: this.outputDim,
             maxIterations: this.maxIterations,
-            maxPowerIterations: this.maxPowerIterations,
             tolerance: this.tolerance,
-            activation: this.activation
+            learningRate: this.learningRate
+        }
+    }
+}
+
+class RandomProjectionFeatureReduction extends LayerBase {
+    constructor(config) {
+        super({ name: `proj-${randomString()}`, ...config })
+        this.outputDim = config.outputDim
+        this.scale = config.scale || 1.0
+        this.seed = config.seed || 42
+    }
+
+    build(inputShape) {
+        this.inputDim = inputShape[inputShape.length - 1]
+        this.projectionMatrix = tf.randomNormal(
+            [this.inputDim, this.outputDim],
+            0,
+            this.scale / Math.sqrt(this.outputDim),
+            'float32',
+            this.seed
+        )
+    }
+
+    call(inputs, kwargs) {
+        return tf.tidy(() => {
+            const input = Array.isArray(inputs) ? inputs[0] : inputs
+            const [batchSize, seqLength, inputDim] = input.shape
+
+            // Reshape to 2D for matrix multiplication
+            const inputReshaped = input.reshape([-1, inputDim])
+
+            // Apply random projection
+            const projected = tf.matMul(inputReshaped, this.projectionMatrix)
+
+            // Reshape back to 3D
+            return projected.reshape([batchSize, seqLength, this.outputDim])
+        })
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.outputDim]
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            outputDim: this.outputDim,
+            scale: this.scale,
+            seed: this.seed
         }
     }
 }
@@ -4862,6 +4868,7 @@ const exportedLayers = [
     LambdaLayer,
     LinearAttention,
     RandomFeatureAttention,
+    RandomProjectionFeatureReduction,
     LocalSelfAttention,
     VariableDimensionMLP,
     MixtureOfDepths,
