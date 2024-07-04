@@ -1,5 +1,6 @@
 import * as arrow from 'apache-arrow'
 import wasmInit, { readParquet, Table } from 'parquet-wasm'
+import { randomBetween, shuffleArray } from '../utils.js'
 
 if (typeof window !== 'undefined') await wasmInit()
 
@@ -7,6 +8,9 @@ export default class CosmopediaDataset {
     constructor(config) {
         this.dataset = 'HuggingFaceTB/cosmopedia'
         this.shard = 'data/stories/train-00000-of-00043.parquet'
+        this.delimiter = '\n\n'
+        this.cacheSize = 20000
+        this.cachedText = ''
     }
 
     async init() {
@@ -36,13 +40,10 @@ export default class CosmopediaDataset {
         console.log(table.schema.toString())
     }
 
-    mapSchema(array) {
+    loadSchema(array) {
         this.schema = []
         array.map((obj) => {
             Object.entries(obj).forEach(([key, value]) => {
-                console.log(`Key: ${key}`)
-                console.log(`Value: ${value}`)
-                console.log('---')
                 const idx = this.table.schema.fields.findIndex(
                     (field) => field.name === key
                 )
@@ -53,37 +54,46 @@ export default class CosmopediaDataset {
                 this.schema.push({ idx, value })
             })
         })
-        console.log(this.schema)
     }
 
-    getPrompt() {
-        for (const batch of this.table.batches) {
-            const firstColumn = batch.getChildAt(this.schema[0].idx)
-            console.log(firstColumn)
-            // const promptColumn = batch.getChildAt(promptIndex)
-            for (let i = 0; i < firstColumn.length; i++) {
-                console.log(`entry ${i}`)
-                console.log(firstColumn.get(i))
-                // const prompt = promptColumn.get(i)
-                // console.log(`Prompt ${count + 1}:`, prompt)
-                // count++
+    fillCache() {
+        while (this.cachedText.length < this.cacheSize) {
+            const batchIdx = randomBetween(0, this.table.batches.length)
 
-                // // Limit the output to first 10 prompts to avoid overwhelming console
-                // if (count >= 10) return
-                return
+            const text = []
+
+            let rowIdx
+            for (const obj of this.schema) {
+                const column = this.table.batches[batchIdx].getChildAt(obj.idx)
+                if (!rowIdx) {
+                    rowIdx = randomBetween(0, column.length)
+                }
+                const prefix = obj.value
+                text.push(prefix + column.get(rowIdx))
             }
+
+            this.cachedText += text.join(this.delimiter) + this.delimiter
         }
-        // } else {
-        //     console.log("'prompt' field not found in the dataset")
-        // }
+    }
+
+    async getSample(size = 512) {
+        this.fillCache()
+        const sample = this.cachedText.slice(0, size)
+        this.cachedText = this.cachedText.slice(size, -1)
+        return sample
     }
 }
 
-async function main() {
-    const sampler = new CosmopediaDataset()
-    await sampler.init()
-    sampler.mapSchema([{ prompt: 'PROMPT' }, { text: 'ASSISTANT' }])
-    sampler.getPrompt()
-}
+// async function main() {
+//     const sampler = new CosmopediaDataset()
+//     await sampler.init()
+//     sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
+//     for (let i = 0; i < 10; i++) {
+//         console.log(sampler.getSample())
+//         console.log('---')
+//         console.log('---')
+//         console.log('---')
+//     }
+// }
 
-main()
+// main()

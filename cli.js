@@ -58,11 +58,14 @@ async function orchestrate(options) {
     })
 
     let corpus
+    console.log('loading corpus:', options.corpus)
     if (options.corpus.startsWith('http')) {
         corpus = await net.ode.samplers.fetchURLSampler(
             options.corpus,
             options.corpus.split('/')[-1]
         )
+    } else if (options.corpus === 'cosmopedia') {
+        corpus = await net.ode.samplers.CosmopediaDataset()
     } else {
         corpus = await net.ode.samplers.directorySampler(options.corpus, '\n\n')
     }
@@ -77,6 +80,11 @@ async function orchestrate(options) {
         let dataset
         if (options.samplingMethod === 'sequential') {
             dataset = net.ode.samplers.sequentialStringSampler(
+                options.sampleLength,
+                corpus
+            )
+        } else if (options.corpus === 'cosmopedia') {
+            dataset = net.ode.samplers.simpleSampler(
                 options.sampleLength,
                 corpus
             )

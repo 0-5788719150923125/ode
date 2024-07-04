@@ -388,7 +388,6 @@ async function batchMaker(
 
     for (let i = 0; i < batchSize; ++i) {
         const sample = await dataGenerator.next().value
-
         const textIndices = preprocessData(
             sample,
             tokenizer,

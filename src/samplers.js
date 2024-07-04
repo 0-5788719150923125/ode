@@ -83,12 +83,28 @@ async function fetchURLSampler(
     return text
 }
 
+async function CosmopediaDataset() {
+    const CosmopediaDataset = (await import('./samplers/cosmopedia.js')).default
+    const sampler = new CosmopediaDataset()
+    await sampler.init()
+    sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
+    return sampler
+}
+
+function* simpleSampler(sampleLen, dataset) {
+    while (true) {
+        yield dataset.getSample(sampleLen)
+    }
+}
+
 const samplers = {
     stringSampler: (sampleLen, overfit, str) =>
         stringSampler(sampleLen, overfit, str),
     sequentialStringSampler: (sampleLen, str) =>
         sequentialStringSampler(sampleLen, str),
     directorySampler: (dir, delimiter) => directorySampler(dir, delimiter),
-    fetchURLSampler: (url, path) => fetchURLSampler(url, path)
+    fetchURLSampler: (url, path) => fetchURLSampler(url, path),
+    CosmopediaDataset: CosmopediaDataset,
+    simpleSampler: (sampleLen, dataset) => simpleSampler(sampleLen, dataset)
 }
 export default samplers
