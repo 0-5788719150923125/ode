@@ -80,7 +80,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     defineOptimizers() {
         this.optimizers = [
             this.ode.optimizers.Lion({
-                learningRate: this.learningRate
+                learningRate: this.learningRate,
+                weightDecay: 0.001
             })
         ]
     }

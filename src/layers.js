@@ -1,13 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import customOps from './ops.js'
 import customActivations from './activations.js'
-import Expert from './experts.js'
-import {
-    randomString,
-    seededPRNG,
-    seededValueFromArray,
-    shuffleArray
-} from './utils.js'
+import { randomString } from './utils.js'
 
 const customLayers = {
     activation: (config) =>
@@ -78,11 +72,8 @@ class LayerBase extends tf.layers.Layer {
     applyDense(x, kernel, bias) {
         let k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
         const m = tf.matMul(x, k)
-        if (bias) {
-            return tf.add(m, bias)
-        } else {
-            return m
-        }
+        if (bias) return tf.add(m, bias)
+        else return m
     }
 
     rmsNorm = (x) => {
@@ -418,7 +409,8 @@ class RandomFeatureAttention extends LayerBase {
             ...this.queryKernels.map((k) => k.read()),
             ...this.keyKernels.map((k) => k.read()),
             ...this.valueKernels.map((k) => k.read()),
-            this.outputKernel.read()
+            this.outputKernel.read(),
+            this.randomMatrix
         ]
     }
 
@@ -433,7 +425,8 @@ class RandomFeatureAttention extends LayerBase {
             this.valueKernels[i].write(headWeights[i + 2 * weightsPerHead])
         }
 
-        this.outputKernel.write(weights[weights.length - 1])
+        this.outputKernel.write(weights[weights.length - 2])
+        this.randomMatrix.write(weights[weights.length - 1])
     }
 
     getConfig() {
@@ -786,9 +779,9 @@ class LocalSelfAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const Q = this.applyDense(inputs, this.queryKernel)
-            const K = this.applyDense(inputs, this.keyKernel)
-            const V = this.applyDense(inputs, this.valueKernel)
+            const Q = this.applyDense(inputs, this.queryKernel.read())
+            const K = this.applyDense(inputs, this.keyKernel.read())
+            const V = this.applyDense(inputs, this.valueKernel.read())
 
             const numChunks = Math.ceil(inputs.shape[1] / this.chunkSize)
             const chunkOutputs = []
@@ -824,11 +817,6 @@ class LocalSelfAttention extends LayerBase {
 
             return this.residual.apply([inputs, outputs])
         })
-    }
-
-    applyDense(x, kernel) {
-        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        return tf.matMul(x, k)
     }
 
     getWeights() {
@@ -961,18 +949,18 @@ class MultiHeadAttention extends LayerBase {
             for (let i = 0; i < this.heads; i++) {
                 const Q = this.applyDense(
                     inputs,
-                    this.queryKernels[i],
-                    this.queryBiases[i]
+                    this.queryKernels[i].read(),
+                    this.queryBiases[i].read()
                 )
                 const K = this.applyDense(
                     inputs,
-                    this.keyKernels[i],
-                    this.keyBiases[i]
+                    this.keyKernels[i].read(),
+                    this.keyBiases[i].read()
                 )
                 const V = this.applyDense(
                     inputs,
-                    this.valueKernels[i],
-                    this.valueBiases[i]
+                    this.valueKernels[i].read(),
+                    this.valueBiases[i].read()
                 )
 
                 const scores = tf
@@ -994,8 +982,8 @@ class MultiHeadAttention extends LayerBase {
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
             let outputs = this.applyDense(
                 concatenatedOutputs,
-                this.outputKernel,
-                this.outputBias
+                this.outputKernel.read(),
+                this.outputBias.read()
             )
 
             outputs = this.rmsNorm(outputs)
@@ -1136,8 +1124,16 @@ class MultiQueryAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const K = this.applyDense(inputs, this.keyKernel, this.keyBias)
-            const V = this.applyDense(inputs, this.valueKernel, this.valueBias)
+            const K = this.applyDense(
+                inputs,
+                this.keyKernel.read(),
+                this.keyBias.read()
+            )
+            const V = this.applyDense(
+                inputs,
+                this.valueKernel.read(),
+                this.valueBias.read()
+            )
 
             const mask = tf.linalg
                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
@@ -1149,8 +1145,8 @@ class MultiQueryAttention extends LayerBase {
             for (let i = 0; i < this.queries; i++) {
                 const Q = this.applyDense(
                     inputs,
-                    this.queryKernels[i],
-                    this.queryBiases[i]
+                    this.queryKernels[i].read(),
+                    this.queryBiases[i].read()
                 )
 
                 const scores = tf
@@ -1171,8 +1167,8 @@ class MultiQueryAttention extends LayerBase {
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
             let outputs = this.applyDense(
                 concatenatedOutputs,
-                this.outputKernel,
-                this.outputBias
+                this.outputKernel.read(),
+                this.outputBias.read()
             )
 
             outputs = this.residual.apply([inputs, outputs])
@@ -1697,7 +1693,7 @@ class VariableDimensionMLP extends LayerBase {
             let outputs = this.applyDense(
                 inputs,
                 slicedInProjKernel,
-                this.inProjBias
+                this.inProjBias.read()
             )
 
             outputs = this.rmsNorm(outputs)
@@ -1803,16 +1799,16 @@ class MixtureOfExperts extends LayerBase {
             // Gating network
             const gatingHidden = this.applyDense(
                 inputs,
-                this.gatingHidden,
-                this.gatingHiddenBias
+                this.gatingHidden.read(),
+                this.gatingHiddenBias.read()
             )
             const activatedGate = tf.layers
                 .activation({ activation: this.activation })
                 .apply(gatingHidden)
             const expertWeights = this.applyDense(
                 activatedGate,
-                this.gatingKernel,
-                this.gatingBias
+                this.gatingKernel.read(),
+                this.gatingBias.read()
             ).softmax()
 
             // Combine expert outputs using weighted sum
@@ -2508,34 +2504,38 @@ class SMEARMoE extends LayerBase {
         // We skip the first expert during averaging
         const usedExperts = experts.slice(1)
 
+        // Aggregate weights across batch and sequence dimensions
+        const aggregatedWeights = weights.sum([0, 1]) // Shape: [num_experts]
+
+        // Normalize the aggregated weights
+        const normalizedWeights = aggregatedWeights.div(aggregatedWeights.sum())
+
         for (let i = 0; i < mergedExpert.layers.length; i++) {
-            const layer = mergedExpert.layers[i]
-            const layerWeights = layer.getWeights()
+            const layerWeights = mergedExpert.layers[i].getWeights()
 
             // Compute weighted average of weights for this layer across all experts
             const averagedWeights = layerWeights.map((_, weightIndex) => {
                 const expertWeights = usedExperts.map(
                     (expert) => expert.layers[i].getWeights()[weightIndex]
                 )
-                console.assert(
-                    weights.shape[1] > 0,
-                    `Weights shape[1] should be greater than 0, but is: ${weights.shape}`
-                )
-                const weightedSum = expertWeights.reduce(
-                    (sum, weight, expertIndex) => {
-                        const expertWeight = weights
-                            .slice([0, expertIndex], [-1, 1])
-                            .mean()
-                        return sum.add(weight.mul(expertWeight))
-                    },
-                    tf.zeros(expertWeights[0].shape)
-                )
-                // Divide by the sum of weights to get the weighted average
-                return weightedSum.div(weights.sum())
+
+                const weightedAverage = tf.tidy(() => {
+                    return expertWeights.reduce((sum, weight, expertIndex) => {
+                        const expertWeight = normalizedWeights.slice(
+                            [expertIndex],
+                            [1]
+                        )
+                        const weightedExpert = weight.mul(expertWeight)
+
+                        return sum.add(weightedExpert)
+                    }, tf.zeros(expertWeights[0].shape))
+                })
+
+                return weightedAverage
             })
 
-            // Set the averaged weights to the layer
-            layer.setWeights(averagedWeights)
+            // Set the averaged weights to the merged expert's layer
+            mergedExpert.layers[i].setWeights(averagedWeights)
         }
 
         return mergedExpert
@@ -2994,9 +2994,9 @@ class OuroboticMemory extends LayerBase {
                 }
             }
 
-            let hInitial = this.applyDense(inputs, this.C, this.b)
+            let hInitial = this.applyDense(inputs, this.C.read(), this.b.read())
 
-            hInitial = hInitial.add(this.applyDense(this.hPrev, this.W))
+            hInitial = hInitial.add(this.applyDense(this.hPrev, this.W.read()))
 
             hInitial = this.rmsNorm(hInitial).prelu(this.pAlpha.read())
 
@@ -4523,17 +4523,17 @@ class AttentionFreeTransformer extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const [B, T, _] = inputs.shape
 
-            const Q = this.applyDense(inputs, this.toQ).reshape([
+            const Q = this.applyDense(inputs, this.toQ.read()).reshape([
                 B,
                 T,
                 this.hiddenDim
             ])
-            const K = this.applyDense(inputs, this.toK).reshape([
+            const K = this.applyDense(inputs, this.toK.read()).reshape([
                 B,
                 T,
                 this.hiddenDim
             ])
-            const V = this.applyDense(inputs, this.toV).reshape([
+            const V = this.applyDense(inputs, this.to.read()).reshape([
                 B,
                 T,
                 this.hiddenDim
@@ -4561,16 +4561,11 @@ class AttentionFreeTransformer extends LayerBase {
 
             const outputs = this.applyDense(
                 Yt.reshape([B, T, this.hiddenDim]),
-                this.project
+                this.project.read()
             )
 
             return this.residual.apply([inputs, outputs])
         })
-    }
-
-    applyDense(x, kernel) {
-        const k = kernel.read().expandDims(0).tile([x.shape[0], 1, 1])
-        return tf.matMul(x, k)
     }
 
     getWeights() {
