@@ -4695,6 +4695,7 @@ class IndependentComponentAnalysis extends LayerBase {
         super({ name: `ica-${randomString()}`, ...config })
         this.outputDim = config.outputDim
         this.maxIterations = config.maxIterations || 10
+        this.maxPowerIterations = config.maxPowerIterations || 20
         this.tolerance = config.tolerance || 1e-6
     }
 
@@ -4742,7 +4743,8 @@ class IndependentComponentAnalysis extends LayerBase {
             .div(X.shape[0] - 1)
         const { eigenvectors, eigenvalues } = this.powerIteration(
             covMatrix,
-            this.inputDim
+            this.inputDim,
+            this.maxPowerIterations
         )
         return { u: eigenvectors, s: eigenvalues }
     }
@@ -4813,6 +4815,7 @@ class IndependentComponentAnalysis extends LayerBase {
             ...super.getConfig(),
             outputDim: this.outputDim,
             maxIterations: this.maxIterations,
+            maxPowerIterations: this.maxPowerIterations,
             tolerance: this.tolerance
         }
     }
