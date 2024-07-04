@@ -4695,7 +4695,7 @@ class IndependentComponentAnalysis extends LayerBase {
         super({ name: `ica-${randomString()}`, ...config })
         this.outputDim = config.outputDim
         this.maxIterations = config.maxIterations || 10
-        this.maxPowerIterations = config.maxPowerIterations || 20
+        this.maxPowerIterations = config.maxPowerIterations || 100
         this.tolerance = config.tolerance || 1e-6
         this.activation = config.activation || 'softsign'
     }

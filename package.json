@@ -27,7 +27,9 @@
         "@tensorflow/tfjs-backend-webgpu": "^4.20.0",
         "@tensorflow/tfjs-node": "^4.20.0",
         "@tensorflow/tfjs-node-gpu": "^4.20.0",
-        "@xenova/transformers": "^2.16.1"
+        "@xenova/transformers": "^2.16.1",
+        "apache-arrow": "^16.1.0",
+        "parquet-wasm": "^0.6.1"
     },
     "devDependencies": {
         "jest": "^29.7.0"
