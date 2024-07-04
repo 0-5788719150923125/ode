@@ -1,5 +1,5 @@
 import * as arrow from 'apache-arrow'
-import wasmInit, { readParquet, Table } from 'parquet-wasm'
+import wasmInit, { readParquet } from 'parquet-wasm'
 import {
     generatePaddedNumbers,
     randomBetween,

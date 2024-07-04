@@ -212,6 +212,27 @@ export default class ModelBase {
         )
     }
 
+    getWeightsByLayerPrefix(prefix = 'emb') {
+        const layers = model.layers.filter((layer) =>
+            layer.name.startsWith(prefix)
+        )
+
+        if (layers.length === 0) {
+            console.warn('No embedding layers found.')
+            return null
+        }
+
+        const weights = layers.map((layer) => {
+            const layerWeights = layer.getWeights()
+            return {
+                layerName: layer.name,
+                weights: layerWeights
+            }
+        })
+
+        return weights
+    }
+
     async generate({
         prompt = '',
         doSample = true,
