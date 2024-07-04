@@ -116,10 +116,10 @@ export default class CosmopediaDataset {
     }
 
     async getSample(size = 512) {
+        this.batches++
         if (this.batches % this.cycleShardInterval === 0) {
             await this.fetchRandomShard()
         }
-        this.batches++
         this.fillCache()
         const sample = this.cachedText.slice(0, size)
         this.cachedText = this.cachedText.slice(size, -1)
