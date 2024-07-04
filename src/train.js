@@ -1,5 +1,6 @@
 import {
     colors,
+    delay,
     elapsedTimeGenerator,
     emaGenerator,
     findMatches,
@@ -490,9 +491,8 @@ export class PredictionSampler {
             const maxLength = args.predictLength
 
             const seedLength = randomBetween(16, maxLength - 16)
-            const prompt = await args.dataGenerator
-                .next()
-                .value.slice(1, seedLength)
+            const nextValue = await args.dataGenerator.next()
+            const prompt = nextValue.value.slice(1, seedLength)
 
             const params = {
                 doSample: true,

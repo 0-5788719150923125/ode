@@ -45,17 +45,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 outputDim: this.units
             })
             .apply(outputs)
-        // outputs = this.ode.layers
-        //     .RandomProjectionFeatureReduction({
-        //         outputDim: this.units
-        //     })
-        //     .apply(outputs)
-
-        // outputs = this.ode.layers
-        //     .dense({
-        //         units: this.units
-        //     })
-        //     .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

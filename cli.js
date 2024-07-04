@@ -85,12 +85,12 @@ async function orchestrate(options) {
             )
         } else if (options.corpus === 'cosmopedia') {
             dataset = net.ode.samplers.simpleSampler(
-                options.sampleLength,
+                options.sampleLength * 10,
                 corpus
             )
         } else {
             dataset = net.ode.samplers.stringSampler(
-                options.sampleLength * 6,
+                options.sampleLength * 8,
                 0,
                 corpus
             )
