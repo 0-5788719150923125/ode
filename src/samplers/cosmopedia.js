@@ -13,22 +13,20 @@ export default class CosmopediaDataset {
     constructor(config) {
         this.dataset = 'HuggingFaceTB/cosmopedia'
         this.slices = [
-            'auto_math_text',
-            'khanacademy',
-            'openstax',
-            'stanford',
-            'stories',
-            'web_samples_v1',
-            'web_samples_v2',
-            'wikihow'
+            { slice: 'auto_math_text', shards: 18 },
+            { slice: 'khanacademy', shards: 1 },
+            { slice: 'openstax', shards: 2 },
+            { slice: 'stanford', shards: 13 },
+            { slice: 'stories', shards: 43 },
+            { slice: 'web_samples_v1', shards: 139 },
+            { slice: 'web_samples_v2', shards: 118 },
+            { slice: 'wikihow', shards: 2 }
         ]
-        this.slice = 'stories'
         this.split = 'train'
-        this.shards = generatePaddedNumbers(0, 43, 5)
         this.delimiter = '\n\n'
         this.cacheSize = 20000
         this.cachedText = ''
-        this.cycleShardInterval = 100
+        this.cycleShardInterval = 10000
         this.batches = 0
     }
 
@@ -37,14 +35,16 @@ export default class CosmopediaDataset {
     }
 
     async fetchRandomShard() {
-        const shard = randomValueFromArray(this.shards)
-        console.log('fetching shard:', shard)
-        const path = `data/${this.slice}/${
-            this.split
-        }-${shard}-of-${this.shards.slice(-1)}.parquet`
+        const { slice, shards } = randomValueFromArray(this.slices)
+        const allShards = generatePaddedNumbers(0, shards, 5)
+        const shard = randomValueFromArray(allShards.slice(0, -2))
+        console.log('fetching shard:', shard, 'slice:', slice)
+        const path = `data/${slice}/${this.split}-${shard}-of-${allShards.slice(
+            -1
+        )}.parquet`
         const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
+        console.log(url)
         const response = await fetch(url)
-        console.log('received shard:', shard)
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`)
         }
@@ -87,7 +87,7 @@ export default class CosmopediaDataset {
             let batchIdx = 0
             let rowIdx = 0
             try {
-                batchIdx = randomBetween(0, this.table.batches.length)
+                batchIdx = randomBetween(0, this.table.batches.length - 1)
 
                 const text = []
 
@@ -98,7 +98,7 @@ export default class CosmopediaDataset {
                         obj.idx
                     )
                     if (rowIdx === null) {
-                        rowIdx = randomBetween(0, column.length)
+                        rowIdx = randomBetween(0, column.length - 1)
                     }
                     const prefix = obj.value
                     text.push(prefix + column.get(rowIdx))
@@ -109,6 +109,7 @@ export default class CosmopediaDataset {
                 console.error(err)
                 console.log('idx was:', idx)
                 console.log('batch idx was:', batchIdx)
+                console.log('batch object is:', this.table.batches[batchIdx])
                 console.log('row idx was:', rowIdx)
             }
         }
@@ -118,7 +119,7 @@ export default class CosmopediaDataset {
         this.batches++
         if (this.batches > this.cycleShardInterval) {
             this.batches = 0
-            this.fetchRandomShard()
+            await this.fetchRandomShard()
         }
         this.fillCache()
         const sample = this.cachedText.slice(0, size)
