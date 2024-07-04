@@ -51,6 +51,14 @@ export function randomValueFromArray(array, biasFactor = 1) {
     return array[randomIndex]
 }
 
+export function generatePaddedNumbers(start, end, totalDigits) {
+    const numbers = []
+    for (let i = start; i <= end; i++) {
+        numbers.push(String(i).padStart(totalDigits, '0'))
+    }
+    return numbers
+}
+
 // Return a deterministic value from any array
 export function seededValueFromArray(array, seed) {
     return array[Math.floor(seededPRNG(seed) * array.length)]

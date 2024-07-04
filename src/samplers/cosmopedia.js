@@ -1,13 +1,20 @@
 import * as arrow from 'apache-arrow'
 import wasmInit, { readParquet, Table } from 'parquet-wasm'
-import { randomBetween, shuffleArray } from '../utils.js'
+import {
+    generatePaddedNumbers,
+    randomBetween,
+    randomValueFromArray,
+    shuffleArray
+} from '../utils.js'
 
 if (typeof window !== 'undefined') await wasmInit()
 
 export default class CosmopediaDataset {
     constructor(config) {
         this.dataset = 'HuggingFaceTB/cosmopedia'
-        this.shard = 'data/stories/train-00000-of-00043.parquet'
+        this.slice = 'stories'
+        this.split = 'train'
+        this.shards = generatePaddedNumbers(0, 43, 5)
         this.delimiter = '\n\n'
         this.cacheSize = 20000
         this.cachedText = ''
@@ -19,7 +26,12 @@ export default class CosmopediaDataset {
     }
 
     async fetchShard() {
-        const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${this.shard}`
+        const shard = randomValueFromArray(this.shards)
+        const path = `data/${this.slice}/${
+            this.split
+        }-${shard}-of-${this.shards.slice(-1)}.parquet`
+        const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
+        console.log(url)
         const response = await fetch(url)
 
         if (!response.ok) {
@@ -84,16 +96,16 @@ export default class CosmopediaDataset {
     }
 }
 
-// async function main() {
-//     const sampler = new CosmopediaDataset()
-//     await sampler.init()
-//     sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
-//     for (let i = 0; i < 10; i++) {
-//         console.log(sampler.getSample())
-//         console.log('---')
-//         console.log('---')
-//         console.log('---')
-//     }
-// }
+async function main() {
+    const sampler = new CosmopediaDataset()
+    await sampler.init()
+    sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
+    for (let i = 0; i < 10; i++) {
+        console.log(sampler.getSample())
+        console.log('---')
+        console.log('---')
+        console.log('---')
+    }
+}
 
-// main()
+main()
