@@ -4697,6 +4697,7 @@ class IndependentComponentAnalysis extends LayerBase {
         this.maxIterations = config.maxIterations || 10
         this.maxPowerIterations = config.maxPowerIterations || 20
         this.tolerance = config.tolerance || 1e-6
+        this.activation = config.activation || 'softsign'
     }
 
     build(inputShape) {
@@ -4706,7 +4707,7 @@ class IndependentComponentAnalysis extends LayerBase {
             'kernel',
             this.kernelShape,
             'float32',
-            tf.initializers.orthogonal({ gain: 1.0 })
+            tf.initializers.glorotNormal()
         )
     }
 
@@ -4731,7 +4732,8 @@ class IndependentComponentAnalysis extends LayerBase {
     whiten(X) {
         const { u, s } = this.approximateSVD(X)
         const whitened = tf.matMul(X, u)
-        const scaled = tf.div(whitened, tf.sqrt(s.add(1e-8)))
+        const epsilon = 1e-8
+        const scaled = tf.div(whitened, tf.sqrt(tf.maximum(s, epsilon)))
         return scaled
     }
 
@@ -4779,8 +4781,17 @@ class IndependentComponentAnalysis extends LayerBase {
 
             W = tf.tidy(() => {
                 const WX = tf.matMul(W, X.transpose())
-                const G = tf.tanh(WX)
-                const Gder = tf.sub(1, tf.square(tf.tanh(WX)))
+                const G = tf.layers
+                    .activation({ activation: this.activation })
+                    .apply(WX)
+                const Gder = tf.sub(
+                    1,
+                    tf.square(
+                        tf.layers
+                            .activation({ activation: this.activation })
+                            .apply(WX)
+                    )
+                )
                 const GX = tf.matMul(G, X)
                 const newW = tf.sub(
                     GX.div(X.shape[0]),
@@ -4810,22 +4821,23 @@ class IndependentComponentAnalysis extends LayerBase {
         return [inputShape[0], inputShape[1], this.outputDim]
     }
 
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            outputDim: this.outputDim,
-            maxIterations: this.maxIterations,
-            maxPowerIterations: this.maxPowerIterations,
-            tolerance: this.tolerance
-        }
-    }
-
     getWeights() {
         return [this.kernel.read()]
     }
 
     setWeights(weights) {
         this.kernel.write(weights[0])
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            outputDim: this.outputDim,
+            maxIterations: this.maxIterations,
+            maxPowerIterations: this.maxPowerIterations,
+            tolerance: this.tolerance,
+            activation: this.activation
+        }
     }
 }
 

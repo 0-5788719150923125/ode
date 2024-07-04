@@ -72,7 +72,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.embeddings
+                units: this.embeddings,
+                activation: 'mish'
             })
             .apply(outputs)
 
