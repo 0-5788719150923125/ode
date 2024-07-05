@@ -2447,14 +2447,14 @@ class SMEARMoE extends LayerBase {
         )
         this.routerOutputKernel = this.addWeight(
             'routerOutputKernel',
-            [this.hiddenDim, this.numExperts],
+            [this.hiddenDim, this.numExperts - 1],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.routerOutputBias = this.addWeight(
             'routerOutputBias',
-            [this.numExperts],
+            [this.numExperts - 1],
             'float32',
             tf.initializers.zeros(),
             tf.regularizers.l2({ l2: 0.01 })

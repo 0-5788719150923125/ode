@@ -9,7 +9,7 @@ const options = {
     backend: 'tensorflow',
     version: 3,
     batchSize: 1,
-    gradientAccumulationSteps: 128,
+    gradientAccumulationSteps: 1,
     generateEvery: 256,
     sampleLength: 256,
     predictLength: 128,

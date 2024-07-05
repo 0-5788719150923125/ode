@@ -92,7 +92,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     createFeedforwardExperts(inputShape) {
-        return Array(this.numExperts)
+        return Array(this.numExperts + 1)
             .fill(0)
             .map((_, i) => {
                 return this.ode.expert({

@@ -36,7 +36,7 @@ export default class CosmopediaDataset {
     async fetchRandomShard() {
         const { slice, shards } = randomValueFromArray(this.slices)
         const allShards = generatePaddedNumbers(0, shards, 5)
-        const shard = randomValueFromArray(allShards.slice(0, -2))
+        let shard = randomValueFromArray(allShards.slice(0, -2))
         if (typeof shard === 'undefined') shard = '00000'
         console.log('fetching shard:', shard, 'slice:', slice)
         const path = `data/${slice}/${this.split}-${shard}-of-${allShards.slice(
