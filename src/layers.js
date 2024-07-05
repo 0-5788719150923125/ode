@@ -2484,14 +2484,8 @@ class SMEARMoE extends LayerBase {
                 this.routerOutputBias.read()
             )
 
-            // Apply softmax to get the final routing probabilities
-            const routingProbabilities = expertWeights.softmax()
-
             // Merge experts
-            const mergedExpert = this.mergeExperts(
-                this.experts,
-                routingProbabilities
-            )
+            const mergedExpert = this.mergeExperts(this.experts, expertWeights)
 
             // Pass inputs to merged expert
             return mergedExpert.apply(inputs)
@@ -2501,45 +2495,112 @@ class SMEARMoE extends LayerBase {
     mergeExperts(experts, weights) {
         // We modify the first expert in-place
         const mergedExpert = experts[0]
-        // We skip the first expert during averaging
+        // We only use the experts following the first one
         const usedExperts = experts.slice(1)
 
-        // Aggregate weights across batch and sequence dimensions
-        const aggregatedWeights = weights.sum([0, 1]) // Shape: [num_experts]
-
-        // Normalize the aggregated weights
-        const normalizedWeights = aggregatedWeights.div(aggregatedWeights.sum())
-
         for (let i = 0; i < mergedExpert.layers.length; i++) {
-            const layerWeights = mergedExpert.layers[i].getWeights()
+            const layer = mergedExpert.layers[i]
 
             // Compute weighted average of weights for this layer across all experts
-            const averagedWeights = layerWeights.map((_, weightIndex) => {
+            const averagedWeights = layer.getWeights().map((_, weightIndex) => {
                 const expertWeights = usedExperts.map(
                     (expert) => expert.layers[i].getWeights()[weightIndex]
                 )
-
-                const weightedAverage = tf.tidy(() => {
-                    return expertWeights.reduce((sum, weight, expertIndex) => {
-                        const expertWeight = normalizedWeights.slice(
-                            [expertIndex],
-                            [1]
-                        )
-                        const weightedExpert = weight.mul(expertWeight)
-
-                        return sum.add(weightedExpert)
-                    }, tf.zeros(expertWeights[0].shape))
-                })
-
-                return weightedAverage
+                const weightedSum = expertWeights.reduce(
+                    (sum, weight, expertIndex) => {
+                        const expertWeight = weights
+                            .slice([0, expertIndex], [-1, 1])
+                            .mean()
+                        return sum.add(weight.mul(expertWeight))
+                    },
+                    tf.zeros(expertWeights[0].shape)
+                )
+                // Divide by the sum of weights to get the weighted average
+                return weightedSum.div(weights.sum())
             })
 
-            // Set the averaged weights to the merged expert's layer
-            mergedExpert.layers[i].setWeights(averagedWeights)
+            // Set the averaged weights to the layer
+            layer.setWeights(averagedWeights)
         }
 
         return mergedExpert
     }
+
+    // mergeExperts(experts, weights) {
+    //     // Create a shallow copy of the first expert
+    //     const mergedExpert = experts[0]
+
+    //     for (let i = 0; i < mergedExpert.layers.length; i++) {
+    //         const layer = mergedExpert.layers[i]
+    //         const layerWeights = layer.getWeights()
+
+    //         // Compute weighted average of weights for this layer across all experts
+    //         const averagedWeights = layerWeights.map((_, weightIndex) => {
+    //             const expertWeights = experts.map(
+    //                 (expert) => expert.layers[i].getWeights()[weightIndex]
+    //             )
+    //             const weightedSum = expertWeights.reduce(
+    //                 (sum, weight, expertIndex) => {
+    //                     const expertWeight = weights
+    //                         .slice([0, expertIndex], [-1, 1])
+    //                         .mean()
+    //                     return sum.add(weight.mul(expertWeight))
+    //                 },
+    //                 tf.zeros(expertWeights[0].shape)
+    //             )
+    //             // Divide by the sum of weights to get the weighted average
+    //             return weightedSum.div(weights.sum())
+    //         })
+
+    //         // Set the averaged weights to the layer
+    //         layer.setWeights(averagedWeights)
+    //     }
+
+    //     return mergedExpert
+    // }
+
+    // mergeExperts(experts, weights) {
+    //     // We modify the first expert in-place
+    //     const mergedExpert = experts[0]
+    //     // We skip the first expert during averaging
+    //     const usedExperts = experts.slice(1)
+
+    //     // Aggregate weights across batch and sequence dimensions
+    //     const aggregatedWeights = weights.sum([0, 1]) // Shape: [num_experts]
+
+    //     // Normalize the aggregated weights
+    //     const normalizedWeights = aggregatedWeights.div(aggregatedWeights.sum())
+
+    //     for (let i = 0; i < mergedExpert.layers.length; i++) {
+    //         const layerWeights = mergedExpert.layers[i].getWeights()
+
+    //         // Compute weighted average of weights for this layer across all experts
+    //         const averagedWeights = layerWeights.map((_, weightIndex) => {
+    //             const expertWeights = usedExperts.map(
+    //                 (expert) => expert.layers[i].getWeights()[weightIndex]
+    //             )
+
+    //             const weightedAverage = tf.tidy(() => {
+    //                 return expertWeights.reduce((sum, weight, expertIndex) => {
+    //                     const expertWeight = normalizedWeights.slice(
+    //                         [expertIndex],
+    //                         [1]
+    //                     )
+    //                     const weightedExpert = weight.mul(expertWeight)
+
+    //                     return sum.add(weightedExpert)
+    //                 }, tf.zeros(expertWeights[0].shape))
+    //             })
+
+    //             return weightedAverage
+    //         })
+
+    //         // Set the averaged weights to the merged expert's layer
+    //         mergedExpert.layers[i].setWeights(averagedWeights)
+    //     }
+
+    //     return mergedExpert
+    // }
 
     getWeights() {
         return [

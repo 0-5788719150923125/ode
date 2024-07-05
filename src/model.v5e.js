@@ -92,6 +92,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     createFeedforwardExperts(inputShape) {
+        // We add 1 expert, since the first expert becomes a "merging" of all other experts.
         return Array(this.numExperts + 1)
             .fill(0)
             .map((_, i) => {

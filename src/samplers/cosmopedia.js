@@ -23,6 +23,7 @@ export default class CosmopediaDataset {
         ]
         this.split = 'train'
         this.delimiter = '\n\n'
+        this.eosToken = '<|eos|>'
         this.cacheSize = 20000
         this.cachedText = ''
         this.cycleShardInterval = 10000
@@ -104,7 +105,7 @@ export default class CosmopediaDataset {
                     text.push(prefix + column.get(rowIdx))
                 }
 
-                this.cachedText += text.join(this.delimiter) + this.delimiter
+                this.cachedText += text.join(this.delimiter) + this.eosToken
             } catch (err) {
                 console.error(err)
                 console.log('idx was:', idx)
