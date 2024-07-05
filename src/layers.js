@@ -350,6 +350,22 @@ class RandomFeatureAttention extends LayerBase {
         )
     }
 
+    // applyALiBi(inputs, headDim, maxDistance = 1024) {
+    //     const seqLength = inputs.shape[1]
+
+    //     const slopes = tf
+    //         .range(0, headDim, 1, 'float32')
+    //         .div(headDim)
+    //         .pow(-(1 / headDim))
+    //         .expandDims(0)
+
+    //     const distances = tf.range(0, seqLength, 1, 'float32').expandDims(1)
+
+    //     const alibiScores = slopes.matMul(distances).expandDims(0)
+
+    //     return inputs.add(alibiScores)
+    // }
+
     call(inputs) {
         return tf.tidy(() => {
             // Ensure inputs is a tensor, not an array
@@ -374,12 +390,23 @@ class RandomFeatureAttention extends LayerBase {
                 // Compute attention scores
                 const QF_KFV = tf.matMul(QF, KFV)
 
+                // // Scale the attention scores
+                // const scaledScores = QF_KFV.div(Math.sqrt(this.headDim))
+
+                // // Apply ALiBi bias to the scaled attention scores
+                // const biasedScores = this.applyALiBi(
+                //     scaledScores,
+                //     this.headDim,
+                //     1024
+                // )
+
                 // Compute normalization term via element-wise multiplication for efficient broadcasting
                 const QF_D = tf.mul(QF, D)
                 // Sum over the feature dimension
                 const QF_D_sum = tf.sum(QF_D, -1, true)
 
                 // Implementation of attention mechanism with epsilon for numerical stability
+                // return tf.div(biasedScores, tf.add(QF_D_sum, this.eps))
                 return tf.div(QF_KFV, tf.add(QF_D_sum, this.eps))
             })
 
@@ -388,6 +415,7 @@ class RandomFeatureAttention extends LayerBase {
 
             // Apply layer normalization
             outputs = this.rmsNorm(outputs)
+
             // Apply output projection
             outputs = this.applyDense(outputs, this.outputKernel.read())
             // Scale down outputs for stability
