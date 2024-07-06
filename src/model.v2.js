@@ -64,7 +64,7 @@ export default class OriginalDecoderEncoder extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .CausalSelfAttention({
+                .GPT2Attention({
                     blockSize: this.contextLength,
                     units: this.units,
                     heads: this.heads,
