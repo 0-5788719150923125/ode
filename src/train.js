@@ -493,7 +493,7 @@ export class PredictionSampler {
 
             const seedLength = randomBetween(16, maxLength - 16)
             const nextValue = await args.dataGenerator.next()
-            const prompt = nextValue.value.slice(1, seedLength)
+            const prompt = nextValue.value.slice(0, seedLength)
 
             const params = {
                 doSample: true,
