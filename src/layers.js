@@ -2,18 +2,24 @@ import * as tf from '@tensorflow/tfjs'
 import customOps from './ops.js'
 import customActivations from './activations.js'
 import { randomString } from './utils.js'
-import SharedEmbedding from './layers/SharedEmbedding.js'
-import RandomFeatureAttention from './layers/RandomFeatureAttention.js'
-import SMEAR from './layers/SMEAR.js'
-import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
-import GatedLinearMLP from './layers/GatedLinearMLP.js'
-import SelfAttention from './layers/SelfAttention.js'
-import EfficientAttention from './layers/EfficientAttention.js'
 import ConstantSelfAttention from './layers/ConstantSelfAttention.js'
-import MultiHeadAttention from './layers/MultiHeadAttention.js'
-import MultiQueryAttention from './layers/MultiQueryAttention.js'
+import EfficientAttention from './layers/EfficientAttention.js'
+import GatedLinearMLP from './layers/GatedLinearMLP.js'
 import GroupedQueryAttention from './layers/GroupedQueryAttention.js'
 import IndependentComponentAnalysis from './layers/IndependentComponentAnalysis.js'
+import MultiHeadAttention from './layers/MultiHeadAttention.js'
+import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
+import MultiQueryAttention from './layers/MultiQueryAttention.js'
+import RandomFeatureAttention from './layers/RandomFeatureAttention.js'
+import SMEAR from './layers/SMEAR.js'
+import SelfAttention from './layers/SelfAttention.js'
+import SharedEmbedding from './layers/SharedEmbedding.js'
+import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
+import MixtureOfExperts from './layers/MixtureOfExperts.js'
+import MixtureOfDepths from './layers/MixtureOfDepths.js'
+import AdaptiveMixtureOfExperts from './layers/AdaptiveMixtureOfExperts copy.js'
+import SparseMixtureOfExperts from './layers/SparseMixtureOfExperts.js'
+import DeterministicEmbedding from './layers/DeterministicEmbedding.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -76,6 +82,30 @@ const customLayersConfig = {
     IndependentComponentAnalysis: {
         constructor: IndependentComponentAnalysis,
         prefix: 'ica'
+    },
+    VariableDimensionMLP: {
+        constructor: VariableDimensionMLP,
+        prefix: 'mlp'
+    },
+    MixtureOfExperts: {
+        constructor: MixtureOfExperts,
+        prefix: 'moe'
+    },
+    MixtureOfDepths: {
+        constructor: MixtureOfDepths,
+        prefix: 'moe'
+    },
+    SparseMixtureOfExperts: {
+        constructor: SparseMixtureOfExperts,
+        prefix: 'moe'
+    },
+    AdaptiveMixtureOfExperts: {
+        constructor: AdaptiveMixtureOfExperts,
+        prefix: 'moe'
+    },
+    DeterministicEmbedding: {
+        constructor: DeterministicEmbedding,
+        prefix: 'emb'
     }
 }
 
@@ -237,693 +267,6 @@ class LayerBase extends tf.layers.Layer {
         return {
             ...super.getConfig(),
             className: this.getClassName()
-        }
-    }
-}
-
-class VariableDimensionMLP extends LayerBase {
-    constructor(config) {
-        super({ name: `mlp-${randomString()}`, ...config })
-        this.innerDim = config?.innerDim || 1024
-        this.dropout = config?.dropout || 0
-        this.activation = config?.activation || 'relu'
-        this.units = config.units || null
-    }
-
-    build(inputShape) {
-        this.units = this.units ? this.units : inputShape[inputShape.length - 1]
-
-        // Initialize dense layers for projection
-        this.inProjKernel = this.addWeight(
-            'inProjKernel',
-            [this.units, this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.inProjBias = this.addWeight(
-            'inProjBias',
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-
-        this.outProjKernel = this.addWeight(
-            'outProjKernel',
-            [this.innerDim, this.units],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.outProjBias = this.addWeight(
-            'outProjBias',
-            [this.units],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-
-        // Residual connections/skip connections are critical here
-        this.residual = customLayers.ResidualConnection()
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Get the input dimensions
-            const inputDim = inputs.shape[inputs.shape.length - 1]
-
-            // Slice the weights based on the input dimensions
-            const slicedInProjKernel = this.inProjKernel
-                .read()
-                .slice([0, 0], [inputDim, this.innerDim])
-            const slicedOutProjKernel = this.outProjKernel
-                .read()
-                .slice([0, 0], [this.innerDim, inputDim])
-            const slicedOutProjBias = this.outProjBias
-                .read()
-                .slice([0], [inputDim])
-
-            // Expand and contract projection via feedforward layers
-            let outputs = this.applyDense(
-                inputs,
-                slicedInProjKernel,
-                this.inProjBias.read()
-            )
-
-            outputs = this.rmsNorm(outputs)
-
-            outputs = tf.layers
-                .activation({ activation: this.activation })
-                .apply(outputs)
-
-            outputs = this.applyDense(
-                outputs,
-                slicedOutProjKernel,
-                slicedOutProjBias
-            )
-
-            outputs = this.residual.apply([inputs, outputs])
-
-            outputs = kwargs['training']
-                ? tf.dropout(outputs, this.dropout)
-                : outputs
-
-            return outputs
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    getWeights() {
-        return [
-            this.inProjKernel.read(),
-            this.inProjBias.read(),
-            this.outProjKernel.read(),
-            this.outProjBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.inProjKernel.write(weights[0])
-        this.inProjBias.write(weights[1])
-        this.outProjKernel.write(weights[2])
-        this.outProjBias.write(weights[3])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            units: this.units,
-            innerDim: this.innerDim,
-            dropout: this.dropout,
-            activation: this.activation
-        }
-    }
-}
-
-class MixtureOfExperts extends LayerBase {
-    constructor(config) {
-        super({ name: `moe-${randomString()}`, ...config })
-        this.numExperts = config.numExperts
-        this.hiddenDim = config.hiddenDim || 128
-        this.activation = config.activation || 'swish'
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[0][inputShape[0].length - 1]
-
-        // Initialize gating network
-        this.gatingHidden = this.addWeight(
-            'gatingHidden',
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingHiddenBias = this.addWeight(
-            'gatingHiddenBias',
-            [this.hiddenDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingKernel = this.addWeight(
-            'gatingKernel',
-            [this.hiddenDim, this.numExperts],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingBias = this.addWeight(
-            'gatingBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            const expertInputs = inputs.slice(1)
-            inputs = inputs[0]
-
-            // Gating network
-            const gatingHidden = this.applyDense(
-                inputs,
-                this.gatingHidden.read(),
-                this.gatingHiddenBias.read()
-            )
-            const activatedGate = tf.layers
-                .activation({ activation: this.activation })
-                .apply(gatingHidden)
-            const expertWeights = this.applyDense(
-                activatedGate,
-                this.gatingKernel.read(),
-                this.gatingBias.read()
-            ).softmax()
-
-            // Combine expert outputs using weighted sum
-            const combinedOutput = expertInputs.reduce((prev, curr, i) => {
-                const expertWeight = expertWeights.slice(
-                    [0, 0, i],
-                    [inputs.shape[0], inputs.shape[1], 1]
-                )
-                return prev.add(curr.mul(expertWeight))
-            }, tf.zeros(expertInputs[0].shape))
-
-            return combinedOutput
-        })
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape[0]
-    }
-
-    getWeights() {
-        return [
-            this.gatingHidden.read(),
-            this.gatingHiddenBias.read(),
-            this.gatingKernel.read(),
-            this.gatingBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.gatingHidden.write(weights[0])
-        this.gatingHiddenBias.write(weights[1])
-        this.gatingKernel.write(weights[2])
-        this.gatingBias.write(weights[3])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            hiddenDim: this.hiddenDim,
-            activation: this.activation
-        }
-    }
-}
-
-class SparseMixtureOfExperts extends LayerBase {
-    constructor(config) {
-        super({ name: `moe-${randomString()}`, ...config })
-        this.numExperts = config.numExperts
-        this.topK = config.topK || 2
-        this.hiddenDim = config.hiddenDim || 128
-        this.activation = config.activation || 'swish'
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[0][inputShape[0].length - 1]
-
-        // Initialize gating network
-        this.gatingHidden = this.addWeight(
-            'gatingHidden',
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingHiddenBias = this.addWeight(
-            'gatingHiddenBias',
-            [this.hiddenDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingKernel = this.addWeight(
-            'gatingKernel',
-            [this.hiddenDim, this.numExperts],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gatingBias = this.addWeight(
-            'gatingBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            const expertInputs = inputs.slice(1)
-            inputs = inputs[0]
-
-            // Gating network
-            const gatingHidden = this.applyDense(
-                inputs,
-                this.gatingHidden.read(),
-                this.gatingHiddenBias.read()
-            )
-            const activatedGate = tf.layers
-                .activation({ activation: this.activation })
-                .apply(gatingHidden)
-            const expertWeights = this.applyDense(
-                activatedGate,
-                this.gatingKernel.read(),
-                this.gatingBias.read()
-            ).softmax()
-
-            // Randomly select a subset of experts
-            const selectedExpertIndices = this.selectRandomExperts(expertInputs)
-
-            // Slice the expert weights based on the selected expert indices
-            const selectedExpertWeights = this.sliceExpertWeights(
-                expertWeights,
-                selectedExpertIndices
-            )
-
-            // Slice and combine selected expert outputs
-            const selectedExpertOutputs = []
-            selectedExpertIndices.map((expertIndex) => {
-                selectedExpertOutputs.push(expertInputs[expertIndex])
-            })
-
-            // Combine expert outputs using weighted sum
-            const combinedOutput = selectedExpertOutputs.reduce(
-                (prev, curr, i) => {
-                    const expertWeight = selectedExpertWeights.slice(
-                        [0, 0, i],
-                        [inputs.shape[0], inputs.shape[1], 1]
-                    )
-                    return prev.add(curr.mul(expertWeight))
-                },
-                tf.zeros(expertInputs[0].shape)
-            )
-
-            return combinedOutput
-        })
-    }
-
-    selectRandomExperts(expertInputs) {
-        const numExperts = expertInputs.length
-        const expertIndices = tf.util.createShuffledIndices(numExperts)
-        return expertIndices.slice(0, this.topK)
-    }
-
-    sliceExpertWeights(expertWeights, selectedExpertIndices) {
-        const selectedWeights = []
-        selectedExpertIndices.forEach((expertIndex) => {
-            const expertSlice = expertWeights.slice(
-                [0, 0, expertIndex],
-                [expertWeights.shape[0], expertWeights.shape[1], 1]
-            )
-            selectedWeights.push(expertSlice)
-        })
-        return tf.concat(selectedWeights, -1)
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape[0]
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            hiddenDim: this.hiddenDim,
-            activation: this.activation,
-            topK: this.topK
-        }
-    }
-}
-
-class AdaptiveMixtureOfExperts extends LayerBase {
-    constructor(config) {
-        super({ name: `moe-${randomString()}`, ...config })
-        this.experts = config.experts || []
-        this.numExperts = config.numExperts || this.experts.length
-        this.topK = config.topK || 2
-        this.switchingDim = config?.switchingDim || 64
-        this.activation = config.activation || 'swish'
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-
-        // Initialize switching network
-        this.switchingHidden = this.addWeight(
-            'switchingHidden',
-            [inputDim, this.switchingDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.switchingHiddenBias = this.addWeight(
-            'switchingHiddenBias',
-            [this.switchingDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.switchingKernel = this.addWeight(
-            'switchingKernel',
-            [this.switchingDim, this.numExperts],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.switchingBias = this.addWeight(
-            'switchingBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.outputProjection = this.addWeight(
-            'outputProjection',
-            [this.topK * inputDim, inputDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Switching network
-            const switchingHidden = this.applyDense(
-                inputs,
-                this.switchingHidden.read(),
-                this.switchingHiddenBias.read()
-            )
-            const switchingActivated = tf.layers
-                .activation({ activation: this.activation })
-                .apply(switchingHidden)
-            const switchingScores = this.applyDense(
-                switchingActivated,
-                this.switchingKernel.read(),
-                this.switchingBias.read()
-            )
-
-            // Select top-k experts for each batch
-            const [batchSize, timeSteps, numExperts] = switchingScores.shape
-            const linearWeights = tf
-                .linspace(1, 2, timeSteps)
-                .expandDims(0)
-                .expandDims(-1)
-            const weightedAvgScores = switchingScores
-                .mul(linearWeights)
-                .sum(1)
-                .div(linearWeights.sum())
-
-            const expertIndices = this.selectTopExperts(weightedAvgScores)
-
-            // Predict on top-k experts, for every batch
-            const batchOutputs = []
-            for (let i = 0; i < inputs.shape[0]; i++) {
-                const batchInputs = inputs.slice([i, 0], [1, -1])
-                const expertOutputs = []
-                for (let j = 0; j < this.topK; j++) {
-                    const expertIndex = expertIndices[i][j]
-                    const expertOutput =
-                        this.experts[expertIndex].apply(batchInputs)
-                    expertOutputs.push(expertOutput)
-                }
-                const concatenatedOutput = tf.concat(expertOutputs, -1)
-                batchOutputs.push(concatenatedOutput)
-            }
-
-            // Concat expert outputs, and project them into the proper dimension
-            const outputProjected = this.applyDense(
-                tf.concat(batchOutputs, 0),
-                this.outputProjection.read()
-            )
-
-            return outputProjected
-        })
-    }
-
-    selectTopExperts(switchingScores) {
-        const topKIndices = tf.topk(switchingScores, this.topK).indices
-        return topKIndices.arraySync()
-    }
-
-    getWeights() {
-        return [
-            this.switchingHidden.read(),
-            this.switchingHiddenBias.read(),
-            this.switchingKernel.read(),
-            this.switchingBias.read(),
-            this.outputProjection.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.switchingHidden.write(weights[0])
-        this.switchingHiddenBias.write(weights[1])
-        this.switchingKernel.write(weights[2])
-        this.switchingBias.write(weights[3])
-        this.outputProjection.write(weights[4])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            switchingDim: this.switchingDim,
-            activation: this.activation,
-            topK: this.topK
-        }
-    }
-}
-
-// https://arxiv.org/abs/2404.02258
-class MixtureOfDepths extends LayerBase {
-    constructor(config) {
-        super({ name: `mod-${randomString()}`, ...config })
-        this.experts = config.experts || []
-        this.numExperts = config.numExperts || this.experts.length
-        this.capacity = config.capacity || 0.125
-        this.temperature = config.temperature || 0.1
-        this.auxLossWeight = config.auxLossWeight || 0.01
-        this.emaDecay = config.emaDecay || 0.99
-        this.expertUsageEMA = null
-    }
-
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-
-        this.routerKernel = this.addWeight(
-            'routerKernel',
-            [inputDim, 1],
-            'float32',
-            tf.initializers.varianceScaling({
-                scale: 0.01,
-                distribution: 'normal',
-                mode: 'fanAvg'
-            })
-        )
-        this.routerBias = this.addWeight(
-            'routerBias',
-            [1],
-            'float32',
-            tf.initializers.zeros()
-        )
-        this.expertUsageEMA = tf.variable(tf.zeros([this.numExperts]), false)
-    }
-
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            const [batchSize, timeSteps, inputDim] = inputs.shape
-
-            // Router network
-            const routerLogits = this.applyDense(
-                inputs,
-                this.routerKernel.read(),
-                this.routerBias.read()
-            ).reshape([batchSize, timeSteps])
-
-            return tf.customGrad((x, save) => {
-                // Forward pass: Top-k selection
-                const k = Math.floor(this.capacity * timeSteps)
-                const { values: topKValues, indices: topKIndices } = tf.topk(
-                    routerLogits,
-                    k
-                )
-
-                const topkMask = tf
-                    .oneHot(topKIndices, timeSteps)
-                    .sum(1)
-                    .expandDims(-1)
-
-                // Apply top-k mask to inputs
-                const selectedTokens = x.mul(topkMask)
-                const residualTokens = x.mul(
-                    tf.onesLike(topkMask).sub(topkMask)
-                )
-
-                // Apply layer to routed tokens
-                let selectedOutputs = selectedTokens
-                for (const expert of this.experts) {
-                    selectedOutputs = expert.apply(selectedOutputs)
-                }
-
-                // Combine processed tokens with residual tokens
-                const output = selectedOutputs.add(residualTokens)
-
-                const savedTensors = [routerLogits, topkMask, x]
-
-                // Compute auxiliary loss
-                if (kwargs.training) {
-                    savedTensors.push(
-                        this.computeAuxLoss(topKValues, topKIndices)
-                    )
-                }
-
-                save(savedTensors)
-
-                // Define gradient function
-                const gradFunc = (dy, saved) => {
-                    const [routerLogits, topkMask, originalInputs] =
-                        saved.slice(0, 2)
-
-                    let auxLoss
-                    if (kwargs.training) {
-                        auxLoss = saved[3]
-                    }
-
-                    // Backward pass: Gumbel-Softmax
-                    const gumbelMask = this.ode.ops
-                        .gumbelSoftmax(routerLogits, this.temperature)
-                        .expandDims(-1)
-
-                    // Compute gradients for the selected tokens
-                    let selectedGrads = dy.mul(gumbelMask)
-                    for (const expert of this.experts) {
-                        selectedGrads = expert.apply(selectedGrads)
-                    }
-
-                    // Compute gradients for the residual tokens
-                    const residualGrads = dy.mul(
-                        tf.onesLike(gumbelMask).sub(gumbelMask)
-                    )
-
-                    // Combine the selected and residual gradients
-                    let inputGrads = selectedGrads.add(residualGrads)
-
-                    // Add auxiliary loss gradient
-                    if (kwargs.training) {
-                        inputGrads = inputGrads.add(
-                            auxLoss.mul(this.auxLossWeight)
-                        )
-                    }
-
-                    return inputGrads
-                }
-
-                return { value: output, gradFunc }
-            })(inputs)
-        })
-    }
-
-    computeAuxLoss(topKIndices) {
-        return tf.tidy(() => {
-            const [batchSize, k] = topKIndices.shape
-            const numExperts = this.numExperts
-
-            // Compute current expert usage
-            const currentUsage = tf
-                .oneHot(topKIndices.cast('int32'), numExperts)
-                .sum([0, 1])
-                .div(tf.scalar(batchSize * k))
-
-            // Update EMA
-            const newEMA = this.expertUsageEMA
-                .mul(this.emaDecay)
-                .add(currentUsage.mul(1 - this.emaDecay))
-            this.expertUsageEMA.assign(newEMA)
-
-            // Compute load balancing loss
-            const idealUsage = tf.ones([numExperts]).div(numExperts)
-            const loadBalancingLoss = tf
-                .squaredDifference(this.expertUsageEMA, idealUsage)
-                .mean()
-
-            // Compute expert utilization loss
-            const utilizationLoss = tf
-                .log(this.expertUsageEMA.add(1e-5))
-                .neg()
-                .mean()
-
-            // Combine losses
-            const loss = loadBalancingLoss.add(utilizationLoss)
-            // console.log(loss.dataSync()[0])
-            return loss
-        })
-    }
-
-    getWeights() {
-        return [this.routerKernel.read(), this.routerBias.read()]
-    }
-
-    setWeights(weights) {
-        this.routerKernel.write(weights[0])
-        this.routerBias.write(weights[1])
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            capacity: this.capacity,
-            temperature: this.temperature,
-            auxLossWeight: this.auxLossWeight,
-            emaDecay: this.emaDecay
         }
     }
 }
@@ -2981,49 +2324,6 @@ class EfficientChannelAttention extends LayerBase {
     }
 }
 
-class DeterministicEmbedding extends LayerBase {
-    constructor(config) {
-        super({ name: `emb-${randomString()}`, ...config })
-        this.outputDim = config.outputDim
-    }
-
-    computeOutputShape(inputShape) {
-        return [...inputShape, this.outputDim]
-    }
-
-    call(inputs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const tokenIds = inputs.cast('int32')
-            const positions = tf
-                .range(0, inputs.shape[1])
-                .expandDims(0)
-                .cast('int32')
-
-            const tokenEncodings = tf
-                .oneHot(tokenIds, this.outputDim)
-                .cast('float32')
-            const positionEncodings = tf
-                .oneHot(positions, this.outputDim)
-                .cast('float32')
-
-            const encodings = tokenEncodings.add(positionEncodings)
-            const normalizedEncodings = encodings.div(
-                tf.sqrt(tf.scalar(this.outputDim))
-            )
-
-            return normalizedEncodings
-        })
-    }
-
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            outputDim: this.outputDim
-        }
-    }
-}
-
 class FourierFeaturePositionalEncoding extends LayerBase {
     constructor(config) {
         super(config)
@@ -3419,7 +2719,7 @@ class RandomProjectionFeatureReduction extends LayerBase {
 
 const exportedLayers = [
     // IndependentComponentAnalysis,
-    AdaptiveMixtureOfExperts,
+    // AdaptiveMixtureOfExperts,
     Antirectifier,
     AttentionFreeTransformer,
     Autoencoder,
@@ -3427,7 +2727,7 @@ const exportedLayers = [
     CapsNet,
     CausalSelfAttention,
     ChunkedStateSpace,
-    DeterministicEmbedding,
+    // DeterministicEmbedding,
     // EfficientAttention,
     EfficientChannelAttention,
     FastAssociativeMemory,
@@ -3440,9 +2740,9 @@ const exportedLayers = [
     // RandomFeatureAttention,
     RandomProjectionFeatureReduction,
     // LocalSelfAttention,
-    VariableDimensionMLP,
-    MixtureOfDepths,
-    MixtureOfExperts,
+    // VariableDimensionMLP,
+    // MixtureOfDepths,
+    // MixtureOfExperts,
     // MultiHeadAttention,
     // // MultiHeadMoeBlock,
     // // MultiLayerPerceptron,
@@ -3455,7 +2755,7 @@ const exportedLayers = [
     // SharedEmbedding,
     SinusoidalPositionalEncoding,
     // SMEARMoE,
-    SparseMixtureOfExperts,
+    // SparseMixtureOfExperts,
     SqueezeAndExcitation,
     StateSpace,
     SwarmOfExperts,
