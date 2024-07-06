@@ -350,26 +350,16 @@ class RandomFeatureAttention extends LayerBase {
         )
     }
 
-    // applyALiBi(inputs, headDim, maxDistance = 1024) {
-    //     const seqLength = inputs.shape[1]
-
-    //     const slopes = tf
-    //         .range(0, headDim, 1, 'float32')
-    //         .div(headDim)
-    //         .pow(-(1 / headDim))
-    //         .expandDims(0)
-
-    //     const distances = tf.range(0, seqLength, 1, 'float32').expandDims(1)
-
-    //     const alibiScores = slopes.matMul(distances).expandDims(0)
-
-    //     return inputs.add(alibiScores)
-    // }
-
     call(inputs) {
         return tf.tidy(() => {
             // Ensure inputs is a tensor, not an array
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+            // Generate a mask
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
 
             // Process each head
             const headOutputs = this.queryKernels.map((queryKernel, i) => {
@@ -390,15 +380,7 @@ class RandomFeatureAttention extends LayerBase {
                 // Compute attention scores
                 const QF_KFV = tf.matMul(QF, KFV)
 
-                // // Scale the attention scores
-                // const scaledScores = QF_KFV.div(Math.sqrt(this.headDim))
-
-                // // Apply ALiBi bias to the scaled attention scores
-                // const biasedScores = this.applyALiBi(
-                //     scaledScores,
-                //     this.headDim,
-                //     1024
-                // )
+                const maskedScores = QF_KFV.add(mask)
 
                 // Compute normalization term via element-wise multiplication for efficient broadcasting
                 const QF_D = tf.mul(QF, D)
@@ -406,8 +388,7 @@ class RandomFeatureAttention extends LayerBase {
                 const QF_D_sum = tf.sum(QF_D, -1, true)
 
                 // Implementation of attention mechanism with epsilon for numerical stability
-                // return tf.div(biasedScores, tf.add(QF_D_sum, this.eps))
-                return tf.div(QF_KFV, tf.add(QF_D_sum, this.eps))
+                return tf.div(maskedScores, tf.add(QF_D_sum, this.eps))
             })
 
             // Concatenate head outputs
