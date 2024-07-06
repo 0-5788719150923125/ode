@@ -9,13 +9,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = config.layers || 6
         this.units = config.units || 128
-        this.embeddings = config.embeddings || 256
+        this.embeddings = config.embeddings || 512
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
-        this.headDim = config.headDim || 64
-        this.numHeads = config.numHeads || 3
-        this.queryRatio = config.queryRatio || 3
-        this.numFeatures = config.numFeatures || 256
+        this.headDim = config.headDim || 768
+        this.numHeads = config.numHeads || 6
+        this.numFeatures = config.numFeatures || 96
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 1e-4
     }
@@ -48,20 +47,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
-            // outputs = this.ode.layers
-            //     .RandomFeatureAttention({
-            //         hiddenDim: this.headDim,
-            //         numFeatures: this.numFeatures,
-            //         numHeads: this.numHeads,
-            //         useALiBi: false
-            //     })
-            //     .apply(outputs)
             outputs = this.ode.layers
-                .GroupedQueryAttention({
-                    heads: this.heads,
-                    projection: this.headDim,
-                    queryRatio: this.queryRatio,
-                    useALiBi: false
+                .RandomFeatureAttention({
+                    hiddenDim: this.headDim,
+                    numFeatures: this.numFeatures,
+                    numHeads: this.numHeads,
+                    useALiBi: true
                 })
                 .apply(outputs)
 

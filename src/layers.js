@@ -106,7 +106,18 @@ class LayerBase extends tf.layers.Layer {
         const range = tf.range(0, seqLen)
         const relativePositions = range.expandDims(1).sub(range.expandDims(0))
         const alibiScores = tf.mul(alibiSlope, relativePositions)
-        return scores.add(alibiScores)
+
+        const adjustedAlibiScores = alibiScores.slice(
+            [0, 0, 0],
+            [1, seqLen, scores.shape[2]]
+        )
+        const expandedAlibiScores = adjustedAlibiScores.tile([
+            scores.shape[0],
+            1,
+            1
+        ])
+
+        return scores.add(expandedAlibiScores)
     }
 
     static get className() {
@@ -314,6 +325,11 @@ class RandomFeatureAttention extends LayerBase {
         this.headDim = Math.floor(this.hiddenDim / this.numHeads)
         this.useALiBi = config.useALiBi || false
         this.epsilon = 1e-6
+        if (this.hiddenDim % this.numHeads !== 0) {
+            throw new Error(
+                `hiddenDim (${this.headDim}) should be divisible by numHeads (${this.numHeads})!`
+            )
+        }
     }
 
     build(inputShape) {
@@ -376,12 +392,6 @@ class RandomFeatureAttention extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const [batchSize, seqLen, features] = inputs.shape
 
-            // Generate a mask
-            const mask = tf.linalg
-                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
-                .sub(tf.eye(inputs.shape[1]))
-                .mul(tf.scalar(-1e9))
-
             // Process each head
             const headOutputs = this.queryKernels.map((queryKernel, i) => {
                 // Linear transformations to create query, key, and value for this head
@@ -404,6 +414,36 @@ class RandomFeatureAttention extends LayerBase {
                 if (this.useALiBi) {
                     QF_KFV = this.applyALiBi(QF_KFV, this.numHeads, i, seqLen)
                 }
+
+                const mask = tf.tidy(() => {
+                    const headSeqLen = QF_KFV.shape[1]
+                    const headFeatures = QF_KFV.shape[2]
+
+                    const baseMask = tf.linalg.bandPart(
+                        tf.ones([headSeqLen, headFeatures]),
+                        0,
+                        -1
+                    )
+
+                    const identityMask = tf.eye(
+                        Math.min(headSeqLen, headFeatures)
+                    )
+
+                    const paddedIdentityMask = identityMask.pad([
+                        [0, Math.max(0, headSeqLen - headFeatures)],
+                        [0, Math.max(0, headFeatures - headSeqLen)]
+                    ])
+
+                    const combinedMask = baseMask
+                        .sub(paddedIdentityMask)
+                        .mul(tf.scalar(-1e9))
+
+                    const expandedMask = combinedMask.expandDims(0)
+
+                    const tiledMask = expandedMask.tile([batchSize, 1, 1])
+
+                    return tiledMask
+                })
 
                 const maskedScores = QF_KFV.add(mask)
 
