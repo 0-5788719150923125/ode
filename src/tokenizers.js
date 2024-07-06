@@ -1,4 +1,5 @@
 // import { createCanvas } from 'canvas'
+import TokenMonsterCore from './tokenizers/tokenmonster.cjs'
 import { env } from '@xenova/transformers'
 env.allowLocalModels = typeof window !== 'undefined' ? true : false
 import { AutoTokenizer } from '@xenova/transformers'
@@ -137,8 +138,6 @@ class TokenMonster extends TokenizerBase {
     }
 
     async init() {
-        const TokenMonsterCore = (await import('./tokenizers/tokenmonster.cjs'))
-            .default
         this.tokenizer = new TokenMonsterCore()
         await this.tokenizer.load(
             `https://huggingface.co/alasdairforsythe/tokenmonster/raw/main/vocabs/${this.model}.vocab`
