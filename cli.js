@@ -98,13 +98,13 @@ async function orchestrate(options) {
 
         const {
             ConsoleLogger,
-            MetricsCollector,
+            // MetricsCollector,
             PredictionSampler,
             ModelSaver
         } = await import('./src/train.js')
         await net.train(dataset, options, [
             ConsoleLogger,
-            MetricsCollector,
+            // MetricsCollector,
             PredictionSampler,
             ModelSaver
         ])

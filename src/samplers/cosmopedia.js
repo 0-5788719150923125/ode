@@ -6,8 +6,6 @@ import {
     randomValueFromArray
 } from '../utils.js'
 
-if (typeof window !== 'undefined') await wasmInit()
-
 export default class CosmopediaDataset {
     constructor(config) {
         this.dataset = 'HuggingFaceTB/cosmopedia'
@@ -31,6 +29,11 @@ export default class CosmopediaDataset {
     }
 
     async init() {
+        const isBrowser =
+            (typeof self !== 'undefined' &&
+                typeof self.importScripts === 'function') ||
+            typeof window !== 'undefined'
+        if (isBrowser) await wasmInit()
         await this.fetchRandomShard()
     }
 
