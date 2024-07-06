@@ -4,9 +4,7 @@ import customOps from '../ops.js'
 export default class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
-        this.ode = {
-            ops: customOps
-        }
+        this.ops = customOps
     }
 
     computeOutputShape(inputShape) {

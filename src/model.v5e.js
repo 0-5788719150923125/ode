@@ -57,7 +57,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .SMEARMoE({
+                .SMEAR({
                     activation: 'mish',
                     hiddenDim: this.moeDim,
                     experts: this.createFeedforwardExperts(outputs.shape)

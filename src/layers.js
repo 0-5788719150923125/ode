@@ -4,48 +4,120 @@ import customActivations from './activations.js'
 import { randomString } from './utils.js'
 import SharedEmbedding from './layers/SharedEmbedding.js'
 import RandomFeatureAttention from './layers/RandomFeatureAttention.js'
+import SMEAR from './layers/SMEAR.js'
+import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
+import GatedLinearMLP from './layers/GatedLinearMLP.js'
 
-const customLayers = {
-    activation: (config) =>
-        tf.layers.activation({ name: `act-${randomString()}`, ...config }),
-    add: (config) =>
-        tf.layers.add({ name: `add-${randomString()}`, ...config }),
-    bottleneck: (config) =>
-        tf.layers.dense({ name: `bot-${randomString()}`, ...config }),
-    concatenate: (config) =>
-        tf.layers.concatenate({ name: `con-${randomString()}`, ...config }),
-    conv1d: (config) =>
-        tf.layers.conv1d({ name: `c1d-${randomString()}`, ...config }),
-    conv2d: (config) =>
-        tf.layers.conv2d({ name: `c2d-${randomString()}`, ...config }),
-    dense: (config) =>
-        tf.layers.dense({ name: `ffd-${randomString()}`, ...config }),
-    embedding: (config) =>
-        tf.layers.embedding({ name: `emb-${randomString()}`, ...config }),
-    input: (config) =>
-        tf.layers.input({ name: `inp-${randomString()}`, ...config }),
-    multiply: (config) =>
-        tf.layers.multiply({ name: `mul-${randomString()}`, ...config }),
-    timeDistributed: (config) =>
-        tf.layers.timeDistributed({
-            name: `time-${randomString()}`,
-            ...config
-        }),
-    gru: (config) =>
-        tf.layers.gru({ name: `gru-${randomString()}`, ...config }),
-    lstm: (config) =>
-        tf.layers.lstm({ name: `lstm-${randomString()}`, ...config }),
-    rnn: (config) =>
-        tf.layers.gru({ name: `rnn-${randomString()}`, ...config }),
-    SharedEmbedding: (config) =>
-        new SharedEmbedding({ name: `emb-${randomString()}`, ...config }),
-    RandomFeatureAttention: (config) =>
-        new RandomFeatureAttention({
-            name: `attn-${randomString()}`,
-            ...config
-        })
+/**
+ * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
+ * @param {T | ((config: any) => import('@tensorflow/tfjs').layers.Layer)} layerConstructor
+ * @param {string} namePrefix
+ * @returns {(config: any) => import('@tensorflow/tfjs').layers.Layer}
+ */
+const createLayerFactory = (layerConstructor, namePrefix) => (config) => {
+    const name = `${namePrefix}-${randomString()}`
+    if (typeof layerConstructor === 'function' && !layerConstructor.prototype) {
+        // For TFJS layers which are created via functions
+        return layerConstructor({ name, ...config })
+    } else {
+        // For custom layers which need 'new' keyword
+        return new layerConstructor({ name, ...config })
+    }
 }
+
+const customLayersConfig = {
+    activation: { constructor: tf.layers.activation, prefix: 'act' },
+    add: { constructor: tf.layers.add, prefix: 'add' },
+    bottleneck: { constructor: tf.layers.dense, prefix: 'bot' },
+    concatenate: { constructor: tf.layers.concatenate, prefix: 'con' },
+    conv1d: { constructor: tf.layers.conv1d, prefix: 'c1d' },
+    conv2d: { constructor: tf.layers.conv2d, prefix: 'c2d' },
+    dense: { constructor: tf.layers.dense, prefix: 'ffd' },
+    embedding: { constructor: tf.layers.embedding, prefix: 'emb' },
+    input: { constructor: tf.layers.input, prefix: 'inp' },
+    multiply: { constructor: tf.layers.multiply, prefix: 'mul' },
+    timeDistributed: { constructor: tf.layers.timeDistributed, prefix: 'time' },
+    gru: { constructor: tf.layers.gru, prefix: 'gru' },
+    lstm: { constructor: tf.layers.lstm, prefix: 'lstm' },
+    rnn: { constructor: tf.layers.gru, prefix: 'rnn' },
+    SharedEmbedding: { constructor: SharedEmbedding, prefix: 'emb' },
+    RandomFeatureAttention: {
+        constructor: RandomFeatureAttention,
+        prefix: 'attn'
+    },
+    SMEAR: { constructor: SMEAR, prefix: 'moe' },
+    MultiLayerPerceptron: { constructor: MultiLayerPerceptron, prefix: 'mlp' },
+    GatedLinearMLP: { constructor: GatedLinearMLP, prefix: 'mlp' }
+}
+
+/**
+ * @type {{[K in keyof typeof customLayersConfig]: (config: any) => import('@tensorflow/tfjs').layers.Layer}}
+ */
+const customLayers = Object.fromEntries(
+    Object.entries(customLayersConfig).map(([key, { constructor, prefix }]) => [
+        key,
+        createLayerFactory(constructor, prefix)
+    ])
+)
+
 export default customLayers
+
+// const customLayers = {
+//     activation: (config) =>
+//         tf.layers.activation({ name: `act-${randomString()}`, ...config }),
+//     add: (config) =>
+//         tf.layers.add({ name: `add-${randomString()}`, ...config }),
+//     bottleneck: (config) =>
+//         tf.layers.dense({ name: `bot-${randomString()}`, ...config }),
+//     concatenate: (config) =>
+//         tf.layers.concatenate({ name: `con-${randomString()}`, ...config }),
+//     conv1d: (config) =>
+//         tf.layers.conv1d({ name: `c1d-${randomString()}`, ...config }),
+//     conv2d: (config) =>
+//         tf.layers.conv2d({ name: `c2d-${randomString()}`, ...config }),
+//     dense: (config) =>
+//         tf.layers.dense({ name: `ffd-${randomString()}`, ...config }),
+//     embedding: (config) =>
+//         tf.layers.embedding({ name: `emb-${randomString()}`, ...config }),
+//     input: (config) =>
+//         tf.layers.input({ name: `inp-${randomString()}`, ...config }),
+//     multiply: (config) =>
+//         tf.layers.multiply({ name: `mul-${randomString()}`, ...config }),
+//     timeDistributed: (config) =>
+//         tf.layers.timeDistributed({
+//             name: `time-${randomString()}`,
+//             ...config
+//         }),
+//     gru: (config) =>
+//         tf.layers.gru({ name: `gru-${randomString()}`, ...config }),
+//     lstm: (config) =>
+//         tf.layers.lstm({ name: `lstm-${randomString()}`, ...config }),
+//     rnn: (config) =>
+//         tf.layers.gru({ name: `rnn-${randomString()}`, ...config }),
+//     SharedEmbedding: (config) =>
+//         new SharedEmbedding({ name: `emb-${randomString()}`, ...config }),
+//     RandomFeatureAttention: (config) =>
+//         new RandomFeatureAttention({
+//             name: `attn-${randomString()}`,
+//             ...config
+//         }),
+//     SMEAR: (config) =>
+//         new SMEAR({
+//             name: `moe-${randomString()}`,
+//             ...config
+//         }),
+//     MultiLayerPerceptron: (config) =>
+//         new MultiLayerPerceptron({
+//             name: `mlp-${randomString()}`,
+//             ...config
+//         }),
+//     GatedLinearMLP: (config) =>
+//         new GatedLinearMLP({
+//             name: `mlp-${randomString()}`,
+//             ...config
+//         })
+// }
+// export default customLayers
 
 class LayerBase extends tf.layers.Layer {
     constructor(config) {
@@ -1524,198 +1596,198 @@ class GroupedQueryAttention extends LayerBase {
     }
 }
 
-class MultiLayerPerceptron extends LayerBase {
-    constructor(config) {
-        super({ name: `mlp-${randomString()}`, ...config })
-        this.innerDim = config?.innerDim || 1024
-        this.dropout = config?.dropout || 0
-        this.activation = config?.activation || 'relu'
-        this.units = config.units || null
-    }
+// class MultiLayerPerceptron extends LayerBase {
+//     constructor(config) {
+//         super({ name: `mlp-${randomString()}`, ...config })
+//         this.innerDim = config?.innerDim || 1024
+//         this.dropout = config?.dropout || 0
+//         this.activation = config?.activation || 'relu'
+//         this.units = config.units || null
+//     }
 
-    build(inputShape) {
-        this.units = this.units ? this.units : inputShape[inputShape.length - 1]
+//     build(inputShape) {
+//         this.units = this.units ? this.units : inputShape[inputShape.length - 1]
 
-        // Initialize dense layers for projection
-        this.inProjKernel = this.addWeight(
-            `inProjKernel`,
-            [this.units, this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.inProjBias = this.addWeight(
-            `inProjBias`,
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+//         // Initialize dense layers for projection
+//         this.inProjKernel = this.addWeight(
+//             `inProjKernel`,
+//             [this.units, this.innerDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.inProjBias = this.addWeight(
+//             `inProjBias`,
+//             [this.innerDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
 
-        this.outProjKernel = this.addWeight(
-            `outProjKernel`,
-            [this.innerDim, this.units],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.outProjBias = this.addWeight(
-            `outProjBias`,
-            [this.units],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+//         this.outProjKernel = this.addWeight(
+//             `outProjKernel`,
+//             [this.innerDim, this.units],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.outProjBias = this.addWeight(
+//             `outProjBias`,
+//             [this.units],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
 
-        // Residual connections/skip connections are critical here
-        this.residual = customLayers.ResidualConnection()
-    }
+//         // Residual connections/skip connections are critical here
+//         this.residual = customLayers.ResidualConnection()
+//     }
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Expand and contract projection via feedforward layers
-            let outputs = this.applyDense(
-                inputs,
-                this.inProjKernel.read(),
-                this.inProjBias.read()
-            )
+//             // Expand and contract projection via feedforward layers
+//             let outputs = this.applyDense(
+//                 inputs,
+//                 this.inProjKernel.read(),
+//                 this.inProjBias.read()
+//             )
 
-            outputs = this.rmsNorm(outputs)
+//             outputs = this.rmsNorm(outputs)
 
-            outputs = tf.layers
-                .activation({ activation: this.activation })
-                .apply(outputs)
+//             outputs = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(outputs)
 
-            outputs = this.applyDense(
-                outputs,
-                this.outProjKernel.read(),
-                this.outProjBias.read()
-            )
+//             outputs = this.applyDense(
+//                 outputs,
+//                 this.outProjKernel.read(),
+//                 this.outProjBias.read()
+//             )
 
-            outputs = this.residual.apply([inputs, outputs])
+//             outputs = this.residual.apply([inputs, outputs])
 
-            outputs = kwargs['training']
-                ? tf.dropout(outputs, this.dropout)
-                : outputs
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
 
-            return outputs
-        })
-    }
+//             return outputs
+//         })
+//     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
+//     computeOutputShape(inputShape) {
+//         return inputShape
+//     }
 
-    getWeights() {
-        return [
-            this.inProjKernel.read(),
-            this.inProjBias.read(),
-            this.outProjKernel.read(),
-            this.outProjBias.read()
-        ]
-    }
+//     getWeights() {
+//         return [
+//             this.inProjKernel.read(),
+//             this.inProjBias.read(),
+//             this.outProjKernel.read(),
+//             this.outProjBias.read()
+//         ]
+//     }
 
-    setWeights(weights) {
-        this.inProjKernel.write(weights[0])
-        this.inProjBias.write(weights[1])
-        this.outProjKernel.write(weights[2])
-        this.outProjBias.write(weights[3])
-    }
+//     setWeights(weights) {
+//         this.inProjKernel.write(weights[0])
+//         this.inProjBias.write(weights[1])
+//         this.outProjKernel.write(weights[2])
+//         this.outProjBias.write(weights[3])
+//     }
 
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            units: this.units,
-            innerDim: this.innerDim,
-            dropout: this.dropout,
-            activation: this.activation
-        }
-    }
-}
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             units: this.units,
+//             innerDim: this.innerDim,
+//             dropout: this.dropout,
+//             activation: this.activation
+//         }
+//     }
+// }
 
-class GatedLinearMLP extends MultiLayerPerceptron {
-    constructor(config) {
-        super({ name: `glu-${randomString()}`, ...config })
-    }
+// class GatedLinearMLP extends MultiLayerPerceptron {
+//     constructor(config) {
+//         super({ name: `glu-${randomString()}`, ...config })
+//     }
 
-    build(inputShape) {
-        super.build(inputShape)
+//     build(inputShape) {
+//         super.build(inputShape)
 
-        this.gateProjKernel = this.addWeight(
-            `gateProjKernel`,
-            [this.units, this.innerDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.gateProjBias = this.addWeight(
-            `gateProjBias`,
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-    }
+//         this.gateProjKernel = this.addWeight(
+//             `gateProjKernel`,
+//             [this.units, this.innerDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.gateProjBias = this.addWeight(
+//             `gateProjBias`,
+//             [this.innerDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Expand and contract projection via feedforward layers
-            let proj = this.applyDense(
-                inputs,
-                this.inProjKernel.read(),
-                this.inProjBias.read()
-            )
+//             // Expand and contract projection via feedforward layers
+//             let proj = this.applyDense(
+//                 inputs,
+//                 this.inProjKernel.read(),
+//                 this.inProjBias.read()
+//             )
 
-            proj = this.rmsNorm(proj)
+//             proj = this.rmsNorm(proj)
 
-            proj = tf.layers
-                .activation({ activation: this.activation })
-                .apply(proj)
+//             proj = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(proj)
 
-            let gate = this.applyDense(
-                inputs,
-                this.gateProjKernel.read(),
-                this.gateProjBias.read()
-            )
+//             let gate = this.applyDense(
+//                 inputs,
+//                 this.gateProjKernel.read(),
+//                 this.gateProjBias.read()
+//             )
 
-            gate = tf.layers.activation({ activation: 'sigmoid' }).apply(gate)
+//             gate = tf.layers.activation({ activation: 'sigmoid' }).apply(gate)
 
-            const gatedOutput = tf.mul(proj, gate)
+//             const gatedOutput = tf.mul(proj, gate)
 
-            let outputs = this.applyDense(
-                gatedOutput,
-                this.outProjKernel.read(),
-                this.outProjBias.read()
-            )
+//             let outputs = this.applyDense(
+//                 gatedOutput,
+//                 this.outProjKernel.read(),
+//                 this.outProjBias.read()
+//             )
 
-            outputs = this.residual.apply([inputs, outputs])
+//             outputs = this.residual.apply([inputs, outputs])
 
-            outputs = kwargs['training']
-                ? tf.dropout(outputs, this.dropout)
-                : outputs
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
 
-            return outputs
-        })
-    }
+//             return outputs
+//         })
+//     }
 
-    getWeights() {
-        return [
-            ...super.getWeights(),
-            this.gateProjKernel.read(),
-            this.gateProjBias.read()
-        ]
-    }
+//     getWeights() {
+//         return [
+//             ...super.getWeights(),
+//             this.gateProjKernel.read(),
+//             this.gateProjBias.read()
+//         ]
+//     }
 
-    setWeights(weights) {
-        super.setWeights(weights)
-        this.gateProjKernel.write(weights[4])
-        this.gateProjBias.write(weights[5])
-    }
-}
+//     setWeights(weights) {
+//         super.setWeights(weights)
+//         this.gateProjKernel.write(weights[4])
+//         this.gateProjBias.write(weights[5])
+//     }
+// }
 
 class VariableDimensionMLP extends LayerBase {
     constructor(config) {
@@ -2511,215 +2583,215 @@ class SwarmOfExperts extends LayerBase {
 }
 
 // https://arxiv.org/abs/2306.03745
-class SMEARMoE extends LayerBase {
-    constructor(config) {
-        super({ name: `moe-${randomString()}`, ...config })
-        this.experts = config.experts || []
-        this.numExperts = config.numExperts || this.experts.length
-        this.hiddenDim = config.hiddenDim || 64
-        this.activation = config.activation || 'swish'
-    }
+// class SMEARMoE extends LayerBase {
+//     constructor(config) {
+//         super({ name: `moe-${randomString()}`, ...config })
+//         this.experts = config.experts || []
+//         this.numExperts = config.numExperts || this.experts.length
+//         this.hiddenDim = config.hiddenDim || 64
+//         this.activation = config.activation || 'swish'
+//     }
 
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
 
-        // Initialize gating network
-        this.routerHiddenKernel = this.addWeight(
-            'routerHiddenKernel',
-            [inputDim, this.hiddenDim],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.routerHiddenBias = this.addWeight(
-            'routerHiddenBias',
-            [this.hiddenDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.routerOutputKernel = this.addWeight(
-            'routerOutputKernel',
-            [this.hiddenDim, this.numExperts - 1],
-            'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-        this.routerOutputBias = this.addWeight(
-            'routerOutputBias',
-            [this.numExperts - 1],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
-    }
+//         // Initialize gating network
+//         this.routerHiddenKernel = this.addWeight(
+//             'routerHiddenKernel',
+//             [inputDim, this.hiddenDim],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerHiddenBias = this.addWeight(
+//             'routerHiddenBias',
+//             [this.hiddenDim],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerOutputKernel = this.addWeight(
+//             'routerOutputKernel',
+//             [this.hiddenDim, this.numExperts - 1],
+//             'float32',
+//             tf.initializers.glorotNormal(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.routerOutputBias = this.addWeight(
+//             'routerOutputBias',
+//             [this.numExperts - 1],
+//             'float32',
+//             tf.initializers.zeros(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Gating network
-            const gatingHidden = this.applyDense(
-                inputs,
-                this.routerHiddenKernel.read(),
-                this.routerHiddenBias.read()
-            )
+//             // Gating network
+//             const gatingHidden = this.applyDense(
+//                 inputs,
+//                 this.routerHiddenKernel.read(),
+//                 this.routerHiddenBias.read()
+//             )
 
-            // Apply layer normalization before activating the logits of our router
-            const normalizedState = this.rmsNorm(gatingHidden)
-            const activatedGate = tf.layers
-                .activation({ activation: this.activation })
-                .apply(normalizedState)
+//             // Apply layer normalization before activating the logits of our router
+//             const normalizedState = this.rmsNorm(gatingHidden)
+//             const activatedGate = tf.layers
+//                 .activation({ activation: this.activation })
+//                 .apply(normalizedState)
 
-            const expertWeights = this.applyDense(
-                activatedGate,
-                this.routerOutputKernel.read(),
-                this.routerOutputBias.read()
-            )
+//             const expertWeights = this.applyDense(
+//                 activatedGate,
+//                 this.routerOutputKernel.read(),
+//                 this.routerOutputBias.read()
+//             )
 
-            // Merge experts
-            const mergedExpert = this.mergeExperts(this.experts, expertWeights)
+//             // Merge experts
+//             const mergedExpert = this.mergeExperts(this.experts, expertWeights)
 
-            // Pass inputs to merged expert
-            return mergedExpert.apply(inputs)
-        })
-    }
+//             // Pass inputs to merged expert
+//             return mergedExpert.apply(inputs)
+//         })
+//     }
 
-    mergeExperts(experts, weights) {
-        // We modify the first expert in-place
-        const mergedExpert = experts[0]
-        // We only use the experts following the first one
-        const usedExperts = experts.slice(1)
+//     mergeExperts(experts, weights) {
+//         // We modify the first expert in-place
+//         const mergedExpert = experts[0]
+//         // We only use the experts following the first one
+//         const usedExperts = experts.slice(1)
 
-        for (let i = 0; i < mergedExpert.layers.length; i++) {
-            const layer = mergedExpert.layers[i]
+//         for (let i = 0; i < mergedExpert.layers.length; i++) {
+//             const layer = mergedExpert.layers[i]
 
-            // Compute weighted average of weights for this layer across all experts
-            const averagedWeights = layer.getWeights().map((_, weightIndex) => {
-                const expertWeights = usedExperts.map(
-                    (expert) => expert.layers[i].getWeights()[weightIndex]
-                )
-                const weightedSum = expertWeights.reduce(
-                    (sum, weight, expertIndex) => {
-                        const expertWeight = weights
-                            .slice([0, expertIndex], [-1, 1])
-                            .mean()
-                        return sum.add(weight.mul(expertWeight))
-                    },
-                    tf.zeros(expertWeights[0].shape)
-                )
-                // Divide by the sum of weights to get the weighted average
-                return weightedSum.div(weights.sum())
-            })
+//             // Compute weighted average of weights for this layer across all experts
+//             const averagedWeights = layer.getWeights().map((_, weightIndex) => {
+//                 const expertWeights = usedExperts.map(
+//                     (expert) => expert.layers[i].getWeights()[weightIndex]
+//                 )
+//                 const weightedSum = expertWeights.reduce(
+//                     (sum, weight, expertIndex) => {
+//                         const expertWeight = weights
+//                             .slice([0, expertIndex], [-1, 1])
+//                             .mean()
+//                         return sum.add(weight.mul(expertWeight))
+//                     },
+//                     tf.zeros(expertWeights[0].shape)
+//                 )
+//                 // Divide by the sum of weights to get the weighted average
+//                 return weightedSum.div(weights.sum())
+//             })
 
-            // Set the averaged weights to the layer
-            layer.setWeights(averagedWeights)
-        }
+//             // Set the averaged weights to the layer
+//             layer.setWeights(averagedWeights)
+//         }
 
-        return mergedExpert
-    }
+//         return mergedExpert
+//     }
 
-    // mergeExperts(experts, weights) {
-    //     // Create a shallow copy of the first expert
-    //     const mergedExpert = experts[0]
+//     // mergeExperts(experts, weights) {
+//     //     // Create a shallow copy of the first expert
+//     //     const mergedExpert = experts[0]
 
-    //     for (let i = 0; i < mergedExpert.layers.length; i++) {
-    //         const layer = mergedExpert.layers[i]
-    //         const layerWeights = layer.getWeights()
+//     //     for (let i = 0; i < mergedExpert.layers.length; i++) {
+//     //         const layer = mergedExpert.layers[i]
+//     //         const layerWeights = layer.getWeights()
 
-    //         // Compute weighted average of weights for this layer across all experts
-    //         const averagedWeights = layerWeights.map((_, weightIndex) => {
-    //             const expertWeights = experts.map(
-    //                 (expert) => expert.layers[i].getWeights()[weightIndex]
-    //             )
-    //             const weightedSum = expertWeights.reduce(
-    //                 (sum, weight, expertIndex) => {
-    //                     const expertWeight = weights
-    //                         .slice([0, expertIndex], [-1, 1])
-    //                         .mean()
-    //                     return sum.add(weight.mul(expertWeight))
-    //                 },
-    //                 tf.zeros(expertWeights[0].shape)
-    //             )
-    //             // Divide by the sum of weights to get the weighted average
-    //             return weightedSum.div(weights.sum())
-    //         })
+//     //         // Compute weighted average of weights for this layer across all experts
+//     //         const averagedWeights = layerWeights.map((_, weightIndex) => {
+//     //             const expertWeights = experts.map(
+//     //                 (expert) => expert.layers[i].getWeights()[weightIndex]
+//     //             )
+//     //             const weightedSum = expertWeights.reduce(
+//     //                 (sum, weight, expertIndex) => {
+//     //                     const expertWeight = weights
+//     //                         .slice([0, expertIndex], [-1, 1])
+//     //                         .mean()
+//     //                     return sum.add(weight.mul(expertWeight))
+//     //                 },
+//     //                 tf.zeros(expertWeights[0].shape)
+//     //             )
+//     //             // Divide by the sum of weights to get the weighted average
+//     //             return weightedSum.div(weights.sum())
+//     //         })
 
-    //         // Set the averaged weights to the layer
-    //         layer.setWeights(averagedWeights)
-    //     }
+//     //         // Set the averaged weights to the layer
+//     //         layer.setWeights(averagedWeights)
+//     //     }
 
-    //     return mergedExpert
-    // }
+//     //     return mergedExpert
+//     // }
 
-    // mergeExperts(experts, weights) {
-    //     // We modify the first expert in-place
-    //     const mergedExpert = experts[0]
-    //     // We skip the first expert during averaging
-    //     const usedExperts = experts.slice(1)
+//     // mergeExperts(experts, weights) {
+//     //     // We modify the first expert in-place
+//     //     const mergedExpert = experts[0]
+//     //     // We skip the first expert during averaging
+//     //     const usedExperts = experts.slice(1)
 
-    //     // Aggregate weights across batch and sequence dimensions
-    //     const aggregatedWeights = weights.sum([0, 1]) // Shape: [num_experts]
+//     //     // Aggregate weights across batch and sequence dimensions
+//     //     const aggregatedWeights = weights.sum([0, 1]) // Shape: [num_experts]
 
-    //     // Normalize the aggregated weights
-    //     const normalizedWeights = aggregatedWeights.div(aggregatedWeights.sum())
+//     //     // Normalize the aggregated weights
+//     //     const normalizedWeights = aggregatedWeights.div(aggregatedWeights.sum())
 
-    //     for (let i = 0; i < mergedExpert.layers.length; i++) {
-    //         const layerWeights = mergedExpert.layers[i].getWeights()
+//     //     for (let i = 0; i < mergedExpert.layers.length; i++) {
+//     //         const layerWeights = mergedExpert.layers[i].getWeights()
 
-    //         // Compute weighted average of weights for this layer across all experts
-    //         const averagedWeights = layerWeights.map((_, weightIndex) => {
-    //             const expertWeights = usedExperts.map(
-    //                 (expert) => expert.layers[i].getWeights()[weightIndex]
-    //             )
+//     //         // Compute weighted average of weights for this layer across all experts
+//     //         const averagedWeights = layerWeights.map((_, weightIndex) => {
+//     //             const expertWeights = usedExperts.map(
+//     //                 (expert) => expert.layers[i].getWeights()[weightIndex]
+//     //             )
 
-    //             const weightedAverage = tf.tidy(() => {
-    //                 return expertWeights.reduce((sum, weight, expertIndex) => {
-    //                     const expertWeight = normalizedWeights.slice(
-    //                         [expertIndex],
-    //                         [1]
-    //                     )
-    //                     const weightedExpert = weight.mul(expertWeight)
+//     //             const weightedAverage = tf.tidy(() => {
+//     //                 return expertWeights.reduce((sum, weight, expertIndex) => {
+//     //                     const expertWeight = normalizedWeights.slice(
+//     //                         [expertIndex],
+//     //                         [1]
+//     //                     )
+//     //                     const weightedExpert = weight.mul(expertWeight)
 
-    //                     return sum.add(weightedExpert)
-    //                 }, tf.zeros(expertWeights[0].shape))
-    //             })
+//     //                     return sum.add(weightedExpert)
+//     //                 }, tf.zeros(expertWeights[0].shape))
+//     //             })
 
-    //             return weightedAverage
-    //         })
+//     //             return weightedAverage
+//     //         })
 
-    //         // Set the averaged weights to the merged expert's layer
-    //         mergedExpert.layers[i].setWeights(averagedWeights)
-    //     }
+//     //         // Set the averaged weights to the merged expert's layer
+//     //         mergedExpert.layers[i].setWeights(averagedWeights)
+//     //     }
 
-    //     return mergedExpert
-    // }
+//     //     return mergedExpert
+//     // }
 
-    getWeights() {
-        return [
-            this.routerHiddenKernel.read(),
-            this.routerHiddenBias.read(),
-            this.routerOutputKernel.read(),
-            this.routerOutputBias.read()
-        ]
-    }
+//     getWeights() {
+//         return [
+//             this.routerHiddenKernel.read(),
+//             this.routerHiddenBias.read(),
+//             this.routerOutputKernel.read(),
+//             this.routerOutputBias.read()
+//         ]
+//     }
 
-    setWeights(weights) {
-        this.routerHiddenKernel.write(weights[0])
-        this.routerHiddenBias.write(weights[1])
-        this.routerOutputKernel.write(weights[2])
-        this.routerOutputBias.write(weights[3])
-    }
+//     setWeights(weights) {
+//         this.routerHiddenKernel.write(weights[0])
+//         this.routerHiddenBias.write(weights[1])
+//         this.routerOutputKernel.write(weights[2])
+//         this.routerOutputBias.write(weights[3])
+//     }
 
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            numExperts: this.numExperts,
-            hiddenDim: this.hiddenDim,
-            activation: this.activation
-        }
-    }
-}
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             numExperts: this.numExperts,
+//             hiddenDim: this.hiddenDim,
+//             activation: this.activation
+//         }
+//     }
+// }
 
 class Autoencoder extends LayerBase {
     constructor(config) {
@@ -5016,7 +5088,7 @@ const exportedLayers = [
     EfficientChannelAttention,
     FastAssociativeMemory,
     FourierFeaturePositionalEncoding,
-    GatedLinearMLP,
+    // GatedLinearMLP,
     GroupedQueryAttention,
     IncrementalPowerIterationPCA,
     LambdaLayer,
@@ -5029,7 +5101,7 @@ const exportedLayers = [
     MixtureOfExperts,
     MultiHeadAttention,
     MultiHeadMoeBlock,
-    MultiLayerPerceptron,
+    // MultiLayerPerceptron,
     MultiQueryAttention,
     OuroboticMemory,
     Range,
@@ -5038,7 +5110,7 @@ const exportedLayers = [
     SelfAttention,
     // SharedEmbedding,
     SinusoidalPositionalEncoding,
-    SMEARMoE,
+    // SMEARMoE,
     SparseMixtureOfExperts,
     SqueezeAndExcitation,
     StateSpace,

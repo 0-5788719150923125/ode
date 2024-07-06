@@ -146,7 +146,7 @@ export default class RandomFeatureAttention extends LayerBase {
             let outputs = tf.concat(headOutputs, -1)
 
             // Apply layer normalization
-            outputs = this.ode.ops.rmsNorm(outputs)
+            outputs = this.ops.rmsNorm(outputs)
 
             // Apply output projection
             outputs = this.applyDense(outputs, this.outputKernel.read())
