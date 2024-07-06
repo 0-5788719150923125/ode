@@ -90,6 +90,25 @@ class LayerBase extends tf.layers.Layer {
     //     return match ? customLayers[match] : undefined
     // }
 
+    applyALiBi(scores, numHeads, currentHead, seqLen) {
+        if (!this.alibiSlope) {
+            const base = tf.scalar(2 ** 8)
+            const powers = tf
+                .range(0, numHeads)
+                .cast('float32')
+                .add(tf.scalar(1))
+            const slopes = tf.pow(base, powers.div(tf.scalar(numHeads)))
+            this.alibiSlope = tf.keep(
+                slopes.reciprocal().expandDims(-1).expandDims(-1)
+            )
+        }
+        const alibiSlope = this.alibiSlope.gather([currentHead])
+        const range = tf.range(0, seqLen)
+        const relativePositions = range.expandDims(1).sub(range.expandDims(0))
+        const alibiScores = tf.mul(alibiSlope, relativePositions)
+        return scores.add(alibiScores)
+    }
+
     static get className() {
         return this.name
     }
@@ -293,7 +312,8 @@ class RandomFeatureAttention extends LayerBase {
         this.numFeatures = config.numFeatures || 256
         this.numHeads = config.numHeads || 8
         this.headDim = Math.floor(this.hiddenDim / this.numHeads)
-        this.eps = 1e-6
+        this.useALiBi = config.useALiBi || false
+        this.epsilon = 1e-6
     }
 
     build(inputShape) {
@@ -354,6 +374,7 @@ class RandomFeatureAttention extends LayerBase {
         return tf.tidy(() => {
             // Ensure inputs is a tensor, not an array
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const [batchSize, seqLen, features] = inputs.shape
 
             // Generate a mask
             const mask = tf.linalg
@@ -378,7 +399,11 @@ class RandomFeatureAttention extends LayerBase {
                 const D = tf.sum(KF, -2, true)
 
                 // Compute attention scores
-                const QF_KFV = tf.matMul(QF, KFV)
+                let QF_KFV = tf.matMul(QF, KFV)
+
+                if (this.useALiBi) {
+                    QF_KFV = this.applyALiBi(QF_KFV, this.numHeads, i, seqLen)
+                }
 
                 const maskedScores = QF_KFV.add(mask)
 
@@ -388,7 +413,7 @@ class RandomFeatureAttention extends LayerBase {
                 const QF_D_sum = tf.sum(QF_D, -1, true)
 
                 // Implementation of attention mechanism with epsilon for numerical stability
-                return tf.div(maskedScores, tf.add(QF_D_sum, this.eps))
+                return tf.div(maskedScores, tf.add(QF_D_sum, this.epsilon))
             })
 
             // Concatenate head outputs
@@ -443,7 +468,8 @@ class RandomFeatureAttention extends LayerBase {
             ...super.getConfig(),
             hiddenDim: this.hiddenDim,
             numFeatures: this.numFeatures,
-            numHeads: this.numHeads
+            numHeads: this.numHeads,
+            useALiBi: this.useALiBi
         }
     }
 }
@@ -1233,6 +1259,7 @@ class GroupedQueryAttention extends LayerBase {
         this.heads = config.heads || 8
         this.queryRatio = config.queryRatio || 2
         this.dropout = config.dropout || 0
+        this.useALiBi = config.useALiBi || false
     }
 
     build(inputShape) {
@@ -1329,11 +1356,8 @@ class GroupedQueryAttention extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            const mask = tf.linalg
-                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
-                .sub(tf.eye(inputs.shape[1]))
-                .mul(tf.scalar(-1e9))
+            const batchSize = inputs.shape[0]
+            const seqLen = inputs.shape[1]
 
             const attentionOutputs = []
 
@@ -1356,10 +1380,13 @@ class GroupedQueryAttention extends LayerBase {
                         this.queryBiases[i][j].read()
                     )
 
-                    const scores = tf
+                    let scores = tf
                         .matMul(Q, K, false, true)
-                        .div(tf.scalar(this.projection).sqrt())
-                        .add(mask)
+                        .div(tf.scalar(Math.sqrt(this.projection)))
+
+                    if (this.useALiBi) {
+                        scores = this.applyALiBi(scores, this.heads, i, seqLen)
+                    }
 
                     let weights = scores.softmax()
 

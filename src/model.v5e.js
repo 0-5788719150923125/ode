@@ -51,7 +51,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .RandomFeatureAttention({
                     hiddenDim: this.headDim,
                     numFeatures: this.numFeatures,
-                    numHeads: this.numHeads
+                    numHeads: this.numHeads,
+                    useALiBi: false
                 })
                 .apply(outputs)
 
