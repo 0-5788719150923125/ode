@@ -12,8 +12,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 256
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
-        this.headDim = config.headDim || 1024
-        this.numHeads = config.numHeads || 2
+        this.headDim = config.headDim || 64
+        this.numHeads = config.numHeads || 3
+        this.queryRatio = config.queryRatio || 3
         this.numFeatures = config.numFeatures || 256
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 1e-4
@@ -47,11 +48,19 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
+            // outputs = this.ode.layers
+            //     .RandomFeatureAttention({
+            //         hiddenDim: this.headDim,
+            //         numFeatures: this.numFeatures,
+            //         numHeads: this.numHeads,
+            //         useALiBi: false
+            //     })
+            //     .apply(outputs)
             outputs = this.ode.layers
-                .RandomFeatureAttention({
-                    hiddenDim: this.headDim,
-                    numFeatures: this.numFeatures,
-                    numHeads: this.numHeads,
+                .GroupedQueryAttention({
+                    heads: this.heads,
+                    projection: this.headDim,
+                    queryRatio: this.queryRatio,
                     useALiBi: false
                 })
                 .apply(outputs)
@@ -81,7 +90,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: 0.001
+                weightDecay: 0.1
             })
         ]
     }

@@ -1361,6 +1361,11 @@ class GroupedQueryAttention extends LayerBase {
 
             const attentionOutputs = []
 
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
+
             for (let i = 0; i < this.heads; i++) {
                 const K = this.applyDense(
                     inputs,
@@ -1387,6 +1392,8 @@ class GroupedQueryAttention extends LayerBase {
                     if (this.useALiBi) {
                         scores = this.applyALiBi(scores, this.heads, i, seqLen)
                     }
+
+                    scores = scores.add(mask)
 
                     let weights = scores.softmax()
 
