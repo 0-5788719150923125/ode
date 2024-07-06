@@ -13,8 +13,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
         this.headDim = config.headDim || 768
-        this.numHeads = config.numHeads || 6
-        this.numFeatures = config.numFeatures || 96
+        this.numHeads = config.numHeads || 3
+        this.numFeatures = config.numFeatures || 256
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 1e-4
     }
@@ -52,7 +52,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     hiddenDim: this.headDim,
                     numFeatures: this.numFeatures,
                     numHeads: this.numHeads,
-                    useALiBi: true
+                    useALiBi: false
                 })
                 .apply(outputs)
 

@@ -271,6 +271,12 @@ function sparseMixtureOfExpertsGrad(inputs, gatingScores, experts, topK) {
     return forward(inputs, gatingScores)
 }
 
+function rmsNorm(x) {
+    const rms = tf.sqrt(tf.mean(tf.square(x), -1, true))
+    const epsilon = 1e-7
+    return x.div(rms.add(epsilon))
+}
+
 export default {
     subliminalSpace,
     subliminalTopk,
@@ -278,5 +284,6 @@ export default {
     sparseMixtureOfExpertsGrad,
     gumbelSoftmax,
     reduceTimeStepsWithFFT,
-    reduceTimeStepsWithActivation
+    reduceTimeStepsWithActivation,
+    rmsNorm
 }

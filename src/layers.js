@@ -2,6 +2,8 @@ import * as tf from '@tensorflow/tfjs'
 import customOps from './ops.js'
 import customActivations from './activations.js'
 import { randomString } from './utils.js'
+import SharedEmbedding from './layers/SharedEmbedding.js'
+import RandomFeatureAttention from './layers/RandomFeatureAttention.js'
 
 const customLayers = {
     activation: (config) =>
@@ -33,7 +35,15 @@ const customLayers = {
         tf.layers.gru({ name: `gru-${randomString()}`, ...config }),
     lstm: (config) =>
         tf.layers.lstm({ name: `lstm-${randomString()}`, ...config }),
-    rnn: (config) => tf.layers.gru({ name: `rnn-${randomString()}`, ...config })
+    rnn: (config) =>
+        tf.layers.gru({ name: `rnn-${randomString()}`, ...config }),
+    SharedEmbedding: (config) =>
+        new SharedEmbedding({ name: `emb-${randomString()}`, ...config }),
+    RandomFeatureAttention: (config) =>
+        new RandomFeatureAttention({
+            name: `attn-${randomString()}`,
+            ...config
+        })
 }
 export default customLayers
 
@@ -132,104 +142,104 @@ class LayerBase extends tf.layers.Layer {
     }
 }
 
-class SharedEmbedding extends LayerBase {
-    constructor(config) {
-        super({ name: `emb-${randomString()}`, ...config })
-        this.inputDim = config.inputDim
-        this.outputDim = config.outputDim
-        this.embeddingsInitializer =
-            config.embeddingsInitializer || 'glorotUniform'
-        this.dropout = config.dropout || 0
-    }
+// class SharedEmbedding extends LayerBase {
+//     constructor(config) {
+//         super({ name: `emb-${randomString()}`, ...config })
+//         this.inputDim = config.inputDim
+//         this.outputDim = config.outputDim
+//         this.embeddingsInitializer =
+//             config.embeddingsInitializer || 'glorotUniform'
+//         this.dropout = config.dropout || 0
+//     }
 
-    build(inputShape) {
-        this.embeddings = this.addWeight(
-            'embeddings',
-            [this.inputDim, this.outputDim],
-            'float32',
-            tf.initializers[this.embeddingsInitializer](),
-            tf.regularizers.l2({ l2: 0.1 })
-        )
-    }
+//     build(inputShape) {
+//         this.embeddings = this.addWeight(
+//             'embeddings',
+//             [this.inputDim, this.outputDim],
+//             'float32',
+//             tf.initializers[this.embeddingsInitializer](),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
 
-    computeOutputShape(inputShape) {
-        if (inputShape.length === 2) {
-            // Input embedding
-            return [inputShape[0], inputShape[1], this.outputDim]
-        } else if (inputShape.length === 3) {
-            // Output projection
-            return [inputShape[0], inputShape[1], this.inputDim]
-        } else {
-            throw new Error('Invalid input shape for TiedEmbedding layer.')
-        }
-    }
+//     computeOutputShape(inputShape) {
+//         if (inputShape.length === 2) {
+//             // Input embedding
+//             return [inputShape[0], inputShape[1], this.outputDim]
+//         } else if (inputShape.length === 3) {
+//             // Output projection
+//             return [inputShape[0], inputShape[1], this.inputDim]
+//         } else {
+//             throw new Error('Invalid input shape for TiedEmbedding layer.')
+//         }
+//     }
 
-    call(inputs, kwargs) {
-        return tf.tidy(() => {
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            if (inputs.shape.length === 2) {
-                // Input embedding
-                const flatInputs = tf.reshape(inputs, [-1])
-                const embeddings = tf.gather(
-                    this.embeddings.read(),
-                    flatInputs.cast('int32')
-                )
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             if (inputs.shape.length === 2) {
+//                 // Input embedding
+//                 const flatInputs = tf.reshape(inputs, [-1])
+//                 const embeddings = tf.gather(
+//                     this.embeddings.read(),
+//                     flatInputs.cast('int32')
+//                 )
 
-                let outputs = tf.reshape(embeddings, [
-                    inputs.shape[0],
-                    inputs.shape[1],
-                    this.outputDim
-                ])
+//                 let outputs = tf.reshape(embeddings, [
+//                     inputs.shape[0],
+//                     inputs.shape[1],
+//                     this.outputDim
+//                 ])
 
-                outputs = kwargs['training']
-                    ? tf.dropout(outputs, this.dropout)
-                    : outputs
+//                 outputs = kwargs['training']
+//                     ? tf.dropout(outputs, this.dropout)
+//                     : outputs
 
-                return outputs
-            } else if (inputs.shape.length === 3) {
-                // Output projection
-                const denseOutput = tf.matMul(
-                    tf.reshape(inputs, [-1, this.outputDim]),
-                    this.embeddings.read(),
-                    false,
-                    true
-                )
+//                 return outputs
+//             } else if (inputs.shape.length === 3) {
+//                 // Output projection
+//                 const denseOutput = tf.matMul(
+//                     tf.reshape(inputs, [-1, this.outputDim]),
+//                     this.embeddings.read(),
+//                     false,
+//                     true
+//                 )
 
-                let outputs = tf.reshape(denseOutput, [
-                    inputs.shape[0],
-                    inputs.shape[1],
-                    this.inputDim
-                ])
+//                 let outputs = tf.reshape(denseOutput, [
+//                     inputs.shape[0],
+//                     inputs.shape[1],
+//                     this.inputDim
+//                 ])
 
-                outputs = kwargs['training']
-                    ? tf.dropout(outputs, this.dropout)
-                    : outputs
+//                 outputs = kwargs['training']
+//                     ? tf.dropout(outputs, this.dropout)
+//                     : outputs
 
-                return outputs
-            } else {
-                throw new Error(
-                    'Invalid input shape for SharedEmbedding layer.'
-                )
-            }
-        })
-    }
+//                 return outputs
+//             } else {
+//                 throw new Error(
+//                     'Invalid input shape for SharedEmbedding layer.'
+//                 )
+//             }
+//         })
+//     }
 
-    getWeights() {
-        return [this.embeddings.read()]
-    }
+//     getWeights() {
+//         return [this.embeddings.read()]
+//     }
 
-    setWeights(weights) {
-        this.embeddings.write(weights[0])
-    }
+//     setWeights(weights) {
+//         this.embeddings.write(weights[0])
+//     }
 
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            inputDim: this.inputDim,
-            outputDim: this.outputDim
-        }
-    }
-}
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             inputDim: this.inputDim,
+//             outputDim: this.outputDim
+//         }
+//     }
+// }
 
 class SelfAttention extends LayerBase {
     constructor(config) {
@@ -245,21 +255,21 @@ class SelfAttention extends LayerBase {
             [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.keyKernel = this.addWeight(
             `keyKernel`,
             [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.valueKernel = this.addWeight(
             `valueKernel`,
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -314,205 +324,205 @@ class SelfAttention extends LayerBase {
     }
 }
 
-// Loosely-inspired by Performer:
-// https://arxiv.org/abs/2009.14794
-class RandomFeatureAttention extends LayerBase {
-    constructor(config) {
-        super({ name: `attn-${randomString()}`, ...config })
-        this.hiddenDim = config.hiddenDim || 256
-        this.numFeatures = config.numFeatures || 256
-        this.numHeads = config.numHeads || 8
-        this.headDim = Math.floor(this.hiddenDim / this.numHeads)
-        this.useALiBi = config.useALiBi || false
-        this.epsilon = 1e-6
-        if (this.hiddenDim % this.numHeads !== 0) {
-            throw new Error(
-                `hiddenDim (${this.headDim}) should be divisible by numHeads (${this.numHeads})!`
-            )
-        }
-    }
+// // Loosely-inspired by Performer:
+// // https://arxiv.org/abs/2009.14794
+// class RandomFeatureAttention extends LayerBase {
+//     constructor(config) {
+//         super({ name: `attn-${randomString()}`, ...config })
+//         this.hiddenDim = config.hiddenDim || 256
+//         this.numFeatures = config.numFeatures || 256
+//         this.numHeads = config.numHeads || 8
+//         this.headDim = Math.floor(this.hiddenDim / this.numHeads)
+//         this.useALiBi = config.useALiBi || false
+//         this.epsilon = 1e-6
+//         if (this.hiddenDim % this.numHeads !== 0) {
+//             throw new Error(
+//                 `hiddenDim (${this.headDim}) should be divisible by numHeads (${this.numHeads})!`
+//             )
+//         }
+//     }
 
-    build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-        this.inputDim = inputDim
+//     build(inputShape) {
+//         const inputDim = inputShape[inputShape.length - 1]
+//         this.inputDim = inputDim
 
-        // Create weight matrices for each head
-        this.queryKernels = []
-        this.keyKernels = []
-        this.valueKernels = []
-        for (let i = 0; i < this.numHeads; i++) {
-            this.queryKernels.push(
-                this.addWeight(
-                    `queryKernel_${i}`,
-                    [inputDim, this.headDim],
-                    'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
-                )
-            )
-            this.keyKernels.push(
-                this.addWeight(
-                    `keyKernel_${i}`,
-                    [inputDim, this.headDim],
-                    'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
-                )
-            )
-            this.valueKernels.push(
-                this.addWeight(
-                    `valueKernel_${i}`,
-                    [inputDim, this.headDim],
-                    'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
-                )
-            )
-        }
+//         // Create weight matrices for each head
+//         this.queryKernels = []
+//         this.keyKernels = []
+//         this.valueKernels = []
+//         for (let i = 0; i < this.numHeads; i++) {
+//             this.queryKernels.push(
+//                 this.addWeight(
+//                     `queryKernel_${i}`,
+//                     [inputDim, this.headDim],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//             this.keyKernels.push(
+//                 this.addWeight(
+//                     `keyKernel_${i}`,
+//                     [inputDim, this.headDim],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//             this.valueKernels.push(
+//                 this.addWeight(
+//                     `valueKernel_${i}`,
+//                     [inputDim, this.headDim],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//         }
 
-        this.outputKernel = this.addWeight(
-            `outputKernel`,
-            [this.hiddenDim, inputDim],
-            'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
-        )
-        this.residual = customLayers.ResidualConnection()
+//         this.outputKernel = this.addWeight(
+//             `outputKernel`,
+//             [this.hiddenDim, inputDim],
+//             'float32',
+//             tf.initializers.glorotUniform(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//         this.residual = customLayers.ResidualConnection()
 
-        this.randomMatrix = tf.randomNormal(
-            [this.headDim, this.numFeatures],
-            0,
-            1 / Math.sqrt(this.numFeatures)
-        )
-    }
+//         this.randomMatrix = tf.randomNormal(
+//             [this.headDim, this.numFeatures],
+//             0,
+//             1 / Math.sqrt(this.numFeatures)
+//         )
+//     }
 
-    call(inputs) {
-        return tf.tidy(() => {
-            // Ensure inputs is a tensor, not an array
-            inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const [batchSize, seqLen, features] = inputs.shape
+//     call(inputs) {
+//         return tf.tidy(() => {
+//             // Ensure inputs is a tensor, not an array
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+//             const [batchSize, seqLen, features] = inputs.shape
 
-            // Process each head
-            const headOutputs = this.queryKernels.map((queryKernel, i) => {
-                // Linear transformations to create query, key, and value for this head
-                const Q = this.applyDense(inputs, queryKernel.read())
-                const K = this.applyDense(inputs, this.keyKernels[i].read())
-                const V = this.applyDense(inputs, this.valueKernels[i].read())
+//             // Process each head
+//             const headOutputs = this.queryKernels.map((queryKernel, i) => {
+//                 // Linear transformations to create query, key, and value for this head
+//                 const Q = this.applyDense(inputs, queryKernel.read())
+//                 const K = this.applyDense(inputs, this.keyKernels[i].read())
+//                 const V = this.applyDense(inputs, this.valueKernels[i].read())
 
-                // Apply random feature map to query and key
-                const QF = this.applyFeatureMap(Q)
-                const KF = this.applyFeatureMap(K)
+//                 // Apply random feature map to query and key
+//                 const QF = this.applyFeatureMap(Q)
+//                 const KF = this.applyFeatureMap(K)
 
-                // Compute key-value representation
-                const KFV = tf.matMul(KF, V, true, false)
-                // Compute normalization factor
-                const D = tf.sum(KF, -2, true)
+//                 // Compute key-value representation
+//                 const KFV = tf.matMul(KF, V, true, false)
+//                 // Compute normalization factor
+//                 const D = tf.sum(KF, -2, true)
 
-                // Compute attention scores
-                let QF_KFV = tf.matMul(QF, KFV)
+//                 // Compute attention scores
+//                 let QF_KFV = tf.matMul(QF, KFV)
 
-                if (this.useALiBi) {
-                    QF_KFV = this.applyALiBi(QF_KFV, this.numHeads, i, seqLen)
-                }
+//                 if (this.useALiBi) {
+//                     QF_KFV = this.applyALiBi(QF_KFV, this.numHeads, i, seqLen)
+//                 }
 
-                const mask = tf.tidy(() => {
-                    const headSeqLen = QF_KFV.shape[1]
-                    const headFeatures = QF_KFV.shape[2]
+//                 const mask = tf.tidy(() => {
+//                     const headSeqLen = QF_KFV.shape[1]
+//                     const headFeatures = QF_KFV.shape[2]
 
-                    const baseMask = tf.linalg.bandPart(
-                        tf.ones([headSeqLen, headFeatures]),
-                        0,
-                        -1
-                    )
+//                     const baseMask = tf.linalg.bandPart(
+//                         tf.ones([headSeqLen, headFeatures]),
+//                         0,
+//                         -1
+//                     )
 
-                    const identityMask = tf.eye(
-                        Math.min(headSeqLen, headFeatures)
-                    )
+//                     const identityMask = tf.eye(
+//                         Math.min(headSeqLen, headFeatures)
+//                     )
 
-                    const paddedIdentityMask = identityMask.pad([
-                        [0, Math.max(0, headSeqLen - headFeatures)],
-                        [0, Math.max(0, headFeatures - headSeqLen)]
-                    ])
+//                     const paddedIdentityMask = identityMask.pad([
+//                         [0, Math.max(0, headSeqLen - headFeatures)],
+//                         [0, Math.max(0, headFeatures - headSeqLen)]
+//                     ])
 
-                    const combinedMask = baseMask
-                        .sub(paddedIdentityMask)
-                        .mul(tf.scalar(-1e9))
+//                     const combinedMask = baseMask
+//                         .sub(paddedIdentityMask)
+//                         .mul(tf.scalar(-1e9))
 
-                    const expandedMask = combinedMask.expandDims(0)
+//                     const expandedMask = combinedMask.expandDims(0)
 
-                    const tiledMask = expandedMask.tile([batchSize, 1, 1])
+//                     const tiledMask = expandedMask.tile([batchSize, 1, 1])
 
-                    return tiledMask
-                })
+//                     return tiledMask
+//                 })
 
-                const maskedScores = QF_KFV.add(mask)
+//                 const maskedScores = QF_KFV.add(mask)
 
-                // Compute normalization term via element-wise multiplication for efficient broadcasting
-                const QF_D = tf.mul(QF, D)
-                // Sum over the feature dimension
-                const QF_D_sum = tf.sum(QF_D, -1, true)
+//                 // Compute normalization term via element-wise multiplication for efficient broadcasting
+//                 const QF_D = tf.mul(QF, D)
+//                 // Sum over the feature dimension
+//                 const QF_D_sum = tf.sum(QF_D, -1, true)
 
-                // Implementation of attention mechanism with epsilon for numerical stability
-                return tf.div(maskedScores, tf.add(QF_D_sum, this.epsilon))
-            })
+//                 // Implementation of attention mechanism with epsilon for numerical stability
+//                 return tf.div(maskedScores, tf.add(QF_D_sum, this.epsilon))
+//             })
 
-            // Concatenate head outputs
-            let outputs = tf.concat(headOutputs, -1)
+//             // Concatenate head outputs
+//             let outputs = tf.concat(headOutputs, -1)
 
-            // Apply layer normalization
-            outputs = this.rmsNorm(outputs)
+//             // Apply layer normalization
+//             outputs = this.rmsNorm(outputs)
 
-            // Apply output projection
-            outputs = this.applyDense(outputs, this.outputKernel.read())
-            // Scale down outputs for stability
-            outputs = tf.mul(outputs, tf.scalar(0.1))
+//             // Apply output projection
+//             outputs = this.applyDense(outputs, this.outputKernel.read())
+//             // Scale down outputs for stability
+//             outputs = tf.mul(outputs, tf.scalar(0.1))
 
-            // Apply residual connection
-            return this.residual.apply([inputs, outputs])
-        })
-    }
+//             // Apply residual connection
+//             return this.residual.apply([inputs, outputs])
+//         })
+//     }
 
-    applyFeatureMap(x) {
-        const projection = tf.matMul(x, this.randomMatrix)
-        // ReLU activation for sparsity and efficiency
-        return tf.relu(projection)
-    }
+//     applyFeatureMap(x) {
+//         const projection = tf.matMul(x, this.randomMatrix)
+//         // ReLU activation for sparsity and efficiency
+//         return tf.relu(projection)
+//     }
 
-    getWeights() {
-        return [
-            ...this.queryKernels.map((k) => k.read()),
-            ...this.keyKernels.map((k) => k.read()),
-            ...this.valueKernels.map((k) => k.read()),
-            this.outputKernel.read(),
-            this.randomMatrix
-        ]
-    }
+//     getWeights() {
+//         return [
+//             ...this.queryKernels.map((k) => k.read()),
+//             ...this.keyKernels.map((k) => k.read()),
+//             ...this.valueKernels.map((k) => k.read()),
+//             this.outputKernel.read(),
+//             this.randomMatrix
+//         ]
+//     }
 
-    setWeights(weights) {
-        const headWeights = weights.slice(0, -1)
-        const numHeadWeights = headWeights.length
-        const weightsPerHead = numHeadWeights / 3
+//     setWeights(weights) {
+//         const headWeights = weights.slice(0, -1)
+//         const numHeadWeights = headWeights.length
+//         const weightsPerHead = numHeadWeights / 3
 
-        for (let i = 0; i < this.numHeads; i++) {
-            this.queryKernels[i].write(headWeights[i])
-            this.keyKernels[i].write(headWeights[i + weightsPerHead])
-            this.valueKernels[i].write(headWeights[i + 2 * weightsPerHead])
-        }
+//         for (let i = 0; i < this.numHeads; i++) {
+//             this.queryKernels[i].write(headWeights[i])
+//             this.keyKernels[i].write(headWeights[i + weightsPerHead])
+//             this.valueKernels[i].write(headWeights[i + 2 * weightsPerHead])
+//         }
 
-        this.outputKernel.write(weights[weights.length - 2])
-        this.randomMatrix.write(weights[weights.length - 1])
-    }
+//         this.outputKernel.write(weights[weights.length - 2])
+//         this.randomMatrix.write(weights[weights.length - 1])
+//     }
 
-    getConfig() {
-        return {
-            ...super.getConfig(),
-            hiddenDim: this.hiddenDim,
-            numFeatures: this.numFeatures,
-            numHeads: this.numHeads,
-            useALiBi: this.useALiBi
-        }
-    }
-}
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             hiddenDim: this.hiddenDim,
+//             numFeatures: this.numFeatures,
+//             numHeads: this.numHeads,
+//             useALiBi: this.useALiBi
+//         }
+//     }
+// }
 
 // https://github.com/cmsflash/efficient-attention/blob/master/efficient_attention.py
 // currently failing, because the causal mask makes loss values extremely high
@@ -943,7 +953,7 @@ class MultiHeadAttention extends LayerBase {
                     [units, this.projection],
                     'float32',
                     tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.queryBiases.push(
@@ -952,7 +962,7 @@ class MultiHeadAttention extends LayerBase {
                     [this.projection],
                     'float32',
                     tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.keyKernels.push(
@@ -961,7 +971,7 @@ class MultiHeadAttention extends LayerBase {
                     [units, this.projection],
                     'float32',
                     tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.keyBiases.push(
@@ -970,7 +980,7 @@ class MultiHeadAttention extends LayerBase {
                     [this.projection],
                     'float32',
                     tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.valueKernels.push(
@@ -979,7 +989,7 @@ class MultiHeadAttention extends LayerBase {
                     [units, this.projection],
                     'float32',
                     tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.valueBiases.push(
@@ -988,7 +998,7 @@ class MultiHeadAttention extends LayerBase {
                     [this.projection],
                     'float32',
                     tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
         }
@@ -998,14 +1008,14 @@ class MultiHeadAttention extends LayerBase {
             [this.projection * this.heads, units],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.outputBias = this.addWeight(
             'outputBias',
             [units],
             'float32',
             tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -1137,7 +1147,7 @@ class MultiQueryAttention extends LayerBase {
                     [units, this.projection],
                     'float32',
                     tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.queryBiases.push(
@@ -1146,7 +1156,7 @@ class MultiQueryAttention extends LayerBase {
                     [this.projection],
                     'float32',
                     tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.1 })
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
         }
@@ -1155,42 +1165,42 @@ class MultiQueryAttention extends LayerBase {
             [units, this.projection],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.keyBias = this.addWeight(
             `keyBias`,
             [this.projection],
             'float32',
             tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [units, units],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.valueBias = this.addWeight(
             `valueBias`,
             [units],
             'float32',
             tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
             [units * this.queries, units],
             'float32',
             tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.outputBias = this.addWeight(
             `outputBias`,
             [units],
             'float32',
             tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.1 })
+            tf.regularizers.l2({ l2: 0.01 })
         )
         this.residual = customLayers.ResidualConnection()
     }
@@ -5011,7 +5021,7 @@ const exportedLayers = [
     IncrementalPowerIterationPCA,
     LambdaLayer,
     LinearAttention,
-    RandomFeatureAttention,
+    // RandomFeatureAttention,
     RandomProjectionFeatureReduction,
     LocalSelfAttention,
     VariableDimensionMLP,
@@ -5026,7 +5036,7 @@ const exportedLayers = [
     ResidualConnection,
     RotaryPositionalEncoding,
     SelfAttention,
-    SharedEmbedding,
+    // SharedEmbedding,
     SinusoidalPositionalEncoding,
     SMEARMoE,
     SparseMixtureOfExperts,
