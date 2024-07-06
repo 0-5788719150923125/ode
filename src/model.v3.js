@@ -34,9 +34,10 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .SelfAttention({
+                .ConstantSelfAttention({
                     units: this.units,
-                    projection: this.units * 4
+                    projection: this.units * 4,
+                    contextLength: this.contextLength
                 })
                 .apply(outputs)
 
