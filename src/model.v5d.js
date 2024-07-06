@@ -48,7 +48,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             outputs = this.ode.layers
                 .SelfAttention({
                     units: this.units,
-                    projection: this.headDim
+                    hiddenDim: this.headDim
                 })
                 .apply(outputs)
 

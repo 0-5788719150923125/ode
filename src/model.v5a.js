@@ -68,7 +68,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         for (let i = 0; i < this.experts; i++) {
             experts.push(
                 this.ode.layers.SelfAttention({
-                    projection: this.headDim
+                    hiddenDim: this.headDim
                 })
             )
         }

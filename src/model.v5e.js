@@ -12,7 +12,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 512
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
-        this.headDim = config.headDim || 2048
+        this.headDim = config.headDim || 1024
         this.headFeatures = config.headFeatures || 512
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 1e-4
@@ -40,9 +40,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
+        // outputs = this.ode.layers
+        //     .IndependentComponentAnalysis({
+        //         outputDim: this.units
+        //     })
+        //     .apply(outputs)
         outputs = this.ode.layers
-            .IndependentComponentAnalysis({
-                outputDim: this.units
+            .dense({
+                units: this.units
             })
             .apply(outputs)
 

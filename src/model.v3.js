@@ -7,8 +7,10 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
+        this.layers = config.layers || 3
         this.units = config.units || 256
+        this.learningRate = 0.0001
+        this.weightDecay = 0.001
     }
 
     defineTokenizer(config) {
@@ -34,16 +36,13 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .ConstantSelfAttention({
-                    units: this.units,
-                    projection: this.units * 4,
-                    contextLength: this.contextLength
+                .SelfAttention({
+                    hiddenDim: this.units * 4
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    units: this.units,
                     innerDim: this.units * 4,
                     activation: 'swish'
                 })
@@ -56,7 +55,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineSchedulers() {
-        this.learningRate = 0.0001
         this.schedulers = [
             this.ode.schedulers.constantScheduler(this.learningRate)
         ]
@@ -66,7 +64,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: 0.1
+                weightDecay: this.weightDecay
             })
         ]
     }

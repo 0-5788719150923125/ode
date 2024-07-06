@@ -4,7 +4,7 @@ import LayerBase from './base.js'
 export default class SelfAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.projection = config.projection || 256
+        this.hiddenDim = config.hiddenDim || 256
     }
 
     build(inputShape) {
@@ -12,14 +12,14 @@ export default class SelfAttention extends LayerBase {
 
         this.queryKernel = this.addWeight(
             `queryKernel`,
-            [inputDim, this.projection],
+            [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.keyKernel = this.addWeight(
             `keyKernel`,
-            [inputDim, this.projection],
+            [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -48,7 +48,7 @@ export default class SelfAttention extends LayerBase {
 
             const scores = tf
                 .matMul(Q, K, false, true)
-                .div(tf.scalar(this.projection).sqrt())
+                .div(tf.scalar(this.hiddenDim).sqrt())
                 .add(mask)
 
             const weights = scores.softmax()
@@ -78,7 +78,7 @@ export default class SelfAttention extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            projection: this.projection
+            hiddenDim: this.hiddenDim
         }
     }
 }

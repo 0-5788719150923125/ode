@@ -111,39 +111,6 @@ export default class SMEAR extends LayerBase {
     }
 
     // mergeExperts(experts, weights) {
-    //     // Create a shallow copy of the first expert
-    //     const mergedExpert = experts[0]
-
-    //     for (let i = 0; i < mergedExpert.layers.length; i++) {
-    //         const layer = mergedExpert.layers[i]
-    //         const layerWeights = layer.getWeights()
-
-    //         // Compute weighted average of weights for this layer across all experts
-    //         const averagedWeights = layerWeights.map((_, weightIndex) => {
-    //             const expertWeights = experts.map(
-    //                 (expert) => expert.layers[i].getWeights()[weightIndex]
-    //             )
-    //             const weightedSum = expertWeights.reduce(
-    //                 (sum, weight, expertIndex) => {
-    //                     const expertWeight = weights
-    //                         .slice([0, expertIndex], [-1, 1])
-    //                         .mean()
-    //                     return sum.add(weight.mul(expertWeight))
-    //                 },
-    //                 tf.zeros(expertWeights[0].shape)
-    //             )
-    //             // Divide by the sum of weights to get the weighted average
-    //             return weightedSum.div(weights.sum())
-    //         })
-
-    //         // Set the averaged weights to the layer
-    //         layer.setWeights(averagedWeights)
-    //     }
-
-    //     return mergedExpert
-    // }
-
-    // mergeExperts(experts, weights) {
     //     // We modify the first expert in-place
     //     const mergedExpert = experts[0]
     //     // We skip the first expert during averaging

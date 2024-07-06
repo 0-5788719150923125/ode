@@ -50,9 +50,11 @@ export default class CosmopediaDataset {
         console.log(url)
         const response = await fetch(url)
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
+            console.warn(
+                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old shard for now...`
+            )
+            return
         }
-
         this.buffer = new Uint8Array(await response.arrayBuffer())
         this.moveDataIntoTable()
         console.log('moved shard to table:', shard)
