@@ -48,7 +48,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .RandomFeatureAttention({
+                .ProjectedFeatureAttention({
                     hiddenDim: this.headDim,
                     numFeatures: this.numFeatures,
                     numHeads: this.numHeads,

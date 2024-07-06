@@ -3,7 +3,7 @@ import LayerBase from './base.js'
 
 // Loosely-inspired by Performer:
 // https://arxiv.org/abs/2009.14794
-export default class RandomFeatureAttention extends LayerBase {
+export default class ProjectedFeatureAttention extends LayerBase {
     constructor(config) {
         super(config)
         this.hiddenDim = config.hiddenDim || 256
@@ -200,4 +200,4 @@ export default class RandomFeatureAttention extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(RandomFeatureAttention)
+tf.serialization.registerClass(ProjectedFeatureAttention)
