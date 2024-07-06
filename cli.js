@@ -65,7 +65,7 @@ async function orchestrate(options) {
             options.corpus.split('/')[-1]
         )
     } else if (options.corpus === 'cosmopedia') {
-        corpus = await net.ode.samplers.CosmopediaDataset()
+        // pass
     } else {
         corpus = await net.ode.samplers.directorySampler(options.corpus, '\n\n')
     }
@@ -84,9 +84,8 @@ async function orchestrate(options) {
                 corpus
             )
         } else if (options.corpus === 'cosmopedia') {
-            dataset = net.ode.samplers.simpleSampler(
-                options.sampleLength * 10,
-                corpus
+            dataset = net.ode.samplers.CosmopediaSampler(
+                options.sampleLength * 10
             )
         } else {
             dataset = net.ode.samplers.stringSampler(
