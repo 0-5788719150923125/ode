@@ -121,4 +121,4 @@ export default class AttentionFreeTransformer extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(SynthesizerAttention)
+tf.serialization.registerClass(AttentionFreeTransformer)

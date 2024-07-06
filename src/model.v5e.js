@@ -12,11 +12,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 512
         this.numExperts = config.numExperts || 8
         this.moeDim = config.moeDim || 256
-        this.headDim = config.headDim || 768
-        this.numHeads = config.numHeads || 3
-        this.numFeatures = config.numFeatures || 256
+        this.headDim = config.headDim || 2048
+        this.headFeatures = config.headFeatures || 512
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 1e-4
+        this.weightDecay = 0.01
     }
 
     defineTokenizer() {
@@ -48,11 +48,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .ProjectedFeatureAttention({
+                .ConstantSelfAttention({
                     hiddenDim: this.headDim,
-                    numFeatures: this.numFeatures,
-                    numHeads: this.numHeads,
-                    useALiBi: false
+                    numFeatures: this.headFeatures
                 })
                 .apply(outputs)
 
@@ -81,7 +79,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: 0.1
+                weightDecay: this.weightDecay
             })
         ]
     }

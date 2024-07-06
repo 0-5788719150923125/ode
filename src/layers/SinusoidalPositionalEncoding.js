@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
+import Range from './Range.js'
 
 export default class SinusoidalPositionalEncoding extends LayerBase {
     constructor(config) {
@@ -11,7 +12,7 @@ export default class SinusoidalPositionalEncoding extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const range = customLayers.Range().apply(inputs)
+            const range = new Range().apply(inputs)
 
             // Determine the sequence length from the input shape
             const seqLength = range.shape[1]
