@@ -12,8 +12,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 256
         this.numExperts = config.numExperts || 3
         this.moeDim = config.moeDim || 512
-        this.headDim = config.headDim || 1024
-        this.headFeatures = config.headFeatures || 256
+        this.headDim = config.headDim || 512
+        this.numHeads = config.numHeads || 4
+        this.headFeatures = config.headFeatures || 128
         this.mlpDim = config.mlpDim || 1024
         this.learningRate = 1e-4
         this.weightDecay = 0.001
@@ -60,8 +61,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .ConstantSelfAttention({
-                    hiddenDim: this.headDim,
+                .ProjectedFeatureAttention({
+                    numHeads: this.numHeads,
+                    headDim: this.headDim,
                     numFeatures: this.headFeatures
                 })
                 .apply(outputs)

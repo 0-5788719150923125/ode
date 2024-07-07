@@ -1,37 +1,27 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
-// Loosely-inspired by Performer:
-// https://arxiv.org/abs/2009.14794
 export default class ProjectedFeatureAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.hiddenDim = config.hiddenDim || 256
-        this.numFeatures = config.numFeatures || 256
         this.numHeads = config.numHeads || 8
-        this.headDim = Math.floor(this.hiddenDim / this.numHeads)
-        this.useALiBi = config.useALiBi || false
-        this.epsilon = 1e-6
-        if (this.hiddenDim % this.numHeads !== 0) {
-            throw new Error(
-                `hiddenDim (${this.headDim}) should be divisible by numHeads (${this.numHeads})!`
-            )
-        }
+        this.headDim = config.headDim || 64
+        this.numFeatures = config.numFeatures || 256
     }
 
     build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1]
-        this.inputDim = inputDim
+        const units = inputShape[inputShape.length - 1]
 
-        // Create weight matrices for each head
         this.queryKernels = []
         this.keyKernels = []
         this.valueKernels = []
+        this.featureMatrices = []
+
         for (let i = 0; i < this.numHeads; i++) {
             this.queryKernels.push(
                 this.addWeight(
                     `queryKernel_${i}`,
-                    [inputDim, this.headDim],
+                    [units, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
@@ -40,7 +30,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             this.keyKernels.push(
                 this.addWeight(
                     `keyKernel_${i}`,
-                    [inputDim, this.headDim],
+                    [units, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
@@ -49,7 +39,16 @@ export default class ProjectedFeatureAttention extends LayerBase {
             this.valueKernels.push(
                 this.addWeight(
                     `valueKernel_${i}`,
-                    [inputDim, this.headDim],
+                    [units, this.headDim],
+                    'float32',
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.01 })
+                )
+            )
+            this.featureMatrices.push(
+                this.addWeight(
+                    `featureMatrix_${i}`,
+                    [this.headDim, this.numFeatures],
                     'float32',
                     tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
@@ -58,146 +57,272 @@ export default class ProjectedFeatureAttention extends LayerBase {
         }
 
         this.outputKernel = this.addWeight(
-            `outputKernel`,
-            [this.hiddenDim, inputDim],
+            'outputKernel',
+            [this.headDim * this.numHeads, units],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
         )
-
-        this.randomMatrix = tf.randomNormal(
-            [this.headDim, this.numFeatures],
-            0,
-            1 / Math.sqrt(this.numFeatures)
-        )
     }
 
-    call(inputs) {
+    call(inputs, kwargs) {
         return tf.tidy(() => {
-            // Ensure inputs is a tensor, not an array
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const [batchSize, seqLen, features] = inputs.shape
 
-            // Process each head
-            const headOutputs = this.queryKernels.map((queryKernel, i) => {
-                // Linear transformations to create query, key, and value for this head
-                const Q = this.applyDense(inputs, queryKernel.read())
+            const mask = tf.linalg
+                .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+                .sub(tf.eye(inputs.shape[1]))
+                .mul(tf.scalar(-1e9))
+
+            const attentionOutputs = []
+
+            for (let i = 0; i < this.numHeads; i++) {
+                const Q = this.applyDense(inputs, this.queryKernels[i].read())
                 const K = this.applyDense(inputs, this.keyKernels[i].read())
                 const V = this.applyDense(inputs, this.valueKernels[i].read())
 
-                // Apply random feature map to query and key
-                const QF = this.applyFeatureMap(Q)
-                const KF = this.applyFeatureMap(K)
+                const Qp = this.applyDense(Q, this.featureMatrices[i].read())
+                const Kp = this.applyDense(K, this.featureMatrices[i].read())
 
-                // Compute key-value representation
-                const KFV = tf.matMul(KF, V, true, false)
-                // Compute normalization factor
-                const D = tf.sum(KF, -2, true)
+                const scores = tf
+                    .matMul(Qp, Kp, false, true)
+                    .div(tf.scalar(Math.sqrt(this.numFeatures)))
+                    .add(mask)
 
-                // Compute attention scores
-                let QF_KFV = tf.matMul(QF, KFV)
+                let weights = scores.softmax()
 
-                if (this.useALiBi) {
-                    QF_KFV = this.applyALiBi(QF_KFV, this.numHeads, i, seqLen)
-                }
+                weights = kwargs['training']
+                    ? tf.dropout(weights, this.dropout)
+                    : weights
 
-                const mask = tf.tidy(() => {
-                    const headSeqLen = QF_KFV.shape[1]
-                    const headFeatures = QF_KFV.shape[2]
+                const output = tf.matMul(weights, V)
 
-                    const baseMask = tf.linalg.bandPart(
-                        tf.ones([headSeqLen, headFeatures]),
-                        0,
-                        -1
-                    )
+                attentionOutputs.push(output)
+            }
 
-                    const identityMask = tf.eye(
-                        Math.min(headSeqLen, headFeatures)
-                    )
+            const concatenatedOutputs = tf.concat(attentionOutputs, -1)
+            let outputs = this.applyDense(
+                concatenatedOutputs,
+                this.outputKernel.read()
+            )
 
-                    const paddedIdentityMask = identityMask.pad([
-                        [0, Math.max(0, headSeqLen - headFeatures)],
-                        [0, Math.max(0, headFeatures - headSeqLen)]
-                    ])
-
-                    const combinedMask = baseMask
-                        .sub(paddedIdentityMask)
-                        .mul(tf.scalar(-1e9))
-
-                    const expandedMask = combinedMask.expandDims(0)
-
-                    const tiledMask = expandedMask.tile([batchSize, 1, 1])
-
-                    return tiledMask
-                })
-
-                const maskedScores = QF_KFV.add(mask)
-
-                // Compute normalization term via element-wise multiplication for efficient broadcasting
-                const QF_D = tf.mul(QF, D)
-                // Sum over the feature dimension
-                const QF_D_sum = tf.sum(QF_D, -1, true)
-
-                // Implementation of attention mechanism with epsilon for numerical stability
-                return tf.div(maskedScores, tf.add(QF_D_sum, this.epsilon))
-            })
-
-            // Concatenate head outputs
-            let outputs = tf.concat(headOutputs, -1)
-
-            // Apply layer normalization
             outputs = this.ops.rmsNorm(outputs)
 
-            // Apply output projection
-            outputs = this.applyDense(outputs, this.outputKernel.read())
-            // Scale down outputs for stability
-            outputs = tf.mul(outputs, tf.scalar(0.1))
+            outputs = tf.add(inputs, outputs)
 
-            // Apply residual connection
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 
-    applyFeatureMap(x) {
-        const projection = tf.matMul(x, this.randomMatrix)
-        // ReLU activation for sparsity and efficiency
-        return tf.relu(projection)
-    }
-
     getWeights() {
-        return [
-            ...this.queryKernels.map((k) => k.read()),
-            ...this.keyKernels.map((k) => k.read()),
-            ...this.valueKernels.map((k) => k.read()),
-            this.outputKernel.read(),
-            this.randomMatrix
-        ]
+        const weights = []
+
+        for (let i = 0; i < this.numHeads; i++) {
+            weights.push(this.queryKernels[i].read())
+            weights.push(this.keyKernels[i].read())
+            weights.push(this.valueKernels[i].read())
+            weights.push(this.featureMatrices[i].read())
+        }
+
+        weights.push(this.outputKernel.read())
+
+        return weights
     }
 
     setWeights(weights) {
-        const headWeights = weights.slice(0, -1)
-        const numHeadWeights = headWeights.length
-        const weightsPerHead = numHeadWeights / 3
+        let index = 0
 
         for (let i = 0; i < this.numHeads; i++) {
-            this.queryKernels[i].write(headWeights[i])
-            this.keyKernels[i].write(headWeights[i + weightsPerHead])
-            this.valueKernels[i].write(headWeights[i + 2 * weightsPerHead])
+            this.queryKernels[i].write(weights[index++])
+            this.keyKernels[i].write(weights[index++])
+            this.valueKernels[i].write(weights[index++])
+            this.featureMatrices[i].write(weights[index++])
         }
 
-        this.outputKernel.write(weights[weights.length - 2])
-        this.randomMatrix.write(weights[weights.length - 1])
+        this.outputKernel.write(weights[index])
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            hiddenDim: this.hiddenDim,
-            numFeatures: this.numFeatures,
             numHeads: this.numHeads,
-            useALiBi: this.useALiBi
+            headDim: this.headDim,
+            numFeatures: this.numFeatures
         }
     }
 }
 
 tf.serialization.registerClass(ProjectedFeatureAttention)
+
+// import * as tf from '@tensorflow/tfjs'
+// import LayerBase from './base.js'
+
+// export default class ProjectedFeatureAttention extends LayerBase {
+//     constructor(config) {
+//         super(config)
+//         this.numHeads = config.numHeads || 8
+//         this.headDim = config.headDim || 64
+//         this.numFeatures = config.numFeatures || 256
+//         this.dropout = config.dropout || 0
+//     }
+
+//     build(inputShape) {
+//         const units = inputShape[inputShape.length - 1]
+
+//         this.queryKernels = []
+//         this.keyKernels = []
+//         this.valueKernels = []
+//         this.featureMatrices = []
+
+//         for (let i = 0; i < this.numHeads; i++) {
+//             this.queryKernels.push(
+//                 this.addWeight(
+//                     `queryKernel_${i}`,
+//                     [units, this.headDim],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//             this.keyKernels.push(
+//                 this.addWeight(
+//                     `keyKernel_${i}`,
+//                     [units, this.headDim],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//             this.valueKernels.push(
+//                 this.addWeight(
+//                     `valueKernel_${i}`,
+//                     [units, this.headDim],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//             this.featureMatrices.push(
+//                 this.addWeight(
+//                     `featureMatrix_${i}`,
+//                     [this.headDim, this.numFeatures],
+//                     'float32',
+//                     tf.initializers.glorotUniform(),
+//                     tf.regularizers.l2({ l2: 0.01 })
+//                 )
+//             )
+//             // this.randomMatrix = tf.randomNormal(
+//             //     [this.headDim, this.numFeatures],
+//             //     0,
+//             //     1 / Math.sqrt(this.numFeatures)
+//             // )
+//         }
+
+//         this.outputKernel = this.addWeight(
+//             'outputKernel',
+//             [this.headDim * this.numHeads, units],
+//             'float32',
+//             tf.initializers.glorotUniform(),
+//             tf.regularizers.l2({ l2: 0.01 })
+//         )
+//     }
+
+//     call(inputs, kwargs) {
+//         return tf.tidy(() => {
+//             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+
+//             const mask = tf.linalg
+//                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
+//                 .sub(tf.eye(inputs.shape[1]))
+//                 .mul(tf.scalar(-1e9))
+
+//             const attentionOutputs = []
+
+//             for (let i = 0; i < this.numHeads; i++) {
+//                 const Q = this.applyDense(inputs, this.queryKernels[i].read())
+//                 const K = this.applyDense(inputs, this.keyKernels[i].read())
+//                 const V = this.applyDense(inputs, this.valueKernels[i].read())
+
+//                 const Qp = this.applyDense(Q, this.featureMatrices[i].read())
+//                 const Kp = this.applyDense(K, this.featureMatrices[i].read())
+
+//                 const scores = tf
+//                     .matMul(Qp, Kp, false, true)
+//                     .div(tf.scalar(Math.sqrt(this.numFeatures)))
+//                     .add(mask)
+
+//                 let weights = scores.softmax()
+
+//                 weights = kwargs['training']
+//                     ? tf.dropout(weights, this.dropout)
+//                     : weights
+
+//                 const output = tf.matMul(weights, V)
+
+//                 attentionOutputs.push(output)
+//             }
+
+//             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
+//             let outputs = this.applyDense(
+//                 concatenatedOutputs,
+//                 this.outputKernel.read()
+//             )
+
+//             outputs = this.ops.rmsNorm(outputs)
+
+//             outputs = tf.add(inputs, outputs)
+
+//             outputs = kwargs['training']
+//                 ? tf.dropout(outputs, this.dropout)
+//                 : outputs
+
+//             return outputs
+//         })
+//     }
+
+//     applyFeatureMap(x) {
+//         const projection = tf.matMul(x, this.randomMatrix)
+//         // ReLU activation for sparsity and efficiency
+//         return tf.relu(projection)
+//     }
+
+//     getWeights() {
+//         const weights = []
+
+//         for (let i = 0; i < this.numHeads; i++) {
+//             weights.push(this.queryKernels[i].read())
+//             weights.push(this.keyKernels[i].read())
+//             weights.push(this.valueKernels[i].read())
+//             weights.push(this.featureMatrices[i].read())
+//         }
+
+//         weights.push(this.outputKernel.read())
+
+//         return weights
+//     }
+
+//     setWeights(weights) {
+//         let index = 0
+
+//         for (let i = 0; i < this.numHeads; i++) {
+//             this.queryKernels[i].write(weights[index++])
+//             this.keyKernels[i].write(weights[index++])
+//             this.valueKernels[i].write(weights[index++])
+//             this.featureMatrices[i].write(weights[index++])
+//         }
+
+//         this.outputKernel.write(weights[index])
+//     }
+
+//     getConfig() {
+//         return {
+//             ...super.getConfig(),
+//             numHeads: this.numHeads,
+//             headDim: this.headDim,
+//             numFeatures: this.numFeatures,
+//             dropout: this.dropout
+//         }
+//     }
+// }
+
+// tf.serialization.registerClass(ProjectedFeatureAttention)
