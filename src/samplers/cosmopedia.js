@@ -48,16 +48,16 @@ export default class CosmopediaDataset {
         )}.parquet`
         const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log(url)
-        const response = await fetch(url)
-        if (!response.ok) {
+        try {
+            const response = await fetch(url)
+            this.buffer = new Uint8Array(await response.arrayBuffer())
+            this.moveDataIntoTable()
+            console.log('moved shard to table:', shard)
+        } catch (err) {
             console.warn(
                 `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old shard for now...`
             )
-            return
         }
-        this.buffer = new Uint8Array(await response.arrayBuffer())
-        this.moveDataIntoTable()
-        console.log('moved shard to table:', shard)
     }
 
     moveDataIntoTable() {

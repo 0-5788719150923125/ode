@@ -13,9 +13,9 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.weightDecay = 0.001
     }
 
-    defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-            model: 'OriginalDesign/word'
+    defineTokenizer() {
+        this.tokenizer = this.ode.tokenizers.TokenMonster({
+            model: 'englishcode-4096-consistent-v1'
         })
     }
 

@@ -37,6 +37,7 @@ import StateSpace from './layers/StateSpace.js'
 import SwarmOfExperts from './layers/SwarmOfExperts.js'
 import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
+import VarianceThreshold from './layers/VarianceThreshold.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -199,6 +200,10 @@ const customLayersConfig = {
     VariableDimensionMLP: {
         constructor: VariableDimensionMLP,
         prefix: 'mlp'
+    },
+    VarianceThreshold: {
+        constructor: VarianceThreshold,
+        prefix: 'op'
     }
 }
 
