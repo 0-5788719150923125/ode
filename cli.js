@@ -57,18 +57,18 @@ async function orchestrate(options) {
         ...options
     })
 
-    let corpus
-    console.log('loading corpus:', options.corpus)
-    if (options.corpus.startsWith('http')) {
-        corpus = await net.ode.samplers.fetchURLSampler(
-            options.corpus,
-            options.corpus.split('/')[-1]
-        )
-    } else if (options.corpus === 'cosmopedia') {
-        // pass
-    } else {
-        corpus = await net.ode.samplers.directorySampler(options.corpus, '\n\n')
-    }
+    // let corpus
+    // console.log('loading corpus:', options.corpus)
+    // if (options.corpus.startsWith('http')) {
+    //     corpus = await net.ode.samplers.fetchURLSampler(
+    //         options.corpus,
+    //         options.corpus.split('/')[-1]
+    //     )
+    // } else if (options.corpus === 'cosmopedia') {
+    //     // pass
+    // } else {
+    //     corpus = await net.ode.samplers.directorySampler(options.corpus, '\n\n')
+    // }
 
     if (['infer', 'continue'].includes(options.mode)) {
         await net.load()
@@ -85,12 +85,22 @@ async function orchestrate(options) {
             )
         } else if (options.corpus === 'cosmopedia') {
             dataset = net.ode.samplers.CosmopediaSampler(options.sampleLength)
+        } else if (options.corpus === 'multi') {
+            const samplers = [
+                net.ode.samplers.CosmopediaSampler(options.sampleLength),
+                net.ode.samplers.DirectorySampler(
+                    '/home/crow/Repos/vtx/lab/phi/train',
+                    '\n\n'
+                )
+            ]
+            dataset = net.ode.samplers.MultiSampler(samplers)
         } else {
-            dataset = net.ode.samplers.stringSampler(
-                options.sampleLength * 8,
-                0,
-                corpus
-            )
+            // dataset = net.ode.samplers.stringSampler(
+            //     options.sampleLength * 8,
+            //     0,
+            //     corpus
+            // )
+            dataset = net.ode.samplers.DirectorySampler(options.corpus, '\n\n')
         }
 
         const {

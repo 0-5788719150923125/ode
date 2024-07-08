@@ -389,7 +389,10 @@ async function batchMaker(
     let ysArray = []
 
     for (let i = 0; i < batchSize; ++i) {
-        const sample = await dataGenerator.take(tokenizer, inputLength + 1)
+        const sample = await dataGenerator.take({
+            tokenizer,
+            maxSeqLen: inputLength + 1
+        })
         const textIndices = preprocessData(
             sample,
             tokenizer,
@@ -492,10 +495,10 @@ export class PredictionSampler {
             const maxLength = args.predictLength
 
             const seedLength = randomBetween(16, maxLength - 16)
-            const sample = await args.dataGenerator.take(
-                args.tokenizer,
-                randomBetween(16, maxLength - 16)
-            )
+            const sample = await args.dataGenerator.take({
+                tokenizer: args.tokenizer,
+                maxSeqLen: randomBetween(16, maxLength - 16)
+            })
             const prompt = args.tokenizer.decode(sample)
 
             const params = {
