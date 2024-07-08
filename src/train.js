@@ -499,7 +499,11 @@ export class PredictionSampler {
                 tokenizer: args.tokenizer,
                 maxSeqLen: randomBetween(16, maxLength - 16)
             })
-            const prompt = args.tokenizer.decode(sample)
+
+            let prompt = sample
+            if (Array.isArray(sample)) {
+                prompt = args.tokenizer.decode(sample)
+            }
 
             const params = {
                 doSample: true,
