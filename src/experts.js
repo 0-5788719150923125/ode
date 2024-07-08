@@ -8,7 +8,7 @@ class ExpertBase {
         }
         this.expertArgs = config || {
             type: 'SelfAttention',
-            projection: 64
+            hiddenDim: 64
         }
         this.expertType = this.expertArgs.type
         this.inputShape = this.expertArgs.inputShape

@@ -1,6 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
+import LayerBase from './layers/base.js'
 import { randomString } from './utils.js'
-import AdaptiveMixtureOfExperts from './layers/AdaptiveMixtureOfExperts copy.js'
+import AdaptiveMixtureOfExperts from './layers/AdaptiveMixtureOfExperts.js'
 import Antirectifier from './layers/Antirectifier.js'
 import AttentionFreeTransformer from './layers/AttentionFreeTransformer.js'
 import Autoencoder from './layers/Autoencoder.js'
@@ -38,6 +39,7 @@ import SwarmOfExperts from './layers/SwarmOfExperts.js'
 import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
+import LowRankFactorization from './layers/LowRankFactorization.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -80,9 +82,13 @@ const customLayersConfig = {
         constructor: CapsNet,
         prefix: 'cap'
     },
-    concatenate: { constructor: tf.layers.concatenate, prefix: 'con' },
     ChunkedSelfAttention: {
         constructor: ChunkedSelfAttention,
+        prefix: 'attn'
+    },
+    concatenate: { constructor: tf.layers.concatenate, prefix: 'con' },
+    ConstantSelfAttention: {
+        constructor: ConstantSelfAttention,
         prefix: 'attn'
     },
     conv1d: { constructor: tf.layers.conv1d, prefix: 'c1d' },
@@ -129,9 +135,9 @@ const customLayersConfig = {
         constructor: LambdaLayer,
         prefix: 'op'
     },
-    ConstantSelfAttention: {
-        constructor: ConstantSelfAttention,
-        prefix: 'attn'
+    LowRankFactorization: {
+        constructor: LowRankFactorization,
+        prefix: 'op'
     },
     lstm: { constructor: tf.layers.lstm, prefix: 'lstm' },
     MixtureOfDepths: {
@@ -208,7 +214,7 @@ const customLayersConfig = {
 }
 
 /**
- * @type {{[K in keyof typeof customLayersConfig]: (config: any) => import('@tensorflow/tfjs').layers.Layer}}
+ * @type {{[K in keyof typeof customLayersConfig]: (config: any) => LayerBase}}
  */
 const customLayers = Object.fromEntries(
     Object.entries(customLayersConfig).map(([key, { constructor, prefix }]) => [

@@ -1,6 +1,8 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
+// Loosely-inspired by Performer:
+// https://arxiv.org/abs/2009.14794
 export default class ProjectedFeatureAttention extends LayerBase {
     constructor(config) {
         super(config)
@@ -50,10 +52,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `featureMatrix_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.randomNormal({
-                        mean: 0,
-                        stddev: 1 / Math.sqrt(this.headFeatures)
-                    }),
+                    tf.initializers.orthogonal({ gain: 1.0 }),
                     null,
                     false
                 )
@@ -89,16 +88,22 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 const QF = this.applyFeatureMap(Q, this.features[i].read())
                 const KF = this.applyFeatureMap(K, this.features[i].read())
 
-                const scores = tf
-                    .matMul(QF, KF, false, true)
-                    .div(tf.scalar(Math.sqrt(this.headFeatures)))
-                    .add(mask)
+                // Normalize for numerical stability
+                const epsilon = 1e-6
+                const QFNorm = tf.div(
+                    QF,
+                    tf.sqrt(tf.sum(tf.square(QF), -1, true)).add(epsilon)
+                )
+                const KFNorm = tf.div(
+                    KF,
+                    tf.sqrt(tf.sum(tf.square(KF), -1, true)).add(epsilon)
+                )
 
-                const weights = scores.softmax()
+                // Efficient attention computation
+                const KFV = tf.matMul(KFNorm, V, true, false)
+                const attention = tf.matMul(QFNorm, KFV)
 
-                const output = tf.matMul(weights, V)
-
-                attentionOutputs.push(output)
+                attentionOutputs.push(attention)
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
@@ -115,10 +120,49 @@ export default class ProjectedFeatureAttention extends LayerBase {
         })
     }
 
-    applyFeatureMap(x, featureMatrix) {
-        const projection = tf.matMul(x, featureMatrix)
-        // ReLU activation for sparsity and efficiency
-        return tf.relu(projection)
+    applyFeatureMap(x, randomMatrix) {
+        return tf.tidy(() => {
+            const projection = tf.matMul(x, randomMatrix)
+            const [batchSize, seqLen, featureDim] = projection.shape
+
+            // Reshape to separate features for sin and cos
+            const reshaped = tf.reshape(projection, [
+                batchSize,
+                seqLen,
+                featureDim / 2,
+                2
+            ])
+
+            // Apply sin and cos
+            const cosProjection = tf.cos(
+                reshaped.slice([0, 0, 0, 0], [-1, -1, -1, 1])
+            )
+            const sinProjection = tf.sin(
+                reshaped.slice([0, 0, 0, 1], [-1, -1, -1, 1])
+            )
+
+            // Combine sin and cos
+            const combined = tf.reshape(
+                tf.stack([cosProjection, sinProjection], 3),
+                [batchSize, seqLen, featureDim]
+            )
+
+            // Generate random signs (+1 or -1), as used in FAVOR
+            const randomSigns = tf
+                .randomUniform([1, 1, featureDim], 0, 2, 'int32')
+                .mul(2)
+                .sub(1)
+
+            // Apply random signs
+            const signedCombined = combined.mul(randomSigns)
+
+            // Ensure positivity
+            const expCombined = tf.exp(signedCombined)
+
+            // Normalize
+            const normalizer = tf.sqrt(tf.scalar(featureDim / 2))
+            return expCombined.div(normalizer)
+        })
     }
 
     getWeights() {

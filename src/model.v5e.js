@@ -12,9 +12,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 256
         this.numExperts = config.numExperts || 3
         this.moeDim = config.moeDim || 512
-        this.headDim = config.headDim || 512
-        this.numHeads = config.numHeads || 3
-        this.headFeatures = config.headFeatures || 128
+        this.headDim = config.headDim || 128
+        this.numHeads = config.numHeads || 8
+        this.headFeatures = config.headFeatures || 32
         this.mlpDim = config.mlpDim || 1024
         this.learningRate = 1e-4
         this.weightDecay = 0.001
@@ -42,20 +42,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         // outputs = this.ode.layers
-        //     .VarianceThreshold({
-        //         outputDim: this.units
-        //     })
-        //     .apply(outputs)
-
-        // outputs = this.ode.layers
-        //     .IndependentComponentAnalysis({
-        //         outputDim: this.units
-        //     })
-        //     .apply(outputs)
-
-        // outputs = this.ode.layers
-        //     .dense({
-        //         units: this.units
+        //     .LowRankFactorization({
+        //         outputDim: this.units,
+        //         rank: 64,
         //     })
         //     .apply(outputs)
 
@@ -68,12 +57,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 })
                 .apply(outputs)
 
-            // outputs = this.ode.layers
-            //     .SelfAttention({
-            //         hiddenDim: this.headDim
-            //     })
-            //     .apply(outputs)
-
             outputs = this.ode.layers
                 .SMEAR({
                     activation: 'mish',
@@ -81,12 +64,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     experts: this.createFeedforwardExperts(outputs.shape)
                 })
                 .apply(outputs)
-            // outputs = this.ode.layers
-            //     .GatedLinearMLP({
-            //         innerDim: this.mlpDim,
-            //         activation: 'mish'
-            //     })
-            //     .apply(outputs)
         }
 
         // outputs = this.ode.layers
