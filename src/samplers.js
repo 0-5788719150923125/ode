@@ -1,13 +1,3 @@
-async function* CosmopediaSampler(sampleLen) {
-    const CosmopediaDataset = (await import('./samplers/cosmopedia.js')).default
-    const sampler = new CosmopediaDataset()
-    await sampler.init()
-    sampler.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
-    while (true) {
-        yield await sampler.getSample(sampleLen)
-    }
-}
-
 class RandomSampler {
     constructor(sampler) {
         this.sampler = sampler
@@ -121,7 +111,7 @@ class HTTPSampler {
     }
 }
 
-class CachingSampler {
+class StridedSampler {
     constructor(generator) {
         this.generator = generator
         this.tokens = []
@@ -155,6 +145,16 @@ class MultiSampler {
     }
 }
 
+async function* CosmopediaGenerator(sampleLen) {
+    const CosmopediaDataset = (await import('./datasets/cosmopedia.js')).default
+    const sampler = new CosmopediaDataset()
+    await sampler.init()
+    sampler.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
+    while (true) {
+        yield await sampler.getSample(sampleLen)
+    }
+}
+
 const samplers = {
     RandomSampler: (sampler) => new RandomSampler(sampler),
     SequentialSampler: (sampler, stepSize) =>
@@ -164,7 +164,7 @@ const samplers = {
         new RandomSampler(new DirectorySampler(directories, delimiter)),
     HTTPSampler: (url) => new RandomSampler(new HTTPSampler(url)),
     CosmopediaSampler: (sampleLen) =>
-        new CachingSampler(CosmopediaSampler(sampleLen)),
+        new StridedSampler(CosmopediaGenerator(sampleLen)),
     MultiSampler: (samplers) => new MultiSampler(samplers)
 }
 export default samplers
