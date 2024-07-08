@@ -150,7 +150,10 @@ export function preprocessData(
     maxSequenceLength,
     paddingSide = 'left'
 ) {
-    let indices = tokenizer.encode(text)
+    let indices = text
+    if (!Array.isArray(text)) {
+        indices = tokenizer.encode(text)
+    }
 
     // Ensure sequence is not longer than inputLength
     if (indices.length > maxSequenceLength) {

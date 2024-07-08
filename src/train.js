@@ -88,6 +88,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 step: this.step,
                 loss: this.loss,
                 dataGenerator,
+                tokenizer: this.tokenizer,
                 learningRate: this.model.optimizer?.learningRate,
                 ...trainArgs
             })
@@ -388,8 +389,7 @@ async function batchMaker(
     let ysArray = []
 
     for (let i = 0; i < batchSize; ++i) {
-        const result = await dataGenerator.next()
-        const sample = result.value
+        const sample = await dataGenerator.take(tokenizer, inputLength + 1)
         const textIndices = preprocessData(
             sample,
             tokenizer,
@@ -492,8 +492,11 @@ export class PredictionSampler {
             const maxLength = args.predictLength
 
             const seedLength = randomBetween(16, maxLength - 16)
-            const nextValue = await args.dataGenerator.next()
-            const prompt = nextValue.value.slice(0, seedLength)
+            const sample = await args.dataGenerator.take(
+                args.tokenizer,
+                randomBetween(16, maxLength - 16)
+            )
+            const prompt = args.tokenizer.decode(sample)
 
             const params = {
                 doSample: true,

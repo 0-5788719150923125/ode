@@ -93,6 +93,26 @@ async function* CosmopediaSampler(sampleLen) {
     }
 }
 
+class CachingSampler {
+    constructor(generator) {
+        this.generator = generator
+        this.tokens = []
+    }
+
+    async take(tokenizer, maxSeqLen, stride = 0) {
+        while (true) {
+            if (this.tokens.length >= maxSeqLen) {
+                const returnTokens = this.tokens.slice(0, maxSeqLen)
+                const stride = Math.ceil(maxSeqLen / 2)
+                this.tokens = this.tokens.slice(stride)
+                return returnTokens
+            }
+            const sample = await this.generator.next()
+            this.tokens.push(...tokenizer.encode(sample.value))
+        }
+    }
+}
+
 const samplers = {
     stringSampler: (sampleLen, overfit, str) =>
         stringSampler(sampleLen, overfit, str),
@@ -100,6 +120,7 @@ const samplers = {
         sequentialStringSampler(sampleLen, str),
     directorySampler: (dir, delimiter) => directorySampler(dir, delimiter),
     fetchURLSampler: (url, path) => fetchURLSampler(url, path),
-    CosmopediaSampler: (sampleLen) => CosmopediaSampler(sampleLen)
+    CosmopediaSampler: (sampleLen) =>
+        new CachingSampler(CosmopediaSampler(sampleLen))
 }
 export default samplers
