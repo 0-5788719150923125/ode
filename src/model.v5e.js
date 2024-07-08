@@ -13,7 +13,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.numExperts = config.numExperts || 3
         this.moeDim = config.moeDim || 512
         this.headDim = config.headDim || 512
-        this.numHeads = config.numHeads || 4
+        this.numHeads = config.numHeads || 3
         this.headFeatures = config.headFeatures || 128
         this.mlpDim = config.mlpDim || 1024
         this.learningRate = 1e-4
@@ -64,7 +64,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .ProjectedFeatureAttention({
                     numHeads: this.numHeads,
                     headDim: this.headDim,
-                    numFeatures: this.headFeatures
+                    headFeatures: this.headFeatures
                 })
                 .apply(outputs)
 
