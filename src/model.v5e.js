@@ -7,13 +7,14 @@ import ODE from './model.v2.js'
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 4
-        this.units = config.units || 256
+        this.layers = config.layers || 6
+        this.units = config.units || 128
         this.embeddings = config.embeddings || 256
+        this.rank = config.rank || 64
         this.numExperts = config.numExperts || 3
         this.moeDim = config.moeDim || 512
-        this.headDim = config.headDim || 128
-        this.numHeads = config.numHeads || 8
+        this.numHeads = config.numHeads || 5
+        this.headDim = config.headDim || 96
         this.headFeatures = config.headFeatures || 32
         this.mlpDim = config.mlpDim || 1024
         this.learningRate = 1e-4
@@ -41,12 +42,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        // outputs = this.ode.layers
-        //     .LowRankFactorization({
-        //         outputDim: this.units,
-        //         rank: 64,
-        //     })
-        //     .apply(outputs)
+        outputs = this.ode.layers
+            .LowRankFactorization({
+                outputDim: this.units,
+                rank: this.rank
+            })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -66,12 +67,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
         }
 
-        // outputs = this.ode.layers
-        //     .dense({
-        //         units: this.embeddings,
-        //         activation: 'mish'
-        //     })
-        //     .apply(outputs)
+        outputs = this.ode.layers
+            .dense({
+                units: this.embeddings,
+                activation: 'mish'
+            })
+            .apply(outputs)
 
         outputs = embeddings.apply(outputs)
 
@@ -94,7 +95,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     createFeedforwardExperts(inputShape) {
-        // We add 1 extra expert, since the first one is a weighted average of all other experts.
+        // We add 1 extra expert, since the first one is an in-place, weighted average of all other experts.
         return Array(this.numExperts + 1)
             .fill(0)
             .map((_, i) => {

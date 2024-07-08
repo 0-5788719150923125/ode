@@ -27,7 +27,7 @@ export default class LowRankFactorization extends LayerBase {
     }
 
     call(inputs) {
-        const inputs = Array.isArray(inputs) ? inputs[0] : inputs
+        inputs = Array.isArray(inputs) ? inputs[0] : inputs
         const [batchSize, seqLength, inputDim] = inputs.shape
 
         const inputReshaped = inputs.reshape([-1, inputDim])
