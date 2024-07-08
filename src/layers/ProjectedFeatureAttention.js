@@ -46,12 +46,10 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 )
             )
             this.featureMatrices.push(
-                this.addWeight(
-                    `featureMatrix_${i}`,
+                tf.randomNormal(
                     [this.headDim, this.numFeatures],
-                    'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    0,
+                    1 / Math.sqrt(this.numFeatures)
                 )
             )
         }
@@ -81,8 +79,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 const K = this.applyDense(inputs, this.keyKernels[i].read())
                 const V = this.applyDense(inputs, this.valueKernels[i].read())
 
-                const Qp = this.applyDense(Q, this.featureMatrices[i].read())
-                const Kp = this.applyDense(K, this.featureMatrices[i].read())
+                const Qp = this.applyFeatureMap(Q, this.featureMatrices[i])
+                const Kp = this.applyFeatureMap(K, this.featureMatrices[i])
 
                 const scores = tf
                     .matMul(Qp, Kp, false, true)
@@ -90,10 +88,6 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     .add(mask)
 
                 let weights = scores.softmax()
-
-                weights = kwargs['training']
-                    ? tf.dropout(weights, this.dropout)
-                    : weights
 
                 const output = tf.matMul(weights, V)
 
@@ -114,6 +108,12 @@ export default class ProjectedFeatureAttention extends LayerBase {
         })
     }
 
+    applyFeatureMap(x, featureMatrix) {
+        const projection = tf.matMul(x, featureMatrix)
+        // ReLU activation for sparsity and efficiency
+        return tf.relu(projection)
+    }
+
     getWeights() {
         const weights = []
 
@@ -121,7 +121,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             weights.push(this.queryKernels[i].read())
             weights.push(this.keyKernels[i].read())
             weights.push(this.valueKernels[i].read())
-            weights.push(this.featureMatrices[i].read())
+            weights.push(this.featureMatrices[i])
         }
 
         weights.push(this.outputKernel.read())
@@ -136,7 +136,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             this.queryKernels[i].write(weights[index++])
             this.keyKernels[i].write(weights[index++])
             this.valueKernels[i].write(weights[index++])
-            this.featureMatrices[i].write(weights[index++])
+            this.featureMatrices[i] = weights[index++]
         }
 
         this.outputKernel.write(weights[index])
