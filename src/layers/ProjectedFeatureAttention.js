@@ -6,6 +6,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
         super(config)
         this.numHeads = config.numHeads || 8
         this.headDim = config.headDim || 64
+        this.headFeatures = config.headFeatures || 32
     }
 
     build(inputShape) {
@@ -36,7 +37,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             this.valueKernels.push(
                 this.addWeight(
                     `valueKernel_${i}`,
-                    [inputDim, this.headDim],
+                    [inputDim, this.headFeatures],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
@@ -44,7 +45,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             this.features.push(
                 this.addWeight(
                     `featureMatrix_${i}`,
-                    [this.headDim, this.headDim],
+                    [this.headDim, this.headFeatures],
                     'float32',
                     tf.initializers.orthogonal({ gain: 1.0 }),
                     null,
@@ -55,7 +56,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.headDim * this.numHeads, inputDim],
+            [this.headFeatures * this.numHeads, inputDim],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -96,39 +97,37 @@ export default class ProjectedFeatureAttention extends LayerBase {
     }
 
     causalAttention(KF, QF, V) {
-        return tf.tidy(() => {
-            const batchSize = KF.shape[0]
-            const seqLen = KF.shape[1]
-            const dim = KF.shape[2]
+        const batchSize = KF.shape[0]
+        const seqLen = KF.shape[1]
+        const dim = KF.shape[2]
 
-            // Create reference tensor
-            const ref_v = tf.ones([batchSize, seqLen, 1, dim])
+        // Create reference tensor
+        const ref_v = tf.ones([batchSize, seqLen, 1, dim])
 
-            // Expand dimensions for broadcasting
-            const KF_expanded = tf.expandDims(KF, 2)
-            const V_expanded = tf.expandDims(V, 2)
-            const QF_expanded = tf.expandDims(QF, 1)
+        // Expand dimensions for broadcasting
+        const KF_expanded = tf.expandDims(KF, 2)
+        const V_expanded = tf.expandDims(V, 2)
+        const QF_expanded = tf.expandDims(QF, 1)
 
-            // Compute Gps and Grenorm
-            const Gps = tf.mul(KF_expanded, V_expanded)
-            const Grenorm = tf.mul(KF_expanded, ref_v)
+        // Compute Gps and Grenorm
+        const Gps = tf.mul(KF_expanded, V_expanded)
+        const Grenorm = tf.mul(KF_expanded, ref_v)
 
-            // Compute raw attention and normalization
-            const att_raw = tf.sum(tf.mul(Gps, QF_expanded), -1)
-            const att_norm = tf.sum(tf.mul(Grenorm, QF_expanded), -1)
+        // Compute raw attention and normalization
+        const att_raw = tf.sum(tf.mul(Gps, QF_expanded), -1)
+        const att_norm = tf.sum(tf.mul(Grenorm, QF_expanded), -1)
 
-            // Cumulative sum over the sequence
-            const att_raw_cumsum = tf.cumsum(att_raw, 1)
-            const att_norm_cumsum = tf.cumsum(att_norm, 1)
+        // Cumulative sum over the sequence
+        const att_raw_cumsum = tf.cumsum(att_raw, 1)
+        const att_norm_cumsum = tf.cumsum(att_norm, 1)
 
-            // Normalize
-            const att = tf.div(att_raw_cumsum, att_norm_cumsum)
+        // Normalize
+        const att = tf.div(att_raw_cumsum, att_norm_cumsum)
 
-            // Apply attention to values
-            const attendedValues = tf.matMul(att, V)
+        // Apply attention to values
+        const attendedValues = tf.matMul(att, V)
 
-            return attendedValues
-        })
+        return attendedValues
     }
 
     applyFeatureMap(x, randomMatrix) {
@@ -176,11 +175,40 @@ export default class ProjectedFeatureAttention extends LayerBase {
         })
     }
 
+    getWeights() {
+        const weights = []
+
+        for (let i = 0; i < this.numHeads; i++) {
+            weights.push(this.queryKernels[i].read())
+            weights.push(this.keyKernels[i].read())
+            weights.push(this.valueKernels[i].read())
+            weights.push(this.features[i].read())
+        }
+
+        weights.push(this.outputKernel.read())
+
+        return weights
+    }
+
+    setWeights(weights) {
+        let index = 0
+
+        for (let i = 0; i < this.numHeads; i++) {
+            this.queryKernels[i].write(weights[index++])
+            this.keyKernels[i].write(weights[index++])
+            this.valueKernels[i].write(weights[index++])
+            this.features[i].write(weights[index++])
+        }
+
+        this.outputKernel.write(weights[index])
+    }
+
     getConfig() {
         return {
             ...super.getConfig(),
             numHeads: this.numHeads,
-            headDim: this.headDim
+            headDim: this.headDim,
+            headFeatures: this.headFeatures
         }
     }
 }
