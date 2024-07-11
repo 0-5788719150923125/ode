@@ -14,6 +14,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.queryKernels = []
         this.keyKernels = []
         this.valueKernels = []
+        this.features = []
 
         for (let i = 0; i < this.numHeads; i++) {
             this.queryKernels.push(
@@ -40,6 +41,16 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
+            this.features.push(
+                this.addWeight(
+                    `featureMatrix_${i}`,
+                    [this.headDim, this.headDim],
+                    'float32',
+                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    null,
+                    false
+                )
+            )
         }
 
         this.outputKernel = this.addWeight(
@@ -61,8 +72,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 const K = this.applyDense(inputs, this.keyKernels[i].read())
                 const V = this.applyDense(inputs, this.valueKernels[i].read())
 
-                const QF = this.simpleFeatureMap(Q)
-                const KF = this.simpleFeatureMap(K)
+                const QF = this.applyFeatureMap(Q, this.features[i].read())
+                const KF = this.applyFeatureMap(K, this.features[i].read())
 
                 const attention = this.causalAttention(KF, QF, V)
 
@@ -85,25 +96,84 @@ export default class ProjectedFeatureAttention extends LayerBase {
     }
 
     causalAttention(KF, QF, V) {
-        const ref_v = tf.ones([...V.shape.slice(0, -1), 1])
-        const Gps = tf.mul(tf.expandDims(KF, 2), tf.expandDims(V, 1))
-        const Grenorm = tf.mul(tf.expandDims(KF, 2), tf.expandDims(ref_v, 1))
+        return tf.tidy(() => {
+            const batchSize = KF.shape[0]
+            const seqLen = KF.shape[1]
+            const dim = KF.shape[2]
 
-        const attRaw = tf.sum(tf.mul(Gps, tf.expandDims(QF, 1)), -1)
-        const attNorm = tf.sum(tf.mul(Grenorm, tf.expandDims(QF, 1)), -1)
+            // Create reference tensor
+            const ref_v = tf.ones([batchSize, seqLen, 1, dim])
 
-        const attRawCumsum = tf.cumsum(attRaw, 2)
-        const attNormCumsum = tf.cumsum(attNorm, 2)
+            // Expand dimensions for broadcasting
+            const KF_expanded = tf.expandDims(KF, 2)
+            const V_expanded = tf.expandDims(V, 2)
+            const QF_expanded = tf.expandDims(QF, 1)
 
-        const att = tf.div(attRawCumsum, attNormCumsum)
+            // Compute Gps and Grenorm
+            const Gps = tf.mul(KF_expanded, V_expanded)
+            const Grenorm = tf.mul(KF_expanded, ref_v)
 
-        const attendedValues = tf.matMul(att, V)
+            // Compute raw attention and normalization
+            const att_raw = tf.sum(tf.mul(Gps, QF_expanded), -1)
+            const att_norm = tf.sum(tf.mul(Grenorm, QF_expanded), -1)
 
-        return attendedValues
+            // Cumulative sum over the sequence
+            const att_raw_cumsum = tf.cumsum(att_raw, 1)
+            const att_norm_cumsum = tf.cumsum(att_norm, 1)
+
+            // Normalize
+            const att = tf.div(att_raw_cumsum, att_norm_cumsum)
+
+            // Apply attention to values
+            const attendedValues = tf.matMul(att, V)
+
+            return attendedValues
+        })
     }
 
-    simpleFeatureMap(x) {
-        return tf.relu(x)
+    applyFeatureMap(x, randomMatrix) {
+        return tf.tidy(() => {
+            const projection = tf.matMul(x, randomMatrix)
+            const [batchSize, seqLen, featureDim] = projection.shape
+
+            // Reshape to separate features for sin and cos
+            const reshaped = tf.reshape(projection, [
+                batchSize,
+                seqLen,
+                featureDim / 2,
+                2
+            ])
+
+            // Apply sin and cos
+            const cosProjection = tf.cos(
+                reshaped.slice([0, 0, 0, 0], [-1, -1, -1, 1])
+            )
+            const sinProjection = tf.sin(
+                reshaped.slice([0, 0, 0, 1], [-1, -1, -1, 1])
+            )
+
+            // Combine sin and cos
+            const combined = tf.reshape(
+                tf.stack([cosProjection, sinProjection], 3),
+                [batchSize, seqLen, featureDim]
+            )
+
+            // Generate random signs (+1 or -1), as used in FAVOR
+            const randomSigns = tf
+                .randomUniform([1, 1, featureDim], 0, 2, 'int32')
+                .mul(2)
+                .sub(1)
+
+            // Apply random signs
+            const signedCombined = combined.mul(randomSigns)
+
+            // Ensure positivity
+            const expCombined = tf.exp(signedCombined)
+
+            // Normalize
+            const normalizer = tf.sqrt(tf.scalar(featureDim / 2))
+            return expCombined.div(normalizer)
+        })
     }
 
     getConfig() {
