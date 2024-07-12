@@ -15,7 +15,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.queryKernels = []
         this.keyKernels = []
         this.valueKernels = []
-        this.projectionKernels = []
+        this.features = []
 
         for (let i = 0; i < this.numHeads; i++) {
             this.queryKernels.push(
@@ -42,12 +42,14 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
-            this.projectionKernels.push(
+            this.features.push(
                 this.addWeight(
-                    `projectionKernel_${i}`,
+                    `featureMatrix_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    null,
+                    false
                 )
             )
         }
@@ -71,15 +73,10 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 const K = this.applyDense(inputs, this.keyKernels[i].read())
                 const V = this.applyDense(inputs, this.valueKernels[i].read())
 
-                const QP = this.applyDense(Q, this.projectionKernels[i].read())
-                const KP = this.applyDense(K, this.projectionKernels[i].read())
+                const QF = this.applyFeatureMap(Q, this.features[i].read())
+                const KF = this.applyFeatureMap(K, this.features[i].read())
 
-                const attention = this.causalAttention(
-                    QP,
-                    KP,
-                    V,
-                    inputs.shape[1]
-                )
+                const attention = this.causalAttention(KF, QF, V)
 
                 attentionOutputs.push(attention)
             }
@@ -99,21 +96,83 @@ export default class ProjectedFeatureAttention extends LayerBase {
         })
     }
 
-    causalAttention(Q, K, V, seqLen) {
-        const QK = tf.matMul(Q, K, false, true)
-        const scaledQK = QK.div(tf.sqrt(tf.scalar(K.shape[1])))
+    causalAttention(KF, QF, V) {
+        const batchSize = KF.shape[0]
+        const seqLen = KF.shape[1]
+        const dim = KF.shape[2]
 
-        const mask = tf.linalg
-            .bandPart(tf.ones([seqLen, seqLen]), 0, -1)
-            .sub(tf.eye(seqLen))
-            .mul(tf.scalar(-1e9))
+        // Create reference tensor
+        const ref_v = tf.ones([batchSize, seqLen, 1, dim])
 
-        const maskedQK = tf.add(scaledQK, mask)
-        const attention = tf.softmax(maskedQK)
+        // Expand dimensions for broadcasting
+        const KF_expanded = tf.expandDims(KF, 2)
+        const V_expanded = tf.expandDims(V, 2)
+        const QF_expanded = tf.expandDims(QF, 1)
 
-        const output = tf.matMul(attention, V)
+        // Compute Gps and Grenorm
+        const Gps = tf.mul(KF_expanded, V_expanded)
+        const Grenorm = tf.mul(KF_expanded, ref_v)
 
-        return output
+        // Compute raw attention and normalization
+        const att_raw = tf.sum(tf.mul(Gps, QF_expanded), -1)
+        const att_norm = tf.sum(tf.mul(Grenorm, QF_expanded), -1)
+
+        // Cumulative sum over the sequence
+        const att_raw_cumsum = tf.cumsum(att_raw, 1)
+        const att_norm_cumsum = tf.cumsum(att_norm, 1)
+
+        // Normalize
+        const att = tf.div(att_raw_cumsum, att_norm_cumsum)
+
+        // Apply attention to values
+        const attendedValues = tf.matMul(att, V)
+
+        return attendedValues
+    }
+
+    applyFeatureMap(x, randomMatrix) {
+        return tf.tidy(() => {
+            const projection = tf.matMul(x, randomMatrix)
+            const [batchSize, seqLen, featureDim] = projection.shape
+
+            // Reshape to separate features for sin and cos
+            const reshaped = tf.reshape(projection, [
+                batchSize,
+                seqLen,
+                featureDim / 2,
+                2
+            ])
+
+            // Apply sin and cos
+            const cosProjection = tf.cos(
+                reshaped.slice([0, 0, 0, 0], [-1, -1, -1, 1])
+            )
+            const sinProjection = tf.sin(
+                reshaped.slice([0, 0, 0, 1], [-1, -1, -1, 1])
+            )
+
+            // Combine sin and cos
+            const combined = tf.reshape(
+                tf.stack([cosProjection, sinProjection], 3),
+                [batchSize, seqLen, featureDim]
+            )
+
+            // Generate random signs (+1 or -1), as used in FAVOR
+            const randomSigns = tf
+                .randomUniform([1, 1, featureDim], 0, 2, 'int32')
+                .mul(2)
+                .sub(1)
+
+            // Apply random signs
+            const signedCombined = combined.mul(randomSigns)
+
+            // Ensure positivity
+            const expCombined = tf.exp(signedCombined)
+
+            // Normalize
+            const normalizer = tf.sqrt(tf.scalar(featureDim / 2))
+            return expCombined.div(normalizer)
+        })
     }
 
     getWeights() {
@@ -123,7 +182,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             weights.push(this.queryKernels[i].read())
             weights.push(this.keyKernels[i].read())
             weights.push(this.valueKernels[i].read())
-            weights.push(this.projectionKernels[i].read())
+            weights.push(this.features[i].read())
         }
 
         weights.push(this.outputKernel.read())
@@ -138,7 +197,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             this.queryKernels[i].write(weights[index++])
             this.keyKernels[i].write(weights[index++])
             this.valueKernels[i].write(weights[index++])
-            this.projectionKernels[i].write(weights[index++])
+            this.features[i].write(weights[index++])
         }
 
         this.outputKernel.write(weights[index])
