@@ -64,6 +64,12 @@ export default class ProjectedFeatureAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
+            const seqLen = inputs.shape[1]
+            const mask = tf.linalg
+                .bandPart(tf.ones([seqLen, seqLen]), 0, -1)
+                .sub(tf.eye(seqLen))
+                .mul(tf.scalar(-1e9))
+
             const attentionOutputs = []
 
             for (let i = 0; i < this.numHeads; i++) {
@@ -74,14 +80,14 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 const QP = this.applyDense(Q, this.projectionKernels[i].read())
                 const KP = this.applyDense(K, this.projectionKernels[i].read())
 
-                const attention = this.causalAttention(
-                    QP,
-                    KP,
-                    V,
-                    inputs.shape[1]
-                )
+                const QK = tf.matMul(QP, KP, false, true)
+                const scores = QK.div(tf.sqrt(tf.scalar(KP.shape[1]))).add(mask)
 
-                attentionOutputs.push(attention)
+                const weights = scores.softmax()
+
+                const output = tf.matMul(weights, V)
+
+                attentionOutputs.push(output)
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
@@ -97,23 +103,6 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
             return outputs
         })
-    }
-
-    causalAttention(Q, K, V, seqLen) {
-        const QK = tf.matMul(Q, K, false, true)
-        const scaledQK = QK.div(tf.sqrt(tf.scalar(K.shape[1])))
-
-        const mask = tf.linalg
-            .bandPart(tf.ones([seqLen, seqLen]), 0, -1)
-            .sub(tf.eye(seqLen))
-            .mul(tf.scalar(-1e9))
-
-        const maskedQK = tf.add(scaledQK, mask)
-        const attention = tf.softmax(maskedQK)
-
-        const output = tf.matMul(attention, V)
-
-        return output
     }
 
     getWeights() {
