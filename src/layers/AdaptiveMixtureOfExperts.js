@@ -57,7 +57,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Switching network
-            const switchingHidden = this.applyDense(
+            const switchingHidden = this.ops.applyDense(
                 inputs,
                 this.switchingHidden.read(),
                 this.switchingHiddenBias.read()
@@ -65,7 +65,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             const switchingActivated = tf.layers
                 .activation({ activation: this.activation })
                 .apply(switchingHidden)
-            const switchingScores = this.applyDense(
+            const switchingScores = this.ops.applyDense(
                 switchingActivated,
                 this.switchingKernel.read(),
                 this.switchingBias.read()
@@ -100,7 +100,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             }
 
             // Concat expert outputs, and project them into the proper dimension
-            const outputProjected = this.applyDense(
+            const outputProjected = this.ops.applyDense(
                 tf.concat(batchOutputs, 0),
                 this.outputProjection.read()
             )

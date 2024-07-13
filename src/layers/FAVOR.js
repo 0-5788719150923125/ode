@@ -69,9 +69,15 @@ export default class ProjectedFeatureAttention extends LayerBase {
             const attentionOutputs = []
 
             for (let i = 0; i < this.numHeads; i++) {
-                const Q = this.applyDense(inputs, this.queryKernels[i].read())
-                const K = this.applyDense(inputs, this.keyKernels[i].read())
-                const V = this.applyDense(inputs, this.valueKernels[i].read())
+                const Q = this.ops.applyDense(
+                    inputs,
+                    this.queryKernels[i].read()
+                )
+                const K = this.ops.applyDense(inputs, this.keyKernels[i].read())
+                const V = this.ops.applyDense(
+                    inputs,
+                    this.valueKernels[i].read()
+                )
 
                 const QF = this.applyFeatureMap(Q, this.features[i].read())
                 const KF = this.applyFeatureMap(K, this.features[i].read())
@@ -83,7 +89,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
 
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 concatenatedOutputs,
                 this.outputKernel.read()
             )

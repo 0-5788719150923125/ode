@@ -38,9 +38,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             embeddingsInitializer: 'glorotUniform'
         })
 
-        const encoding = this.ode.layers.SinusoidalPositionalEncoding()
-
-        let outputs = encoding.apply(embeddings.apply(inputs))
+        let outputs = embeddings.apply(inputs)
 
         outputs = this.ode.layers
             .LowRankFactorization({
@@ -54,7 +52,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .ProjectedFeatureAttention({
                     numHeads: this.numHeads,
                     headDim: this.headDim,
-                    headFeatures: this.headFeatures
+                    headFeatures: this.headFeatures,
+                    useALiBi: true
                 })
                 .apply(outputs)
 

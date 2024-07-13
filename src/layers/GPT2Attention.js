@@ -69,7 +69,7 @@ export default class GPT2Attention extends LayerBase {
                 inputs = inputs[0]
             }
 
-            const cAttn = this.applyDense(
+            const cAttn = this.ops.applyDense(
                 inputs,
                 this.cAttnKernel.read(),
                 this.cAttnBias.read()
@@ -107,7 +107,7 @@ export default class GPT2Attention extends LayerBase {
 
             outputs = tf.transpose(outputs, [0, 2, 1, 3])
             outputs = tf.reshape(outputs, [B, T, C])
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.cProjKernel.read(),
                 this.cProjBias.read()

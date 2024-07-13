@@ -43,11 +43,13 @@ export default class MixtureOfDepths extends LayerBase {
             const [batchSize, timeSteps, inputDim] = inputs.shape
 
             // Router network
-            const routerLogits = this.applyDense(
-                inputs,
-                this.routerKernel.read(),
-                this.routerBias.read()
-            ).reshape([batchSize, timeSteps])
+            const routerLogits = this.ops
+                .applyDense(
+                    inputs,
+                    this.routerKernel.read(),
+                    this.routerBias.read()
+                )
+                .reshape([batchSize, timeSteps])
 
             return tf.customGrad((x, save) => {
                 // Forward pass: Top-k selection

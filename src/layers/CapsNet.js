@@ -77,7 +77,7 @@ export default class CapsNet extends LayerBase {
             const sequenceLength = inputShape[1]
 
             // Expand and contract projection via feedforward layers
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
                 this.inProjBias.read()
@@ -89,7 +89,7 @@ export default class CapsNet extends LayerBase {
             // Apply layer norm
             outputs = this.ops.rmsNorm(outputs)
             // Apply primary capsules
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.primaryCapsKernel.read(),
                 this.primaryCapsBias.read()
@@ -112,7 +112,7 @@ export default class CapsNet extends LayerBase {
                 this.numCapsules * this.capsuleDim
             ])
 
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.outProjKernel.read(),
                 this.outProjBias.read()

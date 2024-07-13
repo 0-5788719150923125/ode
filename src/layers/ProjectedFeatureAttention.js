@@ -73,17 +73,41 @@ export default class ProjectedFeatureAttention extends LayerBase {
             const attentionOutputs = []
 
             for (let i = 0; i < this.numHeads; i++) {
-                const Q = this.applyDense(inputs, this.queryKernels[i].read())
-                const K = this.applyDense(inputs, this.keyKernels[i].read())
-                const V = this.applyDense(inputs, this.valueKernels[i].read())
+                const Q = this.ops.applyDense(
+                    inputs,
+                    this.queryKernels[i].read()
+                )
+                const K = this.ops.applyDense(inputs, this.keyKernels[i].read())
+                const V = this.ops.applyDense(
+                    inputs,
+                    this.valueKernels[i].read()
+                )
 
-                const QP = this.applyDense(Q, this.projectionKernels[i].read())
-                const KP = this.applyDense(K, this.projectionKernels[i].read())
+                const QP = this.ops.applyDense(
+                    Q,
+                    this.projectionKernels[i].read()
+                )
+                const KP = this.ops.applyDense(
+                    K,
+                    this.projectionKernels[i].read()
+                )
 
-                const QK = tf.matMul(QP, KP, false, true)
-                const scores = QK.div(tf.sqrt(tf.scalar(KP.shape[1]))).add(mask)
+                let scores = tf.matMul(QP, KP, false, true)
+                scores = scores.div(tf.sqrt(tf.scalar(KP.shape[1])))
 
-                const weights = scores.softmax()
+                if (this.useALiBi) {
+                    scores = this.ops.applyALiBi(
+                        scores,
+                        this.numHeads,
+                        i,
+                        seqLen,
+                        2048
+                    )
+                }
+
+                const maskedScores = scores.add(mask)
+
+                const weights = maskedScores.softmax()
 
                 const output = tf.matMul(weights, V)
 
@@ -92,7 +116,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
 
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 concatenatedOutputs,
                 this.outputKernel.read()
             )

@@ -82,12 +82,12 @@ export default class MultiQueryAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const K = this.applyDense(
+            const K = this.ops.applyDense(
                 inputs,
                 this.keyKernel.read(),
                 this.keyBias.read()
             )
-            const V = this.applyDense(
+            const V = this.ops.applyDense(
                 inputs,
                 this.valueKernel.read(),
                 this.valueBias.read()
@@ -101,7 +101,7 @@ export default class MultiQueryAttention extends LayerBase {
             const attentionOutputs = []
 
             for (let i = 0; i < this.queries; i++) {
-                const Q = this.applyDense(
+                const Q = this.ops.applyDense(
                     inputs,
                     this.queryKernels[i].read(),
                     this.queryBiases[i].read()
@@ -123,7 +123,7 @@ export default class MultiQueryAttention extends LayerBase {
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 concatenatedOutputs,
                 this.outputKernel.read(),
                 this.outputBias.read()

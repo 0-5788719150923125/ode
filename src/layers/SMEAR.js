@@ -50,7 +50,7 @@ export default class SMEAR extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Gating network
-            const gatingHidden = this.applyDense(
+            const gatingHidden = this.ops.applyDense(
                 inputs,
                 this.routerHiddenKernel.read(),
                 this.routerHiddenBias.read()
@@ -62,7 +62,7 @@ export default class SMEAR extends LayerBase {
                 .activation({ activation: this.activation })
                 .apply(normalizedState)
 
-            const expertWeights = this.applyDense(
+            const expertWeights = this.ops.applyDense(
                 activatedGate,
                 this.routerOutputKernel.read(),
                 this.routerOutputBias.read()

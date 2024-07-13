@@ -107,7 +107,7 @@ export default class Autoencoder extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Encode the inputs to the bottleneck representation
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 inputs,
                 this.encoderKernel1.read(),
                 this.encoderBias1.read()
@@ -117,7 +117,7 @@ export default class Autoencoder extends LayerBase {
                 .activation({ activation: this.encoderActivation })
                 .apply(outputs)
 
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.encoderKernel2.read(),
                 this.encoderBias2.read()
@@ -128,7 +128,7 @@ export default class Autoencoder extends LayerBase {
             }
 
             // Decode the bottleneck representation to the output dimensionality
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.decoderKernel1.read(),
                 this.decoderBias1.read()
@@ -138,7 +138,7 @@ export default class Autoencoder extends LayerBase {
                 .activation({ activation: this.decoderActivation })
                 .apply(outputs)
 
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.decoderKernel2.read(),
                 this.decoderBias2.read()

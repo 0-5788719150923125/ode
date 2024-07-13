@@ -114,19 +114,19 @@ export default class GroupedQueryAttention extends LayerBase {
                 .mul(tf.scalar(-1e9))
 
             for (let i = 0; i < this.heads; i++) {
-                const K = this.applyDense(
+                const K = this.ops.applyDense(
                     inputs,
                     this.keyKernels[i].read(),
                     this.keyBiases[i].read()
                 )
-                const V = this.applyDense(
+                const V = this.ops.applyDense(
                     inputs,
                     this.valueKernels[i].read(),
                     this.valueBiases[i].read()
                 )
 
                 for (let j = 0; j < this.queryRatio; j++) {
-                    const Q = this.applyDense(
+                    const Q = this.ops.applyDense(
                         inputs,
                         this.queryKernels[i][j].read(),
                         this.queryBiases[i][j].read()
@@ -154,7 +154,7 @@ export default class GroupedQueryAttention extends LayerBase {
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 concatenatedOutputs,
                 this.outputKernel.read(),
                 this.outputBias.read()

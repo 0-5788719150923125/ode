@@ -105,17 +105,17 @@ export default class MultiHeadAttention extends LayerBase {
             const attentionOutputs = []
 
             for (let i = 0; i < this.heads; i++) {
-                const Q = this.applyDense(
+                const Q = this.ops.applyDense(
                     inputs,
                     this.queryKernels[i].read(),
                     this.queryBiases[i].read()
                 )
-                const K = this.applyDense(
+                const K = this.ops.applyDense(
                     inputs,
                     this.keyKernels[i].read(),
                     this.keyBiases[i].read()
                 )
-                const V = this.applyDense(
+                const V = this.ops.applyDense(
                     inputs,
                     this.valueKernels[i].read(),
                     this.valueBiases[i].read()
@@ -138,7 +138,7 @@ export default class MultiHeadAttention extends LayerBase {
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 concatenatedOutputs,
                 this.outputKernel.read(),
                 this.outputBias.read()

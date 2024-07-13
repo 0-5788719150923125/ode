@@ -37,9 +37,9 @@ export default class SelfAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const Q = this.applyDense(inputs, this.queryKernel.read())
-            const K = this.applyDense(inputs, this.keyKernel.read())
-            const V = this.applyDense(inputs, this.valueKernel.read())
+            const Q = this.ops.applyDense(inputs, this.queryKernel.read())
+            const K = this.ops.applyDense(inputs, this.keyKernel.read())
+            const V = this.ops.applyDense(inputs, this.valueKernel.read())
 
             const mask = tf.linalg
                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)

@@ -30,7 +30,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Expand and contract projection via feedforward layers
-            let proj = this.applyDense(
+            let proj = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
                 this.inProjBias.read()
@@ -42,7 +42,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 .activation({ activation: this.activation })
                 .apply(proj)
 
-            let gate = this.applyDense(
+            let gate = this.ops.applyDense(
                 inputs,
                 this.gateProjKernel.read(),
                 this.gateProjBias.read()
@@ -52,7 +52,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
 
             const gatedOutput = tf.mul(proj, gate)
 
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 gatedOutput,
                 this.outProjKernel.read(),
                 this.outProjBias.read()

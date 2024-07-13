@@ -67,7 +67,7 @@ export default class VariableDimensionMLP extends LayerBase {
                 .slice([0], [inputDim])
 
             // Expand and contract projection via feedforward layers
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 inputs,
                 slicedInProjKernel,
                 this.inProjBias.read()
@@ -79,7 +79,7 @@ export default class VariableDimensionMLP extends LayerBase {
                 .activation({ activation: this.activation })
                 .apply(outputs)
 
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 slicedOutProjKernel,
                 slicedOutProjBias

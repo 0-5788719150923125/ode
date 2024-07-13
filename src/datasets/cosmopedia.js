@@ -24,7 +24,7 @@ export default class CosmopediaDataset {
         this.eosToken = '<|eos|>'
         this.cacheSize = 20000
         this.cachedText = ''
-        this.cycleShardInterval = 10000
+        this.cycleShardInterval = 10000 // batches
         this.batches = 0
     }
 

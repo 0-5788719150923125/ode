@@ -50,7 +50,7 @@ export default class MultiLayerPerceptron extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Expand and contract projection via feedforward layers
-            let outputs = this.applyDense(
+            let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
                 this.inProjBias.read()
@@ -62,7 +62,7 @@ export default class MultiLayerPerceptron extends LayerBase {
                 .activation({ activation: this.activation })
                 .apply(outputs)
 
-            outputs = this.applyDense(
+            outputs = this.ops.applyDense(
                 outputs,
                 this.outProjKernel.read(),
                 this.outProjBias.read()

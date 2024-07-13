@@ -37,9 +37,9 @@ export default class ChunkedSelfAttention extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const Q = this.applyDense(inputs, this.queryKernel.read())
-            const K = this.applyDense(inputs, this.keyKernel.read())
-            const V = this.applyDense(inputs, this.valueKernel.read())
+            const Q = this.ops.applyDense(inputs, this.queryKernel.read())
+            const K = this.ops.applyDense(inputs, this.keyKernel.read())
+            const V = this.ops.applyDense(inputs, this.valueKernel.read())
 
             const numChunks = Math.ceil(inputs.shape[1] / this.chunkSize)
             const chunkOutputs = []

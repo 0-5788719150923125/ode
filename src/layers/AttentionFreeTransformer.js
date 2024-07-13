@@ -48,21 +48,15 @@ export default class AttentionFreeTransformer extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const [B, T, _] = inputs.shape
 
-            const Q = this.applyDense(inputs, this.toQ.read()).reshape([
-                B,
-                T,
-                this.hiddenDim
-            ])
-            const K = this.applyDense(inputs, this.toK.read()).reshape([
-                B,
-                T,
-                this.hiddenDim
-            ])
-            const V = this.applyDense(inputs, this.to.read()).reshape([
-                B,
-                T,
-                this.hiddenDim
-            ])
+            const Q = this.ops
+                .applyDense(inputs, this.toQ.read())
+                .reshape([B, T, this.hiddenDim])
+            const K = this.ops
+                .applyDense(inputs, this.toK.read())
+                .reshape([B, T, this.hiddenDim])
+            const V = this.ops
+                .applyDense(inputs, this.to.read())
+                .reshape([B, T, this.hiddenDim])
 
             const mask = tf.linalg
                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
@@ -84,7 +78,7 @@ export default class AttentionFreeTransformer extends LayerBase {
 
             const Yt = tf.mul(QSig, weighted)
 
-            const outputs = this.applyDense(
+            const outputs = this.ops.applyDense(
                 Yt.reshape([B, T, this.hiddenDim]),
                 this.project.read()
             )

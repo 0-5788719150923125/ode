@@ -49,7 +49,7 @@ export default class SwarmOfExperts extends LayerBase {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
             // Gating network
-            const gatingHidden = this.applyDense(
+            const gatingHidden = this.ops.applyDense(
                 inputs,
                 this.gatingHidden.read(),
                 this.gatingHiddenBias.read()
@@ -57,11 +57,13 @@ export default class SwarmOfExperts extends LayerBase {
             const activatedGate = tf.layers
                 .activation({ activation: this.activation })
                 .apply(gatingHidden)
-            const expertWeights = this.applyDense(
-                activatedGate,
-                this.gatingKernel.read(),
-                this.gatingBias.read()
-            ).softmax()
+            const expertWeights = this.ops
+                .applyDense(
+                    activatedGate,
+                    this.gatingKernel.read(),
+                    this.gatingBias.read()
+                )
+                .softmax()
 
             // Compute expert outputs
             const expertOutputs = this.experts.map((expert, i) =>

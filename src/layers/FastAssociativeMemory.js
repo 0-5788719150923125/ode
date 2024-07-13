@@ -65,8 +65,8 @@ export default class FastAssociativeMemory extends LayerBase {
                 }
             }
 
-            let hInitial = this.applyDense(inputs, this.C, this.b)
-            hInitial = hInitial.add(this.applyDense(this.hPrev, this.W))
+            let hInitial = this.ops.applyDense(inputs, this.C, this.b)
+            hInitial = hInitial.add(this.ops.applyDense(this.hPrev, this.W))
 
             hInitial = this.ops.rmsNorm(hInitial)
 
