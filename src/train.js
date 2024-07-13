@@ -45,6 +45,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
 
     // a custom training loop
     while (true) {
+        await tf.nextFrame()
         setLearningRate(
             this.batch,
             trainArgs.gradientAccumulationSteps,
