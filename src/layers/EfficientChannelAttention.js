@@ -34,10 +34,6 @@ export default class EfficientChannelAttention extends LayerBase {
         })
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

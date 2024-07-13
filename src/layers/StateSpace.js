@@ -153,30 +153,6 @@ export default class StateSpace extends LayerBase {
         return outputShape
     }
 
-    getWeights() {
-        return [
-            this.kernel.read(),
-            this.outputKernel.read(),
-            this.recurrentKernel.read(),
-            this.bias.read(),
-            this.meanKernel.read(),
-            this.meanBias.read(),
-            this.logVarKernel.read(),
-            this.logVarBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.kernel.write(weights[0])
-        this.outputKernel.write(weights[1])
-        this.recurrentKernel.write(weights[2])
-        this.bias.write(weights[3])
-        this.meanKernel.write(weights[4])
-        this.meanBias.write(weights[5])
-        this.logVarKernel.write(weights[6])
-        this.logVarBias.write(weights[7])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

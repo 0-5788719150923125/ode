@@ -38,10 +38,6 @@ export default class SqueezeAndExcitation extends LayerBase {
         })
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

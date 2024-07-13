@@ -83,14 +83,6 @@ export default class SharedEmbedding extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [this.embeddings.read()]
-    }
-
-    setWeights(weights) {
-        this.embeddings.write(weights[0])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

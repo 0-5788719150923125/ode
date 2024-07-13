@@ -68,20 +68,6 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             return outputs
         })
     }
-
-    getWeights() {
-        return [
-            ...super.getWeights(),
-            this.gateProjKernel.read(),
-            this.gateProjBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        super.setWeights(weights)
-        this.gateProjKernel.write(weights[4])
-        this.gateProjBias.write(weights[5])
-    }
 }
 
 tf.serialization.registerClass(GatedLinearMLP)

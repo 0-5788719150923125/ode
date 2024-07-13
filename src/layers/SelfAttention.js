@@ -61,20 +61,6 @@ export default class SelfAttention extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [
-            this.queryKernel.read(),
-            this.keyKernel.read(),
-            this.valueKernel.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.queryKernel.write(weights[0])
-        this.keyKernel.write(weights[1])
-        this.valueKernel.write(weights[2])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

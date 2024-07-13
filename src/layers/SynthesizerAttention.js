@@ -155,8 +155,8 @@ export default class SynthesizerAttention extends LayerBase {
     }
 
     getConfig() {
-        const config = super.getConfig()
-        Object.assign(config, {
+        return {
+            ...super.getConfig(),
             units: this.units,
             heads: this.heads,
             blockSize: this.blockSize,
@@ -165,8 +165,7 @@ export default class SynthesizerAttention extends LayerBase {
             epsilon: this.epsilon,
             alpha: this.alpha,
             depth: this.depth
-        })
-        return config
+        }
     }
 }
 

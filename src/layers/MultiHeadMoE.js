@@ -126,14 +126,6 @@ class MHRouter extends LayerBase {
         return tf.matMul(inputs, this.expertEmbedding.read())
     }
 
-    getWeights() {
-        return [this.expertEmbedding.read()]
-    }
-
-    setWeights(weights) {
-        this.expertEmbedding.write(weights[0])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

@@ -141,32 +141,6 @@ export default class MultiQueryAttention extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [
-            ...this.queryKernels.map((kernel) => kernel.read()),
-            ...this.queryBiases.map((kernel) => kernel.read()),
-            this.keyKernel.read(),
-            this.keyBias.read(),
-            this.valueKernel.read(),
-            this.valueBias.read(),
-            this.outputKernel.read(),
-            this.outputBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        for (let i = 0; i < this.queries; i++) {
-            this.queryKernels[i].write(weights[i])
-            this.queryBiases[i].write(weights[i])
-        }
-        this.keyKernel.write(weights[this.queries])
-        this.keyBias.write(weights[this.queries + 1])
-        this.valueKernel.write(weights[this.queries + 2])
-        this.valueBias.write(weights[this.queries + 3])
-        this.outputKernel.write(weights[this.queries + 4])
-        this.outputBias.write(weights[this.queries + 5])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

@@ -175,34 +175,6 @@ export default class ProjectedFeatureAttention extends LayerBase {
         })
     }
 
-    getWeights() {
-        const weights = []
-
-        for (let i = 0; i < this.numHeads; i++) {
-            weights.push(this.queryKernels[i].read())
-            weights.push(this.keyKernels[i].read())
-            weights.push(this.valueKernels[i].read())
-            weights.push(this.features[i].read())
-        }
-
-        weights.push(this.outputKernel.read())
-
-        return weights
-    }
-
-    setWeights(weights) {
-        let index = 0
-
-        for (let i = 0; i < this.numHeads; i++) {
-            this.queryKernels[i].write(weights[index++])
-            this.keyKernels[i].write(weights[index++])
-            this.valueKernels[i].write(weights[index++])
-            this.features[i].write(weights[index++])
-        }
-
-        this.outputKernel.write(weights[index])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

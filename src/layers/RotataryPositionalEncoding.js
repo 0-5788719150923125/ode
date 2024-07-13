@@ -65,10 +65,6 @@ export default class RotaryPositionalEncoding extends LayerBase {
         return output.asType(xDtype)
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
     getConfig() {
         return {
             ...super.getConfig()

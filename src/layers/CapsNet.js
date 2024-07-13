@@ -131,28 +131,6 @@ export default class CapsNet extends LayerBase {
         return inputShape
     }
 
-    getWeights() {
-        return [
-            this.inProjKernel.read(),
-            this.inProjBias.read(),
-            this.primaryCapsKernel.read(),
-            this.primaryCapsBias.read(),
-            this.outProjKernel.read(),
-            this.outProjBias.read(),
-            ...this.digitCaps.getWeights()
-        ]
-    }
-
-    setWeights(weights) {
-        this.inProjKernel.write(weights[0])
-        this.inProjBias.write(weights[1])
-        this.primaryCapsKernel.write(weights[2])
-        this.primaryCapsBias.write(weights[3])
-        this.outProjKernel.write(weights[4])
-        this.outProjBias.write(weights[5])
-        this.digitCaps.setWeights(weights.slice(6))
-    }
-
     getConfig() {
         return {
             units: this.units,
@@ -226,14 +204,6 @@ class DigitCaps extends LayerBase {
 
     computeOutputShape(inputShape) {
         return [inputShape[0], this.numCapsules, this.capsuleDim]
-    }
-
-    getWeights() {
-        return [this.W.read()]
-    }
-
-    setWeights(weights) {
-        this.W.write(weights[0])
     }
 
     getConfig() {

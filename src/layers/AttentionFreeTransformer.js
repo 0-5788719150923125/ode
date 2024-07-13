@@ -93,24 +93,6 @@ export default class AttentionFreeTransformer extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [
-            this.toQ.read(),
-            this.toK.read(),
-            this.toV.read(),
-            this.project.read(),
-            this.wbias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.toQ.write(weights[0])
-        this.toK.write(weights[1])
-        this.toV.write(weights[2])
-        this.project.write(weights[3])
-        this.wbias.write(weights[4])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

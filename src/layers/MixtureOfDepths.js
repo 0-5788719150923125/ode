@@ -168,15 +168,6 @@ export default class MixtureOfDepths extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [this.routerKernel.read(), this.routerBias.read()]
-    }
-
-    setWeights(weights) {
-        this.routerKernel.write(weights[0])
-        this.routerBias.write(weights[1])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

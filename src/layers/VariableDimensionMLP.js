@@ -95,26 +95,6 @@ export default class VariableDimensionMLP extends LayerBase {
         })
     }
 
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
-
-    getWeights() {
-        return [
-            this.inProjKernel.read(),
-            this.inProjBias.read(),
-            this.outProjKernel.read(),
-            this.outProjBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.inProjKernel.write(weights[0])
-        this.inProjBias.write(weights[1])
-        this.outProjKernel.write(weights[2])
-        this.outProjBias.write(weights[3])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

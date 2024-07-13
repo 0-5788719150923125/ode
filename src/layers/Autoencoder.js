@@ -152,30 +152,6 @@ export default class Autoencoder extends LayerBase {
         return [inputShape[0], inputShape[1], this.outputDim]
     }
 
-    getWeights() {
-        return [
-            this.encoderKernel1.read(),
-            this.encoderBias1.read(),
-            this.encoderKernel2.read(),
-            this.encoderBias2.read(),
-            this.decoderKernel1.read(),
-            this.decoderBias1.read(),
-            this.decoderKernel2.read(),
-            this.decoderBias2.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.encoderKernel1.write(weights[0])
-        this.encoderBias1.write(weights[1])
-        this.encoderKernel2.write(weights[2])
-        this.encoderBias2.write(weights[3])
-        this.decoderKernel1.write(weights[4])
-        this.decoderBias1.write(weights[5])
-        this.decoderKernel2.write(weights[6])
-        this.decoderBias2.write(weights[7])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

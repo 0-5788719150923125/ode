@@ -114,24 +114,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         return topKIndices.arraySync()
     }
 
-    getWeights() {
-        return [
-            this.switchingHidden.read(),
-            this.switchingHiddenBias.read(),
-            this.switchingKernel.read(),
-            this.switchingBias.read(),
-            this.outputProjection.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.switchingHidden.write(weights[0])
-        this.switchingHiddenBias.write(weights[1])
-        this.switchingKernel.write(weights[2])
-        this.switchingBias.write(weights[3])
-        this.outputProjection.write(weights[4])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

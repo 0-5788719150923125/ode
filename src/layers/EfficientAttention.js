@@ -131,22 +131,6 @@ export default class EfficientAttention extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [
-            this.queries.read(),
-            this.keys.read(),
-            this.values.read(),
-            this.reprojection.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.queries.write(weights[0])
-        this.keys.write(weights[1])
-        this.values.write(weights[2])
-        this.reprojection.write(weights[3])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

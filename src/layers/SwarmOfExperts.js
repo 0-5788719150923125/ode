@@ -81,22 +81,6 @@ export default class SwarmOfExperts extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [
-            this.gatingHidden.read(),
-            this.gatingHiddenBias.read(),
-            this.gatingKernel.read(),
-            this.gatingBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.gatingHidden.write(weights[0])
-        this.gatingHiddenBias.write(weights[1])
-        this.gatingKernel.write(weights[2])
-        this.gatingBias.write(weights[3])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

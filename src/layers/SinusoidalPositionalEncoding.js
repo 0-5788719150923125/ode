@@ -47,10 +47,6 @@ export default class SinusoidalPositionalEncoding extends LayerBase {
             return inputs.add(broadcastedPositionalEncoding)
         })
     }
-
-    computeOutputShape(inputShape) {
-        return inputShape
-    }
 }
 
 tf.serialization.registerClass(SinusoidalPositionalEncoding)

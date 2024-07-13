@@ -172,44 +172,6 @@ export default class GroupedQueryAttention extends LayerBase {
         })
     }
 
-    getWeights() {
-        const weights = []
-
-        for (let i = 0; i < this.heads; i++) {
-            for (let j = 0; j < this.queryRatio; j++) {
-                weights.push(this.queryKernels[i][j].read())
-                weights.push(this.queryBiases[i][j].read())
-            }
-            weights.push(this.keyKernels[i].read())
-            weights.push(this.keyBiases[i].read())
-            weights.push(this.valueKernels[i].read())
-            weights.push(this.valueBiases[i].read())
-        }
-
-        weights.push(this.outputKernel.read())
-        weights.push(this.outputBias.read())
-
-        return weights
-    }
-
-    setWeights(weights) {
-        let index = 0
-
-        for (let i = 0; i < this.heads; i++) {
-            for (let j = 0; j < this.queryRatio; j++) {
-                this.queryKernels[i][j].write(weights[index++])
-                this.queryBiases[i][j].write(weights[index++])
-            }
-            this.keyKernels[i].write(weights[index++])
-            this.keyBiases[i].write(weights[index++])
-            this.valueKernels[i].write(weights[index++])
-            this.valueBiases[i].write(weights[index++])
-        }
-
-        this.outputKernel.write(weights[index++])
-        this.outputBias.write(weights[index])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

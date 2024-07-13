@@ -153,22 +153,6 @@ export default class SMEAR extends LayerBase {
     //     return mergedExpert
     // }
 
-    getWeights() {
-        return [
-            this.routerHiddenKernel.read(),
-            this.routerHiddenBias.read(),
-            this.routerOutputKernel.read(),
-            this.routerOutputBias.read()
-        ]
-    }
-
-    setWeights(weights) {
-        this.routerHiddenKernel.write(weights[0])
-        this.routerHiddenBias.write(weights[1])
-        this.routerOutputKernel.write(weights[2])
-        this.routerOutputBias.write(weights[3])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

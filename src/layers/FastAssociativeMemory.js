@@ -112,16 +112,6 @@ export default class FastAssociativeMemory extends LayerBase {
         })
     }
 
-    getWeights() {
-        return [this.W.read(), this.C.read(), this.b.read()]
-    }
-
-    setWeights(weights) {
-        this.W.write(weights[0])
-        this.C.write(weights[1])
-        this.b.write(weights[2])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),

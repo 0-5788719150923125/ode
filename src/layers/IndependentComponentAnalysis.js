@@ -90,14 +90,6 @@ export default class IndependentComponentAnalysis extends LayerBase {
         return [inputShape[0], inputShape[1], this.outputDim]
     }
 
-    getWeights() {
-        return [this.kernel.read()]
-    }
-
-    setWeights(weights) {
-        this.kernel.write(weights[0])
-    }
-
     getConfig() {
         return {
             ...super.getConfig(),
