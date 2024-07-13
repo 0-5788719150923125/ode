@@ -66,21 +66,22 @@ export default class ModelBase {
 
     async load(type = 'file', path = `data/models/ode`) {
         await this.preInit()
-        this.model = await this.tf.loadLayersModel(
-            `${type}://${path}/model.json`,
-            {
-                strict: true,
-                streamWeights: true
-            }
-        )
+        let modelPath = `${type}://${path}`
+        if (type === 'file') modelPath += '/model.json'
+        this.model = await this.tf.loadLayersModel(modelPath, {
+            strict: true,
+            streamWeights: true
+        })
 
         // if a layer has experts
         for (const layer of this.model.layers) {
             if (layer.experts) {
                 for (let i = 0; i < layer.numExperts; i++) {
                     const idx = i + 1
+                    let expertPath = `${type}://${path}/experts/model${idx}`
+                    if (type === 'file') expertPath += '/model.json'
                     layer.experts[i] = await this.tf.loadLayersModel(
-                        `${type}://${path}/experts/model${idx}/model.json`,
+                        expertPath,
                         {
                             strict: true,
                             streamWeights: true
