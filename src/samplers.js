@@ -112,8 +112,8 @@ class HTTPSampler {
 }
 
 class StridedSampler {
-    constructor(generator) {
-        this.generator = generator
+    constructor(sampler) {
+        this.sampler = sampler
         this.tokens = []
     }
 
@@ -125,8 +125,8 @@ class StridedSampler {
                 this.tokens = this.tokens.slice(stride)
                 return returnTokens
             }
-            const sample = await this.generator.next()
-            this.tokens.push(...tokenizer.encode(sample.value))
+            const sample = await this.sampler.take({ tokenizer, maxSeqLen })
+            this.tokens.push(...tokenizer.encode(sample))
         }
     }
 }
@@ -145,13 +145,25 @@ class MultiSampler {
     }
 }
 
-async function* CosmopediaGenerator(sampleLen) {
-    const CosmopediaDataset = (await import('./datasets/cosmopedia.js')).default
-    const sampler = new CosmopediaDataset()
-    await sampler.init()
-    sampler.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
-    while (true) {
-        yield await sampler.getSample(sampleLen)
+class CosmopediaSampler {
+    constructor() {
+        this.producer = null
+    }
+
+    async init() {
+        const CosmopediaDataset = (await import('./datasets/cosmopedia.js'))
+            .default
+        this.producer = new CosmopediaDataset()
+        await this.producer.init()
+        this.producer.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
+        this.initialized = true
+    }
+
+    async take(config) {
+        if (!this.initialized) {
+            await this.init()
+        }
+        return await this.producer.getSample(config.maxSeqLen)
     }
 }
 
@@ -163,8 +175,7 @@ const samplers = {
     DirectorySampler: (directories, delimiter) =>
         new RandomSampler(new DirectorySampler(directories, delimiter)),
     HTTPSampler: (url) => new RandomSampler(new HTTPSampler(url)),
-    CosmopediaSampler: (sampleLen) =>
-        new StridedSampler(CosmopediaGenerator(sampleLen)),
+    CosmopediaSampler: () => new StridedSampler(new CosmopediaSampler()),
     MultiSampler: (samplers) => new MultiSampler(samplers)
 }
 export default samplers

@@ -69,10 +69,10 @@ async function orchestrate(options) {
         if (options.corpus.startsWith('http')) {
             sampler = samplers.HTTPSampler(options.corpus)
         } else if (options.corpus === 'cosmopedia') {
-            sampler = samplers.CosmopediaSampler(options.sampleLength)
+            sampler = samplers.CosmopediaSampler()
         } else if (options.corpus === 'multi') {
             sampler = samplers.MultiSampler([
-                samplers.CosmopediaSampler(options.sampleLength),
+                samplers.CosmopediaSampler(),
                 samplers.DirectorySampler(
                     '/home/crow/Repos/vtx/lab/phi/train',
                     '\n\n'
