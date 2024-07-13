@@ -4,6 +4,7 @@ import MultiLayerPerceptron from './MultiLayerPerceptron.js'
 export default class GatedLinearMLP extends MultiLayerPerceptron {
     constructor(config) {
         super(config)
+        this.gateActivation = config.gateActivation || 'sigmoid'
     }
 
     build(inputShape) {
@@ -29,7 +30,6 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Expand and contract projection via feedforward layers
             let proj = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
@@ -48,7 +48,9 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 this.gateProjBias.read()
             )
 
-            gate = tf.layers.activation({ activation: 'sigmoid' }).apply(gate)
+            gate = tf.layers
+                .activation({ activation: this.gateActivation })
+                .apply(gate)
 
             const gatedOutput = tf.mul(proj, gate)
 
@@ -58,7 +60,6 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 this.outProjBias.read()
             )
 
-            // Residual connection
             outputs = tf.add(inputs, outputs)
 
             outputs = kwargs['training']
@@ -67,6 +68,13 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
 
             return outputs
         })
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            gateActivation: this.gateActivation
+        }
     }
 }
 

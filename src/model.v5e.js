@@ -9,16 +9,16 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = config.layers || 5
         this.units = config.units || 128
-        this.embeddings = config.embeddings || 256
-        this.rank = config.rank || 64
+        this.embeddings = config.embeddings || 512
+        this.rank = config.rank || 96
         this.numExperts = config.numExperts || 3
-        this.moeDim = config.moeDim || 512
-        this.numHeads = config.numHeads || 5
+        this.routerDim = config.routerDim || 1024
+        this.numHeads = config.numHeads || 9
         this.headDim = config.headDim || 96
-        this.headFeatures = config.headFeatures || 32
-        this.mlpDim = config.mlpDim || 1024
-        this.learningRate = 1e-4
-        this.weightDecay = 0.001
+        this.headFeatures = config.headFeatures || 64
+        this.mlpDim = config.mlpDim || 512
+        this.learningRate = 0.0001
+        this.weightDecay = 0.01
     }
 
     defineTokenizer() {
@@ -60,7 +60,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             outputs = this.ode.layers
                 .SMEAR({
                     activation: 'mish',
-                    hiddenDim: this.moeDim,
+                    hiddenDim: this.routerDim,
                     experts: this.createFeedforwardExperts(outputs.shape)
                 })
                 .apply(outputs)
@@ -68,8 +68,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.embeddings,
-                activation: 'mish'
+                units: this.embeddings
+                // activation: 'mish'
             })
             .apply(outputs)
 
@@ -78,18 +78,24 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
+    defineSchedulers() {
+        this.minLearningRate = 0.00000001
+        const steps = 1000
+        this.schedulers = [
+            this.ode.schedulers.cosineWithRestartsScheduler(
+                this.minLearningRate,
+                this.learningRate,
+                steps
+            )
+        ]
+    }
+
     defineOptimizers() {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay
             })
-        ]
-    }
-
-    defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
         ]
     }
 
@@ -102,7 +108,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     type: 'GatedLinearMLP',
                     inputShape,
                     innerDim: this.mlpDim,
-                    activation: 'mish'
+                    activation: 'mish',
+                    gateActivation: 'sigmoid'
                 })
             })
     }
