@@ -38,14 +38,14 @@ export default class CosmopediaDataset {
     }
 
     async fetchRandomShard() {
-        const { slice, shards } = randomValueFromArray(this.slices)
-        const allShards = generatePaddedNumbers(0, shards, 5)
-        let shard = randomValueFromArray(allShards.slice(0, -2))
-        if (typeof shard === 'undefined') shard = '00000'
-        console.log('fetching shard:', shard, 'slice:', slice)
-        const path = `data/${slice}/${this.split}-${shard}-of-${allShards.slice(
-            -1
-        )}.parquet`
+        const { slice, shards } = this.getWeightedRandomSlice(this.slices)
+        const shardIndices = generatePaddedNumbers(0, shards, 5)
+        const numShards = shardIndices.slice(-1)
+        const allShards = shardIndices.slice(0, -1)
+
+        const shard = randomValueFromArray(allShards)
+        console.log('fetching shard:', `${shard}/${numShards}`, 'slice:', slice)
+        const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
         const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log(url)
         try {
@@ -65,6 +65,23 @@ export default class CosmopediaDataset {
         const arrowWasmTable = readParquet(this.buffer)
         // Convert to JS Arrow Table
         this.table = arrow.tableFromIPC(arrowWasmTable.intoIPCStream())
+    }
+
+    getWeightedRandomSlice(slices) {
+        // Calculate the total number of shards
+        const totalShards = slices.reduce((sum, slice) => sum + slice.shards, 0)
+
+        // Generate a random number between 0 and the total number of shards
+        const randomShard = Math.floor(Math.random() * totalShards)
+
+        // Find the slice that corresponds to the random shard
+        let accumulatedShards = 0
+        for (const slice of slices) {
+            accumulatedShards += slice.shards
+            if (randomShard < accumulatedShards) {
+                return slice
+            }
+        }
     }
 
     viewSchema() {
@@ -89,35 +106,28 @@ export default class CosmopediaDataset {
 
     fillCache() {
         while (this.cachedText.length < this.cacheSize) {
-            let idx = 0
-            let batchIdx = 0
-            let rowIdx = 0
-            try {
-                batchIdx = randomBetween(0, this.table.batches.length - 1)
+            let batchIdx = randomBetween(0, this.table.batches.length - 1)
 
-                const text = []
+            const text = []
 
-                rowIdx = null
-                for (const obj of this.schema) {
-                    idx = obj.idx
-                    const column = this.table.batches[batchIdx].getChildAt(
-                        obj.idx
-                    )
-                    if (rowIdx === null) {
-                        rowIdx = randomBetween(0, column.length - 1)
-                    }
-                    const prefix = obj.value
-                    text.push(prefix + column.get(rowIdx))
+            let rowIdx = null
+            for (const obj of this.schema) {
+                const column = this.table.batches[batchIdx].getChildAt(obj.idx)
+                if (rowIdx === null) {
+                    rowIdx = randomBetween(0, column.length - 1)
+                    // console.log(
+                    //     `has ${this.table.batches.length} batches, with ${
+                    //         column.length
+                    //     } rows, and ${
+                    //         column.length * this.table.batches.length
+                    //     } est combinations`
+                    // )
                 }
-
-                this.cachedText += text.join(this.delimiter) + this.eosToken
-            } catch (err) {
-                console.error(err)
-                console.log('idx was:', idx)
-                console.log('batch idx was:', batchIdx)
-                console.log('batch object is:', this.table.batches[batchIdx])
-                console.log('row idx was:', rowIdx)
+                const prefix = obj.value
+                text.push(prefix + column.get(rowIdx))
             }
+
+            this.cachedText += text.join(this.delimiter) + this.eosToken
         }
     }
 
@@ -128,7 +138,7 @@ export default class CosmopediaDataset {
         }
         this.fillCache()
         const sample = this.cachedText.slice(0, size)
-        this.cachedText = this.cachedText.slice(size, -1)
+        this.cachedText = this.cachedText.slice(size)
         return sample
     }
 }

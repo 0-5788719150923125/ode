@@ -44,10 +44,8 @@ export function splitLines(text, num = 100) {
     return lines.slice(0, num).join('\n')
 }
 
-export function randomValueFromArray(array, biasFactor = 1) {
-    const randomIndex = Math.floor(
-        Math.pow(Math.random(), biasFactor) * array.length
-    )
+export function randomValueFromArray(array) {
+    const randomIndex = Math.floor(Math.random() * array.length)
     return array[randomIndex]
 }
 
