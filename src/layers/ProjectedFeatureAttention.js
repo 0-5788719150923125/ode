@@ -23,7 +23,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `queryKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.keyKernels.push(
@@ -31,7 +32,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `keyKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform(),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.valueKernels.push(
@@ -39,7 +41,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [inputDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
             this.projectionKernels.push(
@@ -47,7 +50,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `projectionKernel_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    tf.regularizers.l2({ l2: 0.01 })
                 )
             )
         }
@@ -56,7 +60,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
             'outputKernel',
             [this.headFeatures * this.numHeads, inputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform(),
+            tf.regularizers.l2({ l2: 0.01 })
         )
     }
 
@@ -101,7 +106,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                         this.numHeads,
                         i,
                         seqLen,
-                        2048
+                        4096
                     )
                 }
 
