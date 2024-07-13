@@ -214,7 +214,7 @@ export default class ModelBase {
     }
 
     getWeightsByLayerPrefix(prefix = 'emb') {
-        const layers = model.layers.filter((layer) =>
+        const layers = this.model.layers.filter((layer) =>
             layer.name.startsWith(prefix)
         )
 

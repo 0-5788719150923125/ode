@@ -137,7 +137,13 @@ export default class GroupedQueryAttention extends LayerBase {
                         .div(tf.scalar(Math.sqrt(this.projection)))
 
                     if (this.useALiBi) {
-                        scores = this.applyALiBi(scores, this.heads, i, seqLen)
+                        scores = this.ops.applyALiBi(
+                            scores,
+                            this.heads,
+                            i,
+                            seqLen,
+                            4096
+                        )
                     }
 
                     scores = scores.add(mask)
