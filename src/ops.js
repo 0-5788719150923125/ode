@@ -18,14 +18,7 @@ function gumbelSoftmax(logits, temperature = 1.0) {
 // > which does not match the shape of the input '48,48'
 // Two solutions worked:
 // 1. Use tf.layers.dense but reassign kernel and bias
-// 2. Use tf.matMul but expandDims and tile kernel (current)
-// Another option, of course, is to separate attention logic
-// from trainable weights completely and use tf.layers.dense
-// inside a model definition. I was not able to define fully
-// function regular dense layers inside a custom layer.
-// Something related to how weights are loaded with this.kernel
-// and duplicating names
-
+// 2. Use tf.matMul but expandDims and tile kernel (this)
 function applyDense(x, kernel, bias) {
     let k = kernel.expandDims(0).tile([x.shape[0], 1, 1])
     const m = tf.matMul(x, k)
@@ -43,7 +36,7 @@ function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
     if (!this.alibiSlopes) {
         const slopesPerHead = tf.pow(
             tf.scalar(2),
-            tf.range(0, numHeads).cast('float32').div(tf.scalar(numHeads))
+            tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
         )
         const slopesPerPos = tf
             .range(0, maxSeqLen)
@@ -52,6 +45,8 @@ function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
         this.alibiSlopes = tf.keep(
             slopesPerHead.expandDims(1).mul(slopesPerPos)
         )
+        console.log('ALiBi slopes:')
+        this.alibiSlopes.print()
     }
 
     const alibiScores = this.alibiSlopes

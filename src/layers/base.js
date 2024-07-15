@@ -5,7 +5,7 @@ export default class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.ops = customOps
-        this.useALiBi = config.useALiBi || false
+        this.ALiBiLength = config.ALiBiLength || false
     }
 
     call(inputs, kwargs) {
@@ -26,7 +26,7 @@ export default class LayerBase extends tf.layers.Layer {
         return {
             ...super.getConfig(),
             className: this.getClassName(),
-            useALiBi: this.useALiBi
+            ALiBiLength: this.ALiBiLength
         }
     }
 }

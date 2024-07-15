@@ -8,7 +8,6 @@ export default class GroupedQueryAttention extends LayerBase {
         this.heads = config.heads || 8
         this.queryRatio = config.queryRatio || 2
         this.dropout = config.dropout || 0
-        this.useALiBi = config.useALiBi || false
     }
 
     build(inputShape) {
@@ -136,13 +135,13 @@ export default class GroupedQueryAttention extends LayerBase {
                         .matMul(Q, K, false, true)
                         .div(tf.scalar(Math.sqrt(this.projection)))
 
-                    if (this.useALiBi) {
+                    if (this.ALiBiLength) {
                         scores = this.ops.applyALiBi(
                             scores,
                             this.heads,
                             i,
                             seqLen,
-                            4096
+                            this.ALiBiLength
                         )
                     }
 

@@ -39,8 +39,7 @@ export default class OpenDoorExperiment extends ODE {
                 .GroupedQueryAttention({
                     heads: this.heads,
                     projection: this.headDim,
-                    queryRatio: this.queryRatio,
-                    useALiBi: true
+                    queryRatio: this.queryRatio
                 })
                 .apply(outputs)
 

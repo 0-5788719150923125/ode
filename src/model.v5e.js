@@ -18,7 +18,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 0.0001
-        this.weightDecay = 0.01
+        this.weightDecay = 0.001
+        this.ALiBiLength = 1024
     }
 
     defineTokenizer() {
@@ -53,7 +54,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     numHeads: this.numHeads,
                     headDim: this.headDim,
                     headFeatures: this.headFeatures,
-                    useALiBi: true
+                    ALiBiLength: this.ALiBiLength
                 })
                 .apply(outputs)
 

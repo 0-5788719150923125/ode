@@ -88,7 +88,7 @@ export default class CosmopediaDataset {
         console.log(table.schema.toString())
     }
 
-    loadSchema(array) {
+    loadSchema(array = [{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }]) {
         this.schema = []
         array.map((obj) => {
             Object.entries(obj).forEach(([key, value]) => {

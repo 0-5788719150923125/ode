@@ -100,13 +100,13 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 let scores = tf.matMul(QP, KP, false, true)
                 scores = scores.div(tf.sqrt(tf.scalar(KP.shape[1])))
 
-                if (this.useALiBi) {
+                if (this.ALiBiLength) {
                     scores = this.ops.applyALiBi(
                         scores,
                         this.numHeads,
                         i,
                         seqLen,
-                        4096
+                        this.ALiBiLength
                     )
                 }
 
