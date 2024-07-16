@@ -1,4 +1,4 @@
-import { tableFromIPC } from 'apache-arrow'
+import { Table, tableFromIPC } from 'apache-arrow'
 import initWasm, { readParquetStream } from 'parquet-wasm'
 
 function randomBetween(min, max) {
@@ -45,12 +45,12 @@ export default class CosmopediaDataset {
             (typeof self !== 'undefined' &&
                 typeof self.importScripts === 'function') ||
             typeof window !== 'undefined'
-        if (isBrowser) await wasmInit()
+        if (isBrowser) await initWasm()
         await this.fetchRandomShard()
     }
 
     async fetchRandomShard() {
-        this.disposeCurrentTable()
+        // this.disposeCurrentTable()
         const { slice, shards } = this.getWeightedRandomSlice(this.slices)
         const shardIndices = generatePaddedNumbers(0, shards, 5)
         const numShards = shardIndices.slice(-1)
@@ -74,48 +74,44 @@ export default class CosmopediaDataset {
 
     async moveDataIntoTable(url) {
         console.log('moving data into table')
-
-        await initWasm()
-        console.log(wasm)
         const stream = await readParquetStream(url)
         // Read Parquet buffer to Arrow Table
         const batches = []
         for await (const wasmRecordBatch of stream) {
-            console.log('batches')
             const arrowTable = tableFromIPC(wasmRecordBatch.intoIPCStream())
             batches.push(...arrowTable.batches)
         }
         // Convert to JS Arrow Table
-        this.table = new arrow.Table(batches)
+        this.table = new Table(batches)
         // this.buffer = null
     }
 
-    disposeCurrentTable() {
-        if (this.table) {
-            // Remove references to all batches
-            this.table.batches.length = 0
+    // disposeCurrentTable() {
+    //     if (this.table) {
+    //         // Remove references to all batches
+    //         this.table.batches.length = 0
 
-            // Remove references to all columns
-            if (this.table.schema && this.table.schema.fields) {
-                this.table.schema.fields.forEach((field) => {
-                    if (this.table[field.name]) {
-                        this.table[field.name] = null
-                    }
-                })
-            }
+    //         // Remove references to all columns
+    //         if (this.table.schema && this.table.schema.fields) {
+    //             this.table.schema.fields.forEach((field) => {
+    //                 if (this.table[field.name]) {
+    //                     this.table[field.name] = null
+    //                 }
+    //             })
+    //         }
 
-            // Remove reference to the schema
-            this.table.schema = null
+    //         // Remove reference to the schema
+    //         this.table.schema = null
 
-            // Remove the reference to the table itself
-            this.table = null
-        }
+    //         // Remove the reference to the table itself
+    //         this.table = null
+    //     }
 
-        // Suggest garbage collection if available
-        if (global.gc) {
-            global.gc()
-        }
-    }
+    //     // Suggest garbage collection if available
+    //     if (global.gc) {
+    //         global.gc()
+    //     }
+    // }
 
     getWeightedRandomSlice(slices) {
         // Calculate the total number of shards
@@ -178,6 +174,7 @@ export default class CosmopediaDataset {
                     console.log('batchIdx was:', batchIdx)
                     console.log('rowIdx was:', rowIdx)
                     console.log('data was:', data)
+                    console.log('ascii was:', bigIntToAscii(data))
                     shouldSkip = true
                     // throw 'data was invalid' // this is temporary, for debugging, so we don't spam the terminal
                     await this.fetchRandomShard()
@@ -199,6 +196,15 @@ export default class CosmopediaDataset {
         this.cachedText = this.cachedText.slice(size)
         return sample
     }
+}
+
+function bigIntToAscii(bigInt) {
+    let result = ''
+    while (bigInt > 0n) {
+        result = String.fromCharCode(Number(bigInt & 255n)) + result
+        bigInt >>= 8n
+    }
+    return result
 }
 
 const numIterations = 1_000_000_000_000

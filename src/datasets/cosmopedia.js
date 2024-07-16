@@ -1,5 +1,5 @@
-import * as arrow from 'apache-arrow'
-import wasmInit, { readParquet } from 'parquet-wasm'
+import { Table, tableFromIPC } from 'apache-arrow'
+import initWasm, { readParquetStream } from 'parquet-wasm'
 import {
     generatePaddedNumbers,
     randomBetween,
@@ -33,7 +33,7 @@ export default class CosmopediaDataset {
             (typeof self !== 'undefined' &&
                 typeof self.importScripts === 'function') ||
             typeof window !== 'undefined'
-        if (isBrowser) await wasmInit()
+        if (isBrowser) await initWasm()
         await this.fetchRandomShard()
     }
 
@@ -49,9 +49,7 @@ export default class CosmopediaDataset {
         this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log(this.url)
         try {
-            const response = await fetch(this.url)
-            this.buffer = new Uint8Array(await response.arrayBuffer())
-            this.moveDataIntoTable()
+            await this.streamDataIntoTable()
             console.log('moved shard to table:', shard)
         } catch (err) {
             console.warn(
@@ -60,12 +58,17 @@ export default class CosmopediaDataset {
         }
     }
 
-    moveDataIntoTable() {
+    async streamDataIntoTable() {
+        const stream = await readParquetStream(this.url)
+
         // Read Parquet buffer to Arrow Table
-        const arrowWasmTable = readParquet(this.buffer)
+        const batches = []
+        for await (const wasmRecordBatch of stream) {
+            const arrowTable = tableFromIPC(wasmRecordBatch.intoIPCStream())
+            batches.push(...arrowTable.batches)
+        }
         // Convert to JS Arrow Table
-        this.table = arrow.tableFromIPC(arrowWasmTable.intoIPCStream())
-        this.buffer = null
+        this.table = new Table(batches)
     }
 
     getWeightedRandomSlice(slices) {
