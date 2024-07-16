@@ -50,7 +50,6 @@ export default class CosmopediaDataset {
         console.log(this.url)
         try {
             await this.streamDataIntoTable()
-            console.log('moved shard to table:', shard)
         } catch (err) {
             console.warn(
                 `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old shard for now...`
@@ -69,6 +68,7 @@ export default class CosmopediaDataset {
         }
         // Convert to JS Arrow Table
         this.table = new Table(batches)
+        console.log('moved shard to table')
     }
 
     getWeightedRandomSlice(slices) {
@@ -122,7 +122,8 @@ export default class CosmopediaDataset {
                     column = this.table.batches[batchIdx].getChildAt(obj.idx)
                 } catch (err) {
                     console.error(err)
-                    await this.fetchRandomShard()
+                    // await this.fetchRandomShard()
+                    await this.streamDataIntoTable()
                     return await this.fillCache()
                 }
                 if (rowIdx === null) {
@@ -140,13 +141,13 @@ export default class CosmopediaDataset {
                 // Some 'data' values appear to be random integers, with no other information. This
                 // is probably a mistake in the training data, so we skip them.
                 if (/^-?\d+$/.test(data)) {
-                    console.log(this.url)
                     console.log('prefix was:', prefix)
                     console.log('batchIdx was:', batchIdx)
                     console.log('rowIdx was:', rowIdx)
                     console.log('data was:', data)
                     shouldSkip = true
-                    await this.fetchRandomShard()
+                    // await this.fetchRandomShard()
+                    await this.streamDataIntoTable()
                 }
                 text.push(prefix + data)
             }

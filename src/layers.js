@@ -24,6 +24,7 @@ import MixtureOfExperts from './layers/MixtureOfExperts.js'
 import MultiHeadAttention from './layers/MultiHeadAttention.js'
 import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
 import MultiQueryAttention from './layers/MultiQueryAttention.js'
+import ParameterEfficientExpertRetrieval from './layers/ParameterEfficientExpertRetrieval.js'
 import ProjectedFeatureAttention from './layers/ProjectedFeatureAttention.js'
 import ProjectedFeatureReduction from './layers/ProjectedFeatureReduction.js'
 import QSparseMLP from './layers/QSparseMLP.js'
@@ -158,6 +159,10 @@ const customLayersConfig = {
     MultiQueryAttention: {
         constructor: MultiQueryAttention,
         prefix: 'attn'
+    },
+    ParameterEfficientExpertRetrieval: {
+        constructor: ParameterEfficientExpertRetrieval,
+        prefix: 'moe'
     },
     ProjectedFeatureAttention: {
         constructor: ProjectedFeatureAttention,
