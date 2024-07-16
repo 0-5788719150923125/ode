@@ -1,8 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
 
-// const epsilon = tf.backend().epsilon()
-const epsilon = 1e-7
-
 function categoricalCrossentropy(target, output, fromLogits = false) {
     return tf.tidy(() => {
         if (fromLogits) {
@@ -12,6 +9,7 @@ function categoricalCrossentropy(target, output, fromLogits = false) {
             const outputSum = tf.sum(output, output.shape.length - 1, true)
             output = tf.div(output, outputSum)
         }
+        const epsilon = tf.backend().epsilon()
         output = tf.clipByValue(output, epsilon, 1 - epsilon)
         return tf.neg(
             tf.sum(
@@ -28,6 +26,7 @@ function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
         const flatTarget = target.flatten().toInt()
 
         // Clip the output predictions to avoid log(0) error
+        const epsilon = tf.backend().epsilon()
         output = output.clipByValue(epsilon, 1 - epsilon)
 
         // Determine the number of classes from the output shape
@@ -64,6 +63,7 @@ function categoricalFocalCrossEntropy(
 ) {
     return tf.tidy(() => {
         // Clip values to prevent division by zero error
+        const epsilon = tf.backend().epsilon()
         const clippedPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
 
         if (fromLogits) {
@@ -92,32 +92,10 @@ function categoricalFocalCrossEntropy(
 }
 
 const customLosses = {
-    categoricalCrossentropy: (target, output, fromLogits) =>
-        categoricalCrossentropy(target, output, fromLogits),
-    sparseCategoricalCrossentropy: (target, output, fromLogits) =>
-        sparseCategoricalCrossentropy(target, output, fromLogits),
-    categoricalFocalCrossEntropy: (
-        yTrue,
-        yPred,
-        weights,
-        labelSmoothing,
-        reduction,
-        alpha,
-        gamma,
-        fromLogits,
-        axis
-    ) =>
-        categoricalFocalCrossEntropy(
-            yTrue,
-            yPred,
-            weights,
-            labelSmoothing,
-            reduction,
-            alpha,
-            gamma,
-            fromLogits,
-            axis
-        )
+    softmaxCrossEntropy: tf.losses.softmaxCrossEntropy,
+    categoricalCrossentropy,
+    sparseCategoricalCrossentropy,
+    categoricalFocalCrossEntropy
 }
 
 export default customLosses

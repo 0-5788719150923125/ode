@@ -145,7 +145,7 @@ export default class ModelBase {
     defineLossFunctions() {
         this.lossFunctions = [
             {
-                function: this.tf.losses.softmaxCrossEntropy,
+                function: this.ode.losses.softmaxCrossEntropy,
                 weights: null,
                 smoothing: null,
                 reduction: this.tf.Reduction.MEAN
