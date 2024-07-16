@@ -21,13 +21,14 @@ export default class MultiLayerPerceptron extends LayerBase {
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
-        this.inProjBias = this.addWeight(
-            `inProjBias`,
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+        if (this.useBias)
+            this.inProjBias = this.addWeight(
+                `inProjBias`,
+                [this.innerDim],
+                'float32',
+                tf.initializers.zeros(),
+                tf.regularizers.l2({ l2: 0.01 })
+            )
 
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
@@ -36,13 +37,14 @@ export default class MultiLayerPerceptron extends LayerBase {
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
-        this.outProjBias = this.addWeight(
-            `outProjBias`,
-            [this.units],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+        if (this.useBias)
+            this.outProjBias = this.addWeight(
+                `outProjBias`,
+                [this.units],
+                'float32',
+                tf.initializers.zeros(),
+                tf.regularizers.l2({ l2: 0.01 })
+            )
     }
 
     call(inputs, kwargs) {
@@ -53,7 +55,7 @@ export default class MultiLayerPerceptron extends LayerBase {
             let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
-                this.inProjBias.read()
+                this.useBias ? this.inProjBias.read() : null
             )
 
             outputs = this.ops.rmsNorm(outputs)
@@ -65,7 +67,7 @@ export default class MultiLayerPerceptron extends LayerBase {
             outputs = this.ops.applyDense(
                 outputs,
                 this.outProjKernel.read(),
-                this.outProjBias.read()
+                this.useBias ? this.outProjBias.read() : null
             )
 
             // Residual connection

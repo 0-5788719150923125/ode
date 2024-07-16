@@ -16,6 +16,10 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.keyKernels = []
         this.valueKernels = []
         this.projectionKernels = []
+        this.queryBiases = []
+        this.keyBiases = []
+        this.valueBiases = []
+        this.projectionBiases = []
 
         for (let i = 0; i < this.numHeads; i++) {
             this.queryKernels.push(
@@ -27,6 +31,15 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )
+            if (this.useBias)
+                this.queryBiases.push(
+                    this.addWeight(
+                        `queryBias_${i}`,
+                        [this.headDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
             this.keyKernels.push(
                 this.addWeight(
                     `keyKernel_${i}`,
@@ -36,6 +49,15 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )
+            if (this.useBias)
+                this.keyBiases.push(
+                    this.addWeight(
+                        `keyBias_${i}`,
+                        [this.headDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
             this.valueKernels.push(
                 this.addWeight(
                     `valueKernel_${i}`,
@@ -45,6 +67,15 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )
+            if (this.useBias)
+                this.valueBiases.push(
+                    this.addWeight(
+                        `valueBias_${i}`,
+                        [this.headFeatures],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
             this.projectionKernels.push(
                 this.addWeight(
                     `projectionKernel_${i}`,
@@ -54,6 +85,15 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )
+            if (this.useBias)
+                this.projectionBiases.push(
+                    this.addWeight(
+                        `projectionBias_${i}`,
+                        [this.headFeatures],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
         }
 
         this.outputKernel = this.addWeight(
@@ -63,6 +103,13 @@ export default class ProjectedFeatureAttention extends LayerBase {
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
         )
+        if (this.useBias)
+            this.outputBias = this.addWeight(
+                'outputBias',
+                [inputDim],
+                'float32',
+                tf.initializers.zeros()
+            )
     }
 
     call(inputs, kwargs) {
@@ -80,21 +127,29 @@ export default class ProjectedFeatureAttention extends LayerBase {
             for (let i = 0; i < this.numHeads; i++) {
                 const Q = this.ops.applyDense(
                     inputs,
-                    this.queryKernels[i].read()
+                    this.queryKernels[i].read(),
+                    this.useBias ? this.queryBiases[i].read() : null
                 )
-                const K = this.ops.applyDense(inputs, this.keyKernels[i].read())
+                const K = this.ops.applyDense(
+                    inputs,
+                    this.keyKernels[i].read(),
+                    this.useBias ? this.keyBiases[i].read() : null
+                )
                 const V = this.ops.applyDense(
                     inputs,
-                    this.valueKernels[i].read()
+                    this.valueKernels[i].read(),
+                    this.useBias ? this.valueBiases[i].read() : null
                 )
 
                 const QP = this.ops.applyDense(
                     Q,
-                    this.projectionKernels[i].read()
+                    this.projectionKernels[i].read(),
+                    this.useBias ? this.projectionBiases[i].read() : null
                 )
                 const KP = this.ops.applyDense(
                     K,
-                    this.projectionKernels[i].read()
+                    this.projectionKernels[i].read(),
+                    this.useBias ? this.projectionBiases[i].read() : null
                 )
 
                 let scores = tf.matMul(QP, KP, false, true)
@@ -123,7 +178,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
             let outputs = this.ops.applyDense(
                 concatenatedOutputs,
-                this.outputKernel.read()
+                this.outputKernel.read(),
+                this.useBias ? this.outputBias.read() : null
             )
 
             outputs = this.ops.rmsNorm(outputs)

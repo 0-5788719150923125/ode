@@ -40,6 +40,7 @@ import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
 import LowRankFactorization from './layers/LowRankFactorization.js'
+import RoughMergingOfExperts from './layers/RoughMergingOfExperts.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -174,6 +175,10 @@ const customLayersConfig = {
     RotaryPositionalEncoding: {
         constructor: RotaryPositionalEncoding,
         prefix: 'enc'
+    },
+    RoughMergingOfExperts: {
+        constructor: RoughMergingOfExperts,
+        prefix: 'dia'
     },
     SelfAttention: { constructor: SelfAttention, prefix: 'attn' },
     SharedEmbedding: { constructor: SharedEmbedding, prefix: 'emb' },

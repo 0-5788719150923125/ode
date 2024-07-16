@@ -5,6 +5,7 @@ export default class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.ops = customOps
+        this.useBias = config.useBias || false
         this.ALiBiLength = config.ALiBiLength || false
     }
 
@@ -26,6 +27,7 @@ export default class LayerBase extends tf.layers.Layer {
         return {
             ...super.getConfig(),
             className: this.getClassName(),
+            useBias: this.useBias,
             ALiBiLength: this.ALiBiLength
         }
     }

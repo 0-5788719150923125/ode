@@ -17,13 +17,14 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
-        this.gateProjBias = this.addWeight(
-            `gateProjBias`,
-            [this.innerDim],
-            'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
-        )
+        if (this.useBias)
+            this.gateProjBias = this.addWeight(
+                `gateProjBias`,
+                [this.innerDim],
+                'float32',
+                tf.initializers.zeros(),
+                tf.regularizers.l2({ l2: 0.01 })
+            )
     }
 
     call(inputs, kwargs) {
@@ -33,7 +34,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             let proj = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
-                this.inProjBias.read()
+                this.useBias ? this.inProjBias.read() : null
             )
 
             proj = this.ops.rmsNorm(proj)
@@ -45,7 +46,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             let gate = this.ops.applyDense(
                 inputs,
                 this.gateProjKernel.read(),
-                this.gateProjBias.read()
+                this.useBias ? this.gateProjBias.read() : null
             )
 
             gate = tf.layers
@@ -57,7 +58,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             let outputs = this.ops.applyDense(
                 gatedOutput,
                 this.outProjKernel.read(),
-                this.outProjBias.read()
+                this.useBias ? this.outProjBias.read() : null
             )
 
             outputs = tf.add(inputs, outputs)

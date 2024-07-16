@@ -1,8 +1,9 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
+// inspired by SMEAR:
 // https://arxiv.org/abs/2306.03745
-export default class SMEAR extends LayerBase {
+export default class RoughMergingOfExperts extends LayerBase {
     constructor(config) {
         super(config)
         this.experts = config.experts || []
@@ -120,4 +121,4 @@ export default class SMEAR extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(SMEAR)
+tf.serialization.registerClass(RoughMergingOfExperts)
