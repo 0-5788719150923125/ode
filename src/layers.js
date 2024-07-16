@@ -26,10 +26,10 @@ import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
 import MultiQueryAttention from './layers/MultiQueryAttention.js'
 import ProjectedFeatureAttention from './layers/ProjectedFeatureAttention.js'
 import ProjectedFeatureReduction from './layers/ProjectedFeatureReduction.js'
-import QSparseMLP from './layers/QSParseMLP.js'
+import QSparseMLP from './layers/QSparseMLP.js'
 import Range from './layers/Range.js'
 import RotaryPositionalEncoding from './layers/RotataryPositionalEncoding.js'
-import SMEAR from './layers/SMEAR.js'
+import SoftMergingOfExperts from './layers/SoftMergingOfExperts.js'
 import SelfAttention from './layers/SelfAttention.js'
 import SharedEmbedding from './layers/SharedEmbedding.js'
 import SinusoidalPositionalEncoding from './layers/SinusoidalPositionalEncoding.js'
@@ -41,7 +41,6 @@ import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
 import LowRankFactorization from './layers/LowRankFactorization.js'
-import RoughMergingOfExperts from './layers/RoughMergingOfExperts.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -181,17 +180,13 @@ const customLayersConfig = {
         constructor: RotaryPositionalEncoding,
         prefix: 'enc'
     },
-    RoughMergingOfExperts: {
-        constructor: RoughMergingOfExperts,
-        prefix: 'dia'
-    },
     SelfAttention: { constructor: SelfAttention, prefix: 'attn' },
     SharedEmbedding: { constructor: SharedEmbedding, prefix: 'emb' },
     SinusoidalPositionalEncoding: {
         constructor: SinusoidalPositionalEncoding,
         prefix: 'enc'
     },
-    SMEAR: { constructor: SMEAR, prefix: 'moe' },
+    SoftMergingOfExperts: { constructor: SoftMergingOfExperts, prefix: 'moe' },
     SparseMixtureOfExperts: {
         constructor: SparseMixtureOfExperts,
         prefix: 'moe'

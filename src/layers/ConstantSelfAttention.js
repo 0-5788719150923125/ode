@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
 // By projecting features into a lower dimension, we can keep memory
-// consumption at a constant, management level.
+// consumption at a constant, manageable level.
 export default class ConstantSelfAttention extends LayerBase {
     constructor(config) {
         super(config)

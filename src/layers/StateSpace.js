@@ -1,6 +1,8 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
+// This is not a very good state space model. This one is recurrent and
+// slow, while modern designs are fast and parallelizable.
 export default class StateSpace extends LayerBase {
     constructor(config) {
         super({ name: `ssm-${randomString()}`, ...config })
@@ -28,7 +30,7 @@ export default class StateSpace extends LayerBase {
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.units, this.units], // Change this line
+            [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )

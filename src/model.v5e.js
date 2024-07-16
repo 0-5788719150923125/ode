@@ -59,7 +59,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .SMEAR({
+                .SoftMergingOfExperts({
                     activation: 'mish',
                     hiddenDim: this.routerDim,
                     experts: this.createFeedforwardExperts(outputs.shape)

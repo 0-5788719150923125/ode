@@ -22,7 +22,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.01
-        this.cosineSteps = 4096
+        this.cosineSteps = 2048
         this.ALiBiLength = 1024
     }
 
@@ -68,7 +68,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .RoughMergingOfExperts({
+                .SoftMergingOfExperts({
                     activation: 'mish',
                     hiddenDim: this.routerDim,
                     experts: this.createFeedforwardExperts(outputs.shape)

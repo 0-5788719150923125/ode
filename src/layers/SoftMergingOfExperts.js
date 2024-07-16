@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
 // https://arxiv.org/abs/2306.03745
-export default class SMEAR extends LayerBase {
+export default class SoftMergingOfExperts extends LayerBase {
     constructor(config) {
         super(config)
         this.experts = config.experts || []
@@ -110,49 +110,6 @@ export default class SMEAR extends LayerBase {
         return mergedExpert
     }
 
-    // mergeExperts(experts, weights) {
-    //     // We modify the first expert in-place
-    //     const mergedExpert = experts[0]
-    //     // We skip the first expert during averaging
-    //     const usedExperts = experts.slice(1)
-
-    //     // Aggregate weights across batch and sequence dimensions
-    //     const aggregatedWeights = weights.sum([0, 1]) // Shape: [num_experts]
-
-    //     // Normalize the aggregated weights
-    //     const normalizedWeights = aggregatedWeights.div(aggregatedWeights.sum())
-
-    //     for (let i = 0; i < mergedExpert.layers.length; i++) {
-    //         const layerWeights = mergedExpert.layers[i].getWeights()
-
-    //         // Compute weighted average of weights for this layer across all experts
-    //         const averagedWeights = layerWeights.map((_, weightIndex) => {
-    //             const expertWeights = usedExperts.map(
-    //                 (expert) => expert.layers[i].getWeights()[weightIndex]
-    //             )
-
-    //             const weightedAverage = tf.tidy(() => {
-    //                 return expertWeights.reduce((sum, weight, expertIndex) => {
-    //                     const expertWeight = normalizedWeights.slice(
-    //                         [expertIndex],
-    //                         [1]
-    //                     )
-    //                     const weightedExpert = weight.mul(expertWeight)
-
-    //                     return sum.add(weightedExpert)
-    //                 }, tf.zeros(expertWeights[0].shape))
-    //             })
-
-    //             return weightedAverage
-    //         })
-
-    //         // Set the averaged weights to the merged expert's layer
-    //         mergedExpert.layers[i].setWeights(averagedWeights)
-    //     }
-
-    //     return mergedExpert
-    // }
-
     getConfig() {
         return {
             ...super.getConfig(),
@@ -163,4 +120,4 @@ export default class SMEAR extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(SMEAR)
+tf.serialization.registerClass(SoftMergingOfExperts)
