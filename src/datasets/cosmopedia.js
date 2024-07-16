@@ -24,7 +24,7 @@ export default class CosmopediaDataset {
         this.eosToken = '<|eos|>'
         this.cacheSize = 20000
         this.cachedText = ''
-        this.cycleShardInterval = 10000 // batches
+        this.batchesBeforeRefresh = config?.batchesBeforeRefresh || 10000
         this.batches = 0
     }
 
@@ -141,9 +141,6 @@ export default class CosmopediaDataset {
                 // is probably a mistake in the training data, so we skip them.
                 if (/^-?\d+$/.test(data)) {
                     console.log(this.url)
-                    console.log(data)
-                    this.viewSchema()
-                    console.log(this.table)
                     console.log('prefix was:', prefix)
                     console.log('batchIdx was:', batchIdx)
                     console.log('rowIdx was:', rowIdx)
@@ -160,7 +157,7 @@ export default class CosmopediaDataset {
 
     async getSample(size = 512) {
         this.batches++
-        if (this.batches % this.cycleShardInterval === 0) {
+        if (this.batches % this.batchesBeforeRefresh === 0) {
             await this.fetchRandomShard()
         }
         await this.fillCache()

@@ -4,7 +4,7 @@ import ODE from './model.v2.js'
  * A Frankenstein.
  * @extends ODE
  */
-export default class OmnipotentDeterministicEnsemble extends ODE {
+export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 5
@@ -15,7 +15,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.beta = config.beta || 8.0
         this.numExperts = config.numExperts || 3
         this.routerDim = config.routerDim || 768
-        this.numHeads = config.numHeads || 8
+        this.numHeads = config.numHeads || 3
+        this.queriesPerHead = config.queriesPerHead | 3
         this.headDim = config.headDim || 96
         this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 512
@@ -61,6 +62,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
                     numHeads: this.numHeads,
+                    queriesPerHead: this.queriesPerHead,
                     headDim: this.headDim,
                     headFeatures: this.headFeatures,
                     ALiBiLength: this.ALiBiLength

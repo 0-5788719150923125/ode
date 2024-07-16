@@ -7,6 +7,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.numHeads = config.numHeads || 8
         this.headDim = config.headDim || 64
         this.headFeatures = config.headFeatures || 32
+        this.queriesPerHead = config.queriesPerHead || 1
     }
 
     build(inputShape) {
@@ -21,7 +22,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.valueBiases = []
         this.projectionBiases = []
 
-        for (let i = 0; i < this.numHeads; i++) {
+        const totalQueries = this.numHeads * this.queriesPerHead
+
+        for (let i = 0; i < totalQueries; i++) {
             this.queryKernels.push(
                 this.addWeight(
                     `queryKernel_${i}`,
@@ -40,6 +43,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
                         tf.initializers.zeros()
                     )
                 )
+        }
+
+        for (let i = 0; i < this.numHeads; i++) {
             this.keyKernels.push(
                 this.addWeight(
                     `keyKernel_${i}`,
@@ -98,7 +104,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.headFeatures * this.numHeads, inputDim],
+            [this.headFeatures * this.numHeads * this.queriesPerHead, inputDim],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -125,11 +131,6 @@ export default class ProjectedFeatureAttention extends LayerBase {
             const attentionOutputs = []
 
             for (let i = 0; i < this.numHeads; i++) {
-                const Q = this.ops.applyDense(
-                    inputs,
-                    this.queryKernels[i].read(),
-                    this.useBias ? this.queryBiases[i].read() : null
-                )
                 const K = this.ops.applyDense(
                     inputs,
                     this.keyKernels[i].read(),
@@ -141,37 +142,49 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     this.useBias ? this.valueBiases[i].read() : null
                 )
 
-                const QP = this.ops.applyDense(
-                    Q,
-                    this.projectionKernels[i].read(),
-                    this.useBias ? this.projectionBiases[i].read() : null
-                )
                 const KP = this.ops.applyDense(
                     K,
                     this.projectionKernels[i].read(),
                     this.useBias ? this.projectionBiases[i].read() : null
                 )
 
-                let scores = tf.matMul(QP, KP, false, true)
-                scores = scores.div(tf.sqrt(tf.scalar(KP.shape[1])))
-
-                if (this.ALiBiLength) {
-                    scores = this.ops.applyALiBi(
-                        scores,
-                        this.numHeads,
-                        i,
-                        seqLen,
-                        this.ALiBiLength
+                for (let j = 0; j < this.queriesPerHead; j++) {
+                    const queryIndex = i * this.queriesPerHead + j
+                    const Q = this.ops.applyDense(
+                        inputs,
+                        this.queryKernels[queryIndex].read(),
+                        this.useBias
+                            ? this.queryBiases[queryIndex].read()
+                            : null
                     )
+
+                    const QP = this.ops.applyDense(
+                        Q,
+                        this.projectionKernels[i].read(),
+                        this.useBias ? this.projectionBiases[i].read() : null
+                    )
+
+                    let scores = tf.matMul(QP, KP, false, true)
+                    scores = scores.div(tf.sqrt(tf.scalar(KP.shape[1])))
+
+                    if (this.ALiBiLength) {
+                        scores = this.ops.applyALiBi(
+                            scores,
+                            this.numHeads,
+                            i,
+                            seqLen,
+                            this.ALiBiLength
+                        )
+                    }
+
+                    const maskedScores = scores.add(mask)
+
+                    const weights = maskedScores.softmax()
+
+                    const output = tf.matMul(weights, V)
+
+                    attentionOutputs.push(output)
                 }
-
-                const maskedScores = scores.add(mask)
-
-                const weights = maskedScores.softmax()
-
-                const output = tf.matMul(weights, V)
-
-                attentionOutputs.push(output)
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
@@ -195,7 +208,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
             ...super.getConfig(),
             numHeads: this.numHeads,
             headDim: this.headDim,
-            headFeatures: this.headFeatures
+            headFeatures: this.headFeatures,
+            queriesPerHead: this.queriesPerHead
         }
     }
 }
