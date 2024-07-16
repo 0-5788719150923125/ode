@@ -13,9 +13,11 @@ export default class OpenDoorExperiment extends ODE {
         this.queryRatio = config.queryRatio || 2
         this.headDim = config.headDim || 256
         this.mlpDim = config.mlpDim || 512
+        this.learningRate = 0.00022
+        this.weightDecay = 0.01
     }
 
-    defineTokenizer(config) {
+    defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
             model: 'OriginalDesign/thrice'
         })
@@ -58,12 +60,11 @@ export default class OpenDoorExperiment extends ODE {
 
     defineSchedulers() {
         this.minLearningRate = 0.00000001
-        this.maxLearningRate = 0.00022
         const steps = 1000
         this.schedulers = [
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
-                this.maxLearningRate,
+                this.learningRate,
                 steps
             )
         ]
@@ -72,8 +73,8 @@ export default class OpenDoorExperiment extends ODE {
     defineOptimizers() {
         this.optimizers = [
             this.ode.optimizers.Lion({
-                learningRate: this.maxLearningRate,
-                weightDecay: 0.01
+                learningRate: this.learningRate,
+                weightDecay: this.weightDecay
             })
         ]
     }

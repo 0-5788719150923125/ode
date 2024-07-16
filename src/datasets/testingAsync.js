@@ -1,10 +1,22 @@
-import * as arrow from 'apache-arrow'
-import wasmInit, { readParquet } from 'parquet-wasm'
-import {
-    generatePaddedNumbers,
-    randomBetween,
-    randomValueFromArray
-} from '../utils.js'
+import { tableFromIPC } from 'apache-arrow'
+import initWasm, { readParquetStream } from 'parquet-wasm'
+
+function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min)
+}
+
+function randomValueFromArray(array) {
+    const randomIndex = Math.floor(Math.random() * array.length)
+    return array[randomIndex]
+}
+
+function generatePaddedNumbers(start, end, totalDigits) {
+    const numbers = []
+    for (let i = start; i <= end; i++) {
+        numbers.push(String(i).padStart(totalDigits, '0'))
+    }
+    return numbers
+}
 
 export default class CosmopediaDataset {
     constructor(config) {
@@ -38,20 +50,20 @@ export default class CosmopediaDataset {
     }
 
     async fetchRandomShard() {
+        this.disposeCurrentTable()
         const { slice, shards } = this.getWeightedRandomSlice(this.slices)
         const shardIndices = generatePaddedNumbers(0, shards, 5)
         const numShards = shardIndices.slice(-1)
         const allShards = shardIndices.slice(0, -1)
-
         const shard = randomValueFromArray(allShards)
         console.log('fetching shard:', `${shard}/${numShards}`, 'slice:', slice)
         const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
         this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log(this.url)
         try {
-            const response = await fetch(this.url)
-            this.buffer = new Uint8Array(await response.arrayBuffer())
-            this.moveDataIntoTable()
+            // const response = await fetch(this.url)
+            // this.buffer = new Uint8Array(await response.arrayBuffer())
+            await this.moveDataIntoTable(this.url)
             console.log('moved shard to table:', shard)
         } catch (err) {
             console.warn(
@@ -60,12 +72,49 @@ export default class CosmopediaDataset {
         }
     }
 
-    moveDataIntoTable() {
+    async moveDataIntoTable(url) {
+        console.log('moving data into table')
+
+        await initWasm()
+        console.log(wasm)
+        const stream = await readParquetStream(url)
         // Read Parquet buffer to Arrow Table
-        const arrowWasmTable = readParquet(this.buffer)
+        const batches = []
+        for await (const wasmRecordBatch of stream) {
+            console.log('batches')
+            const arrowTable = tableFromIPC(wasmRecordBatch.intoIPCStream())
+            batches.push(...arrowTable.batches)
+        }
         // Convert to JS Arrow Table
-        this.table = arrow.tableFromIPC(arrowWasmTable.intoIPCStream())
-        this.buffer = null
+        this.table = new arrow.Table(batches)
+        // this.buffer = null
+    }
+
+    disposeCurrentTable() {
+        if (this.table) {
+            // Remove references to all batches
+            this.table.batches.length = 0
+
+            // Remove references to all columns
+            if (this.table.schema && this.table.schema.fields) {
+                this.table.schema.fields.forEach((field) => {
+                    if (this.table[field.name]) {
+                        this.table[field.name] = null
+                    }
+                })
+            }
+
+            // Remove reference to the schema
+            this.table.schema = null
+
+            // Remove the reference to the table itself
+            this.table = null
+        }
+
+        // Suggest garbage collection if available
+        if (global.gc) {
+            global.gc()
+        }
     }
 
     getWeightedRandomSlice(slices) {
@@ -114,28 +163,14 @@ export default class CosmopediaDataset {
 
             let rowIdx = null
             for (const obj of this.schema) {
-                let column
-                try {
-                    column = this.table.batches[batchIdx].getChildAt(obj.idx)
-                } catch (err) {
-                    console.error(err)
-                    await this.fetchRandomShard()
-                    return await this.fillCache()
-                }
+                const column = this.table.batches[batchIdx].getChildAt(obj.idx)
                 if (rowIdx === null) {
                     rowIdx = randomBetween(0, column.length - 1)
-                    // console.log(
-                    //     `has ${this.table.batches.length} batches, with ${
-                    //         column.length
-                    //     } rows, and ${
-                    //         column.length * this.table.batches.length
-                    //     } est combinations`
-                    // )
                 }
                 const prefix = obj.value
                 const data = column.get(rowIdx)
-                // Some 'data' values appear to be random integers, with no other information. This
-                // is probably a mistake in the training data, so we skip them.
+                // Some 'data' values appear to be random integers, with no other information. So, we
+                // try to skip them here.
                 if (/^-?\d+$/.test(data)) {
                     console.log(this.url)
                     console.log(data)
@@ -144,6 +179,7 @@ export default class CosmopediaDataset {
                     console.log('rowIdx was:', rowIdx)
                     console.log('data was:', data)
                     shouldSkip = true
+                    // throw 'data was invalid' // this is temporary, for debugging, so we don't spam the terminal
                     await this.fetchRandomShard()
                 }
                 text.push(prefix + data)
@@ -165,16 +201,15 @@ export default class CosmopediaDataset {
     }
 }
 
-// async function main() {
-//     const sampler = new CosmopediaDataset()
-//     await sampler.init()
-//     sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
-//     for (let i = 0; i < 10; i++) {
-//         console.log(sampler.getSample())
-//         console.log('---')
-//         console.log('---')
-//         console.log('---')
-//     }
-// }
+const numIterations = 1_000_000_000_000
+async function main() {
+    const sampler = new CosmopediaDataset()
+    await sampler.init()
+    sampler.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
+    for (let i = 0; i < numIterations; i++) {
+        if (i % 1000 === 0) console.log('iterations:', i)
+        await sampler.getSample()
+    }
+}
 
-// main()
+main()

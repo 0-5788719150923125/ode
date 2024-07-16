@@ -37,5 +37,4 @@ class ExpertBase {
     }
 }
 
-const expertHandler = (config) => new ExpertBase(config)
-export default expertHandler
+export default (config) => new ExpertBase(config)

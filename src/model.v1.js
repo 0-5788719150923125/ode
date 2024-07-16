@@ -2,7 +2,7 @@ import ODE from './model.v0.js'
 
 /**
  * An extremely simple text-generation RNN, used for next-token prediction. You
- * will see versions of this model everywhere online, in tutorials on the Internet.
+ * will see similar versions of this model everywhere, in tutorials on the Internet.
  * @extends ODE
  */
 export default class OmnipresentDegenerateEntity extends ODE {
