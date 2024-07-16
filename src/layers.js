@@ -26,6 +26,7 @@ import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
 import MultiQueryAttention from './layers/MultiQueryAttention.js'
 import ProjectedFeatureAttention from './layers/ProjectedFeatureAttention.js'
 import ProjectedFeatureReduction from './layers/ProjectedFeatureReduction.js'
+import QSparseMLP from './layers/QSParseMLP.js'
 import Range from './layers/Range.js'
 import RotaryPositionalEncoding from './layers/RotataryPositionalEncoding.js'
 import SMEAR from './layers/SMEAR.js'
@@ -166,6 +167,10 @@ const customLayersConfig = {
     ProjectedFeatureReduction: {
         constructor: ProjectedFeatureReduction,
         prefix: 'op'
+    },
+    QSparseMLP: {
+        constructor: QSparseMLP,
+        prefix: 'mlp'
     },
     Range: {
         constructor: Range,

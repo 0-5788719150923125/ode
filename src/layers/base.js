@@ -5,8 +5,8 @@ export default class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.ops = customOps
-        this.useBias = config.useBias || false
-        this.ALiBiLength = config.ALiBiLength || false
+        this.useBias = config?.useBias || false
+        this.ALiBiLength = config?.ALiBiLength || false
     }
 
     call(inputs, kwargs) {

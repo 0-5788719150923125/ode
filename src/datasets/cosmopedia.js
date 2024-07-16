@@ -89,7 +89,7 @@ export default class CosmopediaDataset {
     }
 
     viewSchema() {
-        console.log(table.schema.toString())
+        console.log(this.table.schema.toString())
     }
 
     loadSchema(array = [{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }]) {
@@ -142,6 +142,8 @@ export default class CosmopediaDataset {
                 if (/^-?\d+$/.test(data)) {
                     console.log(this.url)
                     console.log(data)
+                    this.viewSchema()
+                    console.log(this.table)
                     console.log('prefix was:', prefix)
                     console.log('batchIdx was:', batchIdx)
                     console.log('rowIdx was:', rowIdx)
