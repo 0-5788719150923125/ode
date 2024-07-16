@@ -166,11 +166,7 @@ class GradientAccumulator {
 
             this.accumulatedGrads = {}
 
-            // const filteredGrads = filterGradients.call(this, clippedGrads)
-
             // Update gradients, step the optimizer, changing weights
-            // applyGradients(this.model, filteredGrads)
-            // console.log(this.model.optimizer)
             this.model.optimizer.applyGradients(clippedGrads)
 
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
@@ -188,27 +184,6 @@ function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
         model.optimizer.learningRate = schedulers[0].next().value
     }
 }
-
-// function applyGradients(model, grads) {
-//     const optimizer = model.optimizer
-//     const trainableWeights = model.trainableWeights
-
-//     const updatedGrads = {}
-//     for (let i = 0; i < trainableWeights.length; i++) {
-//         const weight = trainableWeights[i]
-//         const grad = grads[weight.name]
-
-//         if (grad != null && grad.shape.join(',') === weight.shape.join(',')) {
-//             // console.log('grad ', grad.shape)
-//             // console.log('weight ', weight.shape)
-//             updatedGrads[weight.name] = grad
-//         }
-//     }
-
-//     if (Object.keys(updatedGrads).length > 0) {
-//         optimizer.applyGradients(updatedGrads)
-//     }
-// }
 
 function computeGradients(
     model,
@@ -259,48 +234,14 @@ function computeGradients(
     return { grads, loss }
 }
 
-// function filterGradients(grads) {
-//     const activeLayers = new Set()
-//     const blockedLayers = new Set()
-
-//     this.model.collectedTrainableWeights.forEach((variable) => {
-//         if (variable.hasOwnProperty('trainable')) {
-//             if (!variable.trainable) return blockedLayers.add(variable.name)
-//         }
-//         if (variable.hasOwnProperty('trainable_')) {
-//             if (!variable.trainable_) return blockedLayers.add(variable.name)
-//         }
-//         activeLayers.add(variable.name)
-//     })
-
-//     const filteredGrads = {}
-//     Object.keys(grads).forEach((varName) => {
-//         const isActive = [...activeLayers].some((layerName) =>
-//             varName.includes(layerName)
-//         )
-
-//         const isBlocked = [...blockedLayers].some((layerName) =>
-//             varName.includes(layerName)
-//         )
-
-//         // If active, include this gradient in the filtered set
-//         if (isActive && !isBlocked) {
-//             filteredGrads[varName] = grads[varName]
-//         }
-//     })
-//     // if (activeLayers.size > 0) console.log('active_layers', activeLayers)
-//     // if (blockedLayers.size > 0) console.log('blocked_layers', blockedLayers)
-//     return filteredGrads
-// }
-
-// function clipByValue(grads, value) {
-//     const clippedGrads = {}
-//     Object.keys(grads).forEach((key) => {
-//         clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
-//         grads[key].dispose()
-//     })
-//     return clippedGrads
-// }
+function clipByValue(grads, value) {
+    const clippedGrads = {}
+    Object.keys(grads).forEach((key) => {
+        clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
+        grads[key].dispose()
+    })
+    return clippedGrads
+}
 
 function l2Loss(tensor) {
     // https://www.tensorflow.org/api_docs/python/tf/nn/l2_loss

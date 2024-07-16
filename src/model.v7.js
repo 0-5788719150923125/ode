@@ -1,7 +1,7 @@
 import ODE from './model.v2.js'
 
 /**
- * A Soft Merging of Experts with Adaptive Routing.
+ * A Frankenstein.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {

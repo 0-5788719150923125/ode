@@ -1,25 +1,8 @@
-import * as arrow from 'apache-arrow'
-import wasmInit, { readParquet } from 'parquet-wasm'
+import { tableFromIPC } from 'apache-arrow'
+import { readParquet } from 'parquet-wasm'
 
-function randomBetween(min, max) {
-    return Math.floor(Math.random() * (max - min + 1) + min)
-}
-
-function randomValueFromArray(array) {
-    const randomIndex = Math.floor(Math.random() * array.length)
-    return array[randomIndex]
-}
-
-function generatePaddedNumbers(start, end, totalDigits) {
-    const numbers = []
-    for (let i = start; i <= end; i++) {
-        numbers.push(String(i).padStart(totalDigits, '0'))
-    }
-    return numbers
-}
-
-export default class CosmopediaDataset {
-    constructor(config) {
+class CosmopediaDataset {
+    constructor() {
         this.dataset = 'HuggingFaceTB/cosmopedia'
         this.slices = [
             { slice: 'auto_math_text', shards: 18 },
@@ -42,16 +25,10 @@ export default class CosmopediaDataset {
     }
 
     async init() {
-        const isBrowser =
-            (typeof self !== 'undefined' &&
-                typeof self.importScripts === 'function') ||
-            typeof window !== 'undefined'
-        if (isBrowser) await wasmInit()
         await this.fetchRandomShard()
     }
 
     async fetchRandomShard() {
-        // this.disposeCurrentTable()
         const { slice, shards } = this.getWeightedRandomSlice(this.slices)
         const shardIndices = generatePaddedNumbers(0, shards, 5)
         const numShards = shardIndices.slice(-1)
@@ -76,43 +53,11 @@ export default class CosmopediaDataset {
 
     moveDataIntoTable() {
         // Read Parquet buffer to Arrow Table
-        // if (typeof this.arrowWasmTable?.free === 'function') {
-        //     this.arrowWasmTable.free()
-        //     this.arrowWasmTable = null
-        // }
         this.arrowWasmTable = readParquet(this.buffer)
         // Convert to JS Arrow Table
-        this.table = arrow.tableFromIPC(this.arrowWasmTable.intoIPCStream())
-        // arrowWasmTable.free()
+        this.table = tableFromIPC(this.arrowWasmTable.intoIPCStream())
         this.buffer = null
     }
-
-    // disposeCurrentTable() {
-    //     if (this.table) {
-    //         // Remove references to all batches
-    //         this.table.batches.length = 0
-
-    //         // Remove references to all columns
-    //         if (this.table.schema && this.table.schema.fields) {
-    //             this.table.schema.fields.forEach((field) => {
-    //                 if (this.table[field.name]) {
-    //                     this.table[field.name] = null
-    //                 }
-    //             })
-    //         }
-
-    //         // Remove reference to the schema
-    //         this.table.schema = null
-
-    //         // Remove the reference to the table itself
-    //         this.table = null
-    //     }
-
-    //     // Suggest garbage collection if available
-    //     if (global.gc) {
-    //         global.gc()
-    //     }
-    // }
 
     getWeightedRandomSlice(slices) {
         // Calculate the total number of shards
@@ -173,10 +118,12 @@ export default class CosmopediaDataset {
                 }
                 const prefix = obj.value
                 const data = column.get(rowIdx)
-                // Some 'data' values appear to be random integers, with no other information. So, we
-                // try to skip them here.
+                // Some 'data' values appear to be random integers, with no other information.
+                // We try to skip them here.
                 if (/^-?\d+$/.test(data)) {
-                    console.log(this.url)
+                    console.log(
+                        'FAILED TO PARSE SHARD: Received a BigInt instead of text.'
+                    )
                     console.log(data)
                     console.log('prefix was:', prefix)
                     console.log('batchIdx was:', batchIdx)
@@ -203,6 +150,23 @@ export default class CosmopediaDataset {
         this.cachedText = this.cachedText.slice(size)
         return sample
     }
+}
+
+function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min)
+}
+
+function randomValueFromArray(array) {
+    const randomIndex = Math.floor(Math.random() * array.length)
+    return array[randomIndex]
+}
+
+function generatePaddedNumbers(start, end, totalDigits) {
+    const numbers = []
+    for (let i = start; i <= end; i++) {
+        numbers.push(String(i).padStart(totalDigits, '0'))
+    }
+    return numbers
 }
 
 const numIterations = 1_000_000_000_000

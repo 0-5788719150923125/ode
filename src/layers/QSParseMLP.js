@@ -50,7 +50,7 @@ export default class QSparseMLP extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Expand and contract projection via feedforward layers
+            // Expand projection via feedforward layer
             let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
@@ -59,14 +59,21 @@ export default class QSparseMLP extends LayerBase {
 
             outputs = this.ops.rmsNorm(outputs)
 
+            // Apply squared ReLU activation
+            const squaredReLU = tf.square(tf.relu(outputs))
+
+            // Apply sigmoid activation
+            const sigmoid = tf.sigmoid(outputs)
+
+            // Perform element-wise multiplication (GLU)
+            outputs = tf.mul(squaredReLU, sigmoid)
+
             // Custom top-K sparsity function with straight-through estimator
             outputs = this.sparseTopKWithSTE(outputs, this.sparsityRatio)
 
-            // Apply squared ReLU activation
-            outputs = tf.square(tf.relu(outputs))
-
             outputs = tf.div(outputs, tf.norm(outputs, 2, -1, true))
 
+            // Contract projection via feedforward layer
             outputs = this.ops.applyDense(
                 outputs,
                 this.outProjKernel.read(),
