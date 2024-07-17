@@ -14,7 +14,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        // Initialize switching network
         this.switchingHidden = this.addWeight(
             'switchingHidden',
             [inputDim, this.switchingDim],
@@ -55,42 +54,35 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            return this.sparseTopKWithSTE(inputs, this.topK)
+        })
+    }
 
-            // Switching network
-            const switchingHidden = this.ops.applyDense(
-                inputs,
-                this.switchingHidden.read(),
-                this.switchingHiddenBias.read()
-            )
-            const switchingActivated = tf.layers
-                .activation({ activation: this.activation })
-                .apply(switchingHidden)
-            const switchingScores = this.ops.applyDense(
-                switchingActivated,
-                this.switchingKernel.read(),
-                this.switchingBias.read()
-            )
+    sparseTopKWithSTE(inputs, k) {
+        const switchingHidden = this.ops.applyDense(
+            inputs,
+            this.switchingHidden.read(),
+            this.switchingHiddenBias.read()
+        )
+        const switchingActivated = tf.layers
+            .activation({ activation: this.activation })
+            .apply(switchingHidden)
+        const switchingScores = this.ops.applyDense(
+            switchingActivated,
+            this.switchingKernel.read(),
+            this.switchingBias.read()
+        )
 
-            // Select top-k experts for each batch
-            const [batchSize, timeSteps, numExperts] = switchingScores.shape
-            const linearWeights = tf
-                .linspace(1, 2, timeSteps)
-                .expandDims(0)
-                .expandDims(-1)
-            const weightedAvgScores = switchingScores
-                .mul(linearWeights)
-                .sum(1)
-                .div(linearWeights.sum())
+        const outputs = tf.customGrad((inputs, switchingScores, save) => {
+            const topK = tf.topk(switchingScores.sum(1), k)
+            const indices = topK.indices.arraySync()
 
-            const expertIndices = this.selectTopExperts(weightedAvgScores)
-
-            // Predict on top-k experts, for every batch
             const batchOutputs = []
             for (let i = 0; i < inputs.shape[0]; i++) {
                 const batchInputs = inputs.slice([i, 0], [1, -1])
                 const expertOutputs = []
-                for (let j = 0; j < this.topK; j++) {
-                    const expertIndex = expertIndices[i][j]
+                for (let j = 0; j < k; j++) {
+                    const expertIndex = indices[i][j]
                     const expertOutput =
                         this.experts[expertIndex].apply(batchInputs)
                     expertOutputs.push(expertOutput)
@@ -99,19 +91,25 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 batchOutputs.push(concatenatedOutput)
             }
 
-            // Concat expert outputs, and project them into the proper dimension
+            const combinedOutput = tf.concat(batchOutputs, 0)
+
             const outputProjected = this.ops.applyDense(
-                tf.concat(batchOutputs, 0),
+                combinedOutput,
                 this.outputProjection.read()
             )
 
-            return outputProjected
-        })
-    }
+            save([inputs, switchingScores])
 
-    selectTopExperts(switchingScores) {
-        const topKIndices = tf.topk(switchingScores, this.topK).indices
-        return topKIndices.arraySync()
+            return {
+                value: outputProjected,
+                gradFunc: (dy, saved) => {
+                    const [origInputs, origSwitchingScores] = saved
+                    return [dy, origSwitchingScores.mul(dy.mean())]
+                }
+            }
+        })(inputs, switchingScores)
+
+        return outputs.mul(switchingScores.mean())
     }
 
     getConfig() {

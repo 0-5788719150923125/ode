@@ -1,4 +1,4 @@
-import ODE from './model.v2.js'
+import ODE from './model.v3.js'
 
 /**
  * A better sparse mixture of experts.
@@ -11,14 +11,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.units = config.units || 128
         this.numExperts = config.numExperts || 7
         this.topK = config.topK || 2
-        this.switchingDim = config.switchingDim || 64
-        this.headDim = config.headDim || 512
+        this.switchingDim = config.switchingDim || 512
+        this.headDim = config.headDim || 4096
         this.mlpDim = config.mlpDim || 1024
     }
 
     defineTokenizer() {
-        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-            model: 'OriginalDesign/thrice'
+        this.tokenizer = this.ode.tokenizers.TokenMonster({
+            model: 'englishcode-4096-consistent-v1'
         })
     }
 
@@ -39,21 +39,17 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .AdaptiveMixtureOfExperts({
-                    topK: this.topK,
-                    switchingDim: this.switchingDim,
-                    activation: 'mish',
-                    experts: this.createAttentionExperts(outputs.shape)
+                .SelfAttention({
+                    hiddenDim: this.headDim
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .AdaptiveMixtureOfExperts({
                     topK: this.topK,
-                    numExperts: this.experts,
                     switchingDim: this.switchingDim,
-                    activation: 'mish',
-                    experts: this.createFeedforwardExperts(outputs.shape)
+                    activation: 'swish',
+                    experts: this.createMLPExperts(outputs.shape)
                 })
                 .apply(outputs)
         }
@@ -63,50 +59,16 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    createAttentionExperts(inputShape) {
-        return Array(this.numExperts)
+    createMLPExperts(inputShape) {
+        return Array(this.numExperts + 1)
             .fill(0)
             .map((_, i) => {
                 return this.ode.expert({
-                    type: 'SelfAttention',
-                    inputShape,
-                    projection: this.headDim
-                })
-            })
-    }
-
-    createFeedforwardExperts(inputShape) {
-        return Array(this.numExperts)
-            .fill(0)
-            .map((_, i) => {
-                return this.ode.expert({
-                    type: 'GatedLinearMLP',
+                    type: 'MultiLayerPerceptron',
                     inputShape,
                     innerDim: this.mlpDim,
-                    activation: 'mish'
+                    activation: 'swish'
                 })
             })
-    }
-
-    defineSchedulers() {
-        this.minLearningRate = 0.00000001
-        this.maxLearningRate = 0.00022
-        const steps = 1000
-        this.schedulers = [
-            this.ode.schedulers.cosineWithRestartsScheduler(
-                this.minLearningRate,
-                this.maxLearningRate,
-                steps
-            )
-        ]
-    }
-
-    defineOptimizers() {
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.maxLearningRate,
-                weightDecay: 0.01
-            })
-        ]
     }
 }
