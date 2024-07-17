@@ -10,15 +10,14 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
         this.temperature = config.temperature || 1.0
-        this.step = 0
-        this.maxPenalty = config.maxPenalty || 0.1
+        this.maxPenalty = 0.1
         this.epsilon = 1e-7
         this.expertUsageCounts = tf.variable(
             tf.zeros([this.topK, this.numExperts]),
             false
         )
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = true
+        this.debug = false
     }
 
     build(inputShape) {
@@ -54,24 +53,17 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'float32',
             tf.initializers.glorotNormal()
         )
-        // this.projectionMatrix = this.addWeight(
-        //     'projectionMatrix',
-        //     [inputDim, this.numExperts],
-        //     'float32',
-        //     tf.initializers.randomNormal({
-        //         mean: 0,
-        //         stdDev: 1.0,
-        //         seed: 42
-        //     }),
-        //     null,
-        //     false
-        // )
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            return this.approximateTopKWithGumbel(inputs, this.topK)
+            const outputs = this.approximateTopKWithGumbel(
+                inputs,
+                this.topK,
+                kwargs
+            )
+            return this.ops.rmsNorm(outputs)
         })
     }
 
@@ -84,9 +76,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.totalUsage.assign(this.totalUsage.add(tf.sum(batchUsage)))
     }
 
-    computeUtilization(expertIndices) {
-        this.step++
-
+    computeUtilization(expertIndices, kwargs) {
         const usageCounts = this.expertUsageCounts
         const totalUsage = this.totalUsage
 
@@ -120,7 +110,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             console.log('expertDiversityLoss:', expertDiversityLoss.arraySync())
             console.log('loadBalancingLoss:', loadBalancingLoss.arraySync())
             console.log('combinedLoss:', combinedLoss.arraySync())
-            console.log('step:', this.step)
             console.log('scaledLoss:', scaledLoss.arraySync())
         }
 
@@ -131,7 +120,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         return scaledLoss
     }
 
-    approximateTopKWithGumbel(inputs, k) {
+    approximateTopKWithGumbel(inputs, k, kwargs) {
         const switchingHidden = this.ops.applyDense(
             inputs,
             this.switchingHidden.read(),
@@ -149,94 +138,22 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             switchingScores,
             this.temperature
         )
-        // .add(this.epsilon)
 
         let expertIndices
         const expertValues = tf.customGrad((expertWeights, save) => {
             const topKWeights = tf.topk(expertWeights, k)
             const topKIndices = tf.topk(expertWeights.sum(1), k)
             expertIndices = topKIndices.indices.arraySync()
-            this.computeUtilization(topKIndices.indices)
+            if (kwargs.training) this.computeUtilization(topKIndices.indices)
             save([expertWeights, topKIndices.indices, topKWeights.values])
             return {
                 value: topKWeights.values,
                 gradFunc: (dy, saved) => {
                     const [expertWeights, topKIndices, topKValues] = saved
-
-                    // console.log('dy: ', dy.shape)
-                    // console.log('expertWeights: ', expertWeights.shape)
-                    // console.log('topKIndices: ', topKIndices.shape)
-                    // console.log('topK values: ', topKValues.shape)
-
                     const tileShape = [1, 1, expertWeights.shape[2] / k]
-                    return [
-                        dy
-                            .mul(topKValues.softmax())
-                            .tile(tileShape)
-                            .mul(expertWeights)
-                    ]
-
-                    // const inputReshaped = dy.reshape([
-                    //     -1,
-                    //     expertWeights.shape[2]
-                    // ])
-                    // console.log(inputReshaped)
-
-                    // const projected = tf.matMul(
-                    //     inputReshaped,
-                    //     this.projectionMatrix.read(),
-                    //     false,
-                    //     true
-                    // )
-                    // console.log(projected)
-
-                    // const projectionReshaped = projected.reshape(
-                    //     expertWeights.shape
-                    // )
-                    // console.log(projectionReshaped)
-                    // const mask = tf.zerosLike(expertWeights)
-                    // const scatterIndices = tf
-                    //     .range(0, dy.shape[0], 1, 'int32')
-                    //     .reshape([-1, 1])
-                    // const updateValues = tf.gather(topKValues, dy.shape[0] - 1)
-                    // const updatedMask = tf.scatterND(
-                    //     scatterIndices,
-                    //     updateValues,
-                    //     mask.shape
-                    // )
-
-                    // const weights = tf.zerosLike(expertWeights)
-                    // const gradients = dy.tile([1, 1, this.numExperts / k])
-
-                    // return [weights.mul(gradients.softmax())]
-                    // console.log(this.projectionMatrix.read())
-                    // const projectedDy = this.ops.applyDense(
-                    //     this.projectionMatrix.read(),
-                    //     dy
-                    // )
+                    return [dy.tile(tileShape).add(expertWeights)]
                 }
             }
-            // return {
-            //     value: topKWeights.values,
-            //     gradFunc: (dy, saved) => {
-            //         const [expertWeights] = saved
-            //         // console.log(dy)
-            //         // console.log(expertWeights)
-
-            //         const tileShape = [1, 1, expertWeights.shape[2] / k]
-            //         const scaleFactor = 1.0 / k
-            //         return [
-            //             dy
-            //                 .tile(tileShape)
-            //                 .mul(tf.scalar(scaleFactor))
-            //                 .mul(expertWeights)
-            //         ]
-            //         // return [dy.tile(tileShape).mul(expertWeights.softmax())]
-            //         // return [tf.clipByValue(expertWeights, -1e3, 1e3)]
-            //         // return [expertWeights.tanh()]
-            //         // return [expertWeights.softmax()] // most stable
-            //     }
-            // }
         })(expertWeights)
 
         const batchOutputs = []
