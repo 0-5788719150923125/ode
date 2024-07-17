@@ -9,6 +9,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.topK = config.topK || 2
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
+        this.temperature = config.temperature || 1.0
     }
 
     build(inputShape) {
@@ -73,43 +74,60 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             this.switchingBias.read()
         )
 
-        const outputs = tf.customGrad((inputs, switchingScores, save) => {
-            const topK = tf.topk(switchingScores.sum(1), k)
-            const indices = topK.indices.arraySync()
+        const switchingScoresSummed = switchingScores.sum(1)
+        const expertWeights = this.ops.gumbelSoftmax(
+            switchingScoresSummed,
+            this.temperature
+        )
 
-            const batchOutputs = []
-            for (let i = 0; i < inputs.shape[0]; i++) {
-                const batchInputs = inputs.slice([i, 0], [1, -1])
-                const expertOutputs = []
-                for (let j = 0; j < k; j++) {
-                    const expertIndex = indices[i][j]
-                    const expertOutput =
-                        this.experts[expertIndex].apply(batchInputs)
-                    expertOutputs.push(expertOutput)
-                }
-                const concatenatedOutput = tf.concat(expertOutputs, -1)
-                batchOutputs.push(concatenatedOutput)
-            }
-
-            const combinedOutput = tf.concat(batchOutputs, 0)
-
-            const outputProjected = this.ops.applyDense(
-                combinedOutput,
-                this.outputProjection.read()
-            )
-
-            save([inputs, switchingScores])
-
+        let expertIndices
+        const expertValues = tf.customGrad((expertWeights, save) => {
+            const topK = tf.topk(expertWeights, k)
+            expertIndices = tf.keep(topK.indices)
+            save([expertWeights])
             return {
-                value: outputProjected,
+                value: topK.values,
                 gradFunc: (dy, saved) => {
-                    const [origInputs, origSwitchingScores] = saved
-                    return [dy, origSwitchingScores.mul(dy.mean())]
+                    const [expertWeights] = saved
+                    const tileShape = [1, expertWeights.shape[1] / k]
+                    const tiledGradients = dy.tile(tileShape)
+                    return [tiledGradients]
                 }
             }
-        })(inputs, switchingScores)
+        })(expertWeights)
 
-        return outputs.mul(switchingScores.mean())
+        const batchOutputs = []
+        for (let i = 0; i < inputs.shape[0]; i++) {
+            const batchInputs = inputs.slice([i, 0], [1, -1])
+            const batchExpertIndices = expertIndices
+                .slice([i, 0], [1, -1])
+                .arraySync()[0]
+            const batchExpertValues = expertValues.slice([i, 0], [1, -1])
+            const expertOutputs = []
+
+            for (let j = 0; j < k; j++) {
+                const expertIndex = batchExpertIndices[j]
+                const expertValue = batchExpertValues
+                    .slice([0, j], [1, 1])
+                    .squeeze()
+                const expertOutput =
+                    this.experts[expertIndex].apply(batchInputs)
+                expertOutputs.push(expertOutput.mul(expertValue))
+            }
+
+            const concatenatedOutput = tf.concat(expertOutputs, -1)
+            batchOutputs.push(concatenatedOutput)
+        }
+
+        const combinedOutput = tf.concat(batchOutputs, 0)
+
+        const outputProjected = this.ops.applyDense(
+            combinedOutput,
+            this.outputProjection.read()
+        )
+
+        expertIndices.dispose()
+        return outputProjected
     }
 
     getConfig() {
@@ -118,7 +136,8 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             numExperts: this.numExperts,
             switchingDim: this.switchingDim,
             activation: this.activation,
-            topK: this.topK
+            topK: this.topK,
+            temperature: this.temperature
         }
     }
 }
