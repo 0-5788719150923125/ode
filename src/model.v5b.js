@@ -49,7 +49,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     topK: this.topK,
                     switchingDim: this.switchingDim,
                     activation: 'swish',
-                    temperature: 1.0,
+                    temperature: 0.9,
                     experts: this.createMLPExperts(outputs.shape)
                 })
                 .apply(outputs)
