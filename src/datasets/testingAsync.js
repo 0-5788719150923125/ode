@@ -1,4 +1,4 @@
-import { Table, tableFromIPC } from 'apache-arrow'
+import { Table, tableFromIPC, tableFromArrays } from 'apache-arrow'
 import initWasm, { readParquetStream } from 'parquet-wasm'
 
 function randomBetween(min, max) {
@@ -61,8 +61,6 @@ export default class CosmopediaDataset {
         this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log(this.url)
         try {
-            // const response = await fetch(this.url)
-            // this.buffer = new Uint8Array(await response.arrayBuffer())
             await this.moveDataIntoTable(this.url)
             console.log('moved shard to table:', shard)
         } catch (err) {
@@ -83,35 +81,7 @@ export default class CosmopediaDataset {
         }
         // Convert to JS Arrow Table
         this.table = new Table(batches)
-        // this.buffer = null
     }
-
-    // disposeCurrentTable() {
-    //     if (this.table) {
-    //         // Remove references to all batches
-    //         this.table.batches.length = 0
-
-    //         // Remove references to all columns
-    //         if (this.table.schema && this.table.schema.fields) {
-    //             this.table.schema.fields.forEach((field) => {
-    //                 if (this.table[field.name]) {
-    //                     this.table[field.name] = null
-    //                 }
-    //             })
-    //         }
-
-    //         // Remove reference to the schema
-    //         this.table.schema = null
-
-    //         // Remove the reference to the table itself
-    //         this.table = null
-    //     }
-
-    //     // Suggest garbage collection if available
-    //     if (global.gc) {
-    //         global.gc()
-    //     }
-    // }
 
     getWeightedRandomSlice(slices) {
         // Calculate the total number of shards

@@ -4,172 +4,122 @@ import LayerBase from './base.js'
 export default class ParameterEfficientExpertRetrieval extends LayerBase {
     constructor(config) {
         super(config)
-        this.numExperts = config.numExperts || 1048576 // 1024^2
-        this.expertDim = config.expertDim || 1 // Single neuron experts
+        this.numExperts = config.numExperts || 1024
         this.numHeads = config.numHeads || 8
-        this.topK = config.topK || 16
-        this.innerDim = config.innerDim || 64
+        this.topK = config.topK || 32
+        this.queryDim = config.queryDim || 64
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
-        this.numSubExperts = Math.ceil(Math.sqrt(this.numExperts))
+        const outputDim = inputDim
 
-        this.queryNetworks = []
-        this.subKeys1 = []
-        this.subKeys2 = []
-        this.expertWeights = []
-        this.projectionMatrices = []
-
+        this.queryWeights = []
         for (let i = 0; i < this.numHeads; i++) {
-            this.queryNetworks.push(
+            this.queryWeights.push(
                 this.addWeight(
-                    `query_${i}`,
-                    [inputDim, this.innerDim],
+                    `queryWeight${i}`,
+                    [this.queryDim, inputDim],
                     'float32',
-                    tf.initializers.glorotNormal()
-                )
-            )
-            this.subKeys1.push(
-                this.addWeight(
-                    `subKeys1_${i}`,
-                    [this.numSubExperts, this.innerDim / 2],
-                    'float32',
-                    tf.initializers.glorotNormal()
-                )
-            )
-            this.subKeys2.push(
-                this.addWeight(
-                    `subKeys2_${i}`,
-                    [this.numSubExperts, this.innerDim / 2],
-                    'float32',
-                    tf.initializers.glorotNormal()
-                )
-            )
-            this.expertWeights.push(
-                this.addWeight(
-                    `expertWeights_${i}`,
-                    [this.numExperts, inputDim],
-                    'float32',
-                    tf.initializers.glorotNormal()
-                )
-            )
-            this.projectionMatrices.push(
-                this.addWeight(
-                    `projection_${i}`,
-                    [this.topK, inputDim],
-                    'float32',
-                    tf.initializers.glorotNormal()
+                    tf.initializers.glorotNormal(),
+                    null,
+                    true
                 )
             )
         }
 
-        this.batchNorm = tf.layers.batchNormalization({ axis: -1 })
+        this.expertWeights = this.addWeight(
+            `expertWeights`,
+            [this.numExperts, inputDim + outputDim],
+            'float32',
+            tf.initializers.glorotNormal(),
+            null,
+            true
+        )
+    }
+
+    sparseTopKWithSTE(inputs) {
+        return tf.customGrad((inputs, save) => {
+            const { indices, values } = tf.topk(inputs, this.topK)
+            save([indices])
+
+            return {
+                value: indices,
+                gradFunc: (dy, saved) => {
+                    const [indices] = saved
+                    const mask = tf.oneHot(indices.flatten(), inputs.shape[1])
+                    return [tf.mul(dy, mask)]
+                }
+            }
+        })(inputs)
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
             const batchSize = inputs.shape[0]
-            const inputDim = inputs.shape[1]
-            let outputs = tf.zeros([batchSize, inputDim, inputDim])
+            const inputDim = inputs.shape[inputs.shape.length - 1]
 
-            for (let i = 0; i < this.numHeads; i++) {
-                // Query projection and batch normalization
-                let query = this.ops.applyDense(
-                    inputs,
-                    this.queryNetworks[i].read()
-                )
-                query = this.batchNorm.apply(query)
+            console.log(`Input shape: ${inputs.shape}`)
 
-                // Split query for product key retrieval
-                const [query1, query2] = tf.split(query, 2, -1)
-
-                // Compute similarities with sub-keys
-                const similarities1 = this.ops.applyDense(
-                    query1,
-                    this.subKeys1[i].read().transpose()
-                )
-                const similarities2 = this.ops.applyDense(
-                    query2,
-                    this.subKeys2[i].read().transpose()
-                )
-
-                // Get top-k indices and scores
-                const [topIndices1, topScores1] = this.getTopK(
-                    similarities1,
-                    this.topK
-                )
-                const [topIndices2, topScores2] = this.getTopK(
-                    similarities2,
-                    this.topK
-                )
-
-                // Combine indices to get expert indices
-                const expertIndices = this.getExpertIndices(
-                    topIndices1,
-                    topIndices2
-                )
-
-                // Combine scores
-                const scores = tf.add(topScores1, topScores2)
-                const normalizedScores = tf.softmax(scores, -1)
-
-                // Gather expert weights and apply
-                const selectedExperts = tf.gather(
-                    this.expertWeights[i].read(),
-                    expertIndices
-                )
-
-                // Apply expert weights to inputs
-                const expertOutputs = tf.matMul(
-                    inputs.expandDims(1),
-                    selectedExperts.transpose([0, 1, 3, 2])
-                )
-
-                // Weight outputs by scores and sum
-                const weightedOutputs = tf.mul(
-                    expertOutputs,
-                    normalizedScores.expandDims(-2)
-                )
-                const summedOutputs = tf.sum(weightedOutputs, 1)
-
-                // Project back to original dimension
-                const projectedOutputs = this.ops.applyDense(
-                    summedOutputs,
-                    this.projectionMatrices[i].read()
-                )
-                outputs = tf.add(outputs, projectedOutputs)
-                console.log(Math.random())
-            }
-
-            // Add residual connection
-            outputs = tf.add(outputs, inputs.expandDims(-1))
-
-            return outputs
-        })
-    }
-
-    getTopK(x, k) {
-        const values = tf.topk(x, k).values
-        const indices = tf.topk(x, k).indices
-        return [indices, values]
-    }
-
-    getExpertIndices(indices1, indices2) {
-        return tf.tidy(() => {
-            const combinedIndices = tf.add(
-                tf.mul(indices1, this.numSubExperts),
-                indices2
+            const queries = this.queryWeights.map((queryWeight) =>
+                tf.matMul(inputs, queryWeight.read(), false, true)
             )
-            // Ensure indices are within the valid range
-            return tf.cast(
-                tf.minimum(
-                    combinedIndices,
-                    tf.scalar(this.numExperts - 1, 'int32')
-                ),
-                'int32'
+
+            console.log(`Query shape: ${queries[0].shape}`)
+
+            const expertWeights = this.expertWeights.read()
+            console.log(`Expert weights shape: ${expertWeights.shape}`)
+
+            const scores = queries.map((query) => {
+                const expertScores = tf.matMul(
+                    query,
+                    expertWeights
+                        .slice([0, 0], [this.numExperts, inputDim])
+                        .expandDims(0),
+                    false,
+                    true
+                )
+                console.log(`Expert scores shape: ${expertScores.shape}`)
+                return expertScores
+            })
+
+            const expertIndices = scores.map((score) =>
+                this.sparseTopKWithSTE(score)
             )
+
+            console.log(`Expert indices shape: ${expertIndices[0].shape}`)
+
+            const selectedExpertWeights = expertIndices.map((indices) =>
+                tf
+                    .gather(expertWeights, indices)
+                    .reshape([batchSize, this.topK, -1])
+            )
+
+            console.log(
+                `Selected expert weights shape: ${selectedExpertWeights[0].shape}`
+            )
+
+            const expertOutputs = selectedExpertWeights.map((weights) => {
+                const weightsDown = weights.slice(
+                    [0, 0, 0],
+                    [batchSize, this.topK, inputDim]
+                )
+                const weightsUp = weights.slice(
+                    [0, 0, inputDim],
+                    [batchSize, this.topK, -1]
+                )
+
+                console.log(`Weights down shape: ${weightsDown.shape}`)
+                console.log(`Weights up shape: ${weightsUp.shape}`)
+
+                const intermediate = tf.matMul(inputs, weightsDown, false, true)
+                console.log(`Intermediate shape: ${intermediate.shape}`)
+
+                return tf.matMul(tf.relu(intermediate), weightsUp)
+            })
+
+            return expertOutputs.reduce((a, b) => tf.add(a, b))
         })
     }
 
@@ -177,10 +127,9 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
-            expertDim: this.expertDim,
             numHeads: this.numHeads,
             topK: this.topK,
-            innerDim: this.innerDim
+            queryDim: this.queryDim
         }
     }
 }

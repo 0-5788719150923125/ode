@@ -43,8 +43,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
             outputs = this.ode.layers
                 .ParameterEfficientExpertRetrieval({
-                    innerDim: this.units * 4,
-                    numExperts: 1000,
+                    numExperts: 1024,
                     topK: 32,
                     activation: 'swish'
                 })

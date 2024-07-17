@@ -26,7 +26,7 @@ import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
 import MultiQueryAttention from './layers/MultiQueryAttention.js'
 import ParameterEfficientExpertRetrieval from './layers/ParameterEfficientExpertRetrieval.js'
 import ProjectedFeatureAttention from './layers/ProjectedFeatureAttention.js'
-import ProjectedFeatureReduction from './layers/ProjectedFeatureReduction.js'
+import StaticMatrixReduction from './layers/StaticMatrixReduction.js'
 import QSparseMLP from './layers/QSparseMLP.js'
 import Range from './layers/Range.js'
 import RotaryPositionalEncoding from './layers/RotataryPositionalEncoding.js'
@@ -168,8 +168,8 @@ const customLayersConfig = {
         constructor: ProjectedFeatureAttention,
         prefix: 'attn'
     },
-    ProjectedFeatureReduction: {
-        constructor: ProjectedFeatureReduction,
+    StaticMatrixReduction: {
+        constructor: StaticMatrixReduction,
         prefix: 'op'
     },
     QSparseMLP: {

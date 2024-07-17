@@ -146,14 +146,15 @@ class MultiSampler {
 }
 
 class CosmopediaSampler {
-    constructor() {
+    constructor(config) {
+        this.config = config
         this.producer = null
     }
 
     async init() {
         const CosmopediaDataset = (await import('./datasets/cosmopedia.js'))
             .default
-        this.producer = new CosmopediaDataset()
+        this.producer = new CosmopediaDataset(this.config)
         await this.producer.init()
         this.producer.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
         this.initialized = true
