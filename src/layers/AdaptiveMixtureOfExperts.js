@@ -12,13 +12,14 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.temperature = config.temperature || 1.0
         this.step = 0
         this.maxPenalty = config.maxPenalty || 0.1
-        this.rampUpSteps = config.rampUpSteps || 100
+        this.rampUpSteps = config.rampUpSteps || 1000
         this.epsilon = 1e-7
         this.expertUsageCounts = tf.variable(
             tf.zeros([this.topK, this.numExperts]),
             false
         )
         this.totalUsage = tf.variable(tf.scalar(0), false)
+        this.debug = false
     }
 
     build(inputShape) {
@@ -78,56 +79,51 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
     }
 
     computeUtilization(expertIndices) {
-        return tf.tidy(() => {
+        const usageCounts = this.expertUsageCounts
+        const totalUsage = this.totalUsage
+
+        const expertUtilization = usageCounts.div(totalUsage.add(this.epsilon))
+
+        const targetUtilization = tf.fill(
+            [this.numExperts],
+            1 / this.numExperts
+        )
+
+        const utilizationDiff = expertUtilization.sub(targetUtilization).abs()
+        const expertDiversityLoss = utilizationDiff.mean()
+
+        const avgUsage = totalUsage.div(this.numExperts)
+        const usageDeviations = usageCounts
+            .sub(avgUsage)
+            .abs()
+            .div(avgUsage.add(this.epsilon))
+        const loadBalancingLoss = usageDeviations.mean()
+
+        const combinedLoss = expertDiversityLoss.add(loadBalancingLoss).div(2)
+
+        this.step++
+        const rampUpFactor = Math.min(this.step / this.rampUpSteps, 1)
+
+        const scaledLoss = combinedLoss.mul(rampUpFactor * this.maxPenalty)
+
+        if (this.debug) {
             console.log('Start of computeUtilization')
-
-            const usageCounts = this.expertUsageCounts
-            const totalUsage = this.totalUsage
-
             console.log('usageCounts:', usageCounts.arraySync())
             console.log('totalUsage:', totalUsage.arraySync())
-
-            const expertUtilization = usageCounts.div(
-                totalUsage.add(this.epsilon)
-            )
             console.log('expertUtilization:', expertUtilization.arraySync())
-
-            const targetUtilization = tf.fill(
-                [this.numExperts],
-                1 / this.numExperts
-            )
             console.log('targetUtilization:', targetUtilization.arraySync())
-
-            const utilizationDiff = expertUtilization
-                .sub(targetUtilization)
-                .abs()
-            const expertDiversityLoss = utilizationDiff.mean()
             console.log('expertDiversityLoss:', expertDiversityLoss.arraySync())
-
-            const avgUsage = totalUsage.div(this.numExperts)
-            const usageDeviations = usageCounts
-                .sub(avgUsage)
-                .abs()
-                .div(avgUsage.add(this.epsilon))
-            const loadBalancingLoss = usageDeviations.mean()
             console.log('loadBalancingLoss:', loadBalancingLoss.arraySync())
-
-            const combinedLoss = expertDiversityLoss
-                .add(loadBalancingLoss)
-                .div(2)
             console.log('combinedLoss:', combinedLoss.arraySync())
-
-            this.step++
-            const rampUpFactor = Math.min(this.step / this.rampUpSteps, 1)
             console.log('step:', this.step, 'rampUpFactor:', rampUpFactor)
-
-            const scaledLoss = combinedLoss.mul(rampUpFactor * this.maxPenalty)
             console.log('scaledLoss:', scaledLoss.arraySync())
+        }
 
-            this.extraLoss = tf.keep(scaledLoss)
+        this.extraLoss = tf.keep(scaledLoss)
 
-            return scaledLoss
-        })
+        this.updateExpertUsage(expertIndices)
+
+        return scaledLoss
     }
 
     approximateTopKWithGumbel(inputs, k) {
@@ -144,25 +140,23 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             this.switchingKernel.read(),
             this.switchingBias.read()
         )
-        // console.log(switchingScores)
         const expertWeights = this.ops.gumbelSoftmax(
-            switchingScores.sum(1),
+            switchingScores,
             this.temperature
         )
 
         let expertIndices
         const expertValues = tf.customGrad((expertWeights, save) => {
             const topKWeights = tf.topk(expertWeights, k)
-            this.updateExpertUsage(topKWeights.indices)
-            this.computeUtilization(expertIndices)
-            expertIndices = topKWeights.indices.arraySync()
+            const topKIndices = tf.topk(expertWeights.sum(1), k)
+            expertIndices = topKIndices.indices.arraySync()
+            this.computeUtilization(topKIndices.indices)
             save([expertWeights])
             return {
                 value: topKWeights.values,
                 gradFunc: (dy, saved) => {
                     const [expertWeights] = saved
-                    const tileShape = [1, expertWeights.shape[1] / k]
-                    return [dy.tile(tileShape)]
+                    return [expertWeights]
                 }
             }
         })(expertWeights)
@@ -170,13 +164,11 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
             const batchInputs = inputs.slice([i, 0], [1, -1])
-            const batchExpertIndices = expertIndices[i]
-            const batchExpertValues = expertValues.slice([i, 0], [1, -1])
 
             const expertOutputs = []
             for (let j = 0; j < k; j++) {
-                const expertIndex = batchExpertIndices[j]
-                const expertValue = batchExpertValues.slice([0, j], [1, 1])
+                const expertIndex = expertIndices[i][j]
+                const expertValue = expertValues.slice([i, 0, j], [1, -1, 1])
                 const expertOutput =
                     this.experts[expertIndex].apply(batchInputs)
                 expertOutputs.push(expertOutput.mul(expertValue))
@@ -190,13 +182,13 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             this.outputProjection.read()
         )
 
-        let outputWeighted = outputProjected
-        for (const i in expertIndices) {
-            for (const j of expertIndices[i]) {
-                const expertScore = switchingScores.slice([i, 0, j], [1, -1, 1])
-                outputWeighted = outputWeighted.mul(expertScore)
-            }
-        }
+        // let outputWeighted = outputProjected
+        // for (const i in expertIndices) {
+        //     for (const j of expertIndices[i]) {
+        //         const expertScore = switchingScores.slice([i, 0, j], [1, -1, 1])
+        //         outputWeighted = outputWeighted.mul(expertScore)
+        //     }
+        // }
 
         return outputProjected
     }
