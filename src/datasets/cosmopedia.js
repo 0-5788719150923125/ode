@@ -122,8 +122,8 @@ export default class CosmopediaDataset {
                     column = this.table.batches[batchIdx].getChildAt(obj.idx)
                 } catch (err) {
                     console.error(err)
-                    // await this.fetchRandomShard()
-                    await this.streamDataIntoTable()
+                    await this.fetchRandomShard()
+                    // await this.streamDataIntoTable()
                     return await this.fillCache()
                 }
                 if (rowIdx === null) {
@@ -146,8 +146,8 @@ export default class CosmopediaDataset {
                     console.log('rowIdx was:', rowIdx)
                     console.log('data was:', data)
                     shouldSkip = true
-                    // await this.fetchRandomShard()
-                    await this.streamDataIntoTable()
+                    await this.fetchRandomShard()
+                    // await this.streamDataIntoTable()
                 }
                 text.push(prefix + data)
             }

@@ -7,8 +7,8 @@ export default class Autoencoder extends LayerBase {
         this.innerDim = config?.innerDim || 1024
         this.bottleneck = config?.bottleneck || 128
         this.outputDim = config?.outputDim || 256
-        this.encoderActivation = config?.encoderActivation || 'relu'
-        this.decoderActivation = config?.decoderActivation || 'relu'
+        this.encoderActivation = config?.encoderActivation || 'tanh'
+        this.decoderActivation = config?.decoderActivation || 'sigmoid'
         this.variational = config?.variational || false
         this.beta = config?.beta || 1.0
     }
@@ -22,29 +22,25 @@ export default class Autoencoder extends LayerBase {
             'encoderKernel1',
             [inputDim, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.encoderBias1 = this.addWeight(
             'encoderBias1',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.encoderKernel2 = this.addWeight(
             'encoderKernel2',
             [this.innerDim, this.bottleneck * multiplier],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.encoderBias2 = this.addWeight(
             'encoderBias2',
             [this.bottleneck * multiplier],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
 
         // Initialize dense layers for decoder
@@ -52,29 +48,25 @@ export default class Autoencoder extends LayerBase {
             'decoderKernel1',
             [this.bottleneck, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.decoderBias1 = this.addWeight(
             'decoderBias1',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.decoderKernel2 = this.addWeight(
             'decoderKernel2',
             [this.innerDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.decoderBias2 = this.addWeight(
             'decoderBias2',
             [this.outputDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
     }
 

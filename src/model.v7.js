@@ -12,7 +12,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.embeddings = config.embeddings || 512
         this.autoencoderDim = config.autoencoderDim || 768
         this.bottleneck = config.bottleneck || 96
-        this.beta = config.beta || 8.0
+        this.beta = config.beta || 1.1
         this.numExperts = config.numExperts || 3
         this.routerDim = config.routerDim || 768
         this.numHeads = config.numHeads || 3
@@ -51,8 +51,8 @@ export default class OmniscientDeterministicEngine extends ODE {
                 innerDim: this.innerDim,
                 bottleneck: this.bottleneck,
                 outputDim: this.units,
-                encoderActivation: 'mish',
-                decoderActivation: 'mish',
+                encoderActivation: 'tanh',
+                decoderActivation: 'sigmoid',
                 variational: true,
                 beta: this.beta
             })
@@ -73,7 +73,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .SoftMergingOfExperts({
                     activation: 'mish',
                     hiddenDim: this.routerDim,
-                    experts: this.createFeedforwardExperts(outputs.shape)
+                    experts: this.createMLPExperts(outputs.shape)
                 })
                 .apply(outputs)
         }
@@ -108,7 +108,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    createFeedforwardExperts(inputShape) {
+    createMLPExperts(inputShape) {
         // We add 1 extra expert, since the first one is an in-place, weighted average of all other experts.
         return Array(this.numExperts + 1)
             .fill(0)

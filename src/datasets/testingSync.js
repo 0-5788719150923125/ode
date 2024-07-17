@@ -29,7 +29,7 @@ class CosmopediaDataset {
     }
 
     async fetchRandomShard() {
-        const { slice, shards } = this.getWeightedRandomSlice(this.slices)
+        const { slice, shards } = randomValueFromArray(this.slices)
         const shardIndices = generatePaddedNumbers(0, shards, 5)
         const numShards = shardIndices.slice(-1)
         const allShards = shardIndices.slice(0, -1)
@@ -38,46 +38,19 @@ class CosmopediaDataset {
         const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
         this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log(this.url)
-        try {
-            const response = await fetch(this.url)
-            this.buffer = new Uint8Array(await response.arrayBuffer())
-            this.moveDataIntoTable()
-            console.log('moved shard to table:', shard)
-        } catch (err) {
-            console.error(err)
-            console.warn(
-                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old shard for now...`
-            )
-        }
+        const response = await fetch(this.url)
+        this.buffer = new Uint8Array(await response.arrayBuffer())
+        this.moveDataIntoTable()
+        console.log('moved shard to table:', shard)
     }
 
     moveDataIntoTable() {
         // Read Parquet buffer to Arrow Table
         this.arrowWasmTable = readParquet(this.buffer)
+        // Get the Arrow stream buffer
+        this.arrowStreamBuffer = this.arrowWasmTable.intoIPCStream()
         // Convert to JS Arrow Table
-        this.table = tableFromIPC(this.arrowWasmTable.intoIPCStream())
-        this.buffer = null
-    }
-
-    getWeightedRandomSlice(slices) {
-        // Calculate the total number of shards
-        const totalShards = slices.reduce((sum, slice) => sum + slice.shards, 0)
-
-        // Generate a random number between 0 and the total number of shards
-        const randomShard = Math.floor(Math.random() * totalShards)
-
-        // Find the slice that corresponds to the random shard
-        let accumulatedShards = 0
-        for (const slice of slices) {
-            accumulatedShards += slice.shards
-            if (randomShard < accumulatedShards) {
-                return slice
-            }
-        }
-    }
-
-    viewSchema() {
-        console.log(table.schema.toString())
+        this.table = tableFromIPC(this.arrowStreamBuffer)
     }
 
     loadSchema(array = [{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }]) {
@@ -86,10 +59,6 @@ class CosmopediaDataset {
             Object.entries(obj).forEach(([key, value]) => {
                 const idx = this.table.schema.fields.findIndex(
                     (field) => field.name === key
-                )
-                console.assert(
-                    idx !== -1,
-                    `the key of ${key} does not exist in this dataset`
                 )
                 this.schema.push({ idx, value })
             })
@@ -105,21 +74,14 @@ class CosmopediaDataset {
 
             let rowIdx = null
             for (const obj of this.schema) {
-                let column
-                try {
-                    column = this.table.batches[batchIdx].getChildAt(obj.idx)
-                } catch (err) {
-                    console.error(err)
-                    await this.fetchRandomShard()
-                    return await this.fillCache()
-                }
+                let column = this.table.batches[batchIdx].getChildAt(obj.idx)
                 if (rowIdx === null) {
                     rowIdx = randomBetween(0, column.length - 1)
                 }
                 const prefix = obj.value
                 const data = column.get(rowIdx)
                 // Some 'data' values appear to be random integers, with no other information.
-                // We try to skip them here.
+                // We handle that here.
                 if (/^-?\d+$/.test(data)) {
                     console.log(
                         'FAILED TO PARSE SHARD: Received a BigInt instead of text.'
