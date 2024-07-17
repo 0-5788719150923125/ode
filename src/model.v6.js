@@ -10,16 +10,18 @@ export default class OpenDoorExperiment extends ODE {
         this.layers = config.layers || 6
         this.units = config.units || 128
         this.heads = config.heads || 4
-        this.queryRatio = config.queryRatio || 2
+        this.queriesPerHead = config.queriesPerHead || 2
         this.headDim = config.headDim || 256
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 0.00022
+        this.minLearningRate = 0.00000001
         this.weightDecay = 0.01
+        this.steps = 1024
     }
 
     defineTokenizer() {
-        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
-            model: 'OriginalDesign/thrice'
+        this.tokenizer = this.ode.tokenizers.TokenMonster({
+            model: 'englishcode-4096-clean-v1'
         })
     }
 
@@ -40,8 +42,9 @@ export default class OpenDoorExperiment extends ODE {
             outputs = this.ode.layers
                 .GroupedQueryAttention({
                     heads: this.heads,
-                    projection: this.headDim,
-                    queryRatio: this.queryRatio
+                    headDim: this.headDim,
+                    queriesPerHead: this.queriesPerHead,
+                    useALiBi: true
                 })
                 .apply(outputs)
 
@@ -59,13 +62,11 @@ export default class OpenDoorExperiment extends ODE {
     }
 
     defineSchedulers() {
-        this.minLearningRate = 0.00000001
-        const steps = 1000
         this.schedulers = [
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
                 this.learningRate,
-                steps
+                this.steps
             )
         ]
     }

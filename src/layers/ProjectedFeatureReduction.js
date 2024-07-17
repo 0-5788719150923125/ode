@@ -1,22 +1,28 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
+// https://en.wikipedia.org/wiki/Johnson%E2%80%93Lindenstrauss_lemma
 export default class ProjectedFeatureReduction extends LayerBase {
     constructor(config) {
         super(config)
         this.outputDim = config.outputDim
         this.scale = config.scale || 1.0
-        this.seed = config.seed || 42
+        this.seed = config.seed || null
     }
 
     build(inputShape) {
         this.inputDim = inputShape[inputShape.length - 1]
-        this.projectionMatrix = tf.randomNormal(
+        this.projectionMatrix = this.addWeight(
+            'projectionMatrix',
             [this.inputDim, this.outputDim],
-            0,
-            this.scale / Math.sqrt(this.outputDim),
             'float32',
-            this.seed
+            tf.initializers.randomNormal({
+                mean: 0,
+                stdDev: this.scale / Math.sqrt(this.outputDim),
+                seed: this.seed
+            }),
+            null,
+            false
         )
     }
 
@@ -29,7 +35,10 @@ export default class ProjectedFeatureReduction extends LayerBase {
             const inputReshaped = input.reshape([-1, inputDim])
 
             // Apply random projection
-            const projected = tf.matMul(inputReshaped, this.projectionMatrix)
+            const projected = tf.matMul(
+                inputReshaped,
+                this.projectionMatrix.read()
+            )
 
             // Reshape back to 3D
             return projected.reshape([batchSize, seqLength, this.outputDim])

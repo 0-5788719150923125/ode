@@ -175,7 +175,8 @@ const samplers = {
     DirectorySampler: (directories, delimiter) =>
         new RandomSampler(new DirectorySampler(directories, delimiter)),
     HTTPSampler: (url) => new RandomSampler(new HTTPSampler(url)),
-    CosmopediaSampler: () => new StridedSampler(new CosmopediaSampler()),
+    CosmopediaSampler: (config) =>
+        new StridedSampler(new CosmopediaSampler(config)),
     MultiSampler: (samplers) => new MultiSampler(samplers)
 }
 export default samplers

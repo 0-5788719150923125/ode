@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { tableFromIPC } from 'apache-arrow'
 import { readParquet } from 'parquet-wasm'
 
@@ -92,7 +93,10 @@ class CosmopediaDataset {
                     console.log('rowIdx was:', rowIdx)
                     console.log('data was:', data)
                     shouldSkip = true
-                    // throw 'data was invalid' // this is temporary, for debugging, so we don't spam the terminal
+                    fs.writeFileSync(
+                        './arrowStreamBuffer.txt',
+                        this.arrowStreamBuffer
+                    )
                     await this.fetchRandomShard()
                 }
                 text.push(prefix + data)

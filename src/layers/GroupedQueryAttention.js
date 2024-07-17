@@ -4,9 +4,9 @@ import LayerBase from './base.js'
 export default class GroupedQueryAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.projection = config.projection || 256
         this.heads = config.heads || 8
-        this.queryRatio = config.queryRatio || 2
+        this.headDim = config.headDim || 256
+        this.queriesPerHead = config.queriesPerHead || 2
         this.dropout = config.dropout || 0
     }
 
@@ -23,11 +23,11 @@ export default class GroupedQueryAttention extends LayerBase {
         for (let i = 0; i < this.heads; i++) {
             const queryKernels = []
             const queryBiases = []
-            for (let j = 0; j < this.queryRatio; j++) {
+            for (let j = 0; j < this.queriesPerHead; j++) {
                 queryKernels.push(
                     this.addWeight(
                         `queryKernel-${i}-${j}`,
-                        [units, this.projection],
+                        [units, this.headDim],
                         'float32',
                         tf.initializers.glorotUniform(),
                         tf.regularizers.l2({ l2: 0.01 })
@@ -36,7 +36,7 @@ export default class GroupedQueryAttention extends LayerBase {
                 queryBiases.push(
                     this.addWeight(
                         `queryBias-${i}-${j}`,
-                        [this.projection],
+                        [this.headDim],
                         'float32',
                         tf.initializers.zeros(),
                         tf.regularizers.l2({ l2: 0.01 })
@@ -49,7 +49,7 @@ export default class GroupedQueryAttention extends LayerBase {
             this.keyKernels.push(
                 this.addWeight(
                     `keyKernel-${i}`,
-                    [units, this.projection],
+                    [units, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
@@ -58,7 +58,7 @@ export default class GroupedQueryAttention extends LayerBase {
             this.keyBiases.push(
                 this.addWeight(
                     `keyBiases-${i}`,
-                    [this.projection],
+                    [this.headDim],
                     'float32',
                     tf.initializers.zeros(),
                     tf.regularizers.l2({ l2: 0.01 })
@@ -86,7 +86,7 @@ export default class GroupedQueryAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [units * this.heads * this.queryRatio, units],
+            [units * this.heads * this.queriesPerHead, units],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -124,7 +124,7 @@ export default class GroupedQueryAttention extends LayerBase {
                     this.valueBiases[i].read()
                 )
 
-                for (let j = 0; j < this.queryRatio; j++) {
+                for (let j = 0; j < this.queriesPerHead; j++) {
                     const Q = this.ops.applyDense(
                         inputs,
                         this.queryKernels[i][j].read(),
@@ -133,7 +133,7 @@ export default class GroupedQueryAttention extends LayerBase {
 
                     let scores = tf
                         .matMul(Q, K, false, true)
-                        .div(tf.scalar(Math.sqrt(this.projection)))
+                        .div(tf.scalar(Math.sqrt(this.headDim)))
 
                     if (this.ALiBiLength) {
                         scores = this.ops.applyALiBi(
@@ -180,9 +180,9 @@ export default class GroupedQueryAttention extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            projection: this.projection,
+            headDim: this.headDim,
             heads: this.heads,
-            queryRatio: this.queryRatio,
+            queriesPerHead: this.queriesPerHead,
             dropout: this.dropout
         }
     }
