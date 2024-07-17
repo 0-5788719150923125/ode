@@ -82,11 +82,11 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         let expertIndices
         const expertValues = tf.customGrad((expertWeights, save) => {
-            const topK = tf.topk(expertWeights, k)
-            expertIndices = tf.keep(topK.indices)
-            save([expertWeights])
+            const topKWeights = tf.topk(expertWeights, k)
+            expertIndices = topKWeights.indices.arraySync()
+            save([expertWeights, topKWeights.indices])
             return {
-                value: topK.values,
+                value: topKWeights.values,
                 gradFunc: (dy, saved) => {
                     const [expertWeights] = saved
                     const tileShape = [1, expertWeights.shape[1] / k]
@@ -99,17 +99,13 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
             const batchInputs = inputs.slice([i, 0], [1, -1])
-            const batchExpertIndices = expertIndices
-                .slice([i, 0], [1, -1])
-                .arraySync()[0]
+            const batchExpertIndices = expertIndices[i]
             const batchExpertValues = expertValues.slice([i, 0], [1, -1])
             const expertOutputs = []
 
             for (let j = 0; j < k; j++) {
                 const expertIndex = batchExpertIndices[j]
-                const expertValue = batchExpertValues
-                    .slice([0, j], [1, 1])
-                    .squeeze()
+                const expertValue = batchExpertValues.slice([0, j], [1, 1])
                 const expertOutput =
                     this.experts[expertIndex].apply(batchInputs)
                 expertOutputs.push(expertOutput.mul(expertValue))
@@ -126,7 +122,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             this.outputProjection.read()
         )
 
-        expertIndices.dispose()
         return outputProjected
     }
 
