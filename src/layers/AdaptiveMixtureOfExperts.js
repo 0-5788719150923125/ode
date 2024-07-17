@@ -29,36 +29,31 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.switchingHiddenBias = this.addWeight(
             'switchingHiddenBias',
             [this.switchingDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.switchingKernel = this.addWeight(
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.switchingBias = this.addWeight(
             'switchingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
             [this.topK * inputDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
     }
 
@@ -79,6 +74,8 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
     }
 
     computeUtilization(expertIndices) {
+        this.step++
+
         const usageCounts = this.expertUsageCounts
         const totalUsage = this.totalUsage
 
@@ -101,7 +98,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         const combinedLoss = expertDiversityLoss.add(loadBalancingLoss).div(2)
 
-        this.step++
         const rampUpFactor = Math.min(this.step / this.rampUpSteps, 1)
 
         const scaledLoss = combinedLoss.mul(rampUpFactor * this.maxPenalty)
