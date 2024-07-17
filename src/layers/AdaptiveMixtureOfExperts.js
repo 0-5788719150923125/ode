@@ -11,13 +11,13 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.activation = config.activation || 'swish'
         this.temperature = config.temperature || 1.0
         this.maxPenalty = 0.1
-        this.epsilon = 1e-7
+        this.epsilon = 1e-6
         this.expertUsageCounts = tf.variable(
             tf.zeros([this.topK, this.numExperts]),
             false
         )
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = false
+        this.debug = true
     }
 
     build(inputShape) {
@@ -145,13 +145,41 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             const topKIndices = tf.topk(expertWeights.sum(1), k)
             expertIndices = topKIndices.indices.arraySync()
             if (kwargs.training) this.computeUtilization(topKIndices.indices)
-            save([expertWeights, topKIndices.indices, topKWeights.values])
+            save([expertWeights, topKIndices.indices])
             return {
                 value: topKWeights.values,
                 gradFunc: (dy, saved) => {
-                    const [expertWeights, topKIndices, topKValues] = saved
-                    const tileShape = [1, 1, expertWeights.shape[2] / k]
-                    return [dy.tile(tileShape).add(expertWeights)]
+                    // const [expertWeights] = saved
+                    // const tileShape = [1, 1, expertWeights.shape[2] / k]
+                    // return [dy.tile(tileShape).add(expertWeights)]
+                    const [expertWeights, topKIndices] = saved
+                    const gradientMask = tf.zeros(expertWeights.shape)
+
+                    for (let i = 0; i < inputs.shape[0]; i++) {
+                        for (let j = 0; j < k; j++) {
+                            const batchIndex = i
+                            // console.log(topKIndices.indices)
+                            const expertIndex = topKIndices
+                                .slice([i, j], [1, 1])
+                                .flatten()
+                                .arraySync()[0]
+                            console.log(expertIndex)
+                            const updateMask = tf.zeros(expertWeights.shape)
+                            const updateMaskBuffer = updateMask.bufferSync()
+                            console.log('update mask:', updateMaskBuffer)
+                            const updateMaskSlice = updateMask.slice(
+                                [batchIndex, 0, expertIndex],
+                                [1, -1, 1]
+                            )
+                            const updateMaskSliceBuffer = updateMaskBuffer.set(
+                                dy.slice([i, 0, j], [1, -1, 1]),
+                                updateMaskSlice
+                            )
+                            gradientMask.assign(gradientMask.add(updateMask))
+                        }
+                    }
+
+                    return [gradientMask]
                 }
             }
         })(expertWeights)
