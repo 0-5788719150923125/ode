@@ -12,7 +12,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.temperature = config.temperature || 1.0
         this.maxPenalty = 0.1
         this.epsilon = 1e-6
-        this.expertUsageCounts = tf.variable(
+        this.expertUsage = tf.variable(
             tf.zeros([this.topK, this.numExperts]),
             false
         )
@@ -53,6 +53,12 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'float32',
             tf.initializers.glorotNormal()
         )
+        // this.expertWeights = this.addWeight(
+        //     'expertWeights',
+        //     [this.numExperts],
+        //     'float32',
+        //     tf.initializers.ones()
+        // )
     }
 
     call(inputs, kwargs) {
@@ -72,15 +78,14 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             tf.oneHot(selectedExperts, this.numExperts),
             0
         )
-        this.expertUsageCounts.assign(this.expertUsageCounts.add(batchUsage))
+        this.expertUsage.assign(this.expertUsage.add(batchUsage))
         this.totalUsage.assign(this.totalUsage.add(tf.sum(batchUsage)))
     }
 
     computeUtilization(expertIndices, kwargs) {
-        const usageCounts = this.expertUsageCounts
-        const totalUsage = this.totalUsage
-
-        const expertUtilization = usageCounts.div(totalUsage.add(this.epsilon))
+        const expertUtilization = this.expertUsage.div(
+            this.totalUsage.add(this.epsilon)
+        )
 
         const targetUtilization = tf.fill(
             [this.numExperts],
@@ -90,11 +95,12 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         const utilizationDiff = expertUtilization.sub(targetUtilization).abs()
         const expertDiversityLoss = utilizationDiff.mean()
 
-        const avgUsage = totalUsage.div(this.numExperts)
-        const usageDeviations = usageCounts
+        const avgUsage = this.totalUsage.div(this.numExperts)
+        const usageDeviations = this.expertUsage
             .sub(avgUsage)
             .abs()
             .div(avgUsage.add(this.epsilon))
+
         const loadBalancingLoss = usageDeviations.mean()
 
         const combinedLoss = expertDiversityLoss.add(loadBalancingLoss).div(2)
@@ -103,8 +109,8 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         if (this.debug) {
             console.log('Start of computeUtilization')
-            console.log('usageCounts:', usageCounts.arraySync())
-            console.log('totalUsage:', totalUsage.arraySync())
+            console.log('expertUsage:', this.expertUsage.arraySync())
+            console.log('totalUsage:', this.totalUsage.arraySync())
             console.log('expertUtilization:', expertUtilization.arraySync())
             console.log('targetUtilization:', targetUtilization.arraySync())
             console.log('expertDiversityLoss:', expertDiversityLoss.arraySync())
@@ -145,45 +151,40 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             const topKIndices = tf.topk(expertWeights.sum(1), k)
             expertIndices = topKIndices.indices.arraySync()
             if (kwargs.training) this.computeUtilization(topKIndices.indices)
-            save([expertWeights, topKIndices.indices])
+            save([expertWeights])
             return {
                 value: topKWeights.values,
                 gradFunc: (dy, saved) => {
-                    // const [expertWeights] = saved
-                    // const tileShape = [1, 1, expertWeights.shape[2] / k]
-                    // return [dy.tile(tileShape).add(expertWeights)]
-                    const [expertWeights, topKIndices] = saved
-                    const gradientMask = tf.zeros(expertWeights.shape)
-
-                    for (let i = 0; i < inputs.shape[0]; i++) {
-                        for (let j = 0; j < k; j++) {
-                            const batchIndex = i
-                            // console.log(topKIndices.indices)
-                            const expertIndex = topKIndices
-                                .slice([i, j], [1, 1])
-                                .flatten()
-                                .arraySync()[0]
-                            console.log(expertIndex)
-                            const updateMask = tf.zeros(expertWeights.shape)
-                            const updateMaskBuffer = updateMask.bufferSync()
-                            console.log('update mask:', updateMaskBuffer)
-                            const updateMaskSlice = updateMask.slice(
-                                [batchIndex, 0, expertIndex],
-                                [1, -1, 1]
-                            )
-                            const updateMaskSliceBuffer = updateMaskBuffer.set(
-                                dy.slice([i, 0, j], [1, -1, 1]),
-                                updateMaskSlice
-                            )
-                            gradientMask.assign(gradientMask.add(updateMask))
-                        }
-                    }
-
-                    return [gradientMask]
+                    const [expertWeights] = saved
+                    // console.log(expertWeights)
+                    // return [tf.onesLike(expertWeights)]
+                    const tileShape = [1, 1, expertWeights.shape[2] / k]
+                    return [dy.tile(tileShape).add(expertWeights).leakyRelu()]
+                    // const [expertWeights, topKIndices] = saved
+                    // const gradientMask = tf.zeros(expertWeights.shape)
+                    // const gradientMaskBuffer = gradientMask.bufferSync()
+                    // for (let i = 0; i < inputs.shape[0]; i++) {
+                    //     for (let j = 0; j < k; j++) {
+                    //         const batchIndex = i
+                    //         const expertIndex = topKIndices
+                    //             .slice([i, j], [1, 1])
+                    //             .flatten()
+                    //             .arraySync()[0]
+                    //         const updateSlice = dy.slice([i, 0, j], [1, -1, 1])
+                    //         gradientMaskBuffer.set(
+                    //             updateSlice.arraySync(),
+                    //             batchIndex,
+                    //             0,
+                    //             expertIndex
+                    //         )
+                    //     }
+                    // }
+                    // return [gradientMaskBuffer.toTensor()]
                 }
             }
         })(expertWeights)
 
+        // const expertWeighting = this.expertWeights.read()
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
             const batchInputs = inputs.slice([i, 0], [1, -1])
@@ -192,9 +193,15 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             for (let j = 0; j < k; j++) {
                 const expertIndex = expertIndices[i][j]
                 const expertValue = expertValues.slice([i, 0, j], [1, -1, 1])
+                // const expertWeight = expertWeighting.slice([expertIndex], [1])
                 const expertOutput =
                     this.experts[expertIndex].apply(batchInputs)
+                // expertValue.print()
+                // expertOutputs.push(
+                //     expertOutput.mul(expertValue.mul(expertWeight)).mul(0.1)
+                // )
                 expertOutputs.push(expertOutput.mul(expertValue))
+                // expertOutputs.push(expertOutput)
             }
 
             batchOutputs.push(tf.concat(expertOutputs, -1))
