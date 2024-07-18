@@ -53,12 +53,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'float32',
             tf.initializers.glorotNormal()
         )
-        // this.expertWeights = this.addWeight(
-        //     'expertWeights',
-        //     [this.numExperts],
-        //     'float32',
-        //     tf.initializers.ones()
-        // )
     }
 
     call(inputs, kwargs) {
@@ -156,35 +150,12 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 value: topKWeights.values,
                 gradFunc: (dy, saved) => {
                     const [expertWeights] = saved
-                    // console.log(expertWeights)
-                    // return [tf.onesLike(expertWeights)]
                     const tileShape = [1, 1, expertWeights.shape[2] / k]
                     return [dy.tile(tileShape).add(expertWeights).leakyRelu()]
-                    // const [expertWeights, topKIndices] = saved
-                    // const gradientMask = tf.zeros(expertWeights.shape)
-                    // const gradientMaskBuffer = gradientMask.bufferSync()
-                    // for (let i = 0; i < inputs.shape[0]; i++) {
-                    //     for (let j = 0; j < k; j++) {
-                    //         const batchIndex = i
-                    //         const expertIndex = topKIndices
-                    //             .slice([i, j], [1, 1])
-                    //             .flatten()
-                    //             .arraySync()[0]
-                    //         const updateSlice = dy.slice([i, 0, j], [1, -1, 1])
-                    //         gradientMaskBuffer.set(
-                    //             updateSlice.arraySync(),
-                    //             batchIndex,
-                    //             0,
-                    //             expertIndex
-                    //         )
-                    //     }
-                    // }
-                    // return [gradientMaskBuffer.toTensor()]
                 }
             }
         })(expertWeights)
 
-        // const expertWeighting = this.expertWeights.read()
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
             const batchInputs = inputs.slice([i, 0], [1, -1])
@@ -193,17 +164,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             for (let j = 0; j < k; j++) {
                 const expertIndex = expertIndices[i][j]
                 const expertValue = expertValues.slice([i, 0, j], [1, -1, 1])
-                // const expertWeight = expertWeighting.slice([expertIndex], [1])
                 const expertOutput =
                     this.experts[expertIndex].apply(batchInputs)
-                // expertValue.print()
-                // expertOutputs.push(
-                //     expertOutput.mul(expertValue.mul(expertWeight)).mul(0.1)
-                // )
-                expertOutputs.push(
-                    expertOutput.mul(expertValue.add(this.epsilon))
-                )
-                // expertOutputs.push(expertOutput)
+                expertOutputs.push(expertOutput.mul(expertValue))
             }
 
             batchOutputs.push(tf.concat(expertOutputs, -1))
