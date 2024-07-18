@@ -17,7 +17,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             false
         )
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = true
+        this.debug = false
     }
 
     build(inputShape) {
@@ -200,7 +200,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 // expertOutputs.push(
                 //     expertOutput.mul(expertValue.mul(expertWeight)).mul(0.1)
                 // )
-                expertOutputs.push(expertOutput.mul(expertValue))
+                expertOutputs.push(
+                    expertOutput.mul(expertValue.add(this.epsilon))
+                )
                 // expertOutputs.push(expertOutput)
             }
 

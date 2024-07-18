@@ -125,9 +125,6 @@ class GradientAccumulator {
                 batch: this.currentBatch
             }
         )
-        if (isNaN(loss)) {
-            throw 'Loss was NaN. Halting.'
-        }
         this.gradients = grads
         this.loss = loss
     }
@@ -218,12 +215,18 @@ function computeGradients(
             model.layers.forEach((layer) => {
                 if (layer.hasOwnProperty('extraLoss')) {
                     lossValue = tf.add(lossValue, layer.extraLoss)
+
                     tf.dispose(layer.extraLoss)
                     layer.extraLoss = null
                 }
             })
 
             loss = lossValue.dataSync()[0]
+
+            if (isNaN(loss)) {
+                lossValue.print()
+                throw 'Loss was NaN. Halting.'
+            }
 
             return lossValue
         })

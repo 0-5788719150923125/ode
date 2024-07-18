@@ -47,22 +47,16 @@ export default class OmniscientDeterministicEngine extends ODE {
         let outputs = embeddings.apply(inputs)
 
         outputs = this.ode.layers
-            .StaticMatrixReduction({
-                outputDim: this.units
+            .Autoencoder({
+                innerDim: this.innerDim,
+                bottleneck: this.bottleneck,
+                outputDim: this.units,
+                encoderActivation: 'tanh',
+                decoderActivation: 'sigmoid',
+                variational: true,
+                beta: this.beta
             })
             .apply(outputs)
-
-        // outputs = this.ode.layers
-        //     .Autoencoder({
-        //         innerDim: this.innerDim,
-        //         bottleneck: this.bottleneck,
-        //         outputDim: this.units,
-        //         encoderActivation: 'tanh',
-        //         decoderActivation: 'sigmoid',
-        //         variational: true,
-        //         beta: this.beta
-        //     })
-        //     .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
