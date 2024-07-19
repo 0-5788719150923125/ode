@@ -9,11 +9,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = config.layers || 3
         this.units = config.units || 128
+        this.headDim = config.headDim || 2048
+        this.mlpDim = config.mlpDim || 1024
         this.numExperts = config.numExperts || 8
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 512
-        this.headDim = config.headDim || 4096
-        this.mlpDim = config.mlpDim || 1024
+        this.temperature = config.temperature || 0.8
     }
 
     defineTokenizer() {
@@ -49,7 +50,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     topK: this.topK,
                     switchingDim: this.switchingDim,
                     activation: 'swish',
-                    temperature: 0.8,
+                    temperature: this.temperature,
                     experts: this.createMLPExperts(outputs.shape)
                 })
                 .apply(outputs)

@@ -16,7 +16,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             false
         )
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = true
+        this.debug = false
     }
 
     build(inputShape) {
@@ -57,13 +57,75 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const outputs = this.approximateTopKWithGumbel(
+
+            const switchingHidden = this.ops.applyDense(
                 inputs,
+                this.switchingHidden.read(),
+                this.switchingHiddenBias.read()
+            )
+            const switchingActivated = tf.layers
+                .activation({ activation: this.activation })
+                .apply(switchingHidden)
+            const switchingScores = this.ops.applyDense(
+                switchingActivated,
+                this.switchingKernel.read(),
+                this.switchingBias.read()
+            )
+
+            const { expertIndices, expertWeights } = this.topKWithGumbel(
+                switchingScores,
                 this.topK,
                 kwargs
             )
-            return this.ops.rmsNorm(outputs)
+
+            const batchOutputs = []
+            for (let i = 0; i < inputs.shape[0]; i++) {
+                const batchInputs = inputs.slice([i, 0], [1, -1])
+                const expertOutputs = []
+                for (let j = 0; j < this.topK; j++) {
+                    const expertIndex = expertIndices[i][j]
+                    const expertValue = expertWeights.slice([i, j], [1, 1])
+                    const expertOutput =
+                        this.experts[expertIndex].apply(batchInputs)
+                    expertOutputs.push(expertOutput.mul(expertValue))
+                }
+
+                batchOutputs.push(tf.concat(expertOutputs, -1))
+            }
+
+            const outputProjected = this.ops.applyDense(
+                tf.concat(batchOutputs, 0),
+                this.outputProjection.read()
+            )
+
+            return this.ops.rmsNorm(outputProjected)
         })
+    }
+
+    topKWithGumbel(scores, k, kwargs) {
+        let expertIndices
+        const expertWeights = tf.customGrad((scores, save) => {
+            const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
+            const { indices, values } = tf.topk(gumbel, k)
+            expertIndices = indices.arraySync()
+            if (kwargs.training) this.computeUtilization(indices)
+            save([gumbel, indices])
+            return {
+                value: values,
+                gradFunc: (dy, saved) => {
+                    const [gumbel, indices] = saved
+                    const gatheredGradients = tf.gatherND(dy, indices)
+                    const updatedGradients = tf.scatterND(
+                        indices,
+                        gatheredGradients,
+                        gumbel.shape
+                    )
+                    return [updatedGradients.add(gumbel)]
+                }
+            }
+        })(scores.mean(1))
+
+        return { expertIndices, expertWeights }
     }
 
     updateExpertUsage(selectedExperts) {
@@ -114,69 +176,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.updateExpertUsage(expertIndices)
 
         return combinedLoss
-    }
-
-    approximateTopKWithGumbel(inputs, k, kwargs) {
-        const switchingHidden = this.ops.applyDense(
-            inputs,
-            this.switchingHidden.read(),
-            this.switchingHiddenBias.read()
-        )
-        const switchingActivated = tf.layers
-            .activation({ activation: this.activation })
-            .apply(switchingHidden)
-        const switchingScores = this.ops.applyDense(
-            switchingActivated,
-            this.switchingKernel.read(),
-            this.switchingBias.read()
-        )
-
-        let expertIndices
-        const expertWeights = tf.customGrad((scores, save) => {
-            const { indices, values } = tf.topk(scores, k)
-            expertIndices = indices.arraySync()
-            if (kwargs.training) this.computeUtilization(indices)
-            save([scores, indices])
-            return {
-                value: values,
-                gradFunc: (dy, saved) => {
-                    const [scores, indices] = saved
-                    const gatheredGradients = tf.gatherND(dy, indices)
-                    const updatedGradients = tf.scatterND(
-                        indices,
-                        gatheredGradients,
-                        scores.shape
-                    )
-                    const gumbel = this.ops.gumbelSoftmax(
-                        scores,
-                        this.temperature
-                    )
-                    return [updatedGradients.add(gumbel)]
-                }
-            }
-        })(switchingScores.mean(1))
-
-        const batchOutputs = []
-        for (let i = 0; i < inputs.shape[0]; i++) {
-            const batchInputs = inputs.slice([i, 0], [1, -1])
-            const expertOutputs = []
-            for (let j = 0; j < k; j++) {
-                const expertIndex = expertIndices[i][j]
-                const expertValue = expertWeights.slice([i, j], [1, 1])
-                const expertOutput =
-                    this.experts[expertIndex].apply(batchInputs)
-                expertOutputs.push(expertOutput.mul(expertValue))
-            }
-
-            batchOutputs.push(tf.concat(expertOutputs, -1))
-        }
-
-        const outputProjected = this.ops.applyDense(
-            tf.concat(batchOutputs, 0),
-            this.outputProjection.read()
-        )
-
-        return outputProjected
     }
 
     getConfig() {
