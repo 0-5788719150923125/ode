@@ -43,6 +43,12 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
+        this.expertWeights = this.addWeight(
+            'expertWeights',
+            [this.numExperts],
+            'float32',
+            tf.initializers.ones()
+        )
         this.outputProjection = this.addWeight(
             'outputProjection',
             [this.topK * inputDim, inputDim],
@@ -60,9 +66,10 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 this.switchingHidden.read(),
                 this.switchingHiddenBias.read()
             )
+            const switchingNormalized = this.ops.rmsNorm(switchingHidden)
             const switchingActivated = tf.layers
                 .activation({ activation: this.activation })
-                .apply(switchingHidden)
+                .apply(switchingNormalized)
             const switchingScores = this.ops.applyDense(
                 switchingActivated,
                 this.switchingKernel.read(),
@@ -95,32 +102,38 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 this.outputProjection.read()
             )
 
-            return this.ops.rmsNorm(outputProjected)
+            return outputProjected
         })
     }
 
     topKWithGumbel(scores, k, kwargs) {
         let expertIndices
-        const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
-        const expertWeights = tf.customGrad((gumbel, save) => {
+        const gumbel = this.ops.gumbelSoftmax(scores.mean(1), this.temperature)
+        const sampleValues = tf.customGrad((gumbel, save) => {
             const { indices, values } = tf.topk(gumbel, k)
             expertIndices = indices.arraySync()
             if (kwargs.training) this.computeUtilization(indices)
-            save([gumbel, indices])
+            // save([gumbel, indices])
             return {
-                value: values,
-                gradFunc: (dy, saved) => {
-                    const [gumbel, indices] = saved
-                    const gatheredGradients = tf.gatherND(dy, indices)
-                    const updatedGradients = tf.scatterND(
-                        indices,
-                        gatheredGradients,
-                        gumbel.shape
-                    )
-                    return [updatedGradients.add(gumbel)]
-                }
+                value: gumbel,
+                gradFunc: (dy, saved) => [dy]
+                // gradFunc: (dy, saved) => {
+                //     const [gumbel, indices] = saved
+                //     const gatheredGradients = tf.gatherND(dy, indices)
+                //     const updatedGradients = tf.scatterND(
+                //         indices,
+                //         gatheredGradients,
+                //         gumbel.shape
+                //     )
+                //     return [updatedGradients.add(gumbel)]
+                // }
             }
-        })(gumbel.mean(1))
+        })(gumbel)
+
+        const expertWeights = this.expertWeights
+            .read()
+            .mul(sampleValues)
+            .softmax()
 
         return { expertIndices, expertWeights }
     }
