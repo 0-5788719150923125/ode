@@ -11,12 +11,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.activation = config.activation || 'swish'
         this.temperature = config.temperature || 1.0
         this.epsilon = 1e-6
-        this.expertUsage = tf.variable(
-            tf.zeros([this.topK, this.numExperts]),
-            false
-        )
+        this.expertUsage = tf.variable(tf.zeros([this.numExperts]), false)
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = false
+        this.debug = true
     }
 
     build(inputShape) {
@@ -141,7 +138,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         const expertUtilization = this.expertUsage.div(
             this.totalUsage.add(this.epsilon)
         )
-
         const targetUtilization = tf.fill(
             [this.numExperts],
             1 / this.numExperts
@@ -173,7 +169,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         this.extraLoss = tf.keep(combinedLoss)
 
-        this.updateExpertUsage(expertIndices)
+        this.updateExpertUsage(expertIndices.flatten())
 
         return combinedLoss
     }
