@@ -10,14 +10,13 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
         this.temperature = config.temperature || 1.0
-        this.maxPenalty = 0.1
         this.epsilon = 1e-6
         this.expertUsage = tf.variable(
             tf.zeros([this.topK, this.numExperts]),
             false
         )
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = false
+        this.debug = true
     }
 
     build(inputShape) {
@@ -99,8 +98,6 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         const combinedLoss = expertDiversityLoss.add(loadBalancingLoss).div(2)
 
-        const scaledLoss = combinedLoss.mul(this.maxPenalty)
-
         if (this.debug) {
             console.log('Start of computeUtilization')
             console.log('expertUsage:', this.expertUsage.arraySync())
@@ -110,14 +107,13 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             console.log('expertDiversityLoss:', expertDiversityLoss.arraySync())
             console.log('loadBalancingLoss:', loadBalancingLoss.arraySync())
             console.log('combinedLoss:', combinedLoss.arraySync())
-            console.log('scaledLoss:', scaledLoss.arraySync())
         }
 
-        this.extraLoss = tf.keep(scaledLoss)
+        this.extraLoss = tf.keep(combinedLoss)
 
         this.updateExpertUsage(expertIndices)
 
-        return scaledLoss
+        return combinedLoss
     }
 
     approximateTopKWithGumbel(inputs, k, kwargs) {
@@ -137,8 +133,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         let expertIndices
         const expertWeights = tf.customGrad((scores, save) => {
-            const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
-            const { indices, values } = tf.topk(gumbel, k)
+            const { indices, values } = tf.topk(scores, k)
             expertIndices = indices.arraySync()
             if (kwargs.training) this.computeUtilization(indices)
             save([scores, indices])
@@ -152,7 +147,11 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                         gatheredGradients,
                         scores.shape
                     )
-                    return [updatedGradients.add(scores)]
+                    const gumbel = this.ops.gumbelSoftmax(
+                        scores,
+                        this.temperature
+                    )
+                    return [updatedGradients.add(gumbel)]
                 }
             }
         })(switchingScores.mean(1))
