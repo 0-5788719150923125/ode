@@ -134,41 +134,36 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             this.switchingKernel.read(),
             this.switchingBias.read()
         )
-        const expertWeights = this.ops.gumbelSoftmax(
-            switchingScores,
-            this.temperature
-        )
 
         let expertIndices
-        const expertValues = tf.customGrad((expertWeights, save) => {
-            const { indices, values } = tf.topk(expertWeights, k)
+        const expertWeights = tf.customGrad((scores, save) => {
+            const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
+            const { indices, values } = tf.topk(gumbel, k)
             expertIndices = indices.arraySync()
             if (kwargs.training) this.computeUtilization(indices)
-            save([expertWeights, indices])
+            save([scores, indices])
             return {
                 value: values,
                 gradFunc: (dy, saved) => {
-                    const [expertWeights, indices] = saved
+                    const [scores, indices] = saved
                     const gatheredGradients = tf.gatherND(dy, indices)
                     const updatedGradients = tf.scatterND(
                         indices,
                         gatheredGradients,
-                        expertWeights.shape
+                        scores.shape
                     )
-                    return [updatedGradients.add(expertWeights)]
+                    return [updatedGradients.add(scores)]
                 }
             }
-        })(expertWeights.mean(1))
+        })(switchingScores.mean(1))
 
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
             const batchInputs = inputs.slice([i, 0], [1, -1])
-            // console.log(batchInputs)
             const expertOutputs = []
             for (let j = 0; j < k; j++) {
                 const expertIndex = expertIndices[i][j]
-                // console.log(expertValues)
-                const expertValue = expertValues.slice([i, j], [1, 1])
+                const expertValue = expertWeights.slice([i, j], [1, 1])
                 const expertOutput =
                     this.experts[expertIndex].apply(batchInputs)
                 expertOutputs.push(expertOutput.mul(expertValue))
