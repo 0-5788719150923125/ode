@@ -53,7 +53,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'expertBiases',
             [this.topK, inputDim * this.topK],
             'float32',
-            tf.initializers.zeros()
+            tf.initializers.glorotNormal()
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
@@ -123,10 +123,16 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             expertIndices = indices.arraySync()
             if (training) this.computeUtilization(indices)
             const sparseValues = tf.oneHot(indices, gumbel.shape[1])
+            // console.log(sparseValues)
             save([gumbel])
             return {
                 value: sparseValues,
                 gradFunc: (dy, [gumbel]) => {
+                    // console.log(dy)
+                    // console.log(gumbel)
+                    // const dyTransposed = dy.transpose([0, 2, 1])
+                    // console.log(dyTransposed)
+                    // return [dy]
                     const dyTransposed = dy.transpose([0, 2, 1])
                     return [dyTransposed.mean(-1).expandDims(-1).mul(gumbel)]
                 }
@@ -138,7 +144,8 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             .read()
             .mul(sampleValues)
             .add(this.expertBiases.read())
-        // expertWeights.print()
+            .tanh()
+        expertWeights.print()
         return { expertIndices, expertWeights }
     }
 
