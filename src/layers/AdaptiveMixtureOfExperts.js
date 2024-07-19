@@ -141,23 +141,24 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         let expertIndices
         const expertValues = tf.customGrad((expertWeights, save) => {
-            const { indices, values } = tf.topk(expertWeights.sum(1), k)
+            const { indices, values } = tf.topk(expertWeights, k)
             expertIndices = indices.arraySync()
             if (kwargs.training) this.computeUtilization(indices)
-            save([expertWeights])
+            save([expertWeights, indices])
             return {
                 value: values,
                 gradFunc: (dy, saved) => {
-                    const [expertWeights] = saved
-                    const tileShape = [
-                        1,
-                        expertWeights.shape[1],
-                        expertWeights.shape[2] / k
-                    ]
-                    return [dy.expandDims(1).tile(tileShape).add(expertWeights)]
+                    const [expertWeights, indices] = saved
+                    const gatheredGradients = tf.gatherND(dy, indices)
+                    const updatedGradients = tf.scatterND(
+                        indices,
+                        gatheredGradients,
+                        expertWeights.shape
+                    )
+                    return [updatedGradients.add(expertWeights)]
                 }
             }
-        })(expertWeights)
+        })(expertWeights.mean(1))
 
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
