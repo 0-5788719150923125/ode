@@ -13,7 +13,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.epsilon = 1e-6
         this.expertUsage = tf.variable(tf.zeros([this.numExperts]), false)
         this.totalUsage = tf.variable(tf.scalar(0), false)
-        this.debug = true
+        this.debug = false
     }
 
     build(inputShape) {
@@ -101,8 +101,8 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
     topKWithGumbel(scores, k, kwargs) {
         let expertIndices
-        const expertWeights = tf.customGrad((scores, save) => {
-            const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
+        const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
+        const expertWeights = tf.customGrad((gumbel, save) => {
             const { indices, values } = tf.topk(gumbel, k)
             expertIndices = indices.arraySync()
             if (kwargs.training) this.computeUtilization(indices)
@@ -120,7 +120,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                     return [updatedGradients.add(gumbel)]
                 }
             }
-        })(scores.mean(1))
+        })(gumbel.mean(1))
 
         return { expertIndices, expertWeights }
     }
