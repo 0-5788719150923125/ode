@@ -141,17 +141,20 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         let expertIndices
         const expertValues = tf.customGrad((expertWeights, save) => {
-            const topKWeights = tf.topk(expertWeights, k)
-            const topKIndices = tf.topk(expertWeights.sum(1), k)
-            expertIndices = topKIndices.indices.arraySync()
-            if (kwargs.training) this.computeUtilization(topKIndices.indices)
+            const { indices, values } = tf.topk(expertWeights.sum(1), k)
+            expertIndices = indices.arraySync()
+            if (kwargs.training) this.computeUtilization(indices)
             save([expertWeights])
             return {
-                value: topKWeights.values,
+                value: values,
                 gradFunc: (dy, saved) => {
                     const [expertWeights] = saved
-                    const tileShape = [1, 1, expertWeights.shape[2] / k]
-                    return [dy.tile(tileShape).add(expertWeights).leakyRelu()]
+                    const tileShape = [
+                        1,
+                        expertWeights.shape[1],
+                        expertWeights.shape[2] / k
+                    ]
+                    return [dy.expandDims(1).tile(tileShape).add(expertWeights)]
                 }
             }
         })(expertWeights)
@@ -159,11 +162,12 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         const batchOutputs = []
         for (let i = 0; i < inputs.shape[0]; i++) {
             const batchInputs = inputs.slice([i, 0], [1, -1])
-
+            // console.log(batchInputs)
             const expertOutputs = []
             for (let j = 0; j < k; j++) {
                 const expertIndex = expertIndices[i][j]
-                const expertValue = expertValues.slice([i, 0, j], [1, -1, 1])
+                // console.log(expertValues)
+                const expertValue = expertValues.slice([i, j], [1, 1])
                 const expertOutput =
                     this.experts[expertIndex].apply(batchInputs)
                 expertOutputs.push(expertOutput.mul(expertValue))
