@@ -23,7 +23,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotUniform()
         )
         this.switchingHiddenBias = this.addWeight(
             'switchingHiddenBias',
@@ -35,7 +35,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotUniform()
         )
         this.switchingBias = this.addWeight(
             'switchingBias',
@@ -45,21 +45,15 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         )
         this.expertWeights = this.addWeight(
             'expertWeights',
-            [this.topK, inputDim],
+            [this.numExperts, inputDim],
             'float32',
             tf.initializers.ones()
-        )
-        this.expertBiases = this.addWeight(
-            'expertBiases',
-            [inputDim],
-            'float32',
-            tf.initializers.zeros()
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
             [this.topK * inputDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotUniform()
         )
     }
 
@@ -94,7 +88,10 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 const expertOutputs = []
                 for (let j = 0; j < this.topK; j++) {
                     const expertIndex = expertIndices[i][j]
-                    const expertValue = expertWeights.slice([i, j], [1, 1])
+                    const expertValue = expertWeights.slice(
+                        [i, expertIndex, 0],
+                        [1, 1, -1]
+                    )
                     const expertOutput =
                         this.experts[expertIndex].apply(batchInputs)
                     expertOutputs.push(expertOutput.mul(expertValue))
@@ -113,32 +110,18 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
     }
 
     topKWithGumbel(scores, k, kwargs) {
-        let expertIndices
-        const gumbel = this.ops.gumbelSoftmax(scores.mean(1), this.temperature)
-        const sampleValues = tf.customGrad((gumbel, save) => {
-            const { indices, values } = tf.topk(gumbel, k)
-            expertIndices = indices.arraySync()
-            if (kwargs.training) this.computeUtilization(indices)
-            save([gumbel, indices])
-            return {
-                value: values,
-                gradFunc: (dy, saved) => {
-                    const [gumbel, indices] = saved
-                    const gatheredGradients = tf.gatherND(dy, indices)
-                    const updatedGradients = tf.scatterND(
-                        indices,
-                        gatheredGradients,
-                        gumbel.shape
-                    )
-                    return [updatedGradients.add(gumbel)]
-                }
-            }
-        })(gumbel)
+        const gumbel = this.ops.gumbelSoftmax(
+            tf.moments(scores, 1).variance,
+            this.temperature
+        )
+        const { indices, values } = tf.topk(gumbel, k)
+        let expertIndices = indices.arraySync()
+        if (kwargs.training) this.computeUtilization(indices)
 
         const expertWeights = this.expertWeights
             .read()
-            .mul(sampleValues.expandDims(-1))
-            .add(this.expertBiases.read())
+            .mul(gumbel.expandDims(-1))
+            .softmax()
 
         return { expertIndices, expertWeights }
     }
