@@ -47,7 +47,7 @@ export default class CosmopediaDataset {
         console.log('fetching shard:', `${shard}/${numShards}`, 'slice:', slice)
         const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
         this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
-        console.log(this.url)
+        // console.log(this.url)
         try {
             await this.streamDataIntoTable()
         } catch (err) {
@@ -141,10 +141,10 @@ export default class CosmopediaDataset {
                 // Some 'data' values appear to be random integers, with no other information. This
                 // is probably a mistake in the training data, so we skip them.
                 if (/^-?\d+$/.test(data)) {
-                    console.log('prefix was:', prefix)
-                    console.log('batchIdx was:', batchIdx)
-                    console.log('rowIdx was:', rowIdx)
-                    console.log('data was:', data)
+                    // console.log('prefix was:', prefix)
+                    // console.log('batchIdx was:', batchIdx)
+                    // console.log('rowIdx was:', rowIdx)
+                    // console.log('data was:', data)
                     shouldSkip = true
                     await this.fetchRandomShard()
                     // await this.streamDataIntoTable()
