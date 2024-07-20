@@ -10,7 +10,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.switchingDim = config?.switchingDim || 64
         this.activation = config.activation || 'swish'
         this.temperature = config.temperature || 1.0
-        this.epsilon = 1e-6
+        this.epsilon = 1e-8
         this.expertUsage = tf.variable(tf.zeros([this.numExperts]), false)
         this.totalUsage = tf.variable(tf.scalar(0), false)
         this.debug = false
@@ -45,15 +45,15 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         )
         this.expertWeights = this.addWeight(
             'expertWeights',
-            [this.numExperts * this.topK, this.topK, inputDim * this.topK],
+            [this.topK, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.ones()
         )
         this.expertBiases = this.addWeight(
             'expertBiases',
-            [this.topK, inputDim * this.topK],
+            [inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.zeros()
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
@@ -85,7 +85,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             const { expertIndices, expertWeights } = this.topKWithGumbel(
                 switchingScores,
                 this.topK,
-                kwargs.training
+                kwargs
             )
 
             const batchOutputs = []
@@ -94,10 +94,7 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 const expertOutputs = []
                 for (let j = 0; j < this.topK; j++) {
                     const expertIndex = expertIndices[i][j]
-                    const expertValue = expertWeights
-                        .slice([i, j], [1, 1])
-                        .sum(-1)
-                    // expertValue.print()
+                    const expertValue = expertWeights.slice([i, j], [1, 1])
                     const expertOutput =
                         this.experts[expertIndex].apply(batchInputs)
                     expertOutputs.push(expertOutput.mul(expertValue))
@@ -115,37 +112,34 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         })
     }
 
-    topKWithGumbel(scores, k, training) {
+    topKWithGumbel(scores, k, kwargs) {
         let expertIndices
-        const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
+        const gumbel = this.ops.gumbelSoftmax(scores.mean(1), this.temperature)
         const sampleValues = tf.customGrad((gumbel, save) => {
-            const { indices, values } = tf.topk(gumbel.mean(1), k)
+            const { indices, values } = tf.topk(gumbel, k)
             expertIndices = indices.arraySync()
-            if (training) this.computeUtilization(indices)
-            const sparseValues = tf.oneHot(indices, gumbel.shape[1])
-            // console.log(sparseValues)
-            save([gumbel])
+            if (kwargs.training) this.computeUtilization(indices)
+            save([gumbel, indices])
             return {
-                value: sparseValues,
-                gradFunc: (dy, [gumbel]) => {
-                    // console.log(dy)
-                    // console.log(gumbel)
-                    // const dyTransposed = dy.transpose([0, 2, 1])
-                    // console.log(dyTransposed)
-                    // return [dy]
-                    const dyTransposed = dy.transpose([0, 2, 1])
-                    return [dyTransposed.mean(-1).expandDims(-1).mul(gumbel)]
+                value: values,
+                gradFunc: (dy, saved) => {
+                    const [gumbel, indices] = saved
+                    const gatheredGradients = tf.gatherND(dy, indices)
+                    const updatedGradients = tf.scatterND(
+                        indices,
+                        gatheredGradients,
+                        gumbel.shape
+                    )
+                    return [updatedGradients.add(gumbel)]
                 }
             }
         })(gumbel)
-        // console.log(samples)
-        // console.log(this.expertWeights.read())
+
         const expertWeights = this.expertWeights
             .read()
-            .mul(sampleValues)
+            .mul(sampleValues.expandDims(-1))
             .add(this.expertBiases.read())
-            .tanh()
-        expertWeights.print()
+
         return { expertIndices, expertWeights }
     }
 

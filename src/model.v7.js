@@ -10,9 +10,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.layers = config.layers || 5
         this.units = config.units || 128
         this.embeddings = config.embeddings || 512
-        this.autoencoderDim = config.autoencoderDim || 768
-        this.bottleneck = config.bottleneck || 96
-        this.beta = config.beta || 1.1
+        this.rank = config.rank || 96
         this.numExperts = config.numExperts || 3
         this.routerDim = config.routerDim || 768
         this.numHeads = config.numHeads || 3
@@ -47,14 +45,9 @@ export default class OmniscientDeterministicEngine extends ODE {
         let outputs = embeddings.apply(inputs)
 
         outputs = this.ode.layers
-            .Autoencoder({
-                innerDim: this.innerDim,
-                bottleneck: this.bottleneck,
+            .LowRankFactorization({
                 outputDim: this.units,
-                encoderActivation: 'tanh',
-                decoderActivation: 'sigmoid',
-                variational: true,
-                beta: this.beta
+                rank: this.rank
             })
             .apply(outputs)
 
