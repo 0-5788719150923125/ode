@@ -29,8 +29,7 @@ export default class MultiQueryAttention extends LayerBase {
                     `queryBiases${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.zeros()
                 )
             )
         }
@@ -45,8 +44,7 @@ export default class MultiQueryAttention extends LayerBase {
             `keyBias`,
             [this.projection],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
@@ -59,8 +57,7 @@ export default class MultiQueryAttention extends LayerBase {
             `valueBias`,
             [units],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
@@ -73,8 +70,7 @@ export default class MultiQueryAttention extends LayerBase {
             `outputBias`,
             [units],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
     }
 

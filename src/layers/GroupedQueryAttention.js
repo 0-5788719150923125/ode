@@ -38,8 +38,7 @@ export default class GroupedQueryAttention extends LayerBase {
                         `queryBias-${i}-${j}`,
                         [this.headDim],
                         'float32',
-                        tf.initializers.zeros(),
-                        tf.regularizers.l2({ l2: 0.01 })
+                        tf.initializers.zeros()
                     )
                 )
             }
@@ -60,8 +59,7 @@ export default class GroupedQueryAttention extends LayerBase {
                     `keyBiases-${i}`,
                     [this.headDim],
                     'float32',
-                    tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.zeros()
                 )
             )
             this.valueKernels.push(
@@ -78,8 +76,7 @@ export default class GroupedQueryAttention extends LayerBase {
                     `valueBiases-${i}`,
                     [units],
                     'float32',
-                    tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.zeros()
                 )
             )
         }
@@ -95,8 +92,7 @@ export default class GroupedQueryAttention extends LayerBase {
             `outputBias`,
             [units],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
     }
 

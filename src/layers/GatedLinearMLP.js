@@ -22,8 +22,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 `gateProjBias`,
                 [this.innerDim],
                 'float32',
-                tf.initializers.zeros(),
-                tf.regularizers.l2({ l2: 0.01 })
+                tf.initializers.zeros()
             )
     }
 

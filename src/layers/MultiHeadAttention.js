@@ -34,8 +34,7 @@ export default class MultiHeadAttention extends LayerBase {
                     `queryBias_${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.zeros()
                 )
             )
             this.keyKernels.push(
@@ -52,8 +51,7 @@ export default class MultiHeadAttention extends LayerBase {
                     `keyBias_${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.zeros()
                 )
             )
             this.valueKernels.push(
@@ -70,8 +68,7 @@ export default class MultiHeadAttention extends LayerBase {
                     `valueBias_${i}`,
                     [this.projection],
                     'float32',
-                    tf.initializers.zeros(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.zeros()
                 )
             )
         }
@@ -87,8 +84,7 @@ export default class MultiHeadAttention extends LayerBase {
             'outputBias',
             [units],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.residual = customLayers.ResidualConnection()
     }
