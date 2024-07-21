@@ -57,6 +57,12 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'float32',
             tf.initializers.zeros()
         )
+        this.outputProjection = this.addWeight(
+            'outputProjection',
+            [this.topK * inputDim, inputDim],
+            'float32',
+            tf.initializers.glorotUniform()
+        )
     }
 
     call(inputs, kwargs) {
@@ -102,14 +108,15 @@ export default class SparseMixtureOfExperts extends LayerBase {
                     )
                     batchOutputs.push(expertOutput.mul(expertWeight))
                 }
-                // Combine top-k batch weights
-                const combinedOutputs = batchOutputs.reduce((prev, curr, i) => {
-                    return prev.add(curr)
-                }, tf.zeros(batchOutputs[0].shape))
-                allOutputs.push(combinedOutputs)
+                allOutputs.push(tf.concat(batchOutputs, -1))
             }
 
-            return tf.concat(allOutputs, 0)
+            const outputProjected = this.ops.applyDense(
+                tf.concat(allOutputs, 0),
+                this.outputProjection.read()
+            )
+
+            return outputProjected
         })
     }
 
