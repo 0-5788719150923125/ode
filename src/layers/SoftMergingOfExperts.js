@@ -43,6 +43,10 @@ export default class SoftMergingOfExperts extends LayerBase {
             tf.initializers.zeros(),
             tf.regularizers.l2({ l2: 0.01 })
         )
+
+        for (const expert of this.experts) {
+            expert.build(inputShape)
+        }
     }
 
     call(inputs, kwargs) {
@@ -82,32 +86,59 @@ export default class SoftMergingOfExperts extends LayerBase {
         // We only use the experts following the first one
         const usedExperts = experts.slice(1)
 
-        for (let i = 0; i < mergedExpert.layers.length; i++) {
-            const layer = mergedExpert.layers[i]
+        const collectedWeights = this.collectExpertWeights(usedExperts)
 
-            // Compute weighted average of weights for this layer across all experts
-            const averagedWeights = layer.getWeights().map((_, weightIndex) => {
-                const expertWeights = usedExperts.map(
-                    (expert) => expert.layers[i].getWeights()[weightIndex]
-                )
-                const weightedSum = expertWeights.reduce(
-                    (sum, weight, expertIndex) => {
-                        const expertWeight = weights
-                            .slice([0, 0, expertIndex], [-1, -1, 1])
-                            .mean()
-                        return sum.add(weight.mul(expertWeight))
-                    },
-                    tf.zeros(expertWeights[0].shape)
-                )
-                // Divide by the sum of weights to get the weighted average
-                return weightedSum.div(weights.sum())
-            })
-
-            // Set the averaged weights to the layer
-            layer.setWeights(averagedWeights)
+        for (const i in collectedWeights) {
+            const averagedWeights = this.computeWeightedAverage(
+                collectedWeights[i],
+                weights
+            )
+            const variables = this.findLayerVariables(experts[0].layers[1])
+            mergedExpert.layers[1][variables[i]].write(averagedWeights)
         }
 
         return mergedExpert
+    }
+
+    collectExpertWeights(experts) {
+        const allWeights = []
+        for (let i = 0; i < experts[0].layers.length; i++) {
+            const variables = this.findLayerVariables(experts[0].layers[i])
+            for (const v of variables) {
+                const parallelWeights = []
+                for (const expert of experts) {
+                    parallelWeights.push(expert.layers[i][v].read())
+                }
+                allWeights.push(parallelWeights)
+            }
+        }
+        return allWeights
+    }
+
+    findLayerVariables(layer) {
+        const layerVariables = []
+
+        for (const key in layer) {
+            if (layer.hasOwnProperty(key)) {
+                const value = layer[key]
+                if (value instanceof tf.LayerVariable) {
+                    layerVariables.push(key)
+                }
+            }
+        }
+
+        return layerVariables
+    }
+
+    computeWeightedAverage(tensors, weights) {
+        const weightedSum = tensors.reduce((sum, weight, expertIndex) => {
+            const expertWeight = weights
+                .slice([0, 0, expertIndex], [-1, -1, 1])
+                .mean()
+            return sum.add(weight.mul(expertWeight))
+        }, tf.zeros(tensors[0].shape))
+        // Divide by the sum of weights to get the weighted average
+        return weightedSum.div(weights.sum())
     }
 
     getConfig() {
