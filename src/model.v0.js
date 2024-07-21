@@ -57,9 +57,9 @@ export default class ModelBase {
 
     async init() {
         await this.preInit()
-        this.defineBuild()
         this.defineOptimizers()
         this.defineSchedulers()
+        this.defineBuild()
         this.compile()
         this.postInit()
     }
@@ -112,7 +112,8 @@ export default class ModelBase {
                         })
                     }
                     await expert.save(
-                        `${type}://${path}/experts/${expert.name}`
+                        `${type}://${path}/experts/${expert.name}`,
+                        { includeOptimizer: true }
                     )
                 }
             }
