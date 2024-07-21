@@ -1,4 +1,4 @@
-import ODE from './model.v2.js'
+import ODE from './model.v3.js'
 
 /**
  * A kinda-sparse mixture of experts.
@@ -11,14 +11,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.units = config.units || 256
         this.experts = config.experts || 7
         this.topK = config.topK || 2
-        this.moeDim = config.moeDim || 128
-        this.headDim = config.headDim || 512
-        this.mlpDim = config.mlpDim || 1024
+        this.switchingDim = config.switchingDim || 512
+        this.headDim = config.headDim || 1024
+        this.mlpDim = config.mlpDim || 512
     }
 
     defineTokenizer() {
-        super.defineTokenizer({
-            model: 'OriginalDesign/twos'
+        this.tokenizer = this.ode.tokenizers.TokenMonster({
+            model: 'englishcode-4096-consistent-v1'
         })
     }
 
@@ -33,29 +33,28 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             embeddingsInitializer: 'glorotUniform'
         })
 
-        const encoding = this.ode.layers.RotaryPositionalEncoding()
+        const encoding = this.ode.layers.SinusoidalPositionalEncoding()
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
-            const experts = this.createAttentionExperts()
+            const experts = this.createExperts()
             const expertOutputs = experts.map((expert) => expert.apply(outputs))
+
+            outputs = this.ode.layers
+                .SelfAttention({
+                    hiddenDim: this.headDim
+                })
+                .apply(outputs)
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
                     topK: this.topK,
                     numExperts: experts.length,
-                    hiddenDim: this.moeDim,
+                    switchingDim: this.switchingDim,
                     activation: 'swish'
                 })
                 .apply([outputs, ...expertOutputs])
-
-            outputs = this.ode.layers
-                .MultiLayerPerceptron({
-                    innerDim: this.mlpDim,
-                    activation: 'swish'
-                })
-                .apply(outputs)
         }
 
         outputs = embeddings.apply(outputs)
@@ -63,12 +62,12 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    createAttentionExperts() {
+    createExperts() {
         const experts = []
         for (let i = 0; i < this.experts; i++) {
             experts.push(
-                this.ode.layers.SelfAttention({
-                    hiddenDim: this.headDim
+                this.ode.layers.MultiLayerPerceptron({
+                    innerDim: this.mlpDim
                 })
             )
         }

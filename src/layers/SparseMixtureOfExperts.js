@@ -6,7 +6,7 @@ export default class SparseMixtureOfExperts extends LayerBase {
         super(config)
         this.numExperts = config.numExperts
         this.topK = config.topK || 2
-        this.hiddenDim = config.hiddenDim || 128
+        this.switchingDim = config.switchingDim || 128
         this.activation = config.activation || 'swish'
     }
 
@@ -16,21 +16,21 @@ export default class SparseMixtureOfExperts extends LayerBase {
         // Initialize gating network
         this.gatingHidden = this.addWeight(
             'gatingHidden',
-            [inputDim, this.hiddenDim],
+            [inputDim, this.switchingDim],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingHiddenBias = this.addWeight(
             'gatingHiddenBias',
-            [this.hiddenDim],
+            [this.switchingDim],
             'float32',
             tf.initializers.zeros(),
             tf.regularizers.l2({ l2: 0.01 })
         )
         this.gatingKernel = this.addWeight(
             'gatingKernel',
-            [this.hiddenDim, this.numExperts],
+            [this.switchingDim, this.numExperts],
             'float32',
             tf.initializers.glorotNormal(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -123,7 +123,7 @@ export default class SparseMixtureOfExperts extends LayerBase {
         return {
             ...super.getConfig(),
             numExperts: this.numExperts,
-            hiddenDim: this.hiddenDim,
+            switchingDim: this.switchingDim,
             activation: this.activation,
             topK: this.topK
         }
