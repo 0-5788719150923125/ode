@@ -11,7 +11,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.units = config.units || 128
         this.headDim = config.headDim || 1024
         this.mlpDim = config.mlpDim || 512
-        this.numExperts = config.numExperts || 8
+        this.numExperts = config.numExperts || 3
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 512
         this.temperature = config.temperature || 0.8

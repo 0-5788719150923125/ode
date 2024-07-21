@@ -78,18 +78,19 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
             const { expertIndices, expertWeights } = this.topKWithGumbel(
                 switchingScores,
-                this.topK,
-                kwargs
+                this.topK
             )
+
+            if (kwargs.training) this.computeUtilization(expertIndices)
 
             const batchOutputs = []
             for (let i = 0; i < inputs.shape[0]; i++) {
                 const batchInputs = inputs.slice([i, 0], [1, -1])
                 const expertOutputs = []
                 for (let j = 0; j < this.topK; j++) {
-                    const expertIndex = expertIndices[i][j]
+                    const expertIndex = expertIndices.arraySync()[i][j]
                     const expertValue = expertWeights.slice(
-                        [i, expertIndex, 0],
+                        [i, j, 0],
                         [1, 1, -1]
                     )
                     const expertOutput =
@@ -109,19 +110,39 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         })
     }
 
-    topKWithGumbel(scores, k, kwargs) {
-        const gumbel = this.ops.gumbelSoftmax(
-            tf.moments(scores, 1).variance,
-            this.temperature
-        )
-        const { indices, values } = tf.topk(gumbel, k)
-        let expertIndices = indices.arraySync()
-        if (kwargs.training) this.computeUtilization(indices)
+    topKWithGumbel(scores, k) {
+        const gumbel = this.ops.gumbelSoftmax(scores.mean(1), this.temperature)
 
-        const expertWeights = this.expertWeights
-            .read()
-            .mul(gumbel.expandDims(-1))
-            .softmax()
+        const numExperts = gumbel.shape[1]
+
+        const expertIndices = tf.customGrad((gumbel, save) => {
+            const { indices, values } = tf.topk(gumbel, k)
+            save([gumbel, indices])
+            return {
+                value: indices,
+                gradFunc: (dy, [gumbel, indices]) => {
+                    // Create a gradient of the same shape as gumbel
+                    const fullGradient = tf.buffer(gumbel.shape)
+
+                    // Scatter the gradient from dy into the full gradient
+                    indices.bufferSync().values.forEach((index, i) => {
+                        const batchIdx = Math.floor(i / k)
+                        const gradValue = dy.bufferSync().get(batchIdx, i % k)
+                        fullGradient.set(gradValue, batchIdx, index)
+                    })
+
+                    // Convert buffer to tensor and multiply element-wise with gumbel
+                    return [fullGradient.toTensor().mul(gumbel)]
+                }
+            }
+        })(gumbel)
+
+        const oneHotIndices = tf.oneHot(expertIndices, numExperts)
+
+        const expertWeights = this.ops.applyDense(
+            oneHotIndices,
+            this.expertWeights.read()
+        )
 
         return { expertIndices, expertWeights }
     }
