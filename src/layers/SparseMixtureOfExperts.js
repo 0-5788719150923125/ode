@@ -8,111 +8,196 @@ export default class SparseMixtureOfExperts extends LayerBase {
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 128
         this.activation = config.activation || 'swish'
+        this.temperature = 0.8
+        this.epsilon = 1e-8
+        this.expertUsage = tf.variable(tf.zeros([this.numExperts]), false)
+        this.totalUsage = tf.variable(tf.scalar(0), false)
+        this.debug = false
     }
 
     build(inputShape) {
         const inputDim = inputShape[0][inputShape[0].length - 1]
 
-        // Initialize gating network
-        this.gatingHidden = this.addWeight(
-            'gatingHidden',
+        this.switchingHidden = this.addWeight(
+            'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
-        this.gatingHiddenBias = this.addWeight(
-            'gatingHiddenBias',
+        this.switchingHiddenBias = this.addWeight(
+            'switchingHiddenBias',
             [this.switchingDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
-        this.gatingKernel = this.addWeight(
-            'gatingKernel',
+        this.switchingKernel = this.addWeight(
+            'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
-        this.gatingBias = this.addWeight(
-            'gatingBias',
+        this.switchingBias = this.addWeight(
+            'switchingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
+        )
+        this.expertWeights = this.addWeight(
+            'expertWeights',
+            [this.numExperts, inputDim],
+            'float32',
+            tf.initializers.randomNormal({
+                mean: 1.0,
+                stddev: 0.1
+            })
+        )
+        this.expertBiases = this.addWeight(
+            'expertBiases',
+            [this.topK, inputDim],
+            'float32',
+            tf.initializers.zeros()
         )
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
-            const expertInputs = inputs.slice(1)
+            const expertOutputs = inputs.slice(1)
             inputs = inputs[0]
 
-            // Gating network
-            const gatingHidden = this.ops.applyDense(
+            const switchingHidden = this.ops.applyDense(
                 inputs,
-                this.gatingHidden.read(),
-                this.gatingHiddenBias.read()
+                this.switchingHidden.read(),
+                this.switchingHiddenBias.read()
             )
-            const activatedGate = tf.layers
+            const switchingGate = tf.layers
                 .activation({ activation: this.activation })
-                .apply(gatingHidden)
-            const expertWeights = this.ops
-                .applyDense(
-                    activatedGate,
-                    this.gatingKernel.read(),
-                    this.gatingBias.read()
-                )
-                .softmax()
-
-            // Randomly select a subset of experts
-            const selectedExpertIndices = this.selectRandomExperts(expertInputs)
-
-            // Slice the expert weights based on the selected expert indices
-            const selectedExpertWeights = this.sliceExpertWeights(
-                expertWeights,
-                selectedExpertIndices
+                .apply(switchingHidden)
+            const switchingScores = this.ops.applyDense(
+                switchingGate,
+                this.switchingKernel.read(),
+                this.switchingBias.read()
             )
 
-            // Slice and combine selected expert outputs
-            const selectedExpertOutputs = []
-            selectedExpertIndices.map((expertIndex) => {
-                selectedExpertOutputs.push(expertInputs[expertIndex])
-            })
+            const { expertIndices, expertWeights } = this.topKWithGumbel(
+                switchingScores,
+                this.topK
+            )
 
-            // Combine expert outputs using weighted sum
-            const combinedOutput = selectedExpertOutputs.reduce(
-                (prev, curr, i) => {
-                    const expertWeight = selectedExpertWeights.slice(
-                        [0, 0, i],
-                        [inputs.shape[0], inputs.shape[1], 1]
+            if (kwargs.training) this.computeUtilization(expertIndices)
+
+            const allOutputs = []
+            const rawIndices = expertIndices.arraySync()
+            for (let i = 0; i < rawIndices.length; i++) {
+                const batchOutputs = []
+                // Slice top-k batch weights
+                for (let j = 0; j < this.topK; j++) {
+                    const expertIndex = rawIndices[i][j]
+                    const expertOutput = expertOutputs[expertIndex].slice(
+                        [i, 0, 0],
+                        [1, -1, -1]
                     )
-                    return prev.add(curr.mul(expertWeight))
-                },
-                tf.zeros(expertInputs[0].shape)
-            )
+                    const expertWeight = expertWeights.slice(
+                        [i, j, 0],
+                        [1, 1, -1]
+                    )
+                    batchOutputs.push(expertOutput.mul(expertWeight))
+                }
+                // Combine top-k batch weights
+                const combinedOutputs = batchOutputs.reduce((prev, curr, i) => {
+                    return prev.add(curr)
+                }, tf.zeros(batchOutputs[0].shape))
+                allOutputs.push(combinedOutputs)
+            }
 
-            return combinedOutput
+            return tf.concat(allOutputs, 0)
         })
     }
 
-    selectRandomExperts(expertInputs) {
-        const numExperts = expertInputs.length
-        const expertIndices = tf.util.createShuffledIndices(numExperts)
-        return expertIndices.slice(0, this.topK)
+    topKWithGumbel(scores, k) {
+        const gumbel = this.ops.gumbelSoftmax(scores.mean(1), this.temperature)
+
+        const numExperts = gumbel.shape[1]
+
+        const expertIndices = tf.customGrad((gumbel, save) => {
+            const { indices, values } = tf.topk(gumbel, k)
+            save([gumbel, indices])
+            return {
+                value: indices,
+                gradFunc: (dy, [gumbel, indices]) => {
+                    // Create a gradient of the same shape as gumbel
+                    const fullGradient = tf.buffer(gumbel.shape)
+
+                    // Scatter the gradient from dy into the full gradient
+                    indices.bufferSync().values.forEach((index, i) => {
+                        const batchIdx = Math.floor(i / k)
+                        const gradValue = dy.bufferSync().get(batchIdx, i % k)
+                        fullGradient.set(gradValue, batchIdx, index)
+                    })
+
+                    // Convert buffer to tensor and multiply element-wise with gumbel
+                    return [fullGradient.toTensor().mul(gumbel)]
+                }
+            }
+        })(gumbel)
+
+        const oneHotIndices = tf.oneHot(expertIndices, numExperts)
+
+        const expertWeights = this.ops.applyDense(
+            oneHotIndices,
+            this.expertWeights.read(),
+            this.expertBiases.read()
+        )
+
+        return { expertIndices, expertWeights }
     }
 
-    sliceExpertWeights(expertWeights, selectedExpertIndices) {
-        const selectedWeights = []
-        selectedExpertIndices.forEach((expertIndex) => {
-            const expertSlice = expertWeights.slice(
-                [0, 0, expertIndex],
-                [expertWeights.shape[0], expertWeights.shape[1], 1]
-            )
-            selectedWeights.push(expertSlice)
-        })
-        return tf.concat(selectedWeights, -1)
+    computeUtilization(expertIndices, kwargs) {
+        const expertUtilization = this.expertUsage.div(
+            this.totalUsage.add(this.epsilon)
+        )
+        const targetUtilization = tf.fill(
+            [this.numExperts],
+            1 / this.numExperts
+        )
+
+        const utilizationDiff = expertUtilization.sub(targetUtilization).abs()
+        const expertDiversityLoss = utilizationDiff.mean()
+
+        const avgUsage = this.totalUsage.div(this.numExperts)
+        const usageDeviations = this.expertUsage
+            .sub(avgUsage)
+            .abs()
+            .div(avgUsage.add(this.epsilon))
+
+        const loadBalancingLoss = usageDeviations.mean()
+
+        const combinedLoss = expertDiversityLoss.add(loadBalancingLoss).div(2)
+
+        if (this.debug) {
+            console.log('Start of computeUtilization')
+            console.log('expertUsage:', this.expertUsage.arraySync())
+            console.log('totalUsage:', this.totalUsage.arraySync())
+            console.log('expertUtilization:', expertUtilization.arraySync())
+            console.log('targetUtilization:', targetUtilization.arraySync())
+            console.log('expertDiversityLoss:', expertDiversityLoss.arraySync())
+            console.log('loadBalancingLoss:', loadBalancingLoss.arraySync())
+            console.log('combinedLoss:', combinedLoss.arraySync())
+        }
+
+        this.extraLoss = tf.keep(combinedLoss)
+
+        this.updateExpertUsage(expertIndices.flatten())
+
+        return combinedLoss
+    }
+
+    updateExpertUsage(selectedExperts) {
+        const batchUsage = tf.sum(
+            tf.oneHot(selectedExperts, this.numExperts),
+            0
+        )
+        this.expertUsage.assign(this.expertUsage.add(batchUsage))
+        this.totalUsage.assign(this.totalUsage.add(tf.sum(batchUsage)))
     }
 
     computeOutputShape(inputShape) {
