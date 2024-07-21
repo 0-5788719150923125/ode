@@ -47,7 +47,16 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'expertWeights',
             [this.numExperts, inputDim],
             'float32',
-            tf.initializers.ones()
+            tf.initializers.randomNormal({
+                mean: 1.0,
+                stddev: 0.1
+            })
+        )
+        this.expertBiases = this.addWeight(
+            'expertBiases',
+            [this.topK, inputDim],
+            'float32',
+            tf.initializers.zeros()
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
@@ -88,11 +97,11 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 const batchInputs = inputs.slice([i, 0], [1, -1])
                 const expertOutputs = []
                 for (let j = 0; j < this.topK; j++) {
-                    const expertIndex = expertIndices.arraySync()[i][j]
                     const expertValue = expertWeights.slice(
                         [i, j, 0],
                         [1, 1, -1]
                     )
+                    const expertIndex = expertIndices.arraySync()[i][j]
                     const expertOutput =
                         this.experts[expertIndex].apply(batchInputs)
                     expertOutputs.push(expertOutput.mul(expertValue))
@@ -141,19 +150,11 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
 
         const expertWeights = this.ops.applyDense(
             oneHotIndices,
-            this.expertWeights.read()
+            this.expertWeights.read(),
+            this.expertBiases.read()
         )
 
         return { expertIndices, expertWeights }
-    }
-
-    updateExpertUsage(selectedExperts) {
-        const batchUsage = tf.sum(
-            tf.oneHot(selectedExperts, this.numExperts),
-            0
-        )
-        this.expertUsage.assign(this.expertUsage.add(batchUsage))
-        this.totalUsage.assign(this.totalUsage.add(tf.sum(batchUsage)))
     }
 
     computeUtilization(expertIndices, kwargs) {
@@ -194,6 +195,15 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
         this.updateExpertUsage(expertIndices.flatten())
 
         return combinedLoss
+    }
+
+    updateExpertUsage(selectedExperts) {
+        const batchUsage = tf.sum(
+            tf.oneHot(selectedExperts, this.numExperts),
+            0
+        )
+        this.expertUsage.assign(this.expertUsage.add(batchUsage))
+        this.totalUsage.assign(this.totalUsage.add(tf.sum(batchUsage)))
     }
 
     getConfig() {

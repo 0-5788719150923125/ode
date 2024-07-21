@@ -8,9 +8,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 3
-        this.units = config.units || 128
+        this.units = config.units || 256
         this.headDim = config.headDim || 1024
-        this.mlpDim = config.mlpDim || 512
+        this.mlpDim = config.mlpDim || 768
         this.numExperts = config.numExperts || 3
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 512
