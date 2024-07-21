@@ -12,13 +12,15 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.embeddings = config.embeddings || 512
         this.rank = config.rank || 96
         this.numExperts = config.numExperts || 3
-        this.routerDim = config.routerDim || 1024
-        this.numHeads = config.numHeads || 9
+        this.routerDim = config.routerDim || 512
+        this.numHeads = config.numHeads || 8
         this.headDim = config.headDim || 96
         this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 512
         this.learningRate = 0.0001
+        this.minLearningRate = 0.00000001
         this.weightDecay = 0.001
+        this.steps = 2048
         this.ALiBiLength = 1024
     }
 
@@ -70,7 +72,6 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         outputs = this.ode.layers
             .dense({
                 units: this.embeddings
-                // activation: 'mish'
             })
             .apply(outputs)
 
@@ -80,13 +81,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     defineSchedulers() {
-        this.minLearningRate = 0.00000001
-        const steps = 1000
         this.schedulers = [
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
                 this.learningRate,
-                steps
+                this.steps
             )
         ]
     }

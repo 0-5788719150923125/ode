@@ -21,7 +21,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.001
         this.steps = 2048
-        this.ALiBiLength = 2048
+        this.ALiBiLength = 1024
     }
 
     defineTokenizer() {
