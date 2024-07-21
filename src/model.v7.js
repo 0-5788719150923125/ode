@@ -11,13 +11,11 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.units = config.units || 128
         this.embeddings = config.embeddings || 512
         this.rank = config.rank || 96
-        this.numExperts = config.numExperts || 3
-        this.routerDim = config.routerDim || 768
         this.numHeads = config.numHeads || 3
         this.queriesPerHead = config.queriesPerHead | 3
         this.headDim = config.headDim || 96
         this.headFeatures = config.headFeatures || 64
-        this.mlpDim = config.mlpDim || 512
+        this.mlpDim = config.mlpDim || 1024
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.01
@@ -55,18 +53,18 @@ export default class OmniscientDeterministicEngine extends ODE {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
                     numHeads: this.numHeads,
-                    queriesPerHead: this.queriesPerHead,
                     headDim: this.headDim,
                     headFeatures: this.headFeatures,
+                    queriesPerHead: this.queriesPerHead,
                     ALiBiLength: this.ALiBiLength
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .SoftMergingOfExperts({
+                .GatedLinearMLP({
+                    innerDim: this.mlpDim,
                     activation: 'mish',
-                    hiddenDim: this.routerDim,
-                    experts: this.createMLPExperts(outputs.shape)
+                    gateActivation: 'swish'
                 })
                 .apply(outputs)
         }
@@ -99,20 +97,5 @@ export default class OmniscientDeterministicEngine extends ODE {
                 weightDecay: this.weightDecay
             })
         ]
-    }
-
-    createMLPExperts(inputShape) {
-        // We add 1 extra expert, since the first one is an in-place, weighted average of all other experts.
-        return Array(this.numExperts + 1)
-            .fill(0)
-            .map((_, i) => {
-                return this.ode.expert({
-                    type: 'GatedLinearMLP',
-                    inputShape,
-                    innerDim: this.mlpDim,
-                    activation: 'mish',
-                    gateActivation: 'swish' // implements SwiGLU
-                })
-            })
     }
 }
