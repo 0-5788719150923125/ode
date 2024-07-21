@@ -7,6 +7,7 @@ import AttentionFreeTransformer from './layers/AttentionFreeTransformer.js'
 import Autoencoder from './layers/Autoencoder.js'
 import CapsNet from './layers/CapsNet.js'
 import ChunkedSelfAttention from './layers/ChunkedSelfAttention.js'
+import ConstantSelfAttention from './layers/ConstantSelfAttention.js'
 import DeterministicEmbedding from './layers/DeterministicEmbedding.js'
 import EfficientAttention from './layers/EfficientAttention.js'
 import EfficientChannelAttention from './layers/EfficientChannelAttention.js'
@@ -18,7 +19,7 @@ import GroupedQueryAttention from './layers/GroupedQueryAttention.js'
 import IncrementalPowerIterationPCA from './layers/IncrementalPowerIterationPCA.js'
 import IndependentComponentAnalysis from './layers/IndependentComponentAnalysis.js'
 import LambdaLayer from './layers/LambdaLayer.js'
-import ConstantSelfAttention from './layers/ConstantSelfAttention.js'
+import LowRankFactorization from './layers/LowRankFactorization.js'
 import MixtureOfDepths from './layers/MixtureOfDepths.js'
 import MixtureOfExperts from './layers/MixtureOfExperts.js'
 import MultiHeadAttention from './layers/MultiHeadAttention.js'
@@ -26,22 +27,22 @@ import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
 import MultiQueryAttention from './layers/MultiQueryAttention.js'
 import ParameterEfficientExpertRetrieval from './layers/ParameterEfficientExpertRetrieval.js'
 import ProjectedFeatureAttention from './layers/ProjectedFeatureAttention.js'
-import StaticMatrixReduction from './layers/StaticMatrixReduction.js'
 import QSparseMLP from './layers/QSparseMLP.js'
 import Range from './layers/Range.js'
 import RotaryPositionalEncoding from './layers/RotataryPositionalEncoding.js'
-import SoftMergingOfExperts from './layers/SoftMergingOfExperts.js'
 import SelfAttention from './layers/SelfAttention.js'
 import SharedEmbedding from './layers/SharedEmbedding.js'
 import SinusoidalPositionalEncoding from './layers/SinusoidalPositionalEncoding.js'
+import SoftMergingOfExperts from './layers/SoftMergingOfExperts.js'
+import SoftMergingOfExpertsMLP from './layers/SoftMergingOfExpertsMLP.js'
 import SparseMixtureOfExperts from './layers/SparseMixtureOfExperts.js'
 import SqueezeAndExcitation from './layers/SqueezeAndExcitation.js'
 import StateSpace from './layers/StateSpace.js'
+import StaticMatrixReduction from './layers/StaticMatrixReduction.js'
 import SwarmOfExperts from './layers/SwarmOfExperts.js'
 import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
-import LowRankFactorization from './layers/LowRankFactorization.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -192,6 +193,10 @@ const customLayersConfig = {
         prefix: 'enc'
     },
     SoftMergingOfExperts: { constructor: SoftMergingOfExperts, prefix: 'moe' },
+    SoftMergingOfExpertsMLP: {
+        constructor: SoftMergingOfExpertsMLP,
+        prefix: 'moe'
+    },
     SparseMixtureOfExperts: {
         constructor: SparseMixtureOfExperts,
         prefix: 'moe'
