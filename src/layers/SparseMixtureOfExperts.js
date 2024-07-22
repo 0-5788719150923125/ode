@@ -149,11 +149,13 @@ export default class SparseMixtureOfExperts extends LayerBase {
 
         const oneHotIndices = tf.oneHot(expertIndices, numExperts)
 
-        const expertWeights = this.ops.applyDense(
-            oneHotIndices,
-            this.expertWeights.read(),
-            this.expertBiases.read()
-        )
+        const expertWeights = this.ops
+            .applyDense(
+                oneHotIndices,
+                this.expertWeights.read(),
+                this.expertBiases.read()
+            )
+            .softmax()
 
         return { expertIndices, expertWeights }
     }
