@@ -9,11 +9,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         super(config)
         this.layers = config.layers || 3
         this.units = config.units || 256
-        this.experts = config.experts || 3
+        this.numExperts = config.numExperts || 3
         this.topK = config.topK || 2
-        this.switchingDim = config.switchingDim || 512
-        this.headDim = config.headDim || 2048
-        this.mlpDim = config.mlpDim || 1024
+        this.switchingDim = config.switchingDim || 256
+        this.headDim = config.headDim || 1024
+        this.mlpDim = config.mlpDim || 512
     }
 
     defineTokenizer() {
@@ -38,14 +38,14 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.layers; i++) {
-            const experts = this.createExperts()
-            const expertOutputs = experts.map((expert) => expert.apply(outputs))
-
             outputs = this.ode.layers
                 .SelfAttention({
                     hiddenDim: this.headDim
                 })
                 .apply(outputs)
+
+            const experts = this.createExperts()
+            const expertOutputs = experts.map((expert) => expert.apply(outputs))
 
             outputs = this.ode.layers
                 .SparseMixtureOfExperts({
@@ -64,7 +64,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
     createExperts() {
         const experts = []
-        for (let i = 0; i < this.experts; i++) {
+        for (let i = 0; i < this.numExperts; i++) {
             experts.push(
                 this.ode.layers.MultiLayerPerceptron({
                     innerDim: this.mlpDim

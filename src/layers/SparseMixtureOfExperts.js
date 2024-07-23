@@ -158,27 +158,29 @@ export default class SparseMixtureOfExperts extends LayerBase {
                     // Sum over the top-k dimension
                     const summedGrads = grads.sum(2)
 
-                    // Normalize the gradients
-                    const normalizedGrads = summedGrads.div(
-                        summedGrads.sum(-1, true).add(this.epsilon)
-                    )
+                    // Normalize and re-center the gradients
+                    const normalizedGrads = summedGrads
+                        .div(summedGrads.sum(-1, true).add(this.epsilon))
+                        .tanh()
 
-                    return [normalizedGrads.sigmoid()]
+                    return [normalizedGrads]
                 }
             }
         })(scores)
 
-        const expertWeights = this.ops
-            .applyDense(
-                expertIndices,
-                this.expertWeights.read(),
-                this.expertBiases.read()
-            )
-            .softmax()
+        const expertWeights = this.ops.applyDense(
+            expertIndices,
+            this.expertWeights.read(),
+            this.expertBiases.read()
+        )
+
+        const normalizedWeights = expertWeights.div(
+            expertWeights.sum(-1, true).add(this.epsilon)
+        )
 
         const discreteIndices = tf.argMax(expertIndices, -1)
 
-        return { discreteIndices, expertWeights }
+        return { discreteIndices, expertWeights: normalizedWeights }
     }
 
     computeUtilization(expertIndices, kwargs) {
