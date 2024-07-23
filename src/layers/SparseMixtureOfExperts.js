@@ -84,16 +84,17 @@ export default class SparseMixtureOfExperts extends LayerBase {
                 this.switchingBias.read()
             )
 
-            const { expertIndices, expertWeights } = this.topKWithGumbel(
+            const { discreteIndices, expertWeights } = this.topKWithGumbel(
                 switchingScores,
                 this.topK,
                 this.numExperts
             )
 
-            if (kwargs.training) this.computeUtilization(expertIndices)
+            if (kwargs.training) this.computeUtilization(discreteIndices)
 
             const allOutputs = []
-            const rawIndices = expertIndices.arraySync()
+            const rawIndices = discreteIndices.arraySync()
+
             for (let i = 0; i < rawIndices.length; i++) {
                 const batchOutputs = []
                 for (let j = 0; j < this.topK; j++) {
@@ -123,33 +124,41 @@ export default class SparseMixtureOfExperts extends LayerBase {
     topKWithGumbel(scores, k, numExperts) {
         const expertIndices = tf.customGrad((scores, save) => {
             // Forward pass: Use hard top-k
-            const { indices, values } = tf.topk(scores.mean(1), k)
-            save([scores])
+            const meanScores = scores.mean(1)
+            const { indices, values } = tf.topk(meanScores, k)
+
+            // Create one-hot representation for the forward pass
+            const oneHotIndices = tf.oneHot(indices, numExperts)
+
+            save([scores, indices, oneHotIndices])
+
             return {
-                value: indices,
-                gradFunc: (dy, [scores]) => {
-                    // dy.print()
+                value: oneHotIndices,
+                gradFunc: (dy, [scores, indices, oneHotIndices]) => {
                     // Backward pass: Use Gumbel-Softmax
-                    const gumbel = this.ops.gumbelSoftmax(
+                    const gumbelProbs = this.ops.gumbelSoftmax(
                         scores,
                         this.temperature
                     )
-                    return [gumbel]
+
+                    dy.print()
+
+                    return [gumbelProbs]
                 }
             }
         })(scores)
 
-        const oneHotIndices = tf.oneHot(expertIndices, numExperts)
-
         const expertWeights = this.ops
             .applyDense(
-                oneHotIndices,
+                expertIndices,
                 this.expertWeights.read(),
                 this.expertBiases.read()
             )
             .softmax()
 
-        return { expertIndices, expertWeights }
+        const discreteIndices = tf.argMax(expertIndices, -1)
+
+        return { discreteIndices, expertWeights }
     }
 
     computeUtilization(expertIndices, kwargs) {
