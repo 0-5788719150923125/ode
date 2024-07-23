@@ -7,10 +7,11 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 5
+        this.layers = config.layers || 6
+        this.embeddings = config.embeddings || 512
         this.units = config.units || 128
         this.numHeads = config.numHeads || 8
-        this.queriesPerHead = config.queriesPerHead | 3
+        this.queriesPerHead = config.queriesPerHead | 2
         this.headDim = config.headDim || 256
         this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 1024
@@ -34,11 +35,13 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
+            outputDim: this.embeddings,
             embeddingsInitializer: 'glorotUniform'
         })
 
         let outputs = embeddings.apply(inputs)
+
+        outputs = this.ode.layers.dense({ units: this.units }).apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -55,10 +58,14 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .GatedLinearMLP({
                     innerDim: this.mlpDim,
                     activation: 'mish',
-                    gateActivation: 'swish'
+                    gateActivation: 'sigmoid'
                 })
                 .apply(outputs)
         }
+
+        outputs = this.ode.layers
+            .dense({ units: this.embeddings })
+            .apply(outputs)
 
         outputs = embeddings.apply(outputs)
 
