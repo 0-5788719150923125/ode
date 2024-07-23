@@ -8,7 +8,7 @@ export default class SparseMixtureOfExperts extends LayerBase {
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 128
         this.activation = config.activation || 'swish'
-        this.temperature = 0.8
+        this.temperature = config.temperature || 1.0
         this.epsilon = 1e-8
         this.expertUsage = tf.variable(tf.zeros([this.numExperts]), false)
         this.totalUsage = tf.variable(tf.scalar(0), false)
@@ -46,10 +46,7 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'expertWeights',
             [this.numExperts, inputDim],
             'float32',
-            tf.initializers.randomNormal({
-                mean: 1.0,
-                stddev: 0.1
-            })
+            tf.initializers.glorotNormal()
         )
         this.expertBiases = this.addWeight(
             'expertBiases',
@@ -158,12 +155,18 @@ export default class SparseMixtureOfExperts extends LayerBase {
                     // Sum over the top-k dimension
                     const summedGrads = grads.sum(2)
 
-                    // Normalize and re-center the gradients
-                    const normalizedGrads = summedGrads
-                        .div(summedGrads.sum(-1, true).add(this.epsilon))
-                        .tanh()
+                    // Apply RMSNorm
+                    const rms = this.ops.rmsNorm(summedGrads)
 
-                    return [normalizedGrads]
+                    // Normalize the gradients
+                    const normalizedGrads = summedGrads.div(
+                        rms.add(this.epsilon)
+                    )
+
+                    // Squash and scale
+                    const scaledGrads = normalizedGrads.tanh()
+
+                    return [scaledGrads]
                 }
             }
         })(scores)
@@ -242,7 +245,8 @@ export default class SparseMixtureOfExperts extends LayerBase {
             numExperts: this.numExperts,
             switchingDim: this.switchingDim,
             activation: this.activation,
-            topK: this.topK
+            topK: this.topK,
+            temperature: this.temperature
         }
     }
 }
