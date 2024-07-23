@@ -141,9 +141,28 @@ export default class SparseMixtureOfExperts extends LayerBase {
                         this.temperature
                     )
 
-                    dy.print()
+                    // Create a mask based on the top-k indices
+                    const mask = oneHotIndices.expandDims(1)
 
-                    return [gumbelProbs]
+                    // Reshape dy to align with gumbelProbs
+                    const dyReshaped = dy
+                        .expandDims(1)
+                        .tile([1, scores.shape[1], 1, 1])
+
+                    // Compute gradients
+                    const maskedProbs = gumbelProbs.expandDims(2).mul(mask)
+
+                    const grads = maskedProbs.mul(dyReshaped)
+
+                    // Sum over the top-k dimension
+                    const summedGrads = grads.sum(2)
+
+                    // Normalize the gradients
+                    const normalizedGrads = summedGrads.div(
+                        summedGrads.sum(-1, true).add(this.epsilon)
+                    )
+                    // console.log(grads, summedGrads, normalizedGrads)
+                    return [normalizedGrads]
                 }
             }
         })(scores)
