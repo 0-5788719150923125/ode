@@ -120,8 +120,10 @@ export default class SparseMixtureOfExperts extends LayerBase {
 
     topKWithGumbel(scores, k, numExperts) {
         const expertIndices = tf.customGrad((scores, save) => {
-            // Forward pass: Use hard top-k
+            // Reduce scores along the time step dimension
             const meanScores = scores.mean(1)
+
+            // Forward pass: Use hard top-k on the reduced scores
             const { indices, values } = tf.topk(meanScores, k)
 
             // Create one-hot representation for the forward pass
