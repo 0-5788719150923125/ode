@@ -95,7 +95,6 @@ export default class SparseMixtureOfExperts extends LayerBase {
             const rawIndices = expertIndices.arraySync()
             for (let i = 0; i < rawIndices.length; i++) {
                 const batchOutputs = []
-                // Slice top-k batch weights
                 for (let j = 0; j < this.topK; j++) {
                     const expertIndex = rawIndices[i][j]
                     const expertOutput = expertOutputs[expertIndex].slice(

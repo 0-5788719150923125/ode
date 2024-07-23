@@ -9,17 +9,15 @@ export default class OmniscientDeterministicEngine extends ODE {
         super(config)
         this.layers = config.layers || 5
         this.units = config.units || 128
-        this.embeddings = config.embeddings || 512
-        this.rank = config.rank || 96
-        this.numHeads = config.numHeads || 3
+        this.numHeads = config.numHeads || 8
         this.queriesPerHead = config.queriesPerHead | 3
-        this.headDim = config.headDim || 96
+        this.headDim = config.headDim || 256
         this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 1024
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
-        this.weightDecay = 0.01
-        this.cosineSteps = 2048
+        this.weightDecay = 0.001
+        this.cosineSteps = 1024
         this.ALiBiLength = 1024
     }
 
@@ -36,18 +34,11 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.embeddings,
+            outputDim: this.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
         let outputs = embeddings.apply(inputs)
-
-        outputs = this.ode.layers
-            .LowRankFactorization({
-                outputDim: this.units,
-                rank: this.rank
-            })
-            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -68,12 +59,6 @@ export default class OmniscientDeterministicEngine extends ODE {
                 })
                 .apply(outputs)
         }
-
-        outputs = this.ode.layers
-            .dense({
-                units: this.embeddings
-            })
-            .apply(outputs)
 
         outputs = embeddings.apply(outputs)
 
