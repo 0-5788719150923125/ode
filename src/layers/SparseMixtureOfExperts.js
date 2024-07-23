@@ -162,20 +162,25 @@ export default class SparseMixtureOfExperts extends LayerBase {
             }
         })(scores)
 
-        // const summedIndices = expertIndices.sum(1)
-        // const normalizedIndices = summedIndices.div(
-        //     summedIndices.sum(-1, true).add(this.epsilon)
-        // )
+        const expertWeights = tf
+            .matMul(
+                expertIndices,
+                this.expertWeights
+                    .read()
+                    .expandDims(0)
+                    .expandDims(0)
+                    .tile([
+                        expertIndices.shape[0],
+                        expertIndices.shape[1],
+                        1,
+                        1
+                    ])
+            )
+            .add(this.expertBiases.read())
 
-        const expertWeights = this.ops.applyDense(
-            expertIndices.mean(1),
-            this.expertWeights.read(),
-            this.expertBiases.read()
-        )
-
-        const normalizedWeights = expertWeights.div(
-            expertWeights.sum(-1, true).add(this.epsilon)
-        )
+        const normalizedWeights = expertWeights
+            .div(expertWeights.sum(-1, true).add(this.epsilon))
+            .mean(2)
 
         const discreteIndices = tf.argMax(tf.argMax(expertIndices, 1), -1)
 
