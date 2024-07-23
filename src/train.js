@@ -338,6 +338,7 @@ async function batchMaker(
             tokenizer,
             maxSeqLen: inputLength + 1
         })
+
         const textIndices = preprocessData(
             sample,
             tokenizer,
@@ -442,7 +443,7 @@ export class PredictionSampler {
             const seedLength = randomBetween(16, maxLength - 16)
             const sample = await args.dataGenerator.take({
                 tokenizer: args.tokenizer,
-                maxSeqLen: randomBetween(16, maxLength - 16)
+                maxSeqLen: seedLength
             })
 
             let prompt = sample

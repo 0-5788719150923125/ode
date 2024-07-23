@@ -1,6 +1,7 @@
 class RandomSampler {
     constructor(sampler) {
         this.sampler = sampler
+        this.tokens = []
     }
 
     async take(config) {
@@ -9,7 +10,9 @@ class RandomSampler {
         const startIndex = Math.floor(
             Math.random() * (string.length - expandedLen)
         )
-        return string.substring(startIndex, startIndex + expandedLen)
+        const sample = string.substring(startIndex, startIndex + expandedLen)
+        const tokens = config.tokenizer.encode(sample)
+        return tokens.slice(0, config.maxSeqLen)
     }
 }
 
