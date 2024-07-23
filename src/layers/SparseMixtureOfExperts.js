@@ -152,6 +152,7 @@ export default class SparseMixtureOfExperts extends LayerBase {
                     // Compute gradients
                     const maskedProbs = gumbelProbs.expandDims(2).mul(mask)
 
+                    // Integrate the derivative with Gumbel approximation
                     const grads = maskedProbs.mul(dyReshaped)
 
                     // Sum over the top-k dimension
@@ -161,8 +162,8 @@ export default class SparseMixtureOfExperts extends LayerBase {
                     const normalizedGrads = summedGrads.div(
                         summedGrads.sum(-1, true).add(this.epsilon)
                     )
-                    // console.log(grads, summedGrads, normalizedGrads)
-                    return [normalizedGrads]
+
+                    return [normalizedGrads.sigmoid()]
                 }
             }
         })(scores)
