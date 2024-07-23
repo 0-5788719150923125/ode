@@ -120,11 +120,8 @@ export default class SparseMixtureOfExperts extends LayerBase {
 
     topKWithGumbel(scores, k, numExperts) {
         const expertIndices = tf.customGrad((scores, save) => {
-            // Reduce scores along the time step dimension
-            const meanScores = scores.mean(1)
-
-            // Forward pass: Use hard top-k on the reduced scores
-            const { indices, values } = tf.topk(meanScores, k)
+            // Forward pass: Use hard top-k on the full scores
+            const { indices, values } = tf.topk(scores, k)
 
             // Create one-hot representation for the forward pass
             const oneHotIndices = tf.oneHot(indices, numExperts)
@@ -140,21 +137,13 @@ export default class SparseMixtureOfExperts extends LayerBase {
                         this.temperature
                     )
 
-                    // Create a mask based on the top-k indices
-                    const mask = oneHotIndices.expandDims(1)
-
-                    // Reshape dy to align with gumbelProbs
-                    const dyReshaped = dy
-                        .expandDims(1)
-                        .tile([1, scores.shape[1], 1, 1])
+                    // Expand gumbelProbs to match oneHotIndices shape
+                    const expandedGumbelProbs = gumbelProbs.expandDims(2)
 
                     // Compute gradients
-                    const maskedProbs = gumbelProbs.expandDims(2).mul(mask)
+                    const grads = expandedGumbelProbs.mul(oneHotIndices).mul(dy)
 
-                    // Integrate the derivative with Gumbel approximation
-                    const grads = maskedProbs.mul(dyReshaped)
-
-                    // Sum over the top-k dimension
+                    // Sum over the k dimension
                     const summedGrads = grads.sum(2)
 
                     // Apply RMSNorm
@@ -173,8 +162,13 @@ export default class SparseMixtureOfExperts extends LayerBase {
             }
         })(scores)
 
+        // const summedIndices = expertIndices.sum(1)
+        // const normalizedIndices = summedIndices.div(
+        //     summedIndices.sum(-1, true).add(this.epsilon)
+        // )
+
         const expertWeights = this.ops.applyDense(
-            expertIndices,
+            expertIndices.mean(1),
             this.expertWeights.read(),
             this.expertBiases.read()
         )
@@ -183,7 +177,7 @@ export default class SparseMixtureOfExperts extends LayerBase {
             expertWeights.sum(-1, true).add(this.epsilon)
         )
 
-        const discreteIndices = tf.argMax(expertIndices, -1)
+        const discreteIndices = tf.argMax(tf.argMax(expertIndices, 1), -1)
 
         return { discreteIndices, expertWeights: normalizedWeights }
     }
