@@ -86,7 +86,8 @@ export default class SparseMixtureOfExperts extends LayerBase {
 
             const { expertIndices, expertWeights } = this.topKWithGumbel(
                 switchingScores,
-                this.topK
+                this.topK,
+                this.numExperts
             )
 
             if (kwargs.training) this.computeUtilization(expertIndices)
@@ -119,32 +120,24 @@ export default class SparseMixtureOfExperts extends LayerBase {
         })
     }
 
-    topKWithGumbel(scores, k) {
-        const gumbel = this.ops.gumbelSoftmax(scores.mean(1), this.temperature)
-
-        const numExperts = gumbel.shape[1]
-
-        const expertIndices = tf.customGrad((gumbel, save) => {
-            const { indices, values } = tf.topk(gumbel, k)
-            save([gumbel, indices])
+    topKWithGumbel(scores, k, numExperts) {
+        const expertIndices = tf.customGrad((scores, save) => {
+            // Forward pass: Use hard top-k
+            const { indices, values } = tf.topk(scores.mean(1), k)
+            save([scores])
             return {
                 value: indices,
-                gradFunc: (dy, [gumbel, indices]) => {
-                    // Create a gradient of the same shape as gumbel
-                    const fullGradient = tf.buffer(gumbel.shape)
-
-                    // Scatter the gradient from dy into the full gradient
-                    indices.bufferSync().values.forEach((index, i) => {
-                        const batchIdx = Math.floor(i / k)
-                        const gradValue = dy.bufferSync().get(batchIdx, i % k)
-                        fullGradient.set(gradValue, batchIdx, index)
-                    })
-
-                    // Convert buffer to tensor and multiply element-wise with gumbel
-                    return [fullGradient.toTensor().mul(gumbel)]
+                gradFunc: (dy, [scores]) => {
+                    // dy.print()
+                    // Backward pass: Use Gumbel-Softmax
+                    const gumbel = this.ops.gumbelSoftmax(
+                        scores,
+                        this.temperature
+                    )
+                    return [gumbel]
                 }
             }
-        })(gumbel)
+        })(scores)
 
         const oneHotIndices = tf.oneHot(expertIndices, numExperts)
 

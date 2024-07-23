@@ -12,8 +12,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.experts = config.experts || 3
         this.topK = config.topK || 2
         this.switchingDim = config.switchingDim || 512
-        this.headDim = config.headDim || 1024
-        this.mlpDim = config.mlpDim || 512
+        this.headDim = config.headDim || 2048
+        this.mlpDim = config.mlpDim || 1024
     }
 
     defineTokenizer() {
