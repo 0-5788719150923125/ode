@@ -12,8 +12,8 @@ export default class ParabolicCompression extends LayerBase {
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
-
         this.stepSize = (inputDim - this.outputDim) / this.numSteps
+
         if (inputDim % this.stepSize !== 0) {
             throw `inputDim (${inputDim}) must be a multiple of stepSize (${this.stepSize})!`
         }
@@ -22,11 +22,11 @@ export default class ParabolicCompression extends LayerBase {
         this.beta = []
         this.gamma = []
 
-        this.transformationMatrix = this.addWeight(
-            'transformationMatrix',
+        this.transductionMatrix = this.addWeight(
+            'transductionMatrix',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.orthogonal({ gain: 1.0 })
         )
 
         for (let i = 0; i < this.numSteps; i++) {
@@ -70,7 +70,8 @@ export default class ParabolicCompression extends LayerBase {
 
             let outputs = inputs
 
-            const matrix = this.transformationMatrix.read()
+            const matrix = this.transductionMatrix.read()
+
             for (let i = 0; i < this.numSteps; i++) {
                 const newSize = inputDim - this.stepSize * (i + 1)
                 // Slice the weights based on the input dimensions
