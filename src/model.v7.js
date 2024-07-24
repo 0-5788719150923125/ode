@@ -7,8 +7,8 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 6
-        this.embeddings = config.embeddings || 512
+        this.layers = config.layers || 5
+        this.embeddings = config.embeddings || 256
         this.units = config.units || 128
         this.numHeads = config.numHeads || 8
         this.queriesPerHead = config.queriesPerHead | 2
@@ -24,7 +24,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-consistent-v1'
+            model: 'englishcode-8000-clean-v1'
         })
     }
 

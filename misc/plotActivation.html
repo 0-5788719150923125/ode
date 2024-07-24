@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Enhanced Snake Activation Function Visualization</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+        <style>
+            body {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+            #chartContainer {
+                width: 80%;
+                height: 60%;
+            }
+            #controls {
+                width: 80%;
+                margin-top: 20px;
+            }
+            .slider-container {
+                display: flex;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            .slider-container label {
+                width: 250px;
+            }
+            .slider-container input {
+                flex-grow: 1;
+            }
+            .slider-container span {
+                width: 30px;
+                text-align: right;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="chartContainer">
+            <canvas id="snakeChart"></canvas>
+        </div>
+        <div id="controls">
+            <div class="slider-container">
+                <label for="alpha">Alpha (inner oscillation): </label>
+                <input
+                    type="range"
+                    id="alpha"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    value="1"
+                />
+                <span id="alphaValue">1</span>
+            </div>
+            <div class="slider-container">
+                <label for="beta">Beta (outer oscillation frequency): </label>
+                <input
+                    type="range"
+                    id="beta"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value="0"
+                />
+                <span id="betaValue">0</span>
+            </div>
+            <div class="slider-container">
+                <label for="gamma">Gamma (outer oscillation amplitude): </label>
+                <input
+                    type="range"
+                    id="gamma"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value="0"
+                />
+                <span id="gammaValue">0</span>
+            </div>
+        </div>
+        <script>
+            function enhancedSnakeActivation(
+                x,
+                alpha = 1.0,
+                beta = 0,
+                gamma = 0
+            ) {
+                return tf.tidy(() => {
+                    // Original Snake activation
+                    const sinTerm = tf.sin(tf.mul(tf.scalar(alpha), x))
+                    const squaredSinTerm = tf.square(sinTerm)
+                    const inverseAlpha = tf.scalar(1).div(tf.scalar(alpha))
+                    const snakeTerm = tf.mul(inverseAlpha, squaredSinTerm)
+
+                    // Additional oscillation term
+                    const outerOscillation = tf.mul(
+                        tf.scalar(gamma),
+                        tf.sin(tf.mul(tf.scalar(beta), x))
+                    )
+
+                    // Combine terms
+                    return tf.add(tf.add(x, snakeTerm), outerOscillation)
+                })
+            }
+
+            function generateData(
+                alpha,
+                beta,
+                gamma,
+                numPoints = 1000,
+                min = -10,
+                max = 10
+            ) {
+                const inputData = tf.linspace(min, max, numPoints)
+                const outputData = enhancedSnakeActivation(
+                    inputData,
+                    alpha,
+                    beta,
+                    gamma
+                )
+
+                const inputArray = inputData.arraySync()
+                const outputArray = outputData.arraySync()
+
+                return inputArray.map((x, i) => ({ x: x, y: outputArray[i] }))
+            }
+
+            const ctx = document.getElementById('snakeChart').getContext('2d')
+            let snakeChart
+
+            function updateChart() {
+                const alpha = parseFloat(document.getElementById('alpha').value)
+                const beta = parseFloat(document.getElementById('beta').value)
+                const gamma = parseFloat(document.getElementById('gamma').value)
+
+                document.getElementById('alphaValue').textContent =
+                    alpha.toFixed(1)
+                document.getElementById('betaValue').textContent =
+                    beta.toFixed(1)
+                document.getElementById('gammaValue').textContent =
+                    gamma.toFixed(1)
+
+                const data = generateData(alpha, beta, gamma)
+
+                // Calculate min and max y values
+                const yValues = data.map((point) => point.y)
+                const minY = Math.min(...yValues)
+                const maxY = Math.max(...yValues)
+                const yRange = Math.max(Math.abs(minY), Math.abs(maxY))
+
+                if (snakeChart) {
+                    snakeChart.data.datasets[0].data = data
+                    snakeChart.options.scales.y.min = -yRange
+                    snakeChart.options.scales.y.max = yRange
+                    snakeChart.update()
+                } else {
+                    snakeChart = new Chart(ctx, {
+                        type: 'scatter',
+                        data: {
+                            datasets: [
+                                {
+                                    label: 'Enhanced Snake Activation Function',
+                                    data: data,
+                                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    position: 'bottom',
+                                    min: -10,
+                                    max: 10,
+                                    title: {
+                                        display: true,
+                                        text: 'Input'
+                                    }
+                                },
+                                y: {
+                                    type: 'linear',
+                                    min: -yRange,
+                                    max: yRange,
+                                    title: {
+                                        display: true,
+                                        text: 'Output'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Enhanced Snake Activation Function Visualization'
+                                }
+                            }
+                        }
+                    })
+                }
+            }
+
+            document
+                .getElementById('alpha')
+                .addEventListener('input', updateChart)
+            document
+                .getElementById('beta')
+                .addEventListener('input', updateChart)
+            document
+                .getElementById('gamma')
+                .addEventListener('input', updateChart)
+
+            updateChart()
+        </script>
+    </body>
+</html>
