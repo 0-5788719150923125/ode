@@ -43,6 +43,7 @@ import SwarmOfExperts from './layers/SwarmOfExperts.js'
 import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
+import ParabolicCompression from './layers/ParabolicCompression.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -161,6 +162,7 @@ const customLayersConfig = {
         constructor: MultiQueryAttention,
         prefix: 'attn'
     },
+    ParabolicCompression: { constructor: ParabolicCompression, prefix: 'op' },
     ParameterEfficientExpertRetrieval: {
         constructor: ParameterEfficientExpertRetrieval,
         prefix: 'moe'

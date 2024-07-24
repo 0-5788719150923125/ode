@@ -10,7 +10,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.layers = config.layers || 5
         this.embeddings = config.embeddings || 256
         this.units = config.units || 128
-        this.numHeads = config.numHeads || 8
+        this.numHeads = config.numHeads || 1
         this.queriesPerHead = config.queriesPerHead | 2
         this.headDim = config.headDim || 256
         this.headFeatures = config.headFeatures || 64
@@ -41,7 +41,10 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         let outputs = embeddings.apply(inputs)
 
-        outputs = this.ode.layers.dense({ units: this.units }).apply(outputs)
+        // outputs = this.ode.layers.dense({ units: this.units }).apply(outputs)
+        outputs = this.ode.layers
+            .ParabolicCompression({ numSteps: 4, outputDim: this.units })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
