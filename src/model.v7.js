@@ -10,7 +10,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.layers = config.layers || 5
         this.embeddings = config.embeddings || 256
         this.units = config.units || 128
-        this.numHeads = config.numHeads || 1
+        this.numHeads = config.numHeads || 8
         this.queriesPerHead = config.queriesPerHead | 2
         this.headDim = config.headDim || 256
         this.headFeatures = config.headFeatures || 64

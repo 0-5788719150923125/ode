@@ -38,7 +38,7 @@ class Snake extends tf.serialization.Serializable {
      * @param alpha Scalar value for the alpha parameter.
      * @returns a Tensor of the same shape as x
      */
-    apply(x, alpha = 1.0, beta = 0, gamma = 0) {
+    apply(x, alpha = 1.0, beta = 0, gamma = 0, epsilon = 1e-8) {
         return tf.tidy(() => {
             // Original Snake activation
             const sinTerm = tf.sin(tf.mul(alpha, x))
@@ -47,7 +47,10 @@ class Snake extends tf.serialization.Serializable {
             const snakeTerm = tf.mul(inverseAlpha, squaredSinTerm)
 
             // Additional oscillation terms
-            const outerOscillation = tf.mul(gamma, tf.sin(tf.mul(beta, x)))
+            const outerOscillation = tf.mul(
+                gamma.add(epsilon),
+                tf.sin(tf.mul(beta.add(epsilon), x))
+            )
 
             // Combine terms
             return tf.add(tf.add(x, snakeTerm), outerOscillation)

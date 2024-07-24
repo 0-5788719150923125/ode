@@ -7,6 +7,7 @@ export default class ParabolicCompression extends LayerBase {
         super(config)
         this.numSteps = config.numSteps || 3
         this.outputDim = config.outputDim || 64
+        this.activation = customActivations.Snake
     }
 
     build(inputShape) {
@@ -17,21 +18,28 @@ export default class ParabolicCompression extends LayerBase {
             throw `inputDim (${inputDim}) must be a multiple of stepSize (${this.stepSize})!`
         }
 
-        this.activation = customActivations.Snake
+        this.alpha = []
+        this.beta = []
+        this.gamma = []
+
         this.transformationMatrix = this.addWeight(
             'transformationMatrix',
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotNormal()
         )
-        this.alpha = []
-        this.beta = []
-        this.gamma = []
+
         for (let i = 0; i < this.numSteps; i++) {
+            const newSize = inputDim - this.stepSize * (i + 1)
+
+            if (newSize < this.outputDim) {
+                throw `newSize (${newSize}) should never be smaller than outputDim ${this.outputDim}!`
+            }
+
             this.alpha.push(
                 this.addWeight(
                     `alpha-${i}`,
-                    [],
+                    [1, newSize],
                     'float32',
                     tf.initializers.ones()
                 )
@@ -39,7 +47,7 @@ export default class ParabolicCompression extends LayerBase {
             this.beta.push(
                 this.addWeight(
                     `beta-${i}`,
-                    [],
+                    [1, newSize],
                     'float32',
                     tf.initializers.zeros()
                 )
@@ -47,7 +55,7 @@ export default class ParabolicCompression extends LayerBase {
             this.gamma.push(
                 this.addWeight(
                     `gamma-${i}`,
-                    [],
+                    [1, newSize],
                     'float32',
                     tf.initializers.zeros()
                 )
@@ -58,11 +66,7 @@ export default class ParabolicCompression extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-
-            // Get the input dimensions
             const inputDim = inputs.shape[inputs.shape.length - 1]
-
-            // const stepSize = inputDim / this.numSteps
 
             let outputs = inputs
 
@@ -73,12 +77,12 @@ export default class ParabolicCompression extends LayerBase {
                 const inProj = matrix.slice([0, 0], [-1, newSize])
                 const outProj = matrix.slice([0, inputDim - newSize], [-1, -1])
                 outputs = this.ops.applyDense(outputs, inProj)
-                outputs = this.activation.apply(
-                    outputs,
-                    this.alpha[i].read(),
-                    this.beta[i].read(),
-                    this.gamma[i].read()
-                )
+                // Reshape activation parameters to match outputs
+                const alpha = tf.reshape(this.alpha[i].read(), [1, 1, newSize])
+                const beta = tf.reshape(this.beta[i].read(), [1, 1, newSize])
+                const gamma = tf.reshape(this.gamma[i].read(), [1, 1, newSize])
+                // Per-neuron activation via Snake
+                outputs = this.activation.apply(outputs, alpha, beta, gamma)
                 outputs = this.ops.applyDense(outputs, tf.transpose(outProj))
             }
 
