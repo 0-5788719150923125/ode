@@ -48,8 +48,8 @@ class Snake extends tf.serialization.Serializable {
 
             // Additional oscillation terms
             const outerOscillation = tf.mul(
-                gamma.add(epsilon),
-                tf.sin(tf.mul(beta.add(epsilon), x))
+                tf.add(gamma, epsilon),
+                tf.sin(tf.mul(tf.add(beta, epsilon), x))
             )
 
             // Combine terms

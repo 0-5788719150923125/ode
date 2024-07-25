@@ -7,24 +7,24 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 5
+        this.layers = config.layers || 3
         this.embeddings = config.embeddings || 256
-        this.units = config.units || 128
+        this.units = config.units || 64
         this.numHeads = config.numHeads || 8
         this.queriesPerHead = config.queriesPerHead | 2
-        this.headDim = config.headDim || 256
-        this.headFeatures = config.headFeatures || 64
-        this.mlpDim = config.mlpDim || 1024
+        this.headDim = config.headDim || 96
+        this.headFeatures = config.headFeatures || 32
+        this.mlpDim = config.mlpDim || 768
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.001
         this.cosineSteps = 1024
-        this.ALiBiLength = 1024
+        this.ALiBiLength = 4096
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-clean-v1'
+            model: 'englishcode-8000-balanced-v1'
         })
     }
 
@@ -41,9 +41,8 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         let outputs = embeddings.apply(inputs)
 
-        // outputs = this.ode.layers.dense({ units: this.units }).apply(outputs)
         outputs = this.ode.layers
-            .ParabolicCompression({ numSteps: 4, outputDim: this.units })
+            .ParabolicCompression({ numSteps: 3, outputDim: this.units })
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {

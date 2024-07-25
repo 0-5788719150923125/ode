@@ -88,19 +88,20 @@
                 x,
                 alpha = 1.0,
                 beta = 0,
-                gamma = 0
+                gamma = 0,
+                epsilon = 1e-8
             ) {
                 return tf.tidy(() => {
                     // Original Snake activation
-                    const sinTerm = tf.sin(tf.mul(tf.scalar(alpha), x))
+                    const sinTerm = tf.sin(tf.mul(alpha, x))
                     const squaredSinTerm = tf.square(sinTerm)
-                    const inverseAlpha = tf.scalar(1).div(tf.scalar(alpha))
+                    const inverseAlpha = tf.scalar(1).div(alpha)
                     const snakeTerm = tf.mul(inverseAlpha, squaredSinTerm)
 
-                    // Additional oscillation term
+                    // Additional oscillation terms
                     const outerOscillation = tf.mul(
-                        tf.scalar(gamma),
-                        tf.sin(tf.mul(tf.scalar(beta), x))
+                        tf.add(gamma, epsilon),
+                        tf.sin(tf.mul(tf.add(beta, epsilon), x))
                     )
 
                     // Combine terms

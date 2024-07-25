@@ -157,9 +157,11 @@ class CosmopediaSampler {
     async init() {
         const CosmopediaDataset = (await import('./datasets/cosmopedia.js'))
             .default
-        this.producer = new CosmopediaDataset(this.config)
+        this.producer = new CosmopediaDataset({
+            ...this.config,
+            schema: [{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }]
+        })
         await this.producer.init()
-        this.producer.loadSchema([{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }])
         this.initialized = true
     }
 

@@ -11,6 +11,31 @@ import {
     randomValueFromArray
 } from '../utils.js'
 
+const urls = [
+    `https://huggingface.co/datasets/HuggingFaceTB/cosmopedia/resolve/main/data/web_samples_v1/train-00000-of-00139.parquet`
+]
+
+for (const url of urls) {
+    console.log(`fetching:`, url)
+    const response = await fetch(url)
+    const parquetUint8Array = new Uint8Array(await response.arrayBuffer())
+    // if (this.wasmArrowTable) this.wasmArrowTable.drop()
+    const wasmArrowTable = readParquet(parquetUint8Array).intoFFI()
+
+    const table = parseTable(
+        wasmMemory().buffer,
+        wasmArrowTable.arrayAddrs(),
+        wasmArrowTable.schemaAddr(),
+        true
+    )
+
+    const column = this.table.batches[0].getChildAt(obj.idx)
+    const data = column.get(rowIdx)
+
+    // wasmArrowTable.free()
+    wasmArrowTable.drop()
+}
+
 export default class CosmopediaDataset {
     constructor(config) {
         this.dataset = 'HuggingFaceTB/cosmopedia'
@@ -32,7 +57,6 @@ export default class CosmopediaDataset {
         this.cacheSize = 20000
         this.cachedText = ''
         this.table = {}
-        this.schemaTemplate = config?.schema
     }
 
     async init() {
@@ -64,7 +88,6 @@ export default class CosmopediaDataset {
                 `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old shard for now...`
             )
         }
-        this.loadSchema(this.schemaTemplate)
     }
 
     async streamDataIntoTable() {
@@ -80,7 +103,7 @@ export default class CosmopediaDataset {
             true
         )
         // wasmArrowTable.free()
-        this.wasmArrowTable.drop()
+        // wasmArrowTable.drop()
 
         // const stream = await readParquetStream(this.url)
 
@@ -199,8 +222,9 @@ export default class CosmopediaDataset {
 }
 
 // async function main() {
-// const sampler = new CosmopediaDataset({schema: [{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }]})
+//     const sampler = new CosmopediaDataset()
 //     await sampler.init()
+//     sampler.loadSchema([{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }])
 //     for (let i = 0; i < 10; i++) {
 //         console.log(await sampler.getSample())
 //         console.log('---')
