@@ -10,10 +10,12 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.headDim = config.headDim || 64
         this.headFeatures = config.headFeatures || 32
         this.queriesPerHead = config.queriesPerHead || 1
+        this.outputDim = config.outputDim || null
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
+        const outputDim = this.outputDim || inputDim
 
         this.queryKernels = []
         this.keyKernels = []
@@ -27,6 +29,23 @@ export default class ProjectedFeatureAttention extends LayerBase {
         this.valueProjectionBiases = []
 
         const totalQueries = this.numHeads * this.queriesPerHead
+
+        if (outputDim > inputDim) {
+            this.inProjKernel = this.addWeight(
+                'inProjKernel',
+                [inputDim, outputDim],
+                'float32',
+                tf.initializers.glorotUniform(),
+                tf.regularizers.l2({ l2: 0.01 })
+            )
+            if (this.useBias)
+                this.inProjBias = this.addWeight(
+                    `inProjBias`,
+                    [outputDim],
+                    'float32',
+                    tf.initializers.zeros()
+                )
+        }
 
         for (let i = 0; i < totalQueries; i++) {
             this.queryKernels.push(
@@ -126,7 +145,10 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.headFeatures * this.numHeads * this.queriesPerHead, inputDim],
+            [
+                this.headFeatures * this.numHeads * this.queriesPerHead,
+                outputDim
+            ],
             'float32',
             tf.initializers.glorotUniform(),
             tf.regularizers.l2({ l2: 0.01 })
@@ -134,7 +156,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
         if (this.useBias)
             this.outputBias = this.addWeight(
                 'outputBias',
-                [inputDim],
+                [outputDim],
                 'float32',
                 tf.initializers.zeros()
             )
@@ -151,6 +173,15 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 .mul(tf.scalar(-1e9))
 
             const attentionOutputs = []
+
+            let projectedInputs = inputs
+            if (this.inProjKernel) {
+                projectedInputs = this.ops.applyDense(
+                    inputs,
+                    this.inProjKernel.read(),
+                    this.useBias ? this.inProjBias.read() : null
+                )
+            }
 
             for (let i = 0; i < this.numHeads; i++) {
                 const K = this.ops.applyDense(
@@ -219,10 +250,14 @@ export default class ProjectedFeatureAttention extends LayerBase {
 
             outputs = this.ops.rmsNorm(outputs)
 
-            outputs = tf.add(inputs, outputs)
+            outputs = tf.add(projectedInputs, outputs)
 
             return outputs
         })
+    }
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1], this.outputDim]
     }
 
     getConfig() {
@@ -231,7 +266,8 @@ export default class ProjectedFeatureAttention extends LayerBase {
             numHeads: this.numHeads,
             headDim: this.headDim,
             headFeatures: this.headFeatures,
-            queriesPerHead: this.queriesPerHead
+            queriesPerHead: this.queriesPerHead,
+            outputDim: this.outputDim
         }
     }
 }

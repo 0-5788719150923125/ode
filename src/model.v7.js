@@ -7,13 +7,13 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 3
-        this.embeddings = config.embeddings || 256
         this.units = config.units || 64
+        this.embeddings = config.embeddings || 256
+        this.layers = [128, 192, this.embeddings]
         this.numHeads = config.numHeads || 8
         this.queriesPerHead = config.queriesPerHead | 2
-        this.headDim = config.headDim || 96
-        this.headFeatures = config.headFeatures || 32
+        this.headDim = config.headDim || 128
+        this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 768
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
@@ -45,14 +45,15 @@ export default class OmniscientDeterministicEngine extends ODE {
             .ParabolicCompression({ numSteps: 3, outputDim: this.units })
             .apply(outputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (const i of this.layers) {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
                     numHeads: this.numHeads,
                     headDim: this.headDim,
                     headFeatures: this.headFeatures,
                     queriesPerHead: this.queriesPerHead,
-                    ALiBiLength: this.ALiBiLength
+                    ALiBiLength: this.ALiBiLength,
+                    outputDim: i
                 })
                 .apply(outputs)
 
@@ -60,14 +61,10 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .GatedLinearMLP({
                     innerDim: this.mlpDim,
                     activation: 'mish',
-                    gateActivation: 'sigmoid'
+                    gateActivation: 'swish'
                 })
                 .apply(outputs)
         }
-
-        outputs = this.ode.layers
-            .dense({ units: this.embeddings })
-            .apply(outputs)
 
         outputs = embeddings.apply(outputs)
 
