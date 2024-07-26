@@ -42,21 +42,19 @@ export default class CosmopediaDataset {
 
     async fetchRandomShard() {
         const { slice, shards } = this.getWeightedRandomSlice(this.slices)
-        this.slice = slice
         const shardIndices = generatePaddedNumbers(0, shards, 5)
         const numShards = shardIndices.slice(-1)
         const allShards = shardIndices.slice(0, -1)
-
         const shard = randomValueFromArray(allShards)
-        console.log('fetching shard:', `${shard}/${numShards}`, 'slice:', slice)
         const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
         this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
+        console.log('fetching shard:', `${shard}/${numShards}`, 'slice:', slice)
         try {
             await this.streamDataIntoTable()
         } catch (err) {
             console.error(err)
             console.warn(
-                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old shard for now...`
+                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old one for now...`
             )
         }
         this.loadSchema(this.schemaTemplate)
@@ -72,8 +70,7 @@ export default class CosmopediaDataset {
             const recordBatch = parseRecordBatch(
                 wasmMemory().buffer,
                 ffiRecordBatch.arrayAddr(),
-                ffiRecordBatch.schemaAddr(),
-                true
+                ffiRecordBatch.schemaAddr()
             )
             batches.push(recordBatch)
         }
@@ -126,8 +123,8 @@ export default class CosmopediaDataset {
             const text = []
 
             let rowIdx = null
-            for (const obj of this.schema) {
-                let column = this.table.batches[batchIdx].getChildAt(obj.idx)
+            for (const field of this.schema) {
+                let column = this.table.batches[batchIdx].getChildAt(field.idx)
                 if (rowIdx === null) {
                     rowIdx = randomBetween(0, column.length - 1)
                     // console.log(
@@ -138,7 +135,7 @@ export default class CosmopediaDataset {
                     //     } est combinations`
                     // )
                 }
-                const prefix = obj.value
+                const prefix = field.value
                 const data = column.get(rowIdx)
                 text.push(prefix + data)
             }
