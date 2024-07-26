@@ -445,7 +445,7 @@ function processLogits(
         // const probabilities = tf.softmax(processedLogits)
 
         if (doSample) {
-            return sampleFromLogits(processedLogits)
+            return multinomialSampling(processedLogits)
         } else {
             return greedySampling(processedLogits)
         }
@@ -526,7 +526,7 @@ function applyTopP(logits, p) {
     })
 }
 
-function sampleFromLogits(logits) {
+function multinomialSampling(logits) {
     return tf.tidy(() => {
         const sampledIndex = tf.multinomial(logits, 1).reshape([-1])
         return sampledIndex
