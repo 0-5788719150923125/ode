@@ -14,7 +14,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.switchingDim = config.switchingDim || 256
         this.headDim = config.headDim || 1024
         this.mlpDim = config.mlpDim || 512
-        this.temperature = 1.0
+        this.temperature = 0.8
     }
 
     defineTokenizer() {
@@ -70,7 +70,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             experts.push(
                 this.ode.layers.MultiLayerPerceptron({
                     innerDim: this.mlpDim,
-                    activation: 'gelu'
+                    activation: 'mish'
                 })
             )
         }

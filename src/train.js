@@ -455,6 +455,7 @@ export class PredictionSampler {
                 doSample: true,
                 temperature: 0.45,
                 repetitionPenalty: 1.2,
+                // topK: 40,
                 maxNewTokens: maxLength
             }
             const output = await this.parent.generate({

@@ -362,7 +362,7 @@ function predictOnce(
     isSingleLabel
 ) {
     return tf.tidy(() => {
-        let logits, idxNext
+        let logits
         if (isSingleLabel) {
             logits = this.model.predict(idx).squeeze()
         } else {
@@ -391,26 +391,64 @@ function predictOnce(
             }
         }
 
-        if (repetitionPenalty !== 1) {
-            logits = applyRepetitionPenalty(logits, idx, repetitionPenalty)
-        }
-
-        if (doSample) {
-            if (temperature !== 1) {
-                logits = applyTemperature(logits, temperature)
-            }
-            if (topK > 0) {
-                logits = applyTopK(logits, topK)
-            }
-            if (topP < 1) {
-                logits = applyTopP(logits, topP)
-            }
-            idxNext = sampleFromLogits(logits)
-        } else {
-            idxNext = greedySampling(logits)
-        }
+        const idxNext = processLogits(logits, idx, {
+            doSample,
+            temperature,
+            topK,
+            topP,
+            repetitionPenalty
+        })
 
         return idxNext
+    })
+}
+
+function processLogits(
+    logits,
+    idx,
+    {
+        doSample = true,
+        temperature = 1.0,
+        topK = 0,
+        topP = 1.0,
+        repetitionPenalty = 1.0
+    } = {}
+) {
+    return tf.tidy(() => {
+        let processedLogits = logits
+
+        // Apply repetition penalty if needed
+        if (repetitionPenalty !== 1) {
+            processedLogits = applyRepetitionPenalty(
+                processedLogits,
+                idx,
+                repetitionPenalty
+            )
+        }
+
+        // Apply temperature scaling
+        if (temperature !== 1) {
+            processedLogits = applyTemperature(processedLogits, temperature)
+        }
+
+        // Apply top-K filtering
+        if (topK > 0) {
+            processedLogits = applyTopK(processedLogits, topK)
+        }
+
+        // Apply top-P (nucleus) filtering
+        if (topP < 1) {
+            processedLogits = applyTopP(processedLogits, topP)
+        }
+
+        // Apply softmax to convert logits to probabilities
+        // const probabilities = tf.softmax(processedLogits)
+
+        if (doSample) {
+            return sampleFromLogits(processedLogits)
+        } else {
+            return greedySampling(processedLogits)
+        }
     })
 }
 
