@@ -21,9 +21,13 @@ export default class ParabolicCompression extends LayerBase {
         this.alpha = []
         this.beta = []
         this.gamma = []
-        this.projectionMatrices = []
 
-        let currentSize = inputDim
+        this.projectionMatrix = this.addWeight(
+            `projectionMatrix`,
+            [inputDim, inputDim],
+            'float32',
+            tf.initializers.orthogonal({ gain: 1.0 })
+        )
 
         for (let i = 0; i < this.numSteps; i++) {
             const newSize = inputDim - this.stepSize * (i + 1)
@@ -31,15 +35,6 @@ export default class ParabolicCompression extends LayerBase {
             if (newSize < this.outputDim) {
                 throw `newSize (${newSize}) should never be smaller than outputDim ${this.outputDim}!`
             }
-
-            this.projectionMatrices.push(
-                this.addWeight(
-                    `projection-${i}`,
-                    [currentSize, newSize],
-                    'float32',
-                    tf.initializers.orthogonal({ gain: 1.0 })
-                )
-            )
 
             this.alpha.push(
                 this.addWeight(
@@ -65,35 +60,43 @@ export default class ParabolicCompression extends LayerBase {
                     tf.initializers.zeros()
                 )
             )
-
-            currentSize = newSize
         }
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const inputDim = inputs.shape[2]
 
             let outputs = inputs
 
-            for (let i = 0; i < this.numSteps; i++) {
-                // Slice the weights based on the input dimensions
-                // const inProj = matrix.slice([0, 0], [-1, newSize])
-                // const outProj = matrix.slice([0, inputDim - newSize], [-1, -1])
-                outputs = this.ops.applyDense(
-                    outputs,
-                    this.projectionMatrices[i].read()
-                )
+            const matrix = this.projectionMatrix.read()
 
-                const newSize = outputs.shape[outputs.shape.length - 1]
+            let currentSize = inputDim
+            for (let i = 0; i < this.numSteps; i++) {
+                const newSize = inputDim - this.stepSize * (i + 1)
+
+                // Project inputs into a lower dimension
+                const inProj = matrix.slice([0, 0], [currentSize, newSize])
+                outputs = this.ops.applyDense(outputs, inProj)
 
                 // Reshape activation parameters to match outputs
                 const alpha = tf.reshape(this.alpha[i].read(), [1, 1, newSize])
                 const beta = tf.reshape(this.beta[i].read(), [1, 1, newSize])
                 const gamma = tf.reshape(this.gamma[i].read(), [1, 1, newSize])
 
-                // Per-neuron activation via Snake
+                // Per-feature activation via Snake
                 outputs = this.activation.apply(outputs, alpha, beta, gamma)
+
+                // Reduce the size
+                currentSize = newSize
+
+                // Project outputs via a smaller, shifted slice of the matrix
+                const outProj = matrix.slice(
+                    [inputDim - currentSize, inputDim - newSize],
+                    [-1, -1]
+                )
+                outputs = this.ops.applyDense(outputs, outProj)
             }
 
             return outputs

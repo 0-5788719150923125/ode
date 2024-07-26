@@ -61,7 +61,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .GatedLinearMLP({
                     innerDim: this.mlpDim,
                     activation: 'mish',
-                    gateActivation: 'swish' // SwiGLU
+                    gateActivation: 'sigmoid'
                 })
                 .apply(outputs)
         }
