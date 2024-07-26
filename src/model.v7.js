@@ -45,7 +45,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             .ParabolicCompression({ numSteps: 3, outputDim: this.units })
             .apply(outputs)
 
-        for (const i of this.layers) {
+        for (const units of this.layers) {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
                     numHeads: this.numHeads,
@@ -53,7 +53,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                     headFeatures: this.headFeatures,
                     queriesPerHead: this.queriesPerHead,
                     ALiBiLength: this.ALiBiLength,
-                    outputDim: i
+                    outputDim: units
                 })
                 .apply(outputs)
 

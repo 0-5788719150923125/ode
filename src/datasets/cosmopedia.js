@@ -1,10 +1,6 @@
-import { Table, tableFromIPC, makeTable } from 'apache-arrow'
-import { parseTable, parseRecordBatch } from 'arrow-js-ffi'
-import initWasm, {
-    wasmMemory,
-    readParquet,
-    readParquetStream
-} from 'parquet-wasm'
+import { Table } from 'apache-arrow'
+import { parseRecordBatch } from 'arrow-js-ffi'
+import initWasm, { wasmMemory, readParquetStream } from 'parquet-wasm'
 import {
     generatePaddedNumbers,
     randomBetween,
@@ -41,7 +37,6 @@ export default class CosmopediaDataset {
                 typeof self.importScripts === 'function') ||
             typeof window !== 'undefined'
         if (isBrowser) await initWasm()
-        // this.WASM_MEMORY = wasmMemory()
         await this.fetchRandomShard()
     }
 
@@ -68,20 +63,6 @@ export default class CosmopediaDataset {
     }
 
     async streamDataIntoTable() {
-        // const response = await fetch(this.url)
-        // const parquetUint8Array = new Uint8Array(await response.arrayBuffer())
-        // // if (this.wasmArrowTable) this.wasmArrowTable.drop()
-        // this.wasmArrowTable = readParquet(parquetUint8Array).intoFFI()
-
-        // this.table = parseTable(
-        //     wasmMemory().buffer,
-        //     this.wasmArrowTable.arrayAddrs(),
-        //     this.wasmArrowTable.schemaAddr(),
-        //     true
-        // )
-        // // wasmArrowTable.free()
-        // this.wasmArrowTable.drop()
-
         const stream = await readParquetStream(this.url)
 
         // Read Parquet buffer to Arrow Table
@@ -140,21 +121,13 @@ export default class CosmopediaDataset {
 
     async fillCache() {
         while (this.cachedText.length < this.cacheSize) {
-            let shouldSkip = false
             let batchIdx = randomBetween(0, this.table.batches.length - 1)
 
             const text = []
 
             let rowIdx = null
             for (const obj of this.schema) {
-                let column
-                try {
-                    column = this.table.batches[batchIdx].getChildAt(obj.idx)
-                } catch (err) {
-                    console.error(err)
-                    await this.fetchRandomShard()
-                    return await this.fillCache()
-                }
+                let column = this.table.batches[batchIdx].getChildAt(obj.idx)
                 if (rowIdx === null) {
                     rowIdx = randomBetween(0, column.length - 1)
                     // console.log(
@@ -167,32 +140,26 @@ export default class CosmopediaDataset {
                 }
                 const prefix = obj.value
                 const data = column.get(rowIdx)
-                // Intermittently, all 'data' values will be read as BigInt types, with
-                // no other information. This is a bug in arrow, so we skip them.
-                if (/^-?\d+$/.test(data)) {
-                    shouldSkip = true
-                    console.log('prefix was:', prefix)
-                    console.log('batchIdx was:', batchIdx)
-                    console.log('rowIdx was:', rowIdx)
-                    console.log('data was:', data)
-                    await this.fetchRandomShard()
-                }
                 text.push(prefix + data)
             }
-            if (shouldSkip) continue
             this.cachedText += text.join(this.delimiter) + this.eosToken
         }
     }
 
     async getSample(size = 512) {
         this.batches++
-        if (this.batches % this.batchesBeforeRefresh === 0) {
-            await this.fetchRandomShard()
+        try {
+            if (this.batches % this.batchesBeforeRefresh === 0) {
+                await this.fetchRandomShard()
+            }
+            await this.fillCache()
+            const sample = this.cachedText.slice(0, size)
+            this.cachedText = this.cachedText.slice(size)
+            return sample
+        } catch (err) {
+            console.error(err)
+            return await this.getSample(size)
         }
-        await this.fillCache()
-        const sample = this.cachedText.slice(0, size)
-        this.cachedText = this.cachedText.slice(size)
-        return sample
     }
 }
 
