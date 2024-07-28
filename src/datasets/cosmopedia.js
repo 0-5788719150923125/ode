@@ -22,7 +22,7 @@ export default class CosmopediaDataset {
         ]
         this.split = 'train'
         this.delimiter = '\n\n'
-        this.eosToken = '<|eos|>'
+        this.eosToken = config?.eosToken || '<|eos|>'
         this.batchesBeforeRefresh = config?.batchesBeforeRefresh || 10000
         this.batches = 0
         this.cacheSize = 20000

@@ -132,7 +132,14 @@ async function run() {
         .greater(X.slice([0, 1], [-1, 1]))
         .cast('float32')
 
-    const bestNetwork = await evolutionaryTraining(50, 100, X, y)
+    const population = 50
+    const generations = 10000
+    const bestNetwork = await evolutionaryTraining(
+        population,
+        generations,
+        X,
+        y
+    )
     console.log('Training complete. Best network found.')
 
     // Test the best network

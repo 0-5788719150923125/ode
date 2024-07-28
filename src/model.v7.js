@@ -7,40 +7,56 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.units = config.units || 64
-        this.embeddings = config.embeddings || 256
+        this.units = config.units || 100
+        this.embeddings = config.embeddings || 200
         this.layers = [
             {
-                outputDim: 128,
-                numHeads: 3,
-                headDim: 64,
-                headFeatures: 23,
-                queriesPerHead: 1,
-                mlpDim: 512
+                outputDim: 100,
+                numHeads: 8,
+                headDim: 23,
+                headFeatures: 10,
+                queriesPerHead: 2,
+                mlpDim: 1000
             },
             {
-                outputDim: 192,
-                numHeads: 4,
-                headDim: 128,
-                headFeatures: 64,
+                outputDim: 125,
+                numHeads: 8,
+                headDim: 23,
+                headFeatures: 10,
                 queriesPerHead: 2,
-                mlpDim: 768
+                mlpDim: 1400
+            },
+            {
+                outputDim: 150,
+                numHeads: 8,
+                headDim: 23,
+                headFeatures: 10,
+                queriesPerHead: 2,
+                mlpDim: 1600
+            },
+            {
+                outputDim: 175,
+                numHeads: 8,
+                headDim: 23,
+                headFeatures: 10,
+                queriesPerHead: 2,
+                mlpDim: 1800
             },
             {
                 outputDim: this.embeddings,
                 numHeads: 8,
-                headDim: 256,
-                headFeatures: 96,
+                headDim: 23,
+                headFeatures: 10,
                 queriesPerHead: 2,
-                mlpDim: 1024
+                mlpDim: 2000
             }
         ]
-        this.reductionSteps = config.reductionSteps || 6
+        this.reductionSteps = config.reductionSteps || 4
+        this.ALiBiLength = 1024
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.001
         this.cosineSteps = 1024
-        this.ALiBiLength = 1024
     }
 
     defineTokenizer() {

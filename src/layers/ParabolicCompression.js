@@ -14,8 +14,8 @@ export default class ParabolicCompression extends LayerBase {
         const inputDim = inputShape[inputShape.length - 1]
         this.stepSize = (inputDim - this.outputDim) / this.numSteps
 
-        if (inputDim % this.stepSize !== 0) {
-            throw `inputDim (${inputDim}) must be a multiple of stepSize (${this.stepSize})!`
+        if ((inputDim - this.outputDim) % this.stepSize !== 0) {
+            throw `inputDim (${inputDim}) minus outputDim (${this.outputDim}) must be a multiple of stepSize (${this.stepSize})!`
         }
 
         this.alpha = []

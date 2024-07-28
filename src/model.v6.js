@@ -44,7 +44,7 @@ export default class OpenDoorExperiment extends ODE {
                     heads: this.heads,
                     headDim: this.headDim,
                     queriesPerHead: this.queriesPerHead,
-                    useALiBi: true
+                    ALiBiLength: 1024
                 })
                 .apply(outputs)
 
