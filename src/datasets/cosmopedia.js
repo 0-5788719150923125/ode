@@ -47,10 +47,10 @@ export default class CosmopediaDataset {
         const allShards = shardIndices.slice(0, -1)
         const shard = randomValueFromArray(allShards)
         const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
-        this.url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
+        const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
         console.log('fetching shard:', `${shard}/${numShards}`, 'slice:', slice)
         try {
-            await this.streamDataIntoTable()
+            await this.streamDataIntoTable(url)
         } catch (err) {
             console.error(err)
             console.warn(
@@ -60,8 +60,8 @@ export default class CosmopediaDataset {
         this.loadSchema(this.schemaTemplate)
     }
 
-    async streamDataIntoTable() {
-        const stream = await readParquetStream(this.url)
+    async streamDataIntoTable(url) {
+        const stream = await readParquetStream(url)
 
         // Read Parquet buffer to Arrow Table
         const batches = []

@@ -11,44 +11,28 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.embeddings = config.embeddings || 200
         this.layers = [
             {
-                outputDim: 100,
-                numHeads: 8,
-                headDim: 23,
-                headFeatures: 10,
+                outputDim: this.units,
+                numHeads: 3,
+                headDim: 600,
+                headFeatures: 100,
+                queriesPerHead: 2,
+                mlpDim: 800
+            },
+            {
+                outputDim: 150,
+                numHeads: 3,
+                headDim: 600,
+                headFeatures: 100,
                 queriesPerHead: 2,
                 mlpDim: 1000
             },
             {
-                outputDim: 125,
-                numHeads: 8,
-                headDim: 23,
-                headFeatures: 10,
-                queriesPerHead: 2,
-                mlpDim: 1400
-            },
-            {
-                outputDim: 150,
-                numHeads: 8,
-                headDim: 23,
-                headFeatures: 10,
-                queriesPerHead: 2,
-                mlpDim: 1600
-            },
-            {
-                outputDim: 175,
-                numHeads: 8,
-                headDim: 23,
-                headFeatures: 10,
-                queriesPerHead: 2,
-                mlpDim: 1800
-            },
-            {
                 outputDim: this.embeddings,
-                numHeads: 8,
-                headDim: 23,
-                headFeatures: 10,
+                numHeads: 3,
+                headDim: 600,
+                headFeatures: 100,
                 queriesPerHead: 2,
-                mlpDim: 2000
+                mlpDim: 1200
             }
         ]
         this.reductionSteps = config.reductionSteps || 4
@@ -61,7 +45,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-balanced-v1'
+            model: 'englishcode-8000-clean-v1'
         })
     }
 
