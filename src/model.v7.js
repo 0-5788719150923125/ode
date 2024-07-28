@@ -76,8 +76,8 @@ export default class OmniscientDeterministicEngine extends ODE {
                     headDim: layer.headDim,
                     headFeatures: layer.headFeatures,
                     queriesPerHead: layer.queriesPerHead,
-                    ALiBiLength: this.ALiBiLength,
-                    outputDim: layer.outputDim
+                    outputDim: layer.outputDim,
+                    ALiBiLength: this.ALiBiLength
                 })
                 .apply(outputs)
 
