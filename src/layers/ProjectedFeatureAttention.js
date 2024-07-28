@@ -92,7 +92,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )
@@ -110,7 +110,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `keyProjectionKernel_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )
@@ -128,7 +128,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueProjectionKernel_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    tf.initializers.glorotUniform(),
                     tf.regularizers.l2({ l2: 0.01 })
                 )
             )

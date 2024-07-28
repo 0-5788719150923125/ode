@@ -26,7 +26,7 @@ export default class ParabolicCompression extends LayerBase {
             `projectionMatrix`,
             [inputDim, inputDim],
             'float32',
-            tf.initializers.orthogonal({ gain: 1.0 })
+            tf.initializers.glorotUniform()
         )
 
         for (let i = 0; i < this.numSteps; i++) {

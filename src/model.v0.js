@@ -135,7 +135,8 @@ export default class ModelBase {
             tensors,
             step: this.step,
             batch: this.batch,
-            loss: this.loss
+            loss: this.loss,
+            optimizer: this.model.optimizer.constructor.name
         }
     }
 

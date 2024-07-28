@@ -9,17 +9,38 @@ export default class OmniscientDeterministicEngine extends ODE {
         super(config)
         this.units = config.units || 64
         this.embeddings = config.embeddings || 256
-        this.layers = [128, 192, this.embeddings]
-        this.numHeads = config.numHeads || 8
-        this.queriesPerHead = config.queriesPerHead | 2
-        this.headDim = config.headDim || 128
-        this.headFeatures = config.headFeatures || 64
-        this.mlpDim = config.mlpDim || 768
+        this.layers = [
+            {
+                outputDim: 128,
+                numHeads: 3,
+                headDim: 64,
+                headFeatures: 23,
+                queriesPerHead: 1,
+                mlpDim: 512
+            },
+            {
+                outputDim: 192,
+                numHeads: 4,
+                headDim: 128,
+                headFeatures: 64,
+                queriesPerHead: 2,
+                mlpDim: 768
+            },
+            {
+                outputDim: this.embeddings,
+                numHeads: 8,
+                headDim: 256,
+                headFeatures: 96,
+                queriesPerHead: 2,
+                mlpDim: 1024
+            }
+        ]
+        this.reductionSteps = config.reductionSteps || 6
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.001
         this.cosineSteps = 1024
-        this.ALiBiLength = 4096
+        this.ALiBiLength = 1024
     }
 
     defineTokenizer() {
@@ -42,26 +63,29 @@ export default class OmniscientDeterministicEngine extends ODE {
         let outputs = embeddings.apply(inputs)
 
         outputs = this.ode.layers
-            .ParabolicCompression({ numSteps: 3, outputDim: this.units })
+            .ParabolicCompression({
+                numSteps: this.reductionSteps,
+                outputDim: this.units
+            })
             .apply(outputs)
 
-        for (const units of this.layers) {
+        for (const layer of this.layers) {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
-                    numHeads: this.numHeads,
-                    headDim: this.headDim,
-                    headFeatures: this.headFeatures,
-                    queriesPerHead: this.queriesPerHead,
+                    numHeads: layer.numHeads,
+                    headDim: layer.headDim,
+                    headFeatures: layer.headFeatures,
+                    queriesPerHead: layer.queriesPerHead,
                     ALiBiLength: this.ALiBiLength,
-                    outputDim: units
+                    outputDim: layer.outputDim
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    innerDim: this.mlpDim,
+                    innerDim: layer.mlpDim,
                     activation: 'mish',
-                    gateActivation: 'sigmoid'
+                    gateActivation: 'swish'
                 })
                 .apply(outputs)
         }

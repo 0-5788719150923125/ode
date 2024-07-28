@@ -33,23 +33,16 @@ function rmsNorm(x) {
 }
 
 function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
-    if (!this.alibiSlopes) {
-        const slopesPerHead = tf.pow(
-            tf.scalar(2),
-            tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
-        )
-        const slopesPerPos = tf
-            .range(0, maxSeqLen)
-            .cast('float32')
-            .expandDims(0)
-        this.alibiSlopes = tf.keep(
-            slopesPerHead.expandDims(1).mul(slopesPerPos)
-        )
-        console.log('ALiBi slopes:')
-        this.alibiSlopes.print()
-    }
+    const slopesPerHead = tf.pow(
+        tf.scalar(2),
+        tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
+    )
+    const slopesPerPos = tf.range(0, maxSeqLen).cast('float32').expandDims(0)
+    const alibiSlopes = slopesPerHead.expandDims(1).mul(slopesPerPos)
 
-    const alibiScores = this.alibiSlopes
+    // alibiSlopes.print()
+
+    const alibiScores = alibiSlopes
         .slice([currentHead, 0], [1, seqLen])
         .expandDims(0)
 
