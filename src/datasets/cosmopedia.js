@@ -1,6 +1,10 @@
 import { Table } from 'apache-arrow'
-import { parseRecordBatch } from 'arrow-js-ffi'
-import initWasm, { wasmMemory, readParquetStream } from 'parquet-wasm'
+import { parseRecordBatch, parseTable } from 'arrow-js-ffi'
+import initWasm, {
+    wasmMemory,
+    readParquet,
+    readParquetStream
+} from 'parquet-wasm'
 import {
     generatePaddedNumbers,
     randomBetween,
@@ -22,7 +26,7 @@ export default class CosmopediaDataset {
         ]
         this.split = 'train'
         this.delimiter = '\n\n'
-        this.eosToken = config?.eosToken || '<|eos|>'
+        this.eosToken = config?.eosToken || ''
         this.batchesBeforeRefresh = config?.batchesBeforeRefresh || 10000
         this.batches = 0
         this.cacheSize = 20000
@@ -61,22 +65,32 @@ export default class CosmopediaDataset {
     }
 
     async streamDataIntoTable(url) {
-        const stream = await readParquetStream(url)
+        const resp = await fetch(url)
+        const buffer = new Uint8Array(await resp.arrayBuffer())
+        const ffiTable = readParquet(buffer).intoFFI()
 
-        // Read Parquet buffer to Arrow Table
-        const batches = []
-        for await (const wasmRecordBatch of stream) {
-            const ffiRecordBatch = wasmRecordBatch.intoFFI()
-            const recordBatch = parseRecordBatch(
-                wasmMemory().buffer,
-                ffiRecordBatch.arrayAddr(),
-                ffiRecordBatch.schemaAddr()
-            )
-            batches.push(recordBatch)
-        }
+        this.table = parseTable(
+            wasmMemory().buffer,
+            ffiTable.arrayAddrs(),
+            ffiTable.schemaAddr()
+        )
 
-        // Convert to JS Arrow Table
-        this.table = new Table(batches)
+        ffiTable.drop()
+
+        // const stream = await readParquetStream(url)
+        // // Read Parquet buffer to Arrow Table
+        // const batches = []
+        // for await (const wasmRecordBatch of stream) {
+        //     const ffiRecordBatch = wasmRecordBatch.intoFFI()
+        //     const recordBatch = parseRecordBatch(
+        //         wasmMemory().buffer,
+        //         ffiRecordBatch.arrayAddr(),
+        //         ffiRecordBatch.schemaAddr()
+        //     )
+        //     batches.push(recordBatch)
+        // }
+        // // Convert to JS Arrow Table
+        // this.table = new Table(batches)
     }
 
     getWeightedRandomSlice(slices) {

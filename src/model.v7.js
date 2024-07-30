@@ -8,31 +8,31 @@ export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
         this.units = config.units || 100
-        this.embeddings = config.embeddings || 200
+        this.embeddings = config.embeddings || 300
         this.layers = [
             {
                 outputDim: this.units,
                 numHeads: 3,
-                headDim: 600,
+                headDim: 300,
+                headFeatures: 100,
+                queriesPerHead: 2,
+                mlpDim: 700
+            },
+            {
+                outputDim: 200,
+                numHeads: 3,
+                headDim: 300,
                 headFeatures: 100,
                 queriesPerHead: 2,
                 mlpDim: 800
             },
             {
-                outputDim: 150,
-                numHeads: 3,
-                headDim: 600,
-                headFeatures: 100,
-                queriesPerHead: 2,
-                mlpDim: 1000
-            },
-            {
                 outputDim: this.embeddings,
                 numHeads: 3,
-                headDim: 600,
+                headDim: 300,
                 headFeatures: 100,
                 queriesPerHead: 2,
-                mlpDim: 1200
+                mlpDim: 900
             }
         ]
         this.reductionSteps = config.reductionSteps || 4
