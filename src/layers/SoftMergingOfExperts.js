@@ -19,29 +19,25 @@ export default class SoftMergingOfExperts extends LayerBase {
             'routerHiddenKernel',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.routerHiddenBias = this.addWeight(
             'routerHiddenBias',
             [this.hiddenDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.routerOutputKernel = this.addWeight(
             'routerOutputKernel',
             [this.hiddenDim, this.numExperts - 1],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.routerOutputBias = this.addWeight(
             'routerOutputBias',
             [this.numExperts - 1],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
 
         for (const expert of this.experts) {

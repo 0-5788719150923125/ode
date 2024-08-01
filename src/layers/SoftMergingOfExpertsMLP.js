@@ -20,8 +20,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             'routerHiddenKernel',
             [inputDim, this.routerDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.routerHiddenBias = this.addWeight(
             'routerHiddenBias',
@@ -33,8 +32,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             'routerOutputKernel',
             [this.routerDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.routerOutputBias = this.addWeight(
             'routerOutputBias',
@@ -52,8 +50,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `inProjKernel-${i}`,
                     [inputDim, this.expertDim],
                     'float32',
-                    tf.initializers.glorotNormal(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotNormal()
                 )
             )
             this.outProjKernels.push(
@@ -61,8 +58,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `outProjKernel-${i}`,
                     [this.expertDim, inputDim],
                     'float32',
-                    tf.initializers.glorotNormal(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotNormal()
                 )
             )
         }

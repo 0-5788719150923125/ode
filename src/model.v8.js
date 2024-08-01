@@ -16,7 +16,7 @@ export default class OpportunisticDialogueEngine extends ODE {
         this.headFeatures = config.headFeatures || 64
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
-        this.weightDecay = 0.01
+        this.weightDecay = 0.001
         this.cosineSteps = 4096
         this.ALiBiLength = 1024
     }

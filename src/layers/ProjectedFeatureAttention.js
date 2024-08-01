@@ -36,8 +36,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 'inProjKernel',
                 [inputDim, outputDim],
                 'float32',
-                tf.initializers.glorotUniform(),
-                tf.regularizers.l2({ l2: 0.01 })
+                tf.initializers.glorotUniform()
             )
             if (this.useBias)
                 this.inProjBias = this.addWeight(
@@ -54,8 +53,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `queryKernel_${i}`,
                     [inputDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             if (this.useBias)
@@ -75,8 +73,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `keyKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             if (this.useBias)
@@ -93,8 +90,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             if (this.useBias)
@@ -111,8 +107,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `keyProjectionKernel_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             if (this.useBias)
@@ -129,8 +124,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueProjectionKernel_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             if (this.useBias)
@@ -151,8 +145,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 outputDim
             ],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         if (this.useBias)
             this.outputBias = this.addWeight(

@@ -18,30 +18,26 @@ export default class VariableDimensionMLP extends LayerBase {
             'inProjKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.inProjBias = this.addWeight(
             'inProjBias',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
 
         this.outProjKernel = this.addWeight(
             'outProjKernel',
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.outProjBias = this.addWeight(
             'outProjBias',
             [this.units],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
 
         // Residual connections/skip connections are critical here

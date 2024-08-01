@@ -14,22 +14,19 @@ export default class SelfAttention extends LayerBase {
             `queryKernel`,
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             `keyKernel`,
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             `valueKernel`,
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
     }
 

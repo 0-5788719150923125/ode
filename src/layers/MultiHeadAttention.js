@@ -25,8 +25,7 @@ export default class MultiHeadAttention extends LayerBase {
                     `queryKernel_${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             this.queryBiases.push(
@@ -42,8 +41,7 @@ export default class MultiHeadAttention extends LayerBase {
                     `keyKernel_${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             this.keyBiases.push(
@@ -59,8 +57,7 @@ export default class MultiHeadAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             this.valueBiases.push(
@@ -77,8 +74,7 @@ export default class MultiHeadAttention extends LayerBase {
             'outputKernel',
             [this.projection * this.heads, units],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.outputBias = this.addWeight(
             'outputBias',

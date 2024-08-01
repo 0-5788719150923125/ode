@@ -20,8 +20,7 @@ export default class MultiQueryAttention extends LayerBase {
                     `queryKernel${i}`,
                     [units, this.projection],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             this.queryBiases.push(
@@ -37,8 +36,7 @@ export default class MultiQueryAttention extends LayerBase {
             'keyKernel',
             [units, this.projection],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.keyBias = this.addWeight(
             `keyBias`,
@@ -50,8 +48,7 @@ export default class MultiQueryAttention extends LayerBase {
             'valueKernel',
             [units, units],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.valueBias = this.addWeight(
             `valueBias`,
@@ -63,8 +60,7 @@ export default class MultiQueryAttention extends LayerBase {
             'outputKernel',
             [units * this.queries, units],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.outputBias = this.addWeight(
             `outputBias`,

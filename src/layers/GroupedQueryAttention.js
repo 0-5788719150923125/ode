@@ -29,8 +29,7 @@ export default class GroupedQueryAttention extends LayerBase {
                         `queryKernel-${i}-${j}`,
                         [units, this.headDim],
                         'float32',
-                        tf.initializers.glorotUniform(),
-                        tf.regularizers.l2({ l2: 0.01 })
+                        tf.initializers.glorotUniform()
                     )
                 )
                 queryBiases.push(
@@ -50,8 +49,7 @@ export default class GroupedQueryAttention extends LayerBase {
                     `keyKernel-${i}`,
                     [units, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             this.keyBiases.push(
@@ -67,8 +65,7 @@ export default class GroupedQueryAttention extends LayerBase {
                     `valueKernel-${i}`,
                     [units, units],
                     'float32',
-                    tf.initializers.glorotUniform(),
-                    tf.regularizers.l2({ l2: 0.01 })
+                    tf.initializers.glorotUniform()
                 )
             )
             this.valueBiases.push(
@@ -85,8 +82,7 @@ export default class GroupedQueryAttention extends LayerBase {
             'outputKernel',
             [units * this.heads * this.queriesPerHead, units],
             'float32',
-            tf.initializers.glorotUniform(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotUniform()
         )
         this.outputBias = this.addWeight(
             `outputBias`,

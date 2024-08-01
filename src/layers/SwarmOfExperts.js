@@ -18,29 +18,25 @@ export default class SwarmOfExperts extends LayerBase {
             'gatingHidden',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.gatingHiddenBias = this.addWeight(
             'gatingHiddenBias',
             [this.hiddenDim],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
         this.gatingKernel = this.addWeight(
             'gatingKernel',
             [this.hiddenDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.glorotNormal()
         )
         this.gatingBias = this.addWeight(
             'gatingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros(),
-            tf.regularizers.l2({ l2: 0.01 })
+            tf.initializers.zeros()
         )
     }
 
