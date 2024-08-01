@@ -7,27 +7,27 @@ import LayerBase from './base.js'
 export default class ChunkedSelfAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.units = config.units || 128
         this.projection = config.projection || 256
         this.chunkSize = config.chunkSize || 64
     }
 
     build(inputShape) {
+        const inputDim = inputShape[inputShape.length - 1]
         this.queryKernel = this.addWeight(
             'queryKernel',
-            [inputShape[inputShape.length - 1], this.projection],
+            [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             'keyKernel',
-            [inputShape[inputShape.length - 1], this.projection],
+            [inputDim, this.projection],
             'float32',
             tf.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
-            [inputShape[inputShape.length - 1], this.units],
+            [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -90,7 +90,6 @@ export default class ChunkedSelfAttention extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            units: this.units,
             projection: this.projection,
             chunkSize: this.chunkSize
         }

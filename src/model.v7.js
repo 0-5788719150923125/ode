@@ -40,7 +40,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.learningRate = 0.0001
         this.minLearningRate = 0.00000001
         this.weightDecay = 0.001
-        this.cosineSteps = 1024
+        this.cosineSteps = 4096
     }
 
     defineTokenizer() {

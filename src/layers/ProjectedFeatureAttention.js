@@ -16,6 +16,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
         const outputDim = this.outputDim || inputDim
+        this.outputDim = outputDim
 
         this.queryKernels = []
         this.keyKernels = []
