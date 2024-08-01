@@ -1,10 +1,5 @@
-import { Table } from 'apache-arrow'
-import { parseRecordBatch, parseTable } from 'arrow-js-ffi'
-import initWasm, {
-    wasmMemory,
-    readParquet,
-    readParquetStream
-} from 'parquet-wasm'
+import { parseTable } from 'arrow-js-ffi'
+import initWasm, { wasmMemory, readParquet } from 'parquet-wasm'
 import {
     generatePaddedNumbers,
     randomBetween,
