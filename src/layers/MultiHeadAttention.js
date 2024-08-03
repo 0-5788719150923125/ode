@@ -4,8 +4,9 @@ import LayerBase from './base.js'
 export default class MultiHeadAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.heads = config.heads || 8
-        this.projection = config.projection || 64
+        this.numHeads = config.numHeads || 8
+        this.headDim = config.headDim || 256
+        this.queriesPerHead = config.queriesPerHead || 2
         this.dropout = config.dropout || 0
     }
 
@@ -19,51 +20,58 @@ export default class MultiHeadAttention extends LayerBase {
         this.valueKernels = []
         this.valueBiases = []
 
-        for (let i = 0; i < this.heads; i++) {
-            this.queryKernels.push(
-                this.addWeight(
-                    `queryKernel_${i}`,
-                    [units, this.projection],
-                    'float32',
-                    tf.initializers.glorotUniform()
+        for (let i = 0; i < this.numHeads; i++) {
+            const queryKernels = []
+            const queryBiases = []
+            for (let j = 0; j < this.queriesPerHead; j++) {
+                queryKernels.push(
+                    this.addWeight(
+                        `queryKernel-${i}-${j}`,
+                        [units, this.headDim],
+                        'float32',
+                        tf.initializers.glorotUniform()
+                    )
                 )
-            )
-            this.queryBiases.push(
-                this.addWeight(
-                    `queryBias_${i}`,
-                    [this.projection],
-                    'float32',
-                    tf.initializers.zeros()
+                queryBiases.push(
+                    this.addWeight(
+                        `queryBias-${i}-${j}`,
+                        [this.headDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
                 )
-            )
+            }
+            this.queryKernels.push(queryKernels)
+            this.queryBiases.push(queryBiases)
+
             this.keyKernels.push(
                 this.addWeight(
-                    `keyKernel_${i}`,
-                    [units, this.projection],
+                    `keyKernel-${i}`,
+                    [units, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
             )
             this.keyBiases.push(
                 this.addWeight(
-                    `keyBias_${i}`,
-                    [this.projection],
+                    `keyBiases-${i}`,
+                    [this.headDim],
                     'float32',
                     tf.initializers.zeros()
                 )
             )
             this.valueKernels.push(
                 this.addWeight(
-                    `valueKernel_${i}`,
-                    [units, this.projection],
+                    `valueKernel-${i}`,
+                    [units, units],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
             )
             this.valueBiases.push(
                 this.addWeight(
-                    `valueBias_${i}`,
-                    [this.projection],
+                    `valueBiases-${i}`,
+                    [units],
                     'float32',
                     tf.initializers.zeros()
                 )
@@ -72,36 +80,31 @@ export default class MultiHeadAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [this.projection * this.heads, units],
+            [units * this.numHeads * this.queriesPerHead, units],
             'float32',
             tf.initializers.glorotUniform()
         )
         this.outputBias = this.addWeight(
-            'outputBias',
+            `outputBias`,
             [units],
             'float32',
             tf.initializers.zeros()
         )
-        this.residual = customLayers.ResidualConnection()
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
+            const seqLen = inputs.shape[1]
+
+            const attentionOutputs = []
 
             const mask = tf.linalg
                 .bandPart(tf.ones([inputs.shape[1], inputs.shape[1]]), 0, -1)
                 .sub(tf.eye(inputs.shape[1]))
                 .mul(tf.scalar(-1e9))
 
-            const attentionOutputs = []
-
-            for (let i = 0; i < this.heads; i++) {
-                const Q = this.ops.applyDense(
-                    inputs,
-                    this.queryKernels[i].read(),
-                    this.queryBiases[i].read()
-                )
+            for (let i = 0; i < this.numHeads; i++) {
                 const K = this.ops.applyDense(
                     inputs,
                     this.keyKernels[i].read(),
@@ -113,20 +116,38 @@ export default class MultiHeadAttention extends LayerBase {
                     this.valueBiases[i].read()
                 )
 
-                const scores = tf
-                    .matMul(Q, K, false, true)
-                    .div(tf.scalar(Math.sqrt(this.projection)))
-                    .add(mask)
+                for (let j = 0; j < this.queriesPerHead; j++) {
+                    const Q = this.ops.applyDense(
+                        inputs,
+                        this.queryKernels[i][j].read(),
+                        this.queryBiases[i][j].read()
+                    )
 
-                let weights = scores.softmax()
+                    let scores = tf
+                        .matMul(Q, K, false, true)
+                        .div(tf.scalar(Math.sqrt(this.headDim)))
 
-                weights = kwargs['training']
-                    ? tf.dropout(weights, this.dropout)
-                    : weights
+                    if (this.ALiBiLength) {
+                        scores = this.ops.applyALiBi(
+                            scores,
+                            this.numHeads,
+                            i,
+                            seqLen,
+                            this.ALiBiLength
+                        )
+                    }
 
-                const output = tf.matMul(weights, V)
+                    scores = scores.add(mask)
 
-                attentionOutputs.push(output)
+                    let weights = scores.softmax()
+
+                    weights = kwargs['training']
+                        ? tf.dropout(weights, this.dropout)
+                        : weights
+
+                    const output = tf.matMul(weights, V)
+                    attentionOutputs.push(output)
+                }
             }
 
             const concatenatedOutputs = tf.concat(attentionOutputs, -1)
@@ -151,8 +172,9 @@ export default class MultiHeadAttention extends LayerBase {
     getConfig() {
         return {
             ...super.getConfig(),
-            heads: this.heads,
-            projection: this.projection,
+            headDim: this.headDim,
+            numHeads: this.numHeads,
+            queriesPerHead: this.queriesPerHead,
             dropout: this.dropout
         }
     }

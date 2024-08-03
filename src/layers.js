@@ -15,7 +15,6 @@ import FastAssociativeMemory from './layers/FastAssociativeMemory.js'
 import FourierFeaturePositionalEncoding from './layers/FourierFeaturePositionalEncoding.js'
 import GPT2Attention from './layers/GPT2Attention.js'
 import GatedLinearMLP from './layers/GatedLinearMLP.js'
-import GroupedQueryAttention from './layers/GroupedQueryAttention.js'
 import IncrementalPowerIterationPCA from './layers/IncrementalPowerIterationPCA.js'
 import IndependentComponentAnalysis from './layers/IndependentComponentAnalysis.js'
 import LambdaLayer from './layers/LambdaLayer.js'
@@ -24,7 +23,6 @@ import MixtureOfDepths from './layers/MixtureOfDepths.js'
 import MixtureOfExperts from './layers/MixtureOfExperts.js'
 import MultiHeadAttention from './layers/MultiHeadAttention.js'
 import MultiLayerPerceptron from './layers/MultiLayerPerceptron.js'
-import MultiQueryAttention from './layers/MultiQueryAttention.js'
 import ParameterEfficientExpertRetrieval from './layers/ParameterEfficientExpertRetrieval.js'
 import ProjectedFeatureAttention from './layers/ProjectedFeatureAttention.js'
 import QSparseMLP from './layers/QSparseMLP.js'
@@ -121,10 +119,6 @@ const customLayersConfig = {
         constructor: GPT2Attention,
         prefix: 'attn'
     },
-    GroupedQueryAttention: {
-        constructor: GroupedQueryAttention,
-        prefix: 'attn'
-    },
     gru: { constructor: tf.layers.gru, prefix: 'gru' },
     IncrementalPowerIterationPCA: {
         constructor: IncrementalPowerIterationPCA,
@@ -158,10 +152,6 @@ const customLayersConfig = {
     },
     MultiLayerPerceptron: { constructor: MultiLayerPerceptron, prefix: 'mlp' },
     multiply: { constructor: tf.layers.multiply, prefix: 'mul' },
-    MultiQueryAttention: {
-        constructor: MultiQueryAttention,
-        prefix: 'attn'
-    },
     ParabolicCompression: { constructor: ParabolicCompression, prefix: 'op' },
     ParameterEfficientExpertRetrieval: {
         constructor: ParameterEfficientExpertRetrieval,
