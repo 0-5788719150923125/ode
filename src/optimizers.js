@@ -80,7 +80,7 @@ class Lion extends tf.Optimizer {
     applyGradients(variableGradients) {
         Object.keys(variableGradients).forEach((name) => {
             const variable = this.ENGINE.registeredVariables[name]
-            const gradient = variableGradients[name]
+            let gradient = variableGradients[name]
 
             if (!this.STATE[name]) {
                 this.STATE[name] = {
@@ -96,7 +96,7 @@ class Lion extends tf.Optimizer {
             tf.tidy(() => {
                 if (this.useGc) {
                     const mean = gradient.mean()
-                    gradient.sub(mean)
+                    gradient = gradient.sub(mean)
                 }
 
                 if (
@@ -112,7 +112,7 @@ class Lion extends tf.Optimizer {
                             )
                         )
                     } else if (!this.fixedDecay) {
-                        gradient.add(variable.mul(this.weightDecay))
+                        gradient = gradient.add(variable.mul(this.weightDecay))
                     }
                 }
 
@@ -447,7 +447,7 @@ class Signum extends tf.Optimizer {
     applyGradients(variableGradients) {
         Object.keys(variableGradients).forEach((name) => {
             const variable = this.ENGINE.registeredVariables[name]
-            const gradient = variableGradients[name]
+            let gradient = variableGradients[name]
 
             tf.tidy(() => {
                 if (
@@ -463,7 +463,7 @@ class Signum extends tf.Optimizer {
                             )
                         )
                     } else {
-                        gradient.add(variable.mul(this.weightDecay))
+                        gradient = gradient.add(variable.mul(this.weightDecay))
                     }
                 }
 

@@ -8,7 +8,7 @@ export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 4
-        this.heads = config.heads || 8
+        this.numHeads = config.heads || 8
         this.units = config.units || 128
         this.dropout = config.dropout || 0.1
         this.epsilon = config.epsilon || 1e-5
@@ -67,7 +67,7 @@ export default class OriginalDecoderEncoder extends ODE {
                 .GPT2Attention({
                     blockSize: this.contextLength,
                     units: this.units,
-                    heads: this.heads,
+                    heads: this.numHeads,
                     dropout: this.dropout,
                     epsilon: this.epsilon,
                     bias: false
@@ -78,7 +78,7 @@ export default class OriginalDecoderEncoder extends ODE {
                 .MultiLayerPerceptron({
                     units: this.units,
                     innerDim: this.innerDim,
-                    heads: this.heads,
+                    heads: this.numHeads,
                     dropout: this.dropout,
                     epsilon: this.epsilon,
                     activation: 'gelu'

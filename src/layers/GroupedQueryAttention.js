@@ -4,7 +4,7 @@ import LayerBase from './base.js'
 export default class GroupedQueryAttention extends LayerBase {
     constructor(config) {
         super(config)
-        this.heads = config.heads || 8
+        this.numHeads = config.numHeads || 8
         this.headDim = config.headDim || 256
         this.queriesPerHead = config.queriesPerHead || 2
         this.dropout = config.dropout || 0
@@ -20,7 +20,7 @@ export default class GroupedQueryAttention extends LayerBase {
         this.valueKernels = []
         this.valueBiases = []
 
-        for (let i = 0; i < this.heads; i++) {
+        for (let i = 0; i < this.numHeads; i++) {
             const queryKernels = []
             const queryBiases = []
             for (let j = 0; j < this.queriesPerHead; j++) {
@@ -80,7 +80,7 @@ export default class GroupedQueryAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [units * this.heads * this.queriesPerHead, units],
+            [units * this.numHeads * this.queriesPerHead, units],
             'float32',
             tf.initializers.glorotUniform()
         )
@@ -104,7 +104,7 @@ export default class GroupedQueryAttention extends LayerBase {
                 .sub(tf.eye(inputs.shape[1]))
                 .mul(tf.scalar(-1e9))
 
-            for (let i = 0; i < this.heads; i++) {
+            for (let i = 0; i < this.numHeads; i++) {
                 const K = this.ops.applyDense(
                     inputs,
                     this.keyKernels[i].read(),
@@ -130,7 +130,7 @@ export default class GroupedQueryAttention extends LayerBase {
                     if (this.ALiBiLength) {
                         scores = this.ops.applyALiBi(
                             scores,
-                            this.heads,
+                            this.numHeads,
                             i,
                             seqLen,
                             this.ALiBiLength
@@ -173,7 +173,7 @@ export default class GroupedQueryAttention extends LayerBase {
         return {
             ...super.getConfig(),
             headDim: this.headDim,
-            heads: this.heads,
+            numHeads: this.numHeads,
             queriesPerHead: this.queriesPerHead,
             dropout: this.dropout
         }

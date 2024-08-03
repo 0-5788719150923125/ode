@@ -22,6 +22,7 @@ const url =
             ffiRecordBatch.schemaAddr()
         )
         batches.push(recordBatch)
+        ffiRecordBatch.free()
     }
 
     const table = new Table(batches)

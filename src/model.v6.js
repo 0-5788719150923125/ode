@@ -7,21 +7,20 @@ import ODE from './model.v2.js'
 export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 6
-        this.units = config.units || 128
-        this.heads = config.heads || 4
+        this.layers = config.layers || 4
+        this.units = config.units || 256
+        this.numHeads = config.heads || 6
         this.queriesPerHead = config.queriesPerHead || 2
-        this.headDim = config.headDim || 256
-        this.mlpDim = config.mlpDim || 512
-        this.learningRate = 0.00022
-        this.minLearningRate = 0.00000001
-        this.weightDecay = 0.01
-        this.steps = 1024
+        this.headDim = config.headDim || 64
+        this.mlpDim = config.mlpDim || 1024
+        this.learningRate = 0.0001
+        this.weightDecay = 0.00001
+        this.ALiBiLength = 1024
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-clean-v1'
+            model: 'englishcode-8000-balanced-v1'
         })
     }
 
@@ -41,16 +40,17 @@ export default class OpenDoorExperiment extends ODE {
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .GroupedQueryAttention({
-                    heads: this.heads,
+                    numHeads: this.numHeads,
                     headDim: this.headDim,
                     queriesPerHead: this.queriesPerHead,
-                    ALiBiLength: 1024
+                    ALiBiLength: this.ALiBiLength
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
                     activation: 'mish',
+                    gateActivation: 'swish',
                     innerDim: this.mlpDim
                 })
                 .apply(outputs)
@@ -63,11 +63,7 @@ export default class OpenDoorExperiment extends ODE {
 
     defineSchedulers() {
         this.schedulers = [
-            this.ode.schedulers.cosineWithRestartsScheduler(
-                this.minLearningRate,
-                this.learningRate,
-                this.steps
-            )
+            this.ode.schedulers.constantScheduler(this.learningRate)
         ]
     }
 
@@ -75,7 +71,8 @@ export default class OpenDoorExperiment extends ODE {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: this.weightDecay
+                weightDecay: this.weightDecay,
+                useGc: true
             })
         ]
     }
