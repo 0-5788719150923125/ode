@@ -71,21 +71,6 @@ export default class CosmopediaDataset {
         )
 
         ffiTable.drop()
-
-        // const stream = await readParquetStream(url)
-        // // Read Parquet buffer to Arrow Table
-        // const batches = []
-        // for await (const wasmRecordBatch of stream) {
-        //     const ffiRecordBatch = wasmRecordBatch.intoFFI()
-        //     const recordBatch = parseRecordBatch(
-        //         wasmMemory().buffer,
-        //         ffiRecordBatch.arrayAddr(),
-        //         ffiRecordBatch.schemaAddr()
-        //     )
-        //     batches.push(recordBatch)
-        // }
-        // // Convert to JS Arrow Table
-        // this.table = new Table(batches)
     }
 
     getWeightedRandomSlice(slices) {

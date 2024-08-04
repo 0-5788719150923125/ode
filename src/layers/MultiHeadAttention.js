@@ -6,7 +6,7 @@ export default class MultiHeadAttention extends LayerBase {
         super(config)
         this.numHeads = config.numHeads || 8
         this.headDim = config.headDim || 256
-        this.queriesPerHead = config.queriesPerHead || 2
+        this.queriesPerHead = config.queriesPerHead || 1
         this.dropout = config.dropout || 0
     }
 
@@ -32,14 +32,16 @@ export default class MultiHeadAttention extends LayerBase {
                         tf.initializers.glorotUniform()
                     )
                 )
-                queryBiases.push(
-                    this.addWeight(
-                        `queryBias-${i}-${j}`,
-                        [this.headDim],
-                        'float32',
-                        tf.initializers.zeros()
+                if (this.useBias) {
+                    queryBiases.push(
+                        this.addWeight(
+                            `queryBias-${i}-${j}`,
+                            [this.headDim],
+                            'float32',
+                            tf.initializers.zeros()
+                        )
                     )
-                )
+                }
             }
             this.queryKernels.push(queryKernels)
             this.queryBiases.push(queryBiases)
@@ -52,14 +54,7 @@ export default class MultiHeadAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
-            this.keyBiases.push(
-                this.addWeight(
-                    `keyBiases-${i}`,
-                    [this.headDim],
-                    'float32',
-                    tf.initializers.zeros()
-                )
-            )
+
             this.valueKernels.push(
                 this.addWeight(
                     `valueKernel-${i}`,
@@ -68,14 +63,25 @@ export default class MultiHeadAttention extends LayerBase {
                     tf.initializers.glorotUniform()
                 )
             )
-            this.valueBiases.push(
-                this.addWeight(
-                    `valueBiases-${i}`,
-                    [units],
-                    'float32',
-                    tf.initializers.zeros()
+
+            if (this.useBias) {
+                this.keyBiases.push(
+                    this.addWeight(
+                        `keyBiases-${i}`,
+                        [this.headDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
                 )
-            )
+                this.valueBiases.push(
+                    this.addWeight(
+                        `valueBiases-${i}`,
+                        [units],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
+            }
         }
 
         this.outputKernel = this.addWeight(
@@ -84,12 +90,14 @@ export default class MultiHeadAttention extends LayerBase {
             'float32',
             tf.initializers.glorotUniform()
         )
-        this.outputBias = this.addWeight(
-            `outputBias`,
-            [units],
-            'float32',
-            tf.initializers.zeros()
-        )
+        if (this.useBias) {
+            this.outputBias = this.addWeight(
+                `outputBias`,
+                [units],
+                'float32',
+                tf.initializers.zeros()
+            )
+        }
     }
 
     call(inputs, kwargs) {
@@ -108,19 +116,21 @@ export default class MultiHeadAttention extends LayerBase {
                 const K = this.ops.applyDense(
                     inputs,
                     this.keyKernels[i].read(),
-                    this.keyBiases[i].read()
+                    this.keyBiases[i] ? this.keyBiases[i].read() : null
                 )
                 const V = this.ops.applyDense(
                     inputs,
                     this.valueKernels[i].read(),
-                    this.valueBiases[i].read()
+                    this.valueBiases[i] ? this.valueBiases[i].read() : null
                 )
 
                 for (let j = 0; j < this.queriesPerHead; j++) {
                     const Q = this.ops.applyDense(
                         inputs,
                         this.queryKernels[i][j].read(),
-                        this.queryBiases[i][j].read()
+                        this.queryBiases[i][j]
+                            ? this.queryBiases[i][j].read()
+                            : null
                     )
 
                     let scores = tf
@@ -154,7 +164,7 @@ export default class MultiHeadAttention extends LayerBase {
             let outputs = this.ops.applyDense(
                 concatenatedOutputs,
                 this.outputKernel.read(),
-                this.outputBias.read()
+                this.outputBias ? this.outputBias.read() : null
             )
 
             outputs = this.ops.rmsNorm(outputs)

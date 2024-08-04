@@ -7,45 +7,21 @@ import ODE from './model.v2.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         super(config)
-        this.units = config.units || 100
-        this.embeddings = config.embeddings || 300
-        this.layers = [
-            {
-                outputDim: this.units,
-                numHeads: 3,
-                headDim: 300,
-                headFeatures: 100,
-                queriesPerHead: 2,
-                mlpDim: 700
-            },
-            {
-                outputDim: 200,
-                numHeads: 3,
-                headDim: 300,
-                headFeatures: 100,
-                queriesPerHead: 2,
-                mlpDim: 800
-            },
-            {
-                outputDim: this.embeddings,
-                numHeads: 3,
-                headDim: 300,
-                headFeatures: 100,
-                queriesPerHead: 2,
-                mlpDim: 900
-            }
-        ]
-        this.reductionSteps = config.reductionSteps || 4
+        this.layers = config.layers || 4
+        this.units = config.units || 256
+        this.numHeads = config.numHeads || 6
+        this.queriesPerHead = config.queriesPerHead || 2
+        this.headDim = config.headDim || 192
+        this.headFeatures = config.headFeatures || 64
+        this.mlpDim = config.mlpDim || 1024
         this.ALiBiLength = 1024
-        this.learningRate = 0.0001
-        this.minLearningRate = 0.00000001
-        this.weightDecay = 0.001
-        this.cosineSteps = 4096
+        this.learningRate = 1e-4
+        this.weightDecay = 1e-5
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-clean-v1'
+            model: 'englishcode-8000-balanced-v1'
         })
     }
 
@@ -56,34 +32,26 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.embeddings,
+            outputDim: this.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
         let outputs = embeddings.apply(inputs)
 
-        outputs = this.ode.layers
-            .ParabolicCompression({
-                numSteps: this.reductionSteps,
-                outputDim: this.units
-            })
-            .apply(outputs)
-
-        for (const layer of this.layers) {
+        for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
-                    numHeads: layer.numHeads,
-                    headDim: layer.headDim,
-                    headFeatures: layer.headFeatures,
-                    queriesPerHead: layer.queriesPerHead,
-                    outputDim: layer.outputDim,
+                    numHeads: this.numHeads,
+                    headDim: this.headDim,
+                    headFeatures: this.headFeatures,
+                    queriesPerHead: this.queriesPerHead,
                     ALiBiLength: this.ALiBiLength
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    innerDim: layer.mlpDim,
+                    innerDim: this.mlpDim,
                     activation: 'mish',
                     gateActivation: 'swish'
                 })
@@ -97,11 +65,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineSchedulers() {
         this.schedulers = [
-            this.ode.schedulers.cosineWithRestartsScheduler(
-                this.minLearningRate,
-                this.learningRate,
-                this.cosineSteps
-            )
+            this.ode.schedulers.constantScheduler(this.learningRate)
         ]
     }
 
@@ -109,7 +73,8 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.optimizers = [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: this.weightDecay
+                weightDecay: this.weightDecay,
+                useGc: true
             })
         ]
     }

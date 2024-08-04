@@ -9,18 +9,19 @@ export default class OpenDoorExperiment extends ODE {
         super(config)
         this.layers = config.layers || 4
         this.units = config.units || 256
-        this.numHeads = config.heads || 6
+        this.numHeads = config.heads || 4
         this.queriesPerHead = config.queriesPerHead || 2
-        this.headDim = config.headDim || 64
+        this.headDim = config.headDim || 128
         this.mlpDim = config.mlpDim || 1024
         this.learningRate = 0.0001
         this.weightDecay = 0.00001
         this.ALiBiLength = 1024
+        this.useBias = true
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-balanced-v1'
+            model: 'englishcode-8000-consistent-v1'
         })
     }
 
@@ -43,7 +44,8 @@ export default class OpenDoorExperiment extends ODE {
                     numHeads: this.numHeads,
                     headDim: this.headDim,
                     queriesPerHead: this.queriesPerHead,
-                    ALiBiLength: this.ALiBiLength
+                    ALiBiLength: this.ALiBiLength,
+                    useBias: this.useBias
                 })
                 .apply(outputs)
 
@@ -51,7 +53,8 @@ export default class OpenDoorExperiment extends ODE {
                 .GatedLinearMLP({
                     activation: 'mish',
                     gateActivation: 'swish',
-                    innerDim: this.mlpDim
+                    innerDim: this.mlpDim,
+                    useBias: this.useBias
                 })
                 .apply(outputs)
         }
