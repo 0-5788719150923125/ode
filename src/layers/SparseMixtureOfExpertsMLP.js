@@ -75,8 +75,7 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
 
             const expertIndices = this.topKWithGumbel(
                 switchingScores,
-                this.topK,
-                this.numExperts
+                this.topK
             )
 
             if (kwargs.training) this.computeUtilization(expertIndices)
@@ -112,7 +111,7 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
         })
     }
 
-    topKWithGumbel(scores, k, numExperts) {
+    topKWithGumbel(scores, k) {
         const gumbel = this.ops.gumbelSoftmax(scores, this.temperature)
         const expertIndices = tf.customGrad((gumbel, save) => {
             const { indices, values } = tf.topk(gumbel, k)
