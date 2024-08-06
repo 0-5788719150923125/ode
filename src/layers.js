@@ -42,6 +42,7 @@ import SynthesizerAttention from './layers/SynthesizerAttention.js'
 import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
 import ParabolicCompression from './layers/ParabolicCompression.js'
+import SparseMixtureOfExpertsMLP from './layers/SparseMixtureOfExpertsMLP.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -191,6 +192,10 @@ const customLayersConfig = {
     },
     SparseMixtureOfExperts: {
         constructor: SparseMixtureOfExperts,
+        prefix: 'moe'
+    },
+    SparseMixtureOfExpertsMLP: {
+        constructor: SparseMixtureOfExpertsMLP,
         prefix: 'moe'
     },
     SqueezeAndExcitation: {
