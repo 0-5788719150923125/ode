@@ -9,8 +9,8 @@ export default class OpenDoorExperiment extends ODE {
         super(config)
         this.layers = config.layers || 4
         this.units = config.units || 256
-        this.numHeads = config.heads || 4
-        this.queriesPerHead = config.queriesPerHead || 2
+        this.numHeads = config.heads || 8
+        this.queriesPerHead = config.queriesPerHead || 1
         this.headDim = config.headDim || 128
         this.mlpDim = config.mlpDim || 1024
         this.useBias = config.useBias || true
