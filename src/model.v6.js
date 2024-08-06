@@ -13,15 +13,15 @@ export default class OpenDoorExperiment extends ODE {
         this.queriesPerHead = config.queriesPerHead || 2
         this.headDim = config.headDim || 128
         this.mlpDim = config.mlpDim || 1024
+        this.useBias = config.useBias || true
+        this.ALiBiLength = 1024
         this.learningRate = 0.0001
         this.weightDecay = 0.00001
-        this.ALiBiLength = 1024
-        this.useBias = true
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-consistent-v1'
+            model: 'englishcode-8000-clean-v1'
         })
     }
 
