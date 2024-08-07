@@ -51,7 +51,7 @@ export default class MultiLayerPerceptron extends LayerBase {
             let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
-                this.useBias ? this.inProjBias.read() : null
+                this.inProjBias?.read()
             )
 
             outputs = this.ops.rmsNorm(outputs)
@@ -63,7 +63,7 @@ export default class MultiLayerPerceptron extends LayerBase {
             outputs = this.ops.applyDense(
                 outputs,
                 this.outProjKernel.read(),
-                this.useBias ? this.outProjBias.read() : null
+                this.outProjBias?.read()
             )
 
             // Residual connection

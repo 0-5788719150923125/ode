@@ -32,22 +32,50 @@ function rmsNorm(x) {
     return x.div(rms.add(epsilon))
 }
 
-function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
-    const slopesPerHead = tf.pow(
-        tf.scalar(2),
-        tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
-    )
-    const slopesPerPos = tf.range(0, maxSeqLen).cast('float32').expandDims(0)
-    const alibiSlopes = slopesPerHead.expandDims(1).mul(slopesPerPos)
+function applyALiBi(scores, numHeads, maxSeqLen = 2048) {
+    return tf.tidy(() => {
+        const [batchSize, _, queryLen, keyLen] = scores.shape
 
-    // alibiSlopes.print()
+        // Generate slopes for each head
+        const slopesPerHead = tf.pow(
+            tf.scalar(2),
+            tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
+        )
 
-    const alibiScores = alibiSlopes
-        .slice([currentHead, 0], [1, seqLen])
-        .expandDims(0)
+        // Generate position indices
+        const positions = tf.range(0, maxSeqLen).cast('float32')
 
-    return scores.sub(alibiScores)
+        // Compute ALiBi slopes for all heads and positions
+        const alibiSlopes = tf.outerProduct(slopesPerHead, positions)
+
+        // Slice the slopes to match the current sequence length
+        const slicedSlopes = alibiSlopes.slice([0, 0], [numHeads, keyLen])
+
+        // Reshape to match scores dimensions and broadcast
+        const alibiScores = slicedSlopes
+            .expandDims(1) // Add dimension for queries
+            .expandDims(0) // Add dimension for batch
+            .broadcastTo([batchSize, numHeads, queryLen, keyLen])
+
+        // Subtract ALiBi scores from attention scores
+        return scores.sub(alibiScores)
+    })
 }
+
+// function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
+//     const slopesPerHead = tf.pow(
+//         tf.scalar(2),
+//         tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
+//     )
+//     const slopesPerPos = tf.range(0, maxSeqLen).cast('float32').expandDims(0)
+//     const alibiSlopes = slopesPerHead.expandDims(1).mul(slopesPerPos)
+
+//     const alibiScores = alibiSlopes
+//         .slice([currentHead, 0], [1, seqLen])
+//         .expandDims(0)
+
+//     return scores.sub(alibiScores)
+// }
 
 export default {
     gumbelSoftmax,

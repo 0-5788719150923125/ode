@@ -32,7 +32,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             let proj = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
-                this.useBias ? this.inProjBias.read() : null
+                this.inProjBias?.read()
             )
 
             proj = this.ops.rmsNorm(proj)
@@ -44,7 +44,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             let gate = this.ops.applyDense(
                 inputs,
                 this.gateProjKernel.read(),
-                this.useBias ? this.gateProjBias.read() : null
+                this.gateProjBias?.read()
             )
 
             gate = tf.layers
@@ -56,7 +56,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             let outputs = this.ops.applyDense(
                 gatedOutput,
                 this.outProjKernel.read(),
-                this.useBias ? this.outProjBias.read() : null
+                this.outProjBias?.read()
             )
 
             outputs = tf.add(inputs, outputs)
