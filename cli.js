@@ -5,7 +5,7 @@ import ODE from './src/index.js'
  * node cli.js --backend cpu --version 2 --batchSize 3
  */
 const options = {
-    mode: 'train',
+    action: 'train',
     backend: 'tensorflow',
     version: 3,
     batchSize: 1,
@@ -57,13 +57,13 @@ async function orchestrate(options) {
         ...options
     })
 
-    if (['infer', 'continue'].includes(options.mode)) {
+    if (['infer', 'continue'].includes(options.action)) {
         await net.load()
     } else {
         await net.init()
     }
 
-    if (['train', 'continue'].includes(options.mode)) {
+    if (['train', 'continue'].includes(options.action)) {
         let sampler
         const samplers = net.ode.samplers
         if (options.corpus.startsWith('http')) {
@@ -102,7 +102,7 @@ async function orchestrate(options) {
             PredictionSampler,
             ModelSaver
         ])
-    } else if (options.mode === 'infer') {
+    } else if (options.action === 'infer') {
         const readline = (await import('readline')).default
         async function interactiveSession() {
             const rl = readline.createInterface({

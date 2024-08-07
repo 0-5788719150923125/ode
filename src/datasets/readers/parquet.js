@@ -1,12 +1,13 @@
-import { Table } from 'apache-arrow'
-import { parseRecordBatch } from 'arrow-js-ffi'
-import initWasm, { wasmMemory, readParquetStream } from 'parquet-wasm'
-import { randomBetween, randomValueFromArray } from '../utils.js'
+import { parseTable } from 'arrow-js-ffi'
+import initWasm, { wasmMemory, readParquet } from 'parquet-wasm'
+import {
+    generatePaddedNumbers,
+    randomBetween,
+    randomValueFromArray
+} from '../../utils.js'
 
-export default class FinewebDataset {
+export default class ParquetReader {
     constructor(args) {
-        this.dataset = 'HuggingFaceFW/fineweb'
-        this.slices = [{ slice: 'CC-MAIN-2024-18', shards: 50, chunks: 5 }]
         this.split = 'train'
         this.delimiter = '\n\n'
         this.eosToken = args?.eosToken || '֍'
@@ -16,6 +17,8 @@ export default class FinewebDataset {
         this.cachedText = ''
         this.table = {}
         this.schemaTemplate = args?.schema
+        this.dataset = 'HuggingFaceTB/cosmopedia'
+        this.slices = [{ slice: 'stories', shards: 43 }]
     }
 
     async init() {
@@ -27,25 +30,26 @@ export default class FinewebDataset {
         await this.fetchRandomShard()
     }
 
-    generatePaddedNumbers(shards, chunks) {
-        const numbers = []
-        for (let i = 0; i <= shards; i++) {
-            for (let j = 0; j <= chunks; j++) {
-                const prefix = String(j).padStart(3, '0')
-                const suffix = String(i).padStart(5, '0')
-                numbers.push(`${prefix}_${suffix}`)
-            }
-        }
-        return numbers
+    viewSchema() {
+        console.log(this.table.schema.toString())
     }
 
     async fetchRandomShard() {
-        const { slice, shards, chunks } = randomValueFromArray(this.slices)
-        const shardIndices = this.generatePaddedNumbers(shards, chunks)
-        const shard = randomValueFromArray(shardIndices)
-        const path = `data/${slice}/${shard}.parquet`
+        const { slice, shards } = this.getWeightedRandomSlice(this.slices)
+        const shardIndices = generatePaddedNumbers(0, shards, 5)
+        const numShards = shardIndices.slice(-1)
+        const allShards = shardIndices.slice(0, -1)
+        const shard = randomValueFromArray(allShards)
+        const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
         const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
-        console.log('fetching shard:', `${shard}`, 'slice:', slice)
+        console.log(
+            'fetching dataset:',
+            this.dataset,
+            'shard:',
+            `${shard}/${numShards}`,
+            'slice:',
+            slice
+        )
         try {
             await this.streamDataIntoTable(url)
         } catch (err) {
@@ -58,28 +62,37 @@ export default class FinewebDataset {
     }
 
     async streamDataIntoTable(url) {
-        const stream = await readParquetStream(url)
-        // Read Parquet buffer to Arrow Table
-        const batches = []
+        const resp = await fetch(url)
+        const buffer = new Uint8Array(await resp.arrayBuffer())
+        const ffiTable = readParquet(buffer).intoFFI()
 
-        const chance = 0.1
-        for await (const wasmRecordBatch of stream) {
-            // Used to keep memory usage down (original Parquet files are > 2GB in size)
-            if (Math.random() > chance) continue
-            console.log(Math.random())
-            const ffiRecordBatch = wasmRecordBatch.intoFFI()
-            const recordBatch = parseRecordBatch(
-                wasmMemory().buffer,
-                ffiRecordBatch.arrayAddr(),
-                ffiRecordBatch.schemaAddr()
-            )
-            batches.push(recordBatch)
-        }
-        // Convert to JS Arrow Table
-        this.table = new Table(batches)
+        this.table = parseTable(
+            wasmMemory().buffer,
+            ffiTable.arrayAddrs(),
+            ffiTable.schemaAddr()
+        )
+
+        ffiTable.drop()
     }
 
-    loadSchema(array = [{ text: 'INPUT: ' }]) {
+    getWeightedRandomSlice(slices) {
+        // Calculate the total number of shards
+        const totalShards = slices.reduce((sum, slice) => sum + slice.shards, 0)
+
+        // Generate a random number between 0 and the total number of shards
+        const randomShard = Math.floor(Math.random() * totalShards)
+
+        // Find the slice that corresponds to the random shard
+        let accumulatedShards = 0
+        for (const slice of slices) {
+            accumulatedShards += slice.shards
+            if (randomShard < accumulatedShards) {
+                return slice
+            }
+        }
+    }
+
+    loadSchema(array = [{ prompt: 'INPUT: ' }, { text: 'OUTPUT: ' }]) {
         this.schema = []
         array.map((obj) => {
             Object.entries(obj).forEach(([key, value]) => {
@@ -106,6 +119,13 @@ export default class FinewebDataset {
                 let column = this.table.batches[batchIdx].getChildAt(field.idx)
                 if (rowIdx === null) {
                     rowIdx = randomBetween(0, column.length - 1)
+                    // console.log(
+                    //     `has ${this.table.batches.length} batches, with ${
+                    //         column.length
+                    //     } rows, and ${
+                    //         column.length * this.table.batches.length
+                    //     } est combinations`
+                    // )
                 }
                 const prefix = field.value
                 const data = column.get(rowIdx)
@@ -132,17 +152,15 @@ export default class FinewebDataset {
     }
 }
 
-async function main() {
-    const sampler = new FinewebDataset({
-        schema: [{ text: '' }]
-    })
-    await sampler.init()
-    for (let i = 0; i < 10; i++) {
-        console.log(await sampler.getSample())
-        console.log('---')
-        console.log('---')
-        console.log('---')
-    }
-}
+// async function main() {
+// const sampler = new CosmopediaDataset({schema: [{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }]})
+//     await sampler.init()
+//     for (let i = 0; i < 10; i++) {
+//         console.log(await sampler.getSample())
+//         console.log('---')
+//         console.log('---')
+//         console.log('---')
+//     }
+// }
 
-main()
+// main()
