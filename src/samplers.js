@@ -148,6 +148,26 @@ class MultiSampler {
     }
 }
 
+class WeightedSampler {
+    constructor(samplers) {
+        this.samplers = samplers
+        this.currentIndex = 0
+    }
+
+    async take(config) {
+        const i = this.currentIndex
+        if (i + 1 >= this.samplers.length) this.currentIndex = 0
+        else this.currentIndex++
+        const currentSampler = this.samplers[i]
+        const roll = Math.random()
+        if (roll < currentSampler.weight) {
+            return await currentSampler.sampler.take(config)
+        } else {
+            return await this.take(config)
+        }
+    }
+}
+
 class CosmopediaSampler {
     constructor(config) {
         this.config = config
@@ -159,7 +179,33 @@ class CosmopediaSampler {
             .default
         this.producer = new CosmopediaDataset({
             schema: [{ prompt: '\nINPUT: ' }, { text: '\nOUTPUT: ' }],
-            eosToken: '\n\n',
+            eosToken: '֍',
+            ...this.config
+        })
+        await this.producer.init()
+        this.initialized = true
+    }
+
+    async take(config) {
+        if (!this.initialized) {
+            await this.init()
+        }
+        return await this.producer.getSample(config.maxSeqLen)
+    }
+}
+
+class WikipediaSampler {
+    constructor(config) {
+        this.config = config
+        this.producer = null
+    }
+
+    async init() {
+        const WikipediaDataset = (await import('./datasets/wikipedia.js'))
+            .default
+        this.producer = new WikipediaDataset({
+            schema: [{ title: 'INPUT: ', text: 'OUTPUT: ' }],
+            eosToken: '֍',
             ...this.config
         })
         await this.producer.init()
@@ -184,6 +230,9 @@ const samplers = {
     HTTPSampler: (url) => new RandomSampler(new HTTPSampler(url)),
     CosmopediaSampler: (config) =>
         new StridedSampler(new CosmopediaSampler(config)),
-    MultiSampler: (samplers) => new MultiSampler(samplers)
+    WikipediaSampler: (config) =>
+        new StridedSampler(new WikipediaSampler(config)),
+    MultiSampler: (samplers) => new MultiSampler(samplers),
+    WeightedSampler: (samplers) => new WeightedSampler(samplers)
 }
 export default samplers

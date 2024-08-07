@@ -70,6 +70,8 @@ async function orchestrate(options) {
             sampler = samplers.HTTPSampler(options.corpus)
         } else if (options.corpus === 'cosmopedia') {
             sampler = samplers.CosmopediaSampler()
+        } else if (options.corpus === 'wikipedia') {
+            sampler = samplers.WikipediaSampler()
         } else if (options.corpus === 'multi') {
             sampler = samplers.MultiSampler([
                 samplers.CosmopediaSampler(),
@@ -77,6 +79,17 @@ async function orchestrate(options) {
                     '/home/crow/Repos/vtx/lab/phi/train',
                     '\n\n'
                 )
+            ])
+        } else if (options.corpus === 'balanced') {
+            sampler = samplers.WeightedSampler([
+                {
+                    sampler: samplers.CosmopediaSampler(),
+                    weight: 0.5
+                },
+                {
+                    sampler: samplers.WikipediaSampler(),
+                    weight: 0.5
+                }
             ])
         } else {
             sampler = samplers.DirectorySampler(options.corpus, '\n\n')
