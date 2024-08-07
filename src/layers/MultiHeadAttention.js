@@ -58,7 +58,7 @@ export default class MultiHeadAttention extends LayerBase {
             this.valueKernels.push(
                 this.addWeight(
                     `valueKernel-${i}`,
-                    [units, units],
+                    [units, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform()
                 )
@@ -76,7 +76,7 @@ export default class MultiHeadAttention extends LayerBase {
                 this.valueBiases.push(
                     this.addWeight(
                         `valueBiases-${i}`,
-                        [units],
+                        [this.headDim],
                         'float32',
                         tf.initializers.zeros()
                     )
@@ -86,7 +86,7 @@ export default class MultiHeadAttention extends LayerBase {
 
         this.outputKernel = this.addWeight(
             'outputKernel',
-            [units * this.numHeads * this.queriesPerHead, units],
+            [this.headDim * this.numHeads * this.queriesPerHead, units],
             'float32',
             tf.initializers.glorotUniform()
         )
