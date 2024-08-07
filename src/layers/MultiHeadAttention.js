@@ -98,7 +98,8 @@ export default class MultiHeadAttention extends LayerBase {
             const QHeads = tf.reshape(Q, [
                 batchSize,
                 seqLen,
-                this.numHeads * this.queriesPerHead,
+                this.numHeads,
+                this.queriesPerHead,
                 this.headDim
             ])
             const KHeads = tf.reshape(K, [
@@ -114,15 +115,59 @@ export default class MultiHeadAttention extends LayerBase {
                 this.headDim
             ])
 
-            // Transpose to [batchSize, numHeads, seqLen, headDim]
-            const QHeadsTransposed = tf.transpose(QHeads, [0, 2, 1, 3])
+            // Transpose to [batchSize, numHeads, queriesPerHead, seqLen, headDim]
+            const QHeadsTransposed = tf.transpose(QHeads, [0, 2, 3, 1, 4])
             const KHeadsTransposed = tf.transpose(KHeads, [0, 2, 1, 3])
             const VHeadsTransposed = tf.transpose(VHeads, [0, 2, 1, 3])
+
+            // Reshape key and value matrices to be 4D for tiling
+            const KHeadsReshaped = tf.reshape(KHeadsTransposed, [
+                batchSize,
+                this.numHeads,
+                seqLen,
+                this.headDim
+            ])
+            const VHeadsReshaped = tf.reshape(VHeadsTransposed, [
+                batchSize,
+                this.numHeads,
+                seqLen,
+                this.headDim
+            ])
+
+            // Tile key and value matrices to match the number of queries per head
+            const KHeadsTiled = tf.tile(KHeadsReshaped, [
+                1,
+                1,
+                this.queriesPerHead,
+                1
+            ])
+            const VHeadsTiled = tf.tile(VHeadsReshaped, [
+                1,
+                1,
+                this.queriesPerHead,
+                1
+            ])
+
+            // Reshape tiled key and value matrices back to 5D
+            const KHeadsTiledReshaped = tf.reshape(KHeadsTiled, [
+                batchSize,
+                this.numHeads,
+                this.queriesPerHead,
+                seqLen,
+                this.headDim
+            ])
+            const VHeadsTiledReshaped = tf.reshape(VHeadsTiled, [
+                batchSize,
+                this.numHeads,
+                this.queriesPerHead,
+                seqLen,
+                this.headDim
+            ])
 
             // Compute attention scores
             let scores = tf.matMul(
                 QHeadsTransposed,
-                KHeadsTransposed,
+                KHeadsTiledReshaped,
                 false,
                 true
             )
@@ -133,6 +178,7 @@ export default class MultiHeadAttention extends LayerBase {
                 scores = this.ops.applyALiBi(
                     scores,
                     this.numHeads,
+                    this.queriesPerHead,
                     this.ALiBiLength
                 )
             }
@@ -151,10 +197,10 @@ export default class MultiHeadAttention extends LayerBase {
                 : weights
 
             // Apply attention weights to values
-            let output = tf.matMul(weights, VHeadsTransposed)
+            let output = tf.matMul(weights, VHeadsTiledReshaped)
 
             // Reshape and transpose back
-            output = tf.transpose(output, [0, 2, 1, 3])
+            output = tf.transpose(output, [0, 3, 1, 2, 4])
             output = tf.reshape(output, [
                 batchSize,
                 seqLen,
@@ -169,8 +215,7 @@ export default class MultiHeadAttention extends LayerBase {
             )
 
             // Apply normalization and residual connection
-            output = this.ops.rmsNorm(output)
-            output = tf.add(inputs, output)
+            output = tf.add(inputs, this.ops.rmsNorm(output))
 
             // Apply dropout if in training mode
             output = kwargs['training']

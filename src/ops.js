@@ -32,9 +32,9 @@ function rmsNorm(x) {
     return x.div(rms.add(epsilon))
 }
 
-function applyALiBi(scores, numHeads, maxSeqLen = 2048) {
+function applyALiBi(scores, numHeads, queriesPerHead, maxSeqLen = 2048) {
     return tf.tidy(() => {
-        const [batchSize, _, queryLen, keyLen] = scores.shape
+        const [batchSize, _, __, queryLen, keyLen] = scores.shape
 
         // Generate slopes for each head
         const slopesPerHead = tf.pow(
@@ -53,15 +53,21 @@ function applyALiBi(scores, numHeads, maxSeqLen = 2048) {
 
         // Reshape to match scores dimensions and broadcast
         const alibiScores = slicedSlopes
+            .expandDims(1) // Add dimension for queries per head
             .expandDims(1) // Add dimension for queries
             .expandDims(0) // Add dimension for batch
-            .broadcastTo([batchSize, numHeads, queryLen, keyLen])
+            .broadcastTo([
+                batchSize,
+                numHeads,
+                queriesPerHead,
+                queryLen,
+                keyLen
+            ])
 
         // Subtract ALiBi scores from attention scores
         return scores.sub(alibiScores)
     })
 }
-
 // function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
 //     const slopesPerHead = tf.pow(
 //         tf.scalar(2),
