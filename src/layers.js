@@ -12,7 +12,6 @@ import DeterministicEmbedding from './layers/DeterministicEmbedding.js'
 import EfficientAttention from './layers/EfficientAttention.js'
 import EfficientChannelAttention from './layers/EfficientChannelAttention.js'
 import FastAssociativeMemory from './layers/FastAssociativeMemory.js'
-import FourierFeaturePositionalEncoding from './layers/FourierFeaturePositionalEncoding.js'
 import GPT2Attention from './layers/GPT2Attention.js'
 import GatedLinearMLP from './layers/GatedLinearMLP.js'
 import IncrementalPowerIterationPCA from './layers/IncrementalPowerIterationPCA.js'
@@ -110,10 +109,6 @@ const customLayersConfig = {
     FastAssociativeMemory: {
         constructor: FastAssociativeMemory,
         prefix: 'mem'
-    },
-    FourierFeaturePositionalEncoding: {
-        constructor: FourierFeaturePositionalEncoding,
-        prefix: 'enc'
     },
     GatedLinearMLP: { constructor: GatedLinearMLP, prefix: 'mlp' },
     GPT2Attention: {

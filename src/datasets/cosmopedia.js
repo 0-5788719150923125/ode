@@ -15,8 +15,8 @@ export default class CosmopediaDataset extends ParquetReader {
             { slice: 'wikihow', shards: 2 }
         ]
         this.schemaTemplate = config?.schema || [
-            { prompt: 'INPUT: ' },
-            { text: 'OUTPUT: ' }
+            { prompt: '\nINPUT: ' },
+            { text: '\nOUTPUT: ' }
         ]
     }
 }

@@ -7,7 +7,7 @@ export default class WikipediaDataset extends ParquetReader {
         this.dataset = 'wikimedia/wikipedia'
         this.slices = [{ slice: '20231101.en', shards: 41 }]
         this.schemaTemplate = config?.schema || [
-            { title: 'INPUT: ', text: 'OUTPUT: ' }
+            { title: '\nINPUT: ', text: '\nOUTPUT: ' }
         ]
     }
 

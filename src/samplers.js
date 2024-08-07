@@ -177,11 +177,7 @@ class CosmopediaSampler {
     async init() {
         const CosmopediaDataset = (await import('./datasets/cosmopedia.js'))
             .default
-        this.producer = new CosmopediaDataset({
-            schema: [{ prompt: '\nINPUT: ' }, { text: '\nOUTPUT: ' }],
-            eosToken: '֍',
-            ...this.config
-        })
+        this.producer = new CosmopediaDataset(this.config)
         await this.producer.init()
         this.initialized = true
     }
@@ -203,11 +199,7 @@ class WikipediaSampler {
     async init() {
         const WikipediaDataset = (await import('./datasets/wikipedia.js'))
             .default
-        this.producer = new WikipediaDataset({
-            schema: [{ title: 'INPUT: ', text: 'OUTPUT: ' }],
-            eosToken: '֍',
-            ...this.config
-        })
+        this.producer = new WikipediaDataset(this.config)
         await this.producer.init()
         this.initialized = true
     }
