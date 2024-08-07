@@ -12,42 +12,38 @@ export default class MultiLayerPerceptron extends LayerBase {
 
     build(inputShape) {
         this.units = this.units ? this.units : inputShape[inputShape.length - 1]
-
-        // Initialize dense layers for projection
         this.inProjKernel = this.addWeight(
             `inProjKernel`,
             [this.units, this.hiddenDim],
             'float32',
             tf.initializers.glorotNormal()
         )
-        if (this.useBias)
-            this.inProjBias = this.addWeight(
-                `inProjBias`,
-                [this.hiddenDim],
-                'float32',
-                tf.initializers.zeros()
-            )
-
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
             [this.hiddenDim, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
-        if (this.useBias)
+        if (this.useBias) {
+            this.inProjBias = this.addWeight(
+                `inProjBias`,
+                [this.hiddenDim],
+                'float32',
+                tf.initializers.zeros()
+            )
             this.outProjBias = this.addWeight(
                 `outProjBias`,
                 [this.units],
                 'float32',
                 tf.initializers.zeros()
             )
+        }
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Expand and contract projection via feedforward layers
             let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
