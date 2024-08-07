@@ -1,8 +1,8 @@
 import ParquetReader from './readers/parquet.js'
 
 export default class CosmopediaDataset extends ParquetReader {
-    constructor(args) {
-        super(args)
+    constructor(config) {
+        super(config)
         this.dataset = 'HuggingFaceTB/cosmopedia'
         this.slices = [
             { slice: 'auto_math_text', shards: 18 },
@@ -14,7 +14,7 @@ export default class CosmopediaDataset extends ParquetReader {
             { slice: 'web_samples_v2', shards: 118 },
             { slice: 'wikihow', shards: 2 }
         ]
-        this.schemaTemplate = args?.schema || [
+        this.schemaTemplate = config?.schema || [
             { prompt: 'INPUT: ' },
             { text: 'OUTPUT: ' }
         ]

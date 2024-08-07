@@ -7,16 +7,16 @@ import {
 } from '../../utils.js'
 
 export default class ParquetReader {
-    constructor(args) {
+    constructor(config) {
         this.split = 'train'
         this.delimiter = '\n\n'
-        this.eosToken = args?.eosToken || '֍'
-        this.batchesBeforeRefresh = args?.batchesBeforeRefresh || 10000
+        this.eosToken = config?.eosToken || '֍'
+        this.batchesBeforeRefresh = config?.batchesBeforeRefresh || 10000
         this.batches = 0
         this.cacheSize = 20000
         this.cachedText = ''
         this.table = {}
-        this.schemaTemplate = args?.schema
+        this.schemaTemplate = config?.schema
         this.dataset = 'HuggingFaceTB/cosmopedia'
         this.slices = [{ slice: 'stories', shards: 43 }]
     }

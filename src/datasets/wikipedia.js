@@ -2,11 +2,11 @@ import ParquetReader from './readers/parquet.js'
 import { randomValueFromArray } from '../utils.js'
 
 export default class WikipediaDataset extends ParquetReader {
-    constructor(args) {
-        super(args)
+    constructor(config) {
+        super(config)
         this.dataset = 'wikimedia/wikipedia'
         this.slices = [{ slice: '20231101.en', shards: 41 }]
-        this.schemaTemplate = args?.schema || [
+        this.schemaTemplate = config?.schema || [
             { title: 'INPUT: ', text: 'OUTPUT: ' }
         ]
     }
