@@ -43,7 +43,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    innerDim: this.units * 4,
+                    hiddenDim: this.units * 4,
                     activation: 'swish'
                 })
                 .apply(outputs)

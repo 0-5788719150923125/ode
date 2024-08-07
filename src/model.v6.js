@@ -53,7 +53,7 @@ export default class OpenDoorExperiment extends ODE {
                 .GatedLinearMLP({
                     activation: 'mish',
                     gateActivation: 'swish',
-                    innerDim: this.mlpDim,
+                    hiddenDim: this.mlpDim,
                     useBias: this.useBias
                 })
                 .apply(outputs)

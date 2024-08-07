@@ -11,7 +11,7 @@ export default class OpportunisticDialogueEngine extends ODE {
         this.layers = config.layers || 6
         this.heads = config.heads || 8
         this.units = config.units || 512
-        this.innerDim = config.innerDim || this.units * 4
+        this.hiddenDim = config.hiddenDim || this.units * 4
         this.alpha = config.alpha || 0.22
     }
 
@@ -48,7 +48,7 @@ export default class OpportunisticDialogueEngine extends ODE {
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    innerDim: this.innerDim,
+                    hiddenDim: this.hiddenDim,
                     activation: 'swish'
                 })
                 .apply(outputs)

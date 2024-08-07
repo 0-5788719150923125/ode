@@ -55,7 +55,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                         this.ode.expert({
                             type: 'GatedLinearMLP',
                             inputShape: outputs.shape,
-                            innerDim: this.mlpDim,
+                            hiddenDim: this.mlpDim,
                             activation: 'gelu_new'
                         })
                     ]

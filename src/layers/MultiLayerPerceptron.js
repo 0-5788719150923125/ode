@@ -4,7 +4,7 @@ import LayerBase from './base.js'
 export default class MultiLayerPerceptron extends LayerBase {
     constructor(config) {
         super(config)
-        this.innerDim = config?.innerDim || 1024
+        this.hiddenDim = config?.hiddenDim || 1024
         this.dropout = config?.dropout || 0
         this.activation = config?.activation || 'relu'
         this.units = config.units || null
@@ -16,21 +16,21 @@ export default class MultiLayerPerceptron extends LayerBase {
         // Initialize dense layers for projection
         this.inProjKernel = this.addWeight(
             `inProjKernel`,
-            [this.units, this.innerDim],
+            [this.units, this.hiddenDim],
             'float32',
             tf.initializers.glorotNormal()
         )
         if (this.useBias)
             this.inProjBias = this.addWeight(
                 `inProjBias`,
-                [this.innerDim],
+                [this.hiddenDim],
                 'float32',
                 tf.initializers.zeros()
             )
 
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
-            [this.innerDim, this.units],
+            [this.hiddenDim, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
@@ -81,7 +81,7 @@ export default class MultiLayerPerceptron extends LayerBase {
         return {
             ...super.getConfig(),
             units: this.units,
-            innerDim: this.innerDim,
+            hiddenDim: this.hiddenDim,
             dropout: this.dropout,
             activation: this.activation
         }

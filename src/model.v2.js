@@ -10,6 +10,7 @@ export default class OriginalDecoderEncoder extends ODE {
         this.layers = config.layers || 4
         this.numHeads = config.heads || 8
         this.units = config.units || 128
+        this.mlpDim = config.mlpDim || 512
         this.dropout = config.dropout || 0.1
         this.epsilon = config.epsilon || 1e-5
         this.labels = 'multiLabel'
@@ -77,7 +78,7 @@ export default class OriginalDecoderEncoder extends ODE {
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
                     units: this.units,
-                    innerDim: this.innerDim,
+                    hiddenDim: this.mlpDim,
                     heads: this.numHeads,
                     dropout: this.dropout,
                     epsilon: this.epsilon,

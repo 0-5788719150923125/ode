@@ -69,7 +69,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         for (let i = 0; i < this.numExperts; i++) {
             experts.push(
                 this.ode.layers.MultiLayerPerceptron({
-                    innerDim: this.mlpDim,
+                    hiddenDim: this.mlpDim,
                     activation: 'mish'
                 })
             )
