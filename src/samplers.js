@@ -149,8 +149,9 @@ class MultiSampler {
 }
 
 class WeightedSampler {
-    constructor(samplers) {
+    constructor(samplers, rates) {
         this.samplers = samplers
+        this.rates = rates
         this.currentIndex = 0
     }
 
@@ -158,10 +159,9 @@ class WeightedSampler {
         const i = this.currentIndex
         if (i + 1 >= this.samplers.length) this.currentIndex = 0
         else this.currentIndex++
-        const currentSampler = this.samplers[i]
         const roll = Math.random()
-        if (roll < currentSampler.weight) {
-            return await currentSampler.sampler.take(config)
+        if (roll < this.rates[i]) {
+            return await this.samplers[i].take(config)
         } else {
             return await this.take(config)
         }
@@ -233,6 +233,6 @@ const samplers = {
     WikipediaSampler: (config) =>
         new StridedSampler(new WikipediaSampler(config)),
     MultiSampler: (samplers) => new MultiSampler(samplers),
-    WeightedSampler: (samplers) => new WeightedSampler(samplers)
+    WeightedSampler: (samplers, rates) => new WeightedSampler(samplers, rates)
 }
 export default samplers
