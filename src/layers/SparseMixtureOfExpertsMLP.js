@@ -37,12 +37,6 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
             'float32',
             tf.initializers.glorotNormal()
         )
-        this.outputProjection = this.addWeight(
-            'outputProjection',
-            [this.topK * inputDim, inputDim],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
         this.inProjKernel = this.addWeight(
             `inProjKernel`,
             [this.numExperts, inputDim, this.mlpDim],
