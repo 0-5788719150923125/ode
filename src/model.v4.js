@@ -49,7 +49,8 @@ export default class OpportunisticDialogueEngine extends ODE {
             outputs = this.ode.layers
                 .GatedLinearMLP({
                     hiddenDim: this.hiddenDim,
-                    activation: 'swish'
+                    activation: 'swish',
+                    gateActivation: 'sigmoid'
                 })
                 .apply(outputs)
         }

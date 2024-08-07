@@ -225,7 +225,7 @@ function computeGradients(
 
             if (isNaN(loss)) {
                 lossValue.print()
-                throw 'Loss was NaN. Halting.'
+                throw 'Loss value was NaN. Halting.'
             }
 
             return lossValue
@@ -235,15 +235,6 @@ function computeGradients(
     tf.dispose([currentXs, currentYs, value])
 
     return { grads, loss }
-}
-
-function clipByValue(grads, value) {
-    const clippedGrads = {}
-    Object.keys(grads).forEach((key) => {
-        clippedGrads[key] = tf.keep(tf.clipByValue(grads[key], -value, value))
-        grads[key].dispose()
-    })
-    return clippedGrads
 }
 
 function l2Loss(tensor) {

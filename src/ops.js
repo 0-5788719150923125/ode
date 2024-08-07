@@ -68,6 +68,7 @@ function applyALiBi(scores, numHeads, queriesPerHead, maxSeqLen = 2048) {
         return scores.sub(alibiScores)
     })
 }
+
 // function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
 //     const slopesPerHead = tf.pow(
 //         tf.scalar(2),
