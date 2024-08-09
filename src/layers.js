@@ -42,6 +42,7 @@ import VariableDimensionMLP from './layers/VariableDimensionMLP.js'
 import VarianceThreshold from './layers/VarianceThreshold.js'
 import ParabolicCompression from './layers/ParabolicCompression.js'
 import SparseMixtureOfExpertsMLP from './layers/SparseMixtureOfExpertsMLP.js'
+import LocalSensitiveHashingAttention from './layers/LocalSensitiveHashingAttention.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -128,6 +129,10 @@ const customLayersConfig = {
     LambdaLayer: {
         constructor: LambdaLayer,
         prefix: 'op'
+    },
+    LocalSensitiveHashingAttention: {
+        constructor: LocalSensitiveHashingAttention,
+        prefix: 'attn'
     },
     LowRankFactorization: {
         constructor: LowRankFactorization,

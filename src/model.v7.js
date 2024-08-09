@@ -10,12 +10,12 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.layers = config.layers || 4
         this.units = config.units || 256
         this.numHeads = config.numHeads || 8
-        this.queriesPerHead = config.queriesPerHead || 2
-        this.headDim = config.headDim || 128
-        this.headFeatures = config.headFeatures || 64
+        // this.queriesPerHead = config.queriesPerHead || 2
+        // this.headDim = config.headDim || 128
+        // this.headFeatures = config.headFeatures || 64
         this.mlpDim = config.mlpDim || 1024
-        this.useBias = config.useBias || true
-        this.ALiBiLength = 1024
+        // this.useBias = config.useBias || true
+        // this.ALiBiLength = 1024
         this.learningRate = 1e-4
         this.weightDecay = 1e-5
     }
@@ -41,13 +41,13 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .ProjectedFeatureAttention({
-                    numHeads: this.numHeads,
-                    headDim: this.headDim,
-                    headFeatures: this.headFeatures,
-                    queriesPerHead: this.queriesPerHead,
-                    useBias: this.useBias,
-                    ALiBiLength: this.ALiBiLength
+                .LocalSensitiveHashingAttention({
+                    numHeads: this.numHeads
+                    // headDim: this.headDim,
+                    // headFeatures: this.headFeatures,
+                    // queriesPerHead: this.queriesPerHead,
+                    // useBias: this.useBias,
+                    // ALiBiLength: this.ALiBiLength
                 })
                 .apply(outputs)
 
@@ -55,8 +55,8 @@ export default class OmniscientDeterministicEngine extends ODE {
                 .GatedLinearMLP({
                     hiddenDim: this.mlpDim,
                     activation: 'mish',
-                    gateActivation: 'swish',
-                    useBias: this.useBias
+                    gateActivation: 'swish'
+                    // useBias: this.useBias
                 })
                 .apply(outputs)
         }
