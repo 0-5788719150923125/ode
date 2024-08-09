@@ -53,7 +53,6 @@ for (let i = 0; i < args.length; i++) {
 async function orchestrate(options) {
     const net = await ODE({
         contextLength: options.sampleLength,
-        clipValue: 1.0,
         ...options
     })
 
@@ -81,7 +80,7 @@ async function orchestrate(options) {
                 )
             ])
         } else if (options.corpus === 'balanced') {
-            const rates = [0.5, 0.5]
+            const rates = [1.0, 0.5]
             sampler = samplers.WeightedSampler(
                 [samplers.CosmopediaSampler(), samplers.WikipediaSampler()],
                 rates

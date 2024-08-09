@@ -444,7 +444,7 @@ export class PredictionSampler {
 
             const params = {
                 doSample: true,
-                temperature: 0.45,
+                temperature: 0.7,
                 repetitionPenalty: 1.2,
                 // topK: 40,
                 maxNewTokens: maxLength
