@@ -10,6 +10,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
         this.expertDim = config.expertDim || 256
         this.activation = config.activation || 'swish'
         this.routerActivation = config.routerActivation || 'swish'
+        this.gateActivation = config.gateActivation || 'swish'
     }
 
     build(inputShape) {
@@ -22,32 +23,46 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             'float32',
             tf.initializers.glorotNormal()
         )
-        this.routerHiddenBias = this.addWeight(
-            'routerHiddenBias',
-            [this.routerDim],
-            'float32',
-            tf.initializers.zeros()
-        )
         this.routerOutputKernel = this.addWeight(
             'routerOutputKernel',
             [this.routerDim, this.numExperts],
             'float32',
             tf.initializers.glorotNormal()
         )
-        this.routerOutputBias = this.addWeight(
-            'routerOutputBias',
-            [this.numExperts],
-            'float32',
-            tf.initializers.zeros()
-        )
+        if (this.useBias) {
+            this.routerHiddenBias = this.addWeight(
+                'routerHiddenBias',
+                [this.routerDim],
+                'float32',
+                tf.initializers.zeros()
+            )
+            this.routerOutputBias = this.addWeight(
+                'routerOutputBias',
+                [this.numExperts],
+                'float32',
+                tf.initializers.zeros()
+            )
+        }
 
         // Initialize the experts
         this.inProjKernels = []
+        this.gateProjKernels = []
         this.outProjKernels = []
+        this.inProjBiases = []
+        this.gateProjBiases = []
+        this.outProjBiases = []
         for (let i = 0; i < this.numExperts; i++) {
             this.inProjKernels.push(
                 this.addWeight(
                     `inProjKernel-${i}`,
+                    [inputDim, this.expertDim],
+                    'float32',
+                    tf.initializers.glorotNormal()
+                )
+            )
+            this.gateProjKernels.push(
+                this.addWeight(
+                    `gateProjKernel-${i}`,
                     [inputDim, this.expertDim],
                     'float32',
                     tf.initializers.glorotNormal()
@@ -61,6 +76,32 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     tf.initializers.glorotNormal()
                 )
             )
+            if (this.useBias) {
+                this.inProjBiases.push(
+                    this.addWeight(
+                        `inProjBias-${i}`,
+                        [this.expertDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
+                this.gateProjBiases.push(
+                    this.addWeight(
+                        `gateProjBias-${i}`,
+                        [this.expertDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
+                this.outProjBiases.push(
+                    this.addWeight(
+                        `outProjBias-${i}`,
+                        [inputDim],
+                        'float32',
+                        tf.initializers.zeros()
+                    )
+                )
+            }
         }
     }
 
@@ -72,7 +113,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             const gatingHidden = this.ops.applyDense(
                 inputs,
                 this.routerHiddenKernel.read(),
-                this.routerHiddenBias.read()
+                this.routerHiddenBias?.read()
             )
 
             // Apply layer normalization before activating the logits of our router
@@ -84,11 +125,16 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             const expertWeights = this.ops.applyDense(
                 activatedGate,
                 this.routerOutputKernel.read(),
-                this.routerOutputBias.read()
+                this.routerOutputBias?.read()
             )
 
             const avgInProjKernel = this.computeWeightedAverage(
                 this.inProjKernels,
+                expertWeights
+            )
+
+            const avgGateProjKernel = this.computeWeightedAverage(
+                this.gateProjKernels,
                 expertWeights
             )
 
@@ -97,8 +143,29 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 expertWeights
             )
 
-            // Expand and contract projection via feedforward layers
-            let outputs = this.ops.applyDense(inputs, avgInProjKernel)
+            let avgInProjBias = null
+            let avgGateProjBias = null
+            let avgOutProjBias = null
+            if (this.useBias) {
+                avgInProjBias = this.computeWeightedAverage(
+                    this.inProjBiases,
+                    expertWeights
+                )
+                avgGateProjBias = this.computeWeightedAverage(
+                    this.gateProjBiases,
+                    expertWeights
+                )
+                avgOutProjBias = this.computeWeightedAverage(
+                    this.outProjBiases,
+                    expertWeights
+                )
+            }
+
+            let outputs = this.ops.applyDense(
+                inputs,
+                avgInProjKernel,
+                avgInProjBias
+            )
 
             outputs = this.ops.rmsNorm(outputs)
 
@@ -106,9 +173,24 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 .activation({ activation: this.activation })
                 .apply(outputs)
 
-            outputs = this.ops.applyDense(outputs, avgOutProjKernel)
+            let gate = this.ops.applyDense(
+                inputs,
+                avgGateProjKernel,
+                avgGateProjBias
+            )
 
-            // Residual connection
+            gate = tf.layers
+                .activation({ activation: this.gateActivation })
+                .apply(gate)
+
+            const gatedOutput = tf.mul(outputs, gate)
+
+            outputs = this.ops.applyDense(
+                gatedOutput,
+                avgOutProjKernel,
+                avgOutProjBias
+            )
+
             outputs = tf.add(inputs, outputs)
 
             return outputs
@@ -133,7 +215,8 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             routerDim: this.routerDim,
             expertDim: this.expertDim,
             activation: this.activation,
-            routerActivation: this.routerActivation
+            routerActivation: this.routerActivation,
+            gateActivation: this.gateActivation
         }
     }
 }

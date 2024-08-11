@@ -1,28 +1,29 @@
 import ODE from './model.v2.js'
 
 /**
- * A Frankenstein.
+ * In development.
  * @extends ODE
  */
-export default class OmniscientDeterministicEngine extends ODE {
+export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 4
         this.units = config.units || 256
-        this.numHeads = config.numHeads || 8
-        // this.queriesPerHead = config.queriesPerHead || 2
-        // this.headDim = config.headDim || 128
-        // this.headFeatures = config.headFeatures || 64
-        this.mlpDim = config.mlpDim || 1024
-        // this.useBias = config.useBias || true
-        // this.ALiBiLength = 1024
-        this.learningRate = 1e-4
-        this.weightDecay = 1e-5
+        this.numHeads = config.heads || 8
+        this.queriesPerHead = config.queriesPerHead || 1
+        this.headDim = config.headDim || 128
+        this.numExperts = config.numExperts || 3
+        this.expertDim = config.expertDim || 768
+        this.routerDim = config.routerDim || 64
+        this.useBias = config.useBias || true
+        this.ALiBiLength = 1024
+        this.learningRate = 1.0
+        this.weightDecay = 0.00001
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-balanced-v1'
+            model: 'englishcode-8000-clean-v1'
         })
     }
 
@@ -41,22 +42,24 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .LocalSensitiveHashingAttention({
-                    numHeads: this.numHeads
-                    // headDim: this.headDim,
-                    // headFeatures: this.headFeatures,
-                    // queriesPerHead: this.queriesPerHead,
-                    // useBias: this.useBias,
-                    // ALiBiLength: this.ALiBiLength
+                .MultiHeadAttention({
+                    numHeads: this.numHeads,
+                    headDim: this.headDim,
+                    queriesPerHead: this.queriesPerHead,
+                    ALiBiLength: this.ALiBiLength,
+                    useBias: this.useBias
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .GatedLinearMLP({
-                    hiddenDim: this.mlpDim,
+                .SoftMergingOfExpertsMLP({
                     activation: 'mish',
-                    gateActivation: 'swish'
-                    // useBias: this.useBias
+                    routerActivation: 'swish',
+                    gateActivation: 'gelu',
+                    numExperts: this.numExperts,
+                    expertDim: this.expertDim,
+                    routerDim: this.routerDim,
+                    useBias: this.useBias
                 })
                 .apply(outputs)
         }
@@ -74,10 +77,9 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         this.optimizers = [
-            this.ode.optimizers.Lion({
+            this.ode.optimizers.Prodigy({
                 learningRate: this.learningRate,
-                weightDecay: this.weightDecay,
-                useGc: true
+                weightDecay: this.weightDecay
             })
         ]
     }
