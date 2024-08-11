@@ -226,7 +226,9 @@ class Prodigy extends tf.Optimizer {
         beta1 = 0.9,
         beta2 = 0.999,
         beta3 = null,
+        d = null,
         d0 = 1e-6,
+        dMax = null,
         dCoef = 1.0,
         growthRate = null,
         weightDecay = 0.0,
@@ -242,9 +244,9 @@ class Prodigy extends tf.Optimizer {
         this.beta1 = beta1
         this.beta2 = beta2
         this.beta3 = beta3 || Math.sqrt(beta2)
-        this.d = d0
+        this.d = d ? d : d0
         this.d0 = d0
-        this.dMax = d0
+        this.dMax = dMax ? dMax : d0
         this.dCoef = dCoef
         this.growthRate = growthRate ? growthRate : Infinity
         this.weightDecay = weightDecay
@@ -391,7 +393,9 @@ class Prodigy extends tf.Optimizer {
             beta1: this.beta1,
             beta2: this.beta2,
             beta3: this.beta3,
+            d: this.d,
             d0: this.d0,
+            dMax: this.dMax,
             dCoef: this.dCoef,
             growthRate: this.growthRate,
             weightDecay: this.weightDecay,

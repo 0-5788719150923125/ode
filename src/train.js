@@ -29,7 +29,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
     }
 
     this.batch = 0
-    this.step = 0
+    this.step = this.model.optimizer.step || 0
     this.loss = 0
 
     const accumulator = new GradientAccumulator(
@@ -81,6 +81,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         // Fetch data and compute gradients
         await accumulator.compute(data.xs, data.ys)
         await accumulator.step(this.step, this.batch)
+
         this.loss = accumulator.getLoss()
 
         for (const callback of callbacks) {
@@ -96,7 +97,9 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         }
 
         this.batch++
-        this.step = this.model.optimizer.iterations
+        if (this.batch % trainArgs.gradientAccumulationSteps === 0) {
+            this.step++
+        }
     }
 }
 

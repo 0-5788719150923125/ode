@@ -56,13 +56,13 @@ async function orchestrate(options) {
         ...options
     })
 
-    if (['infer', 'continue'].includes(options.action)) {
+    if (['infer', 'resume'].includes(options.action)) {
         await net.load()
     } else {
         await net.init()
     }
 
-    if (['train', 'continue'].includes(options.action)) {
+    if (['train', 'resume'].includes(options.action)) {
         let sampler
         const samplers = net.ode.samplers
         if (options.corpus.startsWith('http')) {
