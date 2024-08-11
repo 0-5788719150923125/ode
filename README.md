@@ -6,6 +6,12 @@ omniscient deterministic engine
 
 See: [cli.js](./cli.js)
 
+Example:
+
+```sh
+node cli.js --version 6 --batchSize 8 --gradientAccumulationSteps 8 --sampleLength 256 --generateEvery 512 --predictLength 512 --saveEvery 250 --action train
+```
+
 # serial experiments
 
 The Second Law of Thermodynamics states that the energy of a system always decreases over time, and that the entropy of a system always increases... this translates to... a `${temperature}` increase at every sequential layer. Lower layers should become deterministic and stable, while later layers are chaotic and unpredictable.
