@@ -17,7 +17,7 @@ export default class OpenDoorExperiment extends ODE {
         this.routerDim = config.routerDim || 128
         this.useBias = config.useBias || true
         this.ALiBiLength = 1024
-        this.learningRate = 0.0001
+        this.learningRate = 1.0
         this.weightDecay = 0.00001
     }
 

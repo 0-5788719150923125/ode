@@ -278,12 +278,6 @@ class Prodigy extends tf.Optimizer {
             Object.entries(variableGradients).forEach(([name, gradient]) => {
                 const variable = this.ENGINE.registeredVariables[name]
 
-                if (gradient.isSparse) {
-                    throw new Error(
-                        'Sparse gradients are not supported by Prodigy optimizer'
-                    )
-                }
-
                 if (!this.STATE[name]) {
                     this.STATE[name] = {
                         p0: tf.keep(variable.clone()),
