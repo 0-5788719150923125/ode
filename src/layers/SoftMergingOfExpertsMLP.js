@@ -16,7 +16,6 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
 
-        // Initialize gating network
         this.routerHiddenKernel = this.addWeight(
             'routerHiddenKernel',
             [inputDim, this.routerDim],
@@ -44,7 +43,6 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             )
         }
 
-        // Initialize the experts
         this.inProjKernels = []
         this.gateProjKernels = []
         this.outProjKernels = []
@@ -161,17 +159,17 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 )
             }
 
-            let outputs = this.ops.applyDense(
+            let proj = this.ops.applyDense(
                 inputs,
                 avgInProjKernel,
                 avgInProjBias
             )
 
-            outputs = this.ops.rmsNorm(outputs)
+            proj = this.ops.rmsNorm(proj)
 
-            outputs = tf.layers
+            proj = tf.layers
                 .activation({ activation: this.activation })
-                .apply(outputs)
+                .apply(proj)
 
             let gate = this.ops.applyDense(
                 inputs,
@@ -183,9 +181,9 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 .activation({ activation: this.gateActivation })
                 .apply(gate)
 
-            const gatedOutput = tf.mul(outputs, gate)
+            const gatedOutput = tf.mul(proj, gate)
 
-            outputs = this.ops.applyDense(
+            let outputs = this.ops.applyDense(
                 gatedOutput,
                 avgOutProjKernel,
                 avgOutProjBias

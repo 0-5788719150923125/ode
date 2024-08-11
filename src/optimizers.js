@@ -228,14 +228,14 @@ class Prodigy extends tf.Optimizer {
         beta3 = null,
         d0 = 1e-6,
         dCoef = 1.0,
-        growthRate = Infinity,
+        growthRate = null,
         weightDecay = 0.0,
         weightDecouple = true,
         fixedDecay = false,
         biasCorrection = false,
         safeguardWarmup = false,
         epsilon = 1e-8,
-        step = 1
+        step = 0
     } = {}) {
         super()
         this.learningRate = learningRate
@@ -246,7 +246,7 @@ class Prodigy extends tf.Optimizer {
         this.d0 = d0
         this.dMax = d0
         this.dCoef = dCoef
-        this.growthRate = growthRate
+        this.growthRate = growthRate ? growthRate : Infinity
         this.weightDecay = weightDecay
         this.weightDecouple = weightDecouple
         this.fixedDecay = fixedDecay
@@ -264,11 +264,9 @@ class Prodigy extends tf.Optimizer {
             const beta2 = this.beta2
             const beta3 = this.beta3
             const biasCorrection1 = 1.0 - Math.pow(beta1, this.step)
-            const biasCorrection2Sq = Math.sqrt(
-                1.0 - Math.pow(beta2, this.step)
-            )
+            const biasCorrection2 = 1.0 - Math.pow(beta2, this.step)
             const biasCorrection = this.biasCorrection
-                ? biasCorrection1 / biasCorrection2Sq
+                ? biasCorrection1 / Math.sqrt(biasCorrection2)
                 : 1.0
             const dLr = (this.d * this.learningRate) / biasCorrection
 
@@ -380,9 +378,7 @@ class Prodigy extends tf.Optimizer {
     setWeights(weightValues) {
         weightValues.forEach((namedTensor) => {
             const [name, tensorName] = namedTensor.name.split('__')
-            if (!this.STATE[name]) {
-                this.STATE[name] = {}
-            }
+            if (!this.STATE[name]) this.STATE[name] = {}
             this.STATE[name][tensorName] = tf.keep(
                 tf.variable(namedTensor.tensor)
             )
@@ -395,10 +391,8 @@ class Prodigy extends tf.Optimizer {
             beta1: this.beta1,
             beta2: this.beta2,
             beta3: this.beta3,
-            d: this.d,
             d0: this.d0,
             dCoef: this.dCoef,
-            dMax: this.dMax,
             growthRate: this.growthRate,
             weightDecay: this.weightDecay,
             weightDecouple: this.weightDecouple,
@@ -408,17 +402,6 @@ class Prodigy extends tf.Optimizer {
             epsilon: this.epsilon,
             step: this.step
         }
-    }
-
-    static fromConfig(cls, config) {
-        return new cls(config)
-    }
-
-    dispose() {
-        Object.values(this.STATE).forEach((state) => {
-            Object.values(state).forEach((tensor) => tensor.dispose())
-        })
-        this.STATE = {}
     }
 
     static get className() {

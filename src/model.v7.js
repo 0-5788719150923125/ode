@@ -12,12 +12,12 @@ export default class OpenDoorExperiment extends ODE {
         this.numHeads = config.heads || 8
         this.queriesPerHead = config.queriesPerHead || 1
         this.headDim = config.headDim || 128
-        this.numExperts = config.numExperts || 3
-        this.expertDim = config.expertDim || 768
+        this.numExperts = config.numExperts || 2
+        this.expertDim = config.expertDim || 1024
         this.routerDim = config.routerDim || 64
         this.useBias = config.useBias || true
         this.ALiBiLength = 1024
-        this.learningRate = 1.0
+        this.learningRate = 0.0001
         this.weightDecay = 0.00001
     }
 
@@ -54,8 +54,8 @@ export default class OpenDoorExperiment extends ODE {
             outputs = this.ode.layers
                 .SoftMergingOfExpertsMLP({
                     activation: 'mish',
-                    routerActivation: 'swish',
                     gateActivation: 'gelu',
+                    routerActivation: 'swish',
                     numExperts: this.numExperts,
                     expertDim: this.expertDim,
                     routerDim: this.routerDim,
