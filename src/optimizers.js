@@ -278,6 +278,12 @@ class Prodigy extends tf.Optimizer {
             Object.entries(variableGradients).forEach(([name, gradient]) => {
                 const variable = this.ENGINE.registeredVariables[name]
 
+                if (gradient.isSparse) {
+                    throw new Error(
+                        'Sparse gradients are not supported by Prodigy optimizer'
+                    )
+                }
+
                 if (!this.STATE[name]) {
                     this.STATE[name] = {
                         p0: tf.keep(variable.clone()),
@@ -331,13 +337,6 @@ class Prodigy extends tf.Optimizer {
                 dDenom = dDenom.add(this.STATE[name].s.abs().sum())
             })
 
-            const dHat = this.dCoef * dNumerator.div(dDenom).dataSync()[0]
-            if (this.d === this.d0) {
-                this.d = Math.max(this.d, dHat)
-            }
-            this.dMax = Math.max(this.dMax, dHat)
-            this.d = Math.min(this.dMax, this.d * this.growthRate)
-
             Object.entries(variableGradients).forEach(([name, gradient]) => {
                 const variable = this.ENGINE.registeredVariables[name]
                 const { expAvg, expAvgSq } = this.STATE[name]
@@ -359,6 +358,13 @@ class Prodigy extends tf.Optimizer {
 
                 variable.assign(variable.sub(expAvg.div(denom).mul(dLr)))
             })
+
+            const dHat = this.dCoef * dNumerator.div(dDenom).dataSync()[0]
+            if (this.d === this.d0) {
+                this.d = Math.max(this.d, dHat)
+            }
+            this.dMax = Math.max(this.dMax, dHat)
+            this.d = Math.min(this.dMax, this.d * this.growthRate)
 
             this.step++
         })
