@@ -107,14 +107,12 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            // Gating network
             const gatingHidden = this.ops.applyDense(
                 inputs,
                 this.routerHiddenKernel.read(),
                 this.routerHiddenBias?.read()
             )
 
-            // Apply layer normalization before activating the logits of our router
             const normalizedState = this.ops.rmsNorm(gatingHidden)
             const activatedGate = tf.layers
                 .activation({ activation: this.routerActivation })
