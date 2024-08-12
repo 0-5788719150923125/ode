@@ -52,16 +52,18 @@ class AdamW extends tf.AdamOptimizer {
 tf.serialization.registerClass(AdamW)
 
 class AdamG extends tf.Optimizer {
-    constructor(
+    constructor({
         learningRate = 1.0,
         beta1 = 0.9,
         beta2 = 0.999,
         beta3 = 0.95,
+        accBeta1 = 1,
+        accBeta2 = 1,
         epsilon = 1e-8,
         p = 0.2,
         q = 0.24,
         step = 0
-    ) {
+    } = {}) {
         super()
         this.learningRate = learningRate
         this.beta1 = beta1
@@ -70,13 +72,11 @@ class AdamG extends tf.Optimizer {
         this.epsilon = epsilon
         this.p = p
         this.q = q
-        this.accBeta1 = 1
-        this.accBeta2 = 1
-        this.firstMoment = {}
-        this.secondMoment = {}
-        this.goldenStep = {}
+        this.accBeta1 = accBeta1
+        this.accBeta2 = accBeta2
+        this.step = step
         this.ENGINE = tf.engine()
-        this.step = step || 0
+        this.STATE = {}
     }
 
     applyGradients(variableGradients) {
@@ -88,23 +88,20 @@ class AdamG extends tf.Optimizer {
                 ? variableGradients.map((v) => v.name)
                 : Object.keys(variableGradients)
 
-            variableNames.forEach((name, idx) => {
+            variableNames.forEach((name) => {
                 const value = this.ENGINE.registeredVariables[name]
                 const grad = variableGradients[name]
 
-                if (!this.firstMoment[idx]) {
-                    this.firstMoment[idx] = tf.variable(tf.zerosLike(value))
-                }
-                if (!this.secondMoment[idx]) {
-                    this.secondMoment[idx] = tf.variable(tf.zerosLike(value))
-                }
-                if (!this.goldenStep[idx]) {
-                    this.goldenStep[idx] = tf.variable(tf.zerosLike(value))
+                if (!this.STATE[name]) {
+                    this.STATE[name] = {
+                        firstMoment: tf.variable(tf.zerosLike(value)),
+                        secondMoment: tf.variable(tf.zerosLike(value)),
+                        goldenStep: tf.variable(tf.zerosLike(value))
+                    }
                 }
 
-                const firstMoment = this.firstMoment[idx]
-                const secondMoment = this.secondMoment[idx]
-                const goldenStep = this.goldenStep[idx]
+                const { firstMoment, secondMoment, goldenStep } =
+                    this.STATE[name]
 
                 const newGoldenStep = goldenStep.mul(this.beta3).add(
                     tf
@@ -133,16 +130,43 @@ class AdamG extends tf.Optimizer {
 
                 value.assign(value.sub(update))
 
-                this.firstMoment[idx].assign(newFirstMoment)
-                this.secondMoment[idx].assign(newSecondMoment)
-                this.goldenStep[idx].assign(newGoldenStep)
+                this.STATE[name].firstMoment.assign(newFirstMoment)
+                this.STATE[name].secondMoment.assign(newSecondMoment)
+                this.STATE[name].goldenStep.assign(newGoldenStep)
             })
         })
 
         this.accBeta1 *= this.beta1
         this.accBeta2 *= this.beta2
-        this.incrementIterations()
         this.step++
+        this.incrementIterations()
+    }
+
+    setWeights(weightValues) {
+        weightValues.forEach((namedTensor) => {
+            const [name, tensorName] = namedTensor.name.split('__')
+            if (!this.STATE[name]) this.STATE[name] = {}
+            this.STATE[name][tensorName] = tf.variable(namedTensor.tensor)
+        })
+    }
+
+    getWeights() {
+        const weights = []
+        Object.entries(this.STATE).forEach(([name, state]) => {
+            weights.push({
+                name: `${name}__firstMoment`,
+                tensor: state.firstMoment
+            })
+            weights.push({
+                name: `${name}__secondMoment`,
+                tensor: state.secondMoment
+            })
+            weights.push({
+                name: `${name}__goldenStep`,
+                tensor: state.goldenStep
+            })
+        })
+        return weights
     }
 
     getConfig() {
@@ -151,6 +175,8 @@ class AdamG extends tf.Optimizer {
             beta1: this.beta1,
             beta2: this.beta2,
             beta3: this.beta3,
+            accBeta1: this.accBeta1,
+            accBeta2: this.accBeta2,
             epsilon: this.epsilon,
             p: this.p,
             q: this.q,
