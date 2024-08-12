@@ -1,5 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 
+// AdamG: a parameter-free optimizer
+// https://arxiv.org/abs/2405.04376
 export default class AdamG extends tf.Optimizer {
     constructor({
         learningRate = 1.0,
