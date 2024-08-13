@@ -24,9 +24,11 @@ model.fit(xs, ys, {
             console.log(epoch)
             console.log(tf.memory())
             if (epoch % 1000 === 0 && epoch !== 0) {
+                // tf.engine().startScope()
                 await model.save(`file://saved_model`, {
                     includeOptimizer: true
                 })
+                // tf.engine().endScope()
             }
         }
     }

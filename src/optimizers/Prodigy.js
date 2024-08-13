@@ -134,9 +134,7 @@ export default class Prodigy extends tf.Optimizer {
             })
 
             const dHat = this.dCoef * dNumerator.div(dDenom).dataSync()[0]
-            if (this.d === this.d0) {
-                this.d = Math.max(this.d, dHat)
-            }
+            if (this.d === this.d0) this.d = Math.max(this.d, dHat)
             this.dMax = Math.max(this.dMax, dHat)
             this.d = Math.min(this.dMax, this.d * this.growthRate)
 

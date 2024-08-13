@@ -96,6 +96,9 @@ export default class ModelBase {
     }
 
     async save(type = 'file', path = `data/models/ode`) {
+        // prevents a tensor leak
+        // https://github.com/tensorflow/tfjs/issues/8238
+        tf.engine().startScope()
         if (type === 'file') {
             const fs = await import('fs')
             fs.mkdirSync(path, { recursive: true })
@@ -118,6 +121,7 @@ export default class ModelBase {
                 }
             }
         }
+        tf.engine().endScope()
     }
 
     getStats() {
