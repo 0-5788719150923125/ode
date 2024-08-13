@@ -32,8 +32,10 @@ export default class AdamG extends tf.Optimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
-            const learningRateScaled =
-                this.learningRate * Math.min(1, 1 / Math.sqrt(this.step + 1))
+            const learningRateScaled = Math.min(
+                this.learningRate,
+                1 / Math.sqrt(this.step + 1)
+            )
 
             const variableNames = Array.isArray(variableGradients)
                 ? variableGradients.map((v) => v.name)
