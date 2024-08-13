@@ -41,15 +41,19 @@ export default class Prodigy extends tf.Optimizer {
         this.STATE = {}
     }
 
+    // Adam-style debias correction
+    debias(beta, step) {
+        return 1.0 - Math.pow(beta, step)
+    }
+
     applyGradients(variableGradients) {
         tf.tidy(() => {
             const beta1 = this.beta1
             const beta2 = this.beta2
             const beta3 = this.beta3
-            const biasCorrection1 = 1.0 - Math.pow(beta1, this.step)
-            const biasCorrection2 = 1.0 - Math.pow(beta2, this.step)
             const biasCorrection = this.biasCorrection
-                ? biasCorrection1 / Math.sqrt(biasCorrection2)
+                ? this.debias(beta1, this.step) /
+                  Math.sqrt(this.debias(beta2, this.step))
                 : 1.0
             const dLr = (this.d * this.learningRate) / biasCorrection
 
@@ -127,7 +131,9 @@ export default class Prodigy extends tf.Optimizer {
                             variable.sub(variable.mul(this.weightDecay * dLr))
                         )
                     } else if (!this.fixedDecay) {
-                        gradient = gradient.add(variable.mul(this.weightDecay))
+                        gradient.assign(
+                            gradient.add(variable.mul(this.weightDecay))
+                        )
                     }
                 }
 
