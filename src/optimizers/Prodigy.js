@@ -48,12 +48,9 @@ export default class Prodigy extends tf.Optimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
-            const beta1 = this.beta1
-            const beta2 = this.beta2
-            const beta3 = this.beta3
             const biasCorrection = this.biasCorrection
-                ? this.debias(beta1, this.step) /
-                  Math.sqrt(this.debias(beta2, this.step))
+                ? this.debias(this.beta1, this.step) /
+                  Math.sqrt(this.debias(this.beta2, this.step))
                 : 1.0
             const dLr = (this.d * this.learningRate) / biasCorrection
 
@@ -65,23 +62,17 @@ export default class Prodigy extends tf.Optimizer {
 
                 if (!this.STATE[name]) {
                     this.STATE[name] = {
-                        p0: tf.keep(variable.clone()),
-                        expAvg: tf.keep(tf.zerosLike(variable)),
-                        expAvgSq: tf.keep(tf.zerosLike(variable)),
-                        s: tf.keep(tf.zerosLike(variable))
+                        p0: tf.variable(variable.clone()),
+                        expAvg: tf.variable(tf.zerosLike(variable)),
+                        expAvgSq: tf.variable(tf.zerosLike(variable)),
+                        s: tf.variable(tf.zerosLike(variable))
                     }
                 }
 
-                const p0 = this.STATE[name].p0
-                const expAvg = tf.clone(this.STATE[name].expAvg)
-                const expAvgSq = tf.clone(this.STATE[name].expAvgSq)
-                const s = tf.clone(this.STATE[name].s)
-
-                tf.dispose([
-                    this.STATE[name].expAvg,
-                    this.STATE[name].expAvgSq,
-                    this.STATE[name].s
-                ])
+                const p0 = this.STATE[name].p0.clone()
+                const expAvg = this.STATE[name].expAvg.clone()
+                const expAvgSq = this.STATE[name].expAvgSq.clone()
+                const s = this.STATE[name].s.clone()
 
                 dNumerator = dNumerator.add(
                     tf
@@ -89,22 +80,24 @@ export default class Prodigy extends tf.Optimizer {
                         .mul((this.d / this.d0) * dLr)
                 )
 
-                this.STATE[name].expAvg = tf.keep(
-                    expAvg.mul(beta1).add(gradient.mul(this.d * (1.0 - beta1)))
+                this.STATE[name].expAvg.assign(
+                    expAvg
+                        .mul(this.beta1)
+                        .add(gradient.mul(this.d * (1.0 - this.beta1)))
                 )
-                this.STATE[name].expAvgSq = tf.keep(
+                this.STATE[name].expAvgSq.assign(
                     expAvgSq
-                        .mul(beta2)
+                        .mul(this.beta2)
                         .add(
                             gradient
                                 .square()
-                                .mul(this.d * this.d * (1.0 - beta2))
+                                .mul(this.d * this.d * (1.0 - this.beta2))
                         )
                 )
 
-                this.STATE[name].s = tf.keep(
+                this.STATE[name].s.assign(
                     s
-                        .mul(beta3)
+                        .mul(this.beta3)
                         .add(
                             gradient.mul(
                                 (this.d / this.d0) *
