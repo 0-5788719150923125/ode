@@ -36,19 +36,24 @@ export default class GrokFast extends tf.AdamOptimizer {
                 )
                 value.assign(newValue)
 
-                // Apply Grokfast EMA gradient filter
+                // Apply GrokFast EMA gradient filter
                 const grad = variableGradients[name]
                 if (this.grads[name] == null) {
-                    this.grads[name] = tf.zerosLike(grad)
+                    this.grads[name] = tf.variable(tf.zerosLike(grad))
                 }
-                this.grads[name] = tf.add(
-                    tf.mul(this.grads[name], this.alpha),
-                    tf.mul(grad, 1 - this.alpha)
+                this.grads[name].assign(
+                    tf.add(
+                        tf.mul(this.grads[name], this.alpha),
+                        tf.mul(grad, 1 - this.alpha)
+                    )
                 )
                 const filteredGrad = tf.add(
                     grad,
                     tf.mul(this.grads[name], this.lamb)
                 )
+
+                tf.dispose([variableGradients[name]])
+
                 variableGradients[name] = filteredGrad
             })
 
