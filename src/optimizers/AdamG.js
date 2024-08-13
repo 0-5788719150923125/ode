@@ -5,14 +5,14 @@ import * as tf from '@tensorflow/tfjs'
 export default class AdamG extends tf.Optimizer {
     constructor({
         learningRate = 1.0,
-        beta1 = 0.9,
+        beta1 = 0.95,
         beta2 = 0.999,
         beta3 = 0.95,
         accBeta1 = 1,
         accBeta2 = 1,
         epsilon = 1e-8,
         p = 0.2,
-        q = 0.24,
+        q = 0.25,
         step = 0
     } = {}) {
         super()
