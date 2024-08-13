@@ -11,8 +11,8 @@ export default class AdamG extends tf.Optimizer {
         accBeta1 = 1,
         accBeta2 = 1,
         epsilon = 1e-8,
-        p = 0.2,
-        q = 0.25,
+        p = 0.5, // authors used 0.2
+        q = 0.25, // authors used 0.24
         step = 0
     } = {}) {
         super()
