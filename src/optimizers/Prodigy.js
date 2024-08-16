@@ -48,10 +48,12 @@ export default class Prodigy extends tf.Optimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
+            this.step++
             const biasCorrection = this.biasCorrection
                 ? this.debias(this.beta1, this.step) /
                   Math.sqrt(this.debias(this.beta2, this.step))
                 : 1.0
+
             const dLr = (this.d * this.learningRate) / biasCorrection
 
             let dNumerator = tf.scalar(0)
@@ -137,8 +139,6 @@ export default class Prodigy extends tf.Optimizer {
             if (this.d === this.d0) this.d = Math.max(this.d, dHat)
             this.dMax = Math.max(this.dMax, dHat)
             this.d = Math.min(this.dMax, this.d * this.growthRate)
-
-            this.step++
         })
 
         this.incrementIterations()

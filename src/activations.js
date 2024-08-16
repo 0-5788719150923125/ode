@@ -65,7 +65,7 @@ tf.serialization.registerClass(Snake)
  */
 class LaplaceActivation extends tf.serialization.Serializable {
     /** @nocollapse */
-    static className = 'LaplaceActivation'
+    static className = 'laplace'
 
     /**
      * Calculate the activation function.

@@ -1,57 +1,28 @@
 import ODE from './model.v2.js'
 
 /**
- * A Frankenstein.
+ * In development.
  * @extends ODE
  */
-export default class OmniscientDeterministicEngine extends ODE {
+export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.units = config.units || 256
-        this.embeddings = config.embeddings || 384
-        this.layers = [
-            {
-                outputDim: 288,
-                numHeads: 8,
-                headDim: 128,
-                headFeatures: 64,
-                queriesPerHead: 2,
-                mlpDim: 1024
-            },
-            {
-                outputDim: 320,
-                numHeads: 8,
-                headDim: 128,
-                headFeatures: 64,
-                queriesPerHead: 2,
-                mlpDim: 1024
-            },
-            {
-                outputDim: 352,
-                numHeads: 8,
-                headDim: 128,
-                headFeatures: 64,
-                queriesPerHead: 2,
-                mlpDim: 1024
-            },
-            {
-                outputDim: this.embeddings,
-                numHeads: 8,
-                headDim: 128,
-                headFeatures: 64,
-                queriesPerHead: 2,
-                mlpDim: 1024
-            }
-        ]
-        this.reductionSteps = config.reductionSteps || 4
-        this.ALiBiLength = 1024
-        this.learningRate = 0.0001
-        this.weightDecay = 0.00001
+        this.layers = config.layers || 12
+        this.units = config.units || 64
+        this.embeddings = config.embeddings || 512
+        this.numHeads = config.heads || 4
+        this.queriesPerHead = config.queriesPerHead || 2
+        this.headDim = config.headDim || 16
+        this.mlpDim = config.mlpDim || 256
+        this.useBias = config.useBias || true
+        this.ALiBiLength = 2048
+        this.learningRate = 1.0
+        this.weightDecay = 0.001
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-balanced-v1'
+            model: 'englishcode-8000-clean-v1'
         })
     }
 
@@ -60,43 +31,45 @@ export default class OmniscientDeterministicEngine extends ODE {
             shape: [null]
         })
 
-        const embeddings = this.ode.layers.SharedEmbedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.embeddings,
-            embeddingsInitializer: 'glorotUniform'
-        })
-
-        let outputs = embeddings.apply(inputs)
+        let outputs = this.ode.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.embeddings,
+                embeddingsInitializer: 'glorotUniform'
+            })
+            .apply(inputs)
 
         outputs = this.ode.layers
-            .ParabolicCompression({
-                numSteps: this.reductionSteps,
-                outputDim: this.units
+            .dense({
+                units: this.units
             })
             .apply(outputs)
 
-        for (const layer of this.layers) {
+        for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .ProjectedFeatureAttention({
-                    numHeads: layer.numHeads,
-                    headDim: layer.headDim,
-                    headFeatures: layer.headFeatures,
-                    queriesPerHead: layer.queriesPerHead,
-                    outputDim: layer.outputDim,
-                    ALiBiLength: this.ALiBiLength
+                .MultiHeadAttention({
+                    numHeads: this.numHeads,
+                    headDim: this.headDim,
+                    queriesPerHead: this.queriesPerHead,
+                    ALiBiLength: this.ALiBiLength,
+                    useBias: this.useBias
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .GatedLinearMLP({
-                    hiddenDim: layer.mlpDim,
-                    activation: 'mish',
-                    gateActivation: 'swish'
+                .MultiLayerPerceptron({
+                    activation: 'laplace',
+                    hiddenDim: this.mlpDim,
+                    useBias: this.useBias
                 })
                 .apply(outputs)
         }
 
-        outputs = embeddings.apply(outputs)
+        outputs = this.ode.layers
+            .dense({
+                units: this.tokenizer.getLength()
+            })
+            .apply(outputs)
 
         this.model = this.tf.model({ inputs, outputs })
     }
@@ -109,10 +82,10 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         this.optimizers = [
-            this.ode.optimizers.Lion({
+            this.ode.optimizers.Prodigy({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay,
-                useGc: true
+                biasCorrection: true
             })
         ]
     }
