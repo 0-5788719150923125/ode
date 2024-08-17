@@ -43,6 +43,7 @@ import VarianceThreshold from './layers/VarianceThreshold.js'
 import ParabolicCompression from './layers/ParabolicCompression.js'
 import SparseMixtureOfExpertsMLP from './layers/SparseMixtureOfExpertsMLP.js'
 import LocalSensitiveHashingAttention from './layers/LocalSensitiveHashingAttention.js'
+import PrimerAttention from './layers/PrimerAttention.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -158,6 +159,7 @@ const customLayersConfig = {
         constructor: ParameterEfficientExpertRetrieval,
         prefix: 'moe'
     },
+    PrimerAttention: { constructor: PrimerAttention, prefix: 'attn' },
     ProjectedFeatureAttention: {
         constructor: ProjectedFeatureAttention,
         prefix: 'attn'

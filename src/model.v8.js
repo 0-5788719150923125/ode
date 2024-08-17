@@ -47,7 +47,7 @@ export default class OpenDoorExperiment extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
-                .MultiHeadAttention({
+                .PrimerAttention({
                     numHeads: this.numHeads,
                     headDim: this.headDim,
                     queriesPerHead: this.queriesPerHead,
