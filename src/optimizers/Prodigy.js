@@ -18,7 +18,7 @@ export default class Prodigy extends tf.Optimizer {
         biasCorrection = false,
         safeguardWarmup = false,
         epsilon = 1e-8,
-        step = 0
+        step = 1
     } = {}) {
         super()
         this.learningRate = learningRate
@@ -48,7 +48,6 @@ export default class Prodigy extends tf.Optimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
-            this.step++
             const biasCorrection = this.biasCorrection
                 ? this.debias(this.beta1, this.step) /
                   Math.sqrt(this.debias(this.beta2, this.step))
@@ -142,6 +141,8 @@ export default class Prodigy extends tf.Optimizer {
         })
 
         this.incrementIterations()
+
+        this.step++
     }
 
     getWeights() {

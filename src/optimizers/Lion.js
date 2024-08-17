@@ -34,12 +34,10 @@ export default class Lion extends tf.Optimizer {
 
             if (!this.STATE[name]) {
                 this.STATE[name] = {
-                    expAvg: tf.keep(tf.zerosLike(variable))
+                    expAvg: tf.variable(tf.zerosLike(variable))
                 }
                 if (this.adaNorm) {
-                    this.STATE[name].expGradNorm = tf.keep(
-                        tf.variable(tf.scalar(0))
-                    )
+                    this.STATE[name].expGradNorm = tf.variable(tf.scalar(0))
                 }
             }
 
@@ -67,8 +65,7 @@ export default class Lion extends tf.Optimizer {
                 }
 
                 const sGrad = this.getAdaNormGradient(gradient, name)
-                const expAvg = tf.clone(this.STATE[name].expAvg)
-                tf.dispose(this.STATE[name].expAvg)
+                const expAvg = this.STATE[name].expAvg
 
                 const update = expAvg
                     .clone()
@@ -82,8 +79,7 @@ export default class Lion extends tf.Optimizer {
 
                 variable.assign(variable.sub(update.mul(this.learningRate)))
 
-                this.STATE[name].expAvg = tf.keep(updatedExpAvg)
-                tf.dispose(expAvg)
+                this.STATE[name].expAvg.assign(updatedExpAvg)
             })
         })
 
@@ -102,11 +98,9 @@ export default class Lion extends tf.Optimizer {
             expGradNorm.mul(this.r).add(gradNorm.mul(1 - this.r))
         )
 
-        this.STATE[name].expGradNorm = tf.keep(tf.variable(expGradNorm))
+        this.STATE[name].expGradNorm.assign(expGradNorm)
 
         const sGrad = gradient.div(expGradNorm.maximum(1e-10))
-
-        tf.dispose(expGradNorm)
 
         return sGrad
     }
@@ -114,12 +108,8 @@ export default class Lion extends tf.Optimizer {
     setWeights(weightValues) {
         weightValues.forEach((namedTensor) => {
             const [name, tensorName] = namedTensor.name.split('__')
-            if (!this.STATE[name]) {
-                this.STATE[name] = {}
-            }
-            this.STATE[name][tensorName] = tf.keep(
-                tf.variable(namedTensor.tensor)
-            )
+            if (!this.STATE[name]) this.STATE[name] = {}
+            this.STATE[name][tensorName] = tf.variable(namedTensor.tensor)
         })
     }
 
@@ -150,17 +140,6 @@ export default class Lion extends tf.Optimizer {
             r: this.r,
             adaNorm: this.adaNorm
         }
-    }
-
-    static fromConfig(cls, config) {
-        return new cls(config)
-    }
-
-    dispose() {
-        Object.values(this.STATE).forEach((state) => {
-            Object.values(state).forEach((tensor) => tensor.dispose())
-        })
-        this.STATE = {}
     }
 
     static get className() {

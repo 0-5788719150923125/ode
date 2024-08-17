@@ -7,16 +7,16 @@ import ODE from './model.v2.js'
 export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 12
-        this.units = config.units || 64
-        this.embeddings = config.embeddings || 512
+        this.layers = config.layers || 6
+        this.units = config.units || 160
+        this.embeddings = config.embeddings || 480
         this.numHeads = config.heads || 4
         this.queriesPerHead = config.queriesPerHead || 2
-        this.headDim = config.headDim || 16
-        this.mlpDim = config.mlpDim || 256
+        this.headDim = config.headDim || 40
+        this.mlpDim = config.mlpDim || 640
         this.useBias = config.useBias || true
         this.ALiBiLength = 2048
-        this.learningRate = 1.0
+        this.learningRate = 0.0001
         this.weightDecay = 0.001
     }
 
@@ -82,10 +82,11 @@ export default class OpenDoorExperiment extends ODE {
 
     defineOptimizers() {
         this.optimizers = [
-            this.ode.optimizers.Prodigy({
+            this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay,
-                biasCorrection: true
+                useGc: true,
+                adaNorm: true
             })
         ]
     }
