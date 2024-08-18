@@ -88,10 +88,37 @@ class LaplaceActivation extends tf.serialization.Serializable {
 
 tf.serialization.registerClass(LaplaceActivation)
 
+/**
+ * SERF activation function
+ * https://arxiv.org/abs/2108.09598
+ */
+class SERF extends tf.serialization.Serializable {
+    /** @nocollapse */
+    static className = 'serf'
+
+    /**
+     * Calculate the activation function.
+     *
+     * @param x Tensor.
+     * @returns a Tensor of the same shape as x
+     */
+    apply(x) {
+        return tf.tidy(() => {
+            const expTerm = tf.exp(x)
+            const logTerm = tf.log1p(expTerm)
+            const erfTerm = tf.erf(logTerm)
+            return tf.mul(x, erfTerm)
+        })
+    }
+}
+
+tf.serialization.registerClass(SERF)
+
 const activations = {
     APTx: new APTx(),
     Snake: new Snake(),
-    Laplace: new LaplaceActivation()
+    Laplace: new LaplaceActivation(),
+    SERF: new SERF()
 }
 
 export default activations

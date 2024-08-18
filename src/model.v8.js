@@ -19,12 +19,12 @@ export default class OpenDoorExperiment extends ODE {
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
         this.weightDecay = 0.001
-        this.cosineSteps = 8192
+        this.cosineSteps = 4096
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-balanced-v1'
+            model: 'englishcode-2048-strict-v1'
         })
     }
 
@@ -41,19 +41,13 @@ export default class OpenDoorExperiment extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.ode.layers.add().apply([
-            this.ode.layers
-                .LowRankFactorization({
-                    units: this.units,
-                    rank: 60
-                })
-                .apply(outputs),
-            this.ode.layers
-                .dense({
-                    units: this.units
-                })
-                .apply(outputs)
-        ])
+        outputs = this.ode.layers
+            .dense({
+                units: this.units,
+                kernelInitializer: 'glorotNormal',
+                useBias: this.useBias
+            })
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -68,7 +62,7 @@ export default class OpenDoorExperiment extends ODE {
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    activation: 'mish',
+                    activation: 'serf',
                     gateActivation: 'swish',
                     hiddenDim: this.mlpDim,
                     useBias: this.useBias
@@ -78,7 +72,9 @@ export default class OpenDoorExperiment extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.tokenizer.getLength()
+                units: this.tokenizer.getLength(),
+                kernelInitializer: 'glorotUniform',
+                useBias: this.useBias
             })
             .apply(outputs)
 
