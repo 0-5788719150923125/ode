@@ -7,7 +7,7 @@ import ODE from './model.v2.js'
 export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 6
+        this.layers = config.layers || 8
         this.units = config.units || 180
         this.embeddings = config.embeddings || 540
         this.numHeads = config.heads || 4
@@ -24,7 +24,7 @@ export default class OpenDoorExperiment extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-2048-strict-v1'
+            model: 'englishcode-1024-strict-v1'
         })
     }
 
@@ -42,10 +42,9 @@ export default class OpenDoorExperiment extends ODE {
             .apply(inputs)
 
         outputs = this.ode.layers
-            .dense({
+            .LowRankFactorization({
                 units: this.units,
-                kernelInitializer: 'glorotNormal',
-                useBias: this.useBias
+                rank: this.units / 2
             })
             .apply(outputs)
 

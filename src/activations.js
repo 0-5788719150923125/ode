@@ -63,7 +63,7 @@ tf.serialization.registerClass(Snake)
 /**
  * Laplace activation function
  */
-class LaplaceActivation extends tf.serialization.Serializable {
+class Laplace extends tf.serialization.Serializable {
     /** @nocollapse */
     static className = 'laplace'
 
@@ -86,7 +86,7 @@ class LaplaceActivation extends tf.serialization.Serializable {
     }
 }
 
-tf.serialization.registerClass(LaplaceActivation)
+tf.serialization.registerClass(Laplace)
 
 /**
  * SERF activation function
@@ -117,7 +117,7 @@ tf.serialization.registerClass(SERF)
 const activations = {
     APTx: new APTx(),
     Snake: new Snake(),
-    Laplace: new LaplaceActivation(),
+    Laplace: new Laplace(),
     SERF: new SERF()
 }
 
