@@ -53,7 +53,8 @@ import Zip from './layers/Zip.js'
  * @returns {(config: any) => import('@tensorflow/tfjs').layers.Layer}
  */
 const createLayerFactory = (layerConstructor, namePrefix) => (config) => {
-    const name = `${namePrefix}-${randomString()}`
+    const length = 3
+    const name = `${namePrefix}-${randomString(length)}`
     if (typeof layerConstructor === 'function' && !layerConstructor.prototype) {
         // For TFJS layers which are created via functions
         return layerConstructor({ name, ...config })

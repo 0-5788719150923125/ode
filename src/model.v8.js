@@ -17,7 +17,7 @@ export default class OpenDoorExperiment extends ODE {
         this.useBias = config.useBias || true
         this.ALiBiLength = 2048
         this.learningRate = 1e-4
-        this.minLearningRate = 1e-7
+        this.minLearningRate = 1e-6
         this.weightDecay = 0.001
         this.cosineSteps = 8192
     }
