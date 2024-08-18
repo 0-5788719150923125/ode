@@ -8,21 +8,23 @@ export default class OpenDoorExperiment extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 6
-        this.units = config.units || 160
-        this.embeddings = config.embeddings || 480
+        this.units = config.units || 180
+        this.embeddings = config.embeddings || 360
         this.numHeads = config.heads || 4
         this.queriesPerHead = config.queriesPerHead || 2
-        this.headDim = config.headDim || 40
-        this.mlpDim = config.mlpDim || 640
+        this.headDim = config.headDim || 45
+        this.mlpDim = config.mlpDim || 720
         this.useBias = config.useBias || true
         this.ALiBiLength = 2048
-        this.learningRate = 0.0001
+        this.learningRate = 1e-4
+        this.minLearningRate = 1e-7
         this.weightDecay = 0.001
+        this.cosineSteps = 8192
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-clean-v1'
+            model: 'englishcode-8000-balanced-v1'
         })
     }
 
@@ -31,7 +33,7 @@ export default class OpenDoorExperiment extends ODE {
             shape: [null]
         })
 
-        let outputs = this.ode.layers
+        const xEmb = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.embeddings,
@@ -39,11 +41,30 @@ export default class OpenDoorExperiment extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.ode.layers
-            .dense({
-                units: this.units
+        const yEmb = this.ode.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.embeddings,
+                embeddingsInitializer: 'heUniform'
             })
-            .apply(outputs)
+            .apply(inputs)
+
+        const xOut = this.ode.layers
+            .dense({
+                units: this.units / 2
+            })
+            .apply(xEmb)
+
+        const yOut = this.ode.layers
+            .conv1d({
+                filters: this.units / 2,
+                kernelSize: 3,
+                strides: 1,
+                padding: 'same'
+            })
+            .apply(yEmb)
+
+        let outputs = this.ode.layers.Zip().apply([xOut, yOut])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
@@ -57,8 +78,9 @@ export default class OpenDoorExperiment extends ODE {
                 .apply(outputs)
 
             outputs = this.ode.layers
-                .MultiLayerPerceptron({
-                    activation: 'laplace',
+                .GatedLinearMLP({
+                    activation: 'mish',
+                    gateActivation: 'swish',
                     hiddenDim: this.mlpDim,
                     useBias: this.useBias
                 })
@@ -76,7 +98,11 @@ export default class OpenDoorExperiment extends ODE {
 
     defineSchedulers() {
         this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
+            this.ode.schedulers.cosineWithRestartsScheduler(
+                this.minLearningRate,
+                this.learningRate,
+                this.cosineSteps
+            )
         ]
     }
 

@@ -44,6 +44,7 @@ import ParabolicCompression from './layers/ParabolicCompression.js'
 import SparseMixtureOfExpertsMLP from './layers/SparseMixtureOfExpertsMLP.js'
 import LocalSensitiveHashingAttention from './layers/LocalSensitiveHashingAttention.js'
 import PrimerAttention from './layers/PrimerAttention.js'
+import Zip from './layers/Zip.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -223,6 +224,10 @@ const customLayersConfig = {
     },
     VarianceThreshold: {
         constructor: VarianceThreshold,
+        prefix: 'op'
+    },
+    Zip: {
+        constructor: Zip,
         prefix: 'op'
     }
 }

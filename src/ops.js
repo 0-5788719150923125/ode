@@ -69,24 +69,34 @@ function applyALiBi(scores, numHeads, queriesPerHead, maxSeqLen = 2048) {
     })
 }
 
-// function applyALiBi(scores, numHeads, currentHead, seqLen, maxSeqLen = 2048) {
-//     const slopesPerHead = tf.pow(
-//         tf.scalar(2),
-//         tf.range(0, numHeads).add(1).mul(-8).div(tf.scalar(numHeads))
-//     )
-//     const slopesPerPos = tf.range(0, maxSeqLen).cast('float32').expandDims(0)
-//     const alibiSlopes = slopesPerHead.expandDims(1).mul(slopesPerPos)
+function zip(tensor1, tensor2) {
+    // Ensure tensors have the same shape
+    if (!tf.util.arraysEqual(tensor1.shape, tensor2.shape)) {
+        throw new Error('Tensors must have the same shape')
+    }
 
-//     const alibiScores = alibiSlopes
-//         .slice([currentHead, 0], [1, seqLen])
-//         .expandDims(0)
+    // Reshape tensors to 2D: [numElements, 1]
+    const flatShape = [-1, 1]
+    const flat1 = tensor1.reshape(flatShape)
+    const flat2 = tensor2.reshape(flatShape)
 
-//     return scores.sub(alibiScores)
-// }
+    // Stack the flattened tensors
+    const stacked = tf.stack([flat1, flat2])
+
+    // Reshape to interleave: [numElements * 2, 1]
+    const interleaved = stacked.reshape([-1])
+
+    // Reshape back to original shape, but with twice the size in last dimension
+    const newShape = tensor1.shape.slice()
+    newShape[newShape.length - 1] *= 2
+
+    return interleaved.reshape(newShape)
+}
 
 export default {
     gumbelSoftmax,
     rmsNorm,
     applyALiBi,
-    applyDense
+    applyDense,
+    zip
 }
