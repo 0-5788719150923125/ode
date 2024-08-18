@@ -2,6 +2,7 @@ import * as tf from '@tensorflow/tfjs'
 
 /**
  * APTx activation function
+ * https://arxiv.org/abs/2209.06119
  */
 class APTx extends tf.serialization.Serializable {
     /** @nocollapse */
@@ -25,43 +26,8 @@ class APTx extends tf.serialization.Serializable {
 tf.serialization.registerClass(APTx)
 
 /**
- * Snake activation function
- */
-class Snake extends tf.serialization.Serializable {
-    /** @nocollapse */
-    static className = 'snake'
-
-    /**
-     * Calculate the activation function.
-     *
-     * @param x Tensor.
-     * @param alpha Scalar value for the alpha parameter.
-     * @returns a Tensor of the same shape as x
-     */
-    apply(x, alpha = 1.0, beta = 0, gamma = 0, epsilon = 1e-8) {
-        return tf.tidy(() => {
-            // Original Snake activation
-            const sinTerm = tf.sin(tf.mul(alpha, x))
-            const squaredSinTerm = tf.square(sinTerm)
-            const inverseAlpha = tf.scalar(1).div(alpha)
-            const snakeTerm = tf.mul(inverseAlpha, squaredSinTerm)
-
-            // Additional oscillation terms
-            const outerOscillation = tf.mul(
-                tf.add(gamma, epsilon),
-                tf.sin(tf.mul(tf.add(beta, epsilon), x))
-            )
-
-            // Combine terms
-            return tf.add(tf.add(x, snakeTerm), outerOscillation)
-        })
-    }
-}
-
-tf.serialization.registerClass(Snake)
-
-/**
  * Laplace activation function
+ * https://arxiv.org/abs/2209.10655
  */
 class Laplace extends tf.serialization.Serializable {
     /** @nocollapse */
@@ -114,11 +80,48 @@ class SERF extends tf.serialization.Serializable {
 
 tf.serialization.registerClass(SERF)
 
+/**
+ * Snake activation function
+ * https://arxiv.org/abs/2309.07803
+ */
+class Snake extends tf.serialization.Serializable {
+    /** @nocollapse */
+    static className = 'snake'
+
+    /**
+     * Calculate the activation function.
+     *
+     * @param x Tensor.
+     * @param alpha Scalar value for the alpha parameter.
+     * @returns a Tensor of the same shape as x
+     */
+    apply(x, alpha = 1.0, beta = 0, gamma = 0, epsilon = 1e-8) {
+        return tf.tidy(() => {
+            // Original Snake activation
+            const sinTerm = tf.sin(tf.mul(alpha, x))
+            const squaredSinTerm = tf.square(sinTerm)
+            const inverseAlpha = tf.scalar(1).div(alpha)
+            const snakeTerm = tf.mul(inverseAlpha, squaredSinTerm)
+
+            // Additional oscillation terms
+            const outerOscillation = tf.mul(
+                tf.add(gamma, epsilon),
+                tf.sin(tf.mul(tf.add(beta, epsilon), x))
+            )
+
+            // Combine terms
+            return tf.add(tf.add(x, snakeTerm), outerOscillation)
+        })
+    }
+}
+
+tf.serialization.registerClass(Snake)
+
 const activations = {
     APTx: new APTx(),
-    Snake: new Snake(),
     Laplace: new Laplace(),
-    SERF: new SERF()
+    SERF: new SERF(),
+    Snake: new Snake()
 }
 
 export default activations
