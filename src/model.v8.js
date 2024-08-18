@@ -41,18 +41,19 @@ export default class OpenDoorExperiment extends ODE {
             })
             .apply(inputs)
 
-        // outputs = this.ode.layers
-        //     .LowRankFactorization({
-        //         units: this.units,
-        //         rank: 60
-        //     })
-        //     .apply(outputs)
-        outputs = this.ode.layers
-            .AttentionDimReduction({
-                units: this.units,
-                hiddenDim: 1080
-            })
-            .apply(outputs)
+        outputs = this.ode.layers.add().apply([
+            this.ode.layers
+                .LowRankFactorization({
+                    units: this.units,
+                    rank: 60
+                })
+                .apply(outputs),
+            this.ode.layers
+                .dense({
+                    units: this.units
+                })
+                .apply(outputs)
+        ])
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
