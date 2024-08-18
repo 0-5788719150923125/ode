@@ -45,6 +45,7 @@ import SparseMixtureOfExpertsMLP from './layers/SparseMixtureOfExpertsMLP.js'
 import LocalSensitiveHashingAttention from './layers/LocalSensitiveHashingAttention.js'
 import PrimerAttention from './layers/PrimerAttention.js'
 import Zip from './layers/Zip.js'
+import AttentionDimReduction from './layers/AttentionDimReduction.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -74,6 +75,10 @@ const customLayersConfig = {
     Antirectifier: {
         constructor: Antirectifier,
         prefix: 'op'
+    },
+    AttentionDimReduction: {
+        constructor: AttentionDimReduction,
+        prefix: 'attn'
     },
     AttentionFreeTransformer: {
         constructor: AttentionFreeTransformer,
