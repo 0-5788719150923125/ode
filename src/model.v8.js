@@ -9,7 +9,7 @@ export default class OpenDoorExperiment extends ODE {
         super(config)
         this.layers = config.layers || 6
         this.units = config.units || 180
-        this.embeddings = config.embeddings || 360
+        this.embeddings = config.embeddings || 540
         this.numHeads = config.heads || 4
         this.queriesPerHead = config.queriesPerHead || 2
         this.headDim = config.headDim || 45
@@ -33,7 +33,7 @@ export default class OpenDoorExperiment extends ODE {
             shape: [null]
         })
 
-        const xEmb = this.ode.layers
+        let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.embeddings,
@@ -41,30 +41,12 @@ export default class OpenDoorExperiment extends ODE {
             })
             .apply(inputs)
 
-        const yEmb = this.ode.layers
-            .embedding({
-                inputDim: this.tokenizer.getLength(),
-                outputDim: this.embeddings,
-                embeddingsInitializer: 'heUniform'
+        outputs = this.ode.layers
+            .LowRankFactorization({
+                units: this.units,
+                rank: 60
             })
-            .apply(inputs)
-
-        const xOut = this.ode.layers
-            .dense({
-                units: this.units / 2
-            })
-            .apply(xEmb)
-
-        const yOut = this.ode.layers
-            .conv1d({
-                filters: this.units / 2,
-                kernelSize: 3,
-                strides: 1,
-                padding: 'same'
-            })
-            .apply(yEmb)
-
-        let outputs = this.ode.layers.Zip().apply([xOut, yOut])
+            .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers

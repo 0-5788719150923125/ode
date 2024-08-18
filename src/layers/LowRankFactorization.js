@@ -4,7 +4,7 @@ import LayerBase from './base.js'
 export default class LowRankFactorization extends LayerBase {
     constructor(config) {
         super(config)
-        this.outputDim = config.outputDim
+        this.units = config.units
         this.rank = config.rank || 64
     }
 
@@ -20,7 +20,7 @@ export default class LowRankFactorization extends LayerBase {
 
         this.rightMatrix = this.addWeight(
             'rightMatrix',
-            [this.rank, this.outputDim],
+            [this.rank, this.units],
             'float32',
             tf.initializers.glorotNormal()
         )
@@ -35,17 +35,17 @@ export default class LowRankFactorization extends LayerBase {
             .matMul(this.leftMatrix.read())
             .matMul(this.rightMatrix.read())
 
-        return lowRankOutput.reshape([batchSize, seqLength, this.outputDim])
+        return lowRankOutput.reshape([batchSize, seqLength, this.units])
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], inputShape[1], this.outputDim]
+        return [inputShape[0], inputShape[1], this.units]
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
-            outputDim: this.outputDim,
+            units: this.units,
             rank: this.rank
         }
     }
