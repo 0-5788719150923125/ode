@@ -7,7 +7,7 @@ import ODE from './model.v2.js'
 export default class OpportunisticDegenerativeExample extends ODE {
     constructor(config) {
         super(config)
-        this.layers = config.layers || 8
+        this.layers = config.layers || 6
         this.units = config.units || 180
         this.embeddings = config.embeddings || 540
         this.numHeads = config.heads || 4
@@ -24,7 +24,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-1024-strict-v1'
+            model: 'englishcode-4096-strict-v1'
         })
     }
 
@@ -42,9 +42,10 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .apply(inputs)
 
         outputs = this.ode.layers
-            .LowRankFactorization({
+            .dense({
                 units: this.units,
-                rank: this.units / 2
+                kernelInitializer: 'glorotNormal',
+                useBias: this.useBias
             })
             .apply(outputs)
 
