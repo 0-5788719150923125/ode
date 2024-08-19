@@ -42,9 +42,9 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .apply(inputs)
 
         outputs = this.ode.layers
-            .LowRankFactorization({
+            .ParabolicCompression({
                 units: this.units,
-                rank: this.units / 4
+                numSteps: 3
             })
             .apply(outputs)
 

@@ -6,16 +6,16 @@ export default class ParabolicCompression extends LayerBase {
     constructor(config) {
         super(config)
         this.numSteps = config.numSteps || 3
-        this.outputDim = config.outputDim || 64
+        this.units = config.units || 64
         this.activation = customActivations.Snake
     }
 
     build(inputShape) {
         const inputDim = inputShape[inputShape.length - 1]
-        this.stepSize = (inputDim - this.outputDim) / this.numSteps
+        this.stepSize = (inputDim - this.units) / this.numSteps
 
-        if ((inputDim - this.outputDim) % this.stepSize !== 0) {
-            throw `inputDim (${inputDim}) minus outputDim (${this.outputDim}) must be a multiple of stepSize (${this.stepSize})!`
+        if ((inputDim - this.units) % this.stepSize !== 0) {
+            throw `inputDim (${inputDim}) minus units (${this.units}) must be a multiple of stepSize (${this.stepSize})!`
         }
 
         this.alpha = []
@@ -29,11 +29,18 @@ export default class ParabolicCompression extends LayerBase {
             tf.initializers.glorotUniform()
         )
 
+        this.residualMatrix = this.addWeight(
+            'residualMatrix',
+            [inputDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
+
         for (let i = 0; i < this.numSteps; i++) {
             const newSize = inputDim - this.stepSize * (i + 1)
 
-            if (newSize < this.outputDim) {
-                throw `newSize (${newSize}) should never be smaller than outputDim ${this.outputDim}!`
+            if (newSize < this.units) {
+                throw `newSize (${newSize}) should never be smaller than units ${this.units}!`
             }
 
             this.alpha.push(
@@ -66,7 +73,7 @@ export default class ParabolicCompression extends LayerBase {
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
-            const inputDim = inputs.shape[2]
+            const [batchSize, seqLength, inputDim] = inputs.shape
 
             let outputs = inputs
 
@@ -99,19 +106,24 @@ export default class ParabolicCompression extends LayerBase {
                 outputs = this.ops.applyDense(outputs, outProj)
             }
 
-            return outputs
+            const inputReshaped = inputs.reshape([-1, inputDim])
+            const residualOutput = inputReshaped
+                .matMul(this.residualMatrix.read())
+                .reshape([batchSize, seqLength, this.units])
+
+            return outputs.add(residualOutput)
         })
     }
 
     computeOutputShape(inputShape) {
-        return [inputShape[0], inputShape[1], this.outputDim]
+        return [inputShape[0], inputShape[1], this.units]
     }
 
     getConfig() {
         return {
             ...super.getConfig(),
             numSteps: this.numSteps,
-            outputDim: this.outputDim
+            units: this.units
         }
     }
 }
