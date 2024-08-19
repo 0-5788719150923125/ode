@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
-export default class LowRankFactorization extends LayerBase {
+export default class LowRankFactorizationResidual extends LayerBase {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -24,6 +24,13 @@ export default class LowRankFactorization extends LayerBase {
             'float32',
             tf.initializers.glorotNormal()
         )
+
+        this.residualMatrix = this.addWeight(
+            'residualMatrix',
+            [inputDim, this.units],
+            'float32',
+            tf.initializers.glorotNormal()
+        )
     }
 
     call(inputs) {
@@ -35,7 +42,11 @@ export default class LowRankFactorization extends LayerBase {
             .matMul(this.leftMatrix.read())
             .matMul(this.rightMatrix.read())
 
-        return lowRankOutput.reshape([batchSize, seqLength, this.units])
+        const residualOutput = inputReshaped.matMul(this.residualMatrix.read())
+
+        const output = lowRankOutput.add(residualOutput)
+
+        return output.reshape([batchSize, seqLength, this.units])
     }
 
     computeOutputShape(inputShape) {
@@ -51,4 +62,4 @@ export default class LowRankFactorization extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(LowRankFactorization)
+tf.serialization.registerClass(LowRankFactorizationResidual)

@@ -13,12 +13,12 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.numHeads = config.heads || 4
         this.queriesPerHead = config.queriesPerHead || 2
         this.headDim = config.headDim || 45
-        this.mlpDim = config.mlpDim || 720
+        this.mlpDim = config.mlpDim || 1080
         this.useBias = config.useBias || true
         this.ALiBiLength = 2048
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
-        this.weightDecay = 0.001
+        this.weightDecay = 1e-5
         this.cosineSteps = 4096
     }
 
@@ -42,10 +42,9 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .apply(inputs)
 
         outputs = this.ode.layers
-            .dense({
+            .LowRankFactorization({
                 units: this.units,
-                kernelInitializer: 'glorotNormal',
-                useBias: this.useBias
+                rank: this.units / 4
             })
             .apply(outputs)
 
@@ -73,8 +72,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength(),
-                kernelInitializer: 'glorotUniform',
-                useBias: this.useBias
+                kernelInitializer: 'glorotUniform'
             })
             .apply(outputs)
 
