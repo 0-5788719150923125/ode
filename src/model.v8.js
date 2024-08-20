@@ -24,7 +24,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-strict-v1'
+            model: 'englishcode-4096-balanced-v1'
         })
     }
 
@@ -61,7 +61,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    activation: 'serf',
+                    activation: 'mish',
                     gateActivation: 'swish',
                     hiddenDim: this.mlpDim,
                     useBias: this.useBias
