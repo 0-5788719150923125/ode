@@ -15,7 +15,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.headDim = config.headDim || 45
         this.mlpDim = config.mlpDim || 1080
         this.useBias = config.useBias || true
-        this.ALiBiLength = 2048
+        this.ALiBiLength = 1024
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
         this.weightDecay = 1e-5
@@ -44,7 +44,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         outputs = this.ode.layers
             .ParabolicCompression({
                 units: this.units,
-                numSteps: 3
+                numSteps: 4
             })
             .apply(outputs)
 

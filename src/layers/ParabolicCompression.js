@@ -22,13 +22,6 @@ export default class ParabolicCompression extends LayerBase {
         this.beta = []
         this.gamma = []
 
-        this.projectionMatrix = this.addWeight(
-            `projectionMatrix`,
-            [inputDim, inputDim],
-            'float32',
-            tf.initializers.glorotUniform()
-        )
-
         this.residualMatrix = this.addWeight(
             'residualMatrix',
             [inputDim, this.units],
@@ -36,6 +29,9 @@ export default class ParabolicCompression extends LayerBase {
             tf.initializers.glorotNormal()
         )
 
+        this.projectionMatrices = []
+
+        let currentSize = inputDim
         for (let i = 0; i < this.numSteps; i++) {
             const newSize = inputDim - this.stepSize * (i + 1)
 
@@ -48,7 +44,7 @@ export default class ParabolicCompression extends LayerBase {
                     `alpha-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.ones()
+                    tf.initializers.glorotUniform()
                 )
             )
             this.beta.push(
@@ -56,7 +52,7 @@ export default class ParabolicCompression extends LayerBase {
                     `beta-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.glorotUniform()
                 )
             )
             this.gamma.push(
@@ -64,9 +60,20 @@ export default class ParabolicCompression extends LayerBase {
                     `gamma-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.zeros()
+                    tf.initializers.glorotUniform()
                 )
             )
+
+            this.projectionMatrices.push(
+                this.addWeight(
+                    `projectionMatrix-${i}`,
+                    [currentSize, newSize],
+                    'float32',
+                    tf.initializers.glorotUniform()
+                )
+            )
+
+            currentSize = newSize
         }
     }
 
@@ -77,15 +84,13 @@ export default class ParabolicCompression extends LayerBase {
 
             let outputs = inputs
 
-            const matrix = this.projectionMatrix.read()
-
             let currentSize = inputDim
             for (let i = 0; i < this.numSteps; i++) {
                 const newSize = inputDim - this.stepSize * (i + 1)
 
                 // Project inputs into a lower dimension
-                const inProj = matrix.slice([0, 0], [currentSize, newSize])
-                outputs = this.ops.applyDense(outputs, inProj)
+                const projMatrix = this.projectionMatrices[i].read()
+                outputs = this.ops.applyDense(outputs, projMatrix)
 
                 // Reshape activation parameters to match outputs
                 const alpha = tf.reshape(this.alpha[i].read(), [1, 1, newSize])
@@ -97,13 +102,6 @@ export default class ParabolicCompression extends LayerBase {
 
                 // Reduce the size
                 currentSize = newSize
-
-                // Project outputs via a smaller, shifted slice of the matrix
-                const outProj = matrix.slice(
-                    [inputDim - currentSize, inputDim - newSize],
-                    [-1, -1]
-                )
-                outputs = this.ops.applyDense(outputs, outProj)
             }
 
             const inputReshaped = inputs.reshape([-1, inputDim])
