@@ -51,11 +51,11 @@ function sparseCategoricalCrossentropy(target, output, fromLogits = false) {
 
 // https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py
 function categoricalFocalCrossEntropy(
-    yTrue,
-    yPred,
+    target,
+    output,
     weights,
     labelSmoothing = 0,
-    reduction,
+    reduction = tf.Reduction.MEAN,
     alpha = null,
     gamma = 2.0,
     fromLogits = false,
@@ -64,14 +64,19 @@ function categoricalFocalCrossEntropy(
     return tf.tidy(() => {
         // Clip values to prevent division by zero error
         const epsilon = tf.backend().epsilon()
-        const clippedPred = tf.clipByValue(yPred, epsilon, 1 - epsilon)
+        const clippedPred = tf.clipByValue(output, epsilon, 1 - epsilon)
 
         if (fromLogits) {
-            yPred = tf.softmax(yPred, axis)
+            output = tf.softmax(output, axis)
         }
 
         // Calculate cross-entropy loss
-        const crossEntropy = tf.losses.softmaxCrossEntropy(yTrue, clippedPred)
+        const crossEntropy = tf.losses.softmaxCrossEntropy(
+            target,
+            clippedPred,
+            null,
+            labelSmoothing
+        )
 
         let focalLoss
         if (alpha !== null) {
@@ -87,9 +92,41 @@ function categoricalFocalCrossEntropy(
             )
         }
 
-        return tf.mean(tf.sum(focalLoss, -1))
+        // return tf.mean(tf.sum(focalLoss, -1))
+        return tf.losses.computeWeightedLoss(focalLoss, weights, reduction)
     })
 }
+
+// function softmaxCrossEntropy_<T extends Tensor, O extends Tensor>(
+//     onehotLabels: T|TensorLike, logits: T|TensorLike,
+//     weights?: Tensor|TensorLike, labelSmoothing = 0,
+//     reduction = Reduction.SUM_BY_NONZERO_WEIGHTS): O {
+//   let $onehotLabels =
+//       convertToTensor(onehotLabels, 'onehotLabels', 'softmaxCrossEntropy');
+//   const $logits = convertToTensor(logits, 'logits', 'softmaxCrossEntropy');
+//   let $weights: Tensor = null;
+
+//   if (weights != null) {
+//     $weights = convertToTensor(weights, 'weights', 'softmaxCrossEntropy');
+//   }
+
+//   assertShapesMatch(
+//       $onehotLabels.shape, $logits.shape, 'Error in softmaxCrossEntropy: ');
+
+//   if (labelSmoothing > 0) {
+//     const labelSmoothingScalar = scalar(labelSmoothing);
+//     const one = scalar(1);
+//     const numClasses = scalar($onehotLabels.shape[1]);
+
+//     $onehotLabels =
+//         add(mul($onehotLabels, sub(one, labelSmoothingScalar)),
+//             div(labelSmoothingScalar, numClasses));
+//   }
+
+//   const losses = softmaxCrossEntropyWithLogits_($onehotLabels, $logits);
+
+//   return computeWeightedLoss(losses, $weights, reduction);
+// }
 
 const customLosses = {
     softmaxCrossEntropy: tf.losses.softmaxCrossEntropy,
