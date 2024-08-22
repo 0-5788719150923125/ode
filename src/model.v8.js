@@ -84,7 +84,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
             {
                 function: this.ode.losses.softmaxCrossEntropy,
                 weights: null,
-                smoothing: 0.01,
+                smoothing: 0.0001,
                 reduction: this.tf.Reduction.MEAN
             }
         ]

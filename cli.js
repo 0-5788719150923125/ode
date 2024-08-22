@@ -13,6 +13,8 @@ const options = {
     generateEvery: 256,
     sampleLength: 256,
     predictLength: 128,
+    temperature: 0.7,
+    repetitionPenalty: 1.2,
     saveEvery: 0,
     corpus: 'https://www.gutenberg.org/files/100/old/shaks12.txt'
 }
@@ -113,9 +115,9 @@ async function orchestrate(options) {
                 const output = await net.generate({
                     prompt: text,
                     doSample: true,
-                    temperature: 0.45,
+                    temperature: options.temperature,
                     maxNewTokens: 256,
-                    repetitionPenalty: 1.1
+                    repetitionPenalty: options.repetitionPenalty
                 })
                 console.log(`OUTPUT: ${output}`)
                 rl.close()
