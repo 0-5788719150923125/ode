@@ -35,11 +35,11 @@ export default class FastAssociativeMemory extends LayerBase {
         )
     }
 
-    call(inputs) {
+    call(inputs, args) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            const seqLen = inputs.shape[1]
+            const [batchSize, seqLen, features] = inputs.shape
 
             if (!this.hPrev) {
                 this.hPrev = tf.zerosLike(inputs)
@@ -52,10 +52,14 @@ export default class FastAssociativeMemory extends LayerBase {
                         [seqLen - prevSeqLen, 0],
                         [0, 0]
                     ]
-                    this.hPrev = this.hPrev.pad(paddings, 1)
-                    this.hHistory = this.hHistory.map((h) =>
-                        tf.keep(h.pad(paddings, 1))
-                    )
+                    const hPr = this.hPrev.clone()
+                    this.hPrev.dispose()
+                    this.hPrev = hPr.pad(paddings, 1)
+                    this.hHistory = this.hHistory.map((h) => {
+                        const hClone = h.clone()
+                        h.dispose()
+                        return tf.keep(hClone.pad(paddings, 1))
+                    })
                 } else if (prevSeqLen > seqLen) {
                     const paddings = [
                         [0, 0],
@@ -112,10 +116,18 @@ export default class FastAssociativeMemory extends LayerBase {
                 this.hHistory.shift()
             }
 
-            this.hPrev = tf.keep(h)
+            this.hPrev.dispose()
+            this.hPrev = tf.keep(h.clone())
             this.hHistory.push(tf.keep(h))
 
-            return inputs.add(h)
+            let outputs = inputs.add(h)
+
+            outputs = outputs.slice(
+                [0, outputs.shape[1] - seqLen, 0],
+                [batchSize, seqLen, -1]
+            )
+
+            return outputs
         })
     }
 

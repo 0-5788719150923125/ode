@@ -59,7 +59,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
                 const memory = this.ode.layers
                     .FastAssociativeMemory({
-                        activation: 'mish',
+                        activation: 'gelu',
                         steps: 3,
                         learningRate: 1e-3,
                         decayRate: 0.9
