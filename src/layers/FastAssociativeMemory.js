@@ -19,7 +19,7 @@ export default class FastAssociativeMemory extends LayerBase {
             'W',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.identity({ gain: 0.05 })
         )
         this.C = this.addWeight(
             'C',
