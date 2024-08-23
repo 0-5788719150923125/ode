@@ -572,12 +572,6 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
         // Create a tensor of shape [vocabularySize] filled with the repetition penalty value
         const penaltyTensor = tf.fill([vocabularySize], repetitionPenalty)
 
-        // Create a mask tensor to identify the previous tokens
-        const outputSequenceMask = tf.cast(
-            tf.greaterEqual(outputSequence, 0),
-            'float32'
-        )
-
         // Create a tensor of shape [sequenceLength] representing the penalty factors
         // The penalty factors decrease linearly from 1 to 0 over the sequence length
         const penaltyFactors = tf.linspace(1, 0, sequenceLength)
