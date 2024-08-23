@@ -46,6 +46,7 @@ import LocalSensitiveHashingAttention from './layers/LocalSensitiveHashingAttent
 import PrimerAttention from './layers/PrimerAttention.js'
 import Zip from './layers/Zip.js'
 import AttentionDimReduction from './layers/AttentionDimReduction.js'
+import Split from './layers/Split.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -206,6 +207,10 @@ const customLayersConfig = {
     SparseMixtureOfExpertsMLP: {
         constructor: SparseMixtureOfExpertsMLP,
         prefix: 'moe'
+    },
+    Split: {
+        constructor: Split,
+        prefix: 'op'
     },
     SqueezeAndExcitation: {
         constructor: SqueezeAndExcitation,

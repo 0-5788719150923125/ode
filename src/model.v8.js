@@ -50,10 +50,11 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
         for (let i = 0; i < this.layers; i++) {
             if (i % 2 !== 0) {
-                outputs = this.ode.layers
-                    .dense({
-                        units: this.units / 2,
-                        kernelInitializer: 'glorotNormal'
+                const quarter = this.units / 4
+                const [hidden, ctx] = this.ode.layers
+                    .Split({
+                        axis: -1,
+                        numOrSizeSplits: [quarter * 3, quarter]
                     })
                     .apply(outputs)
 
@@ -64,9 +65,11 @@ export default class OpportunisticDegenerativeExample extends ODE {
                         learningRate: 1e-3,
                         decayRate: 0.9
                     })
-                    .apply(outputs)
+                    .apply(ctx)
 
-                outputs = this.ode.layers.concatenate().apply([outputs, memory])
+                outputs = this.ode.layers
+                    .concatenate({ axis: -1 })
+                    .apply([hidden, memory])
             }
 
             outputs = this.ode.layers
