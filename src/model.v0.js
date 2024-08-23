@@ -569,23 +569,20 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
         const sequenceLength = outputSequence.shape[1]
         const vocabularySize = logits.shape[0]
 
-        // Create a tensor of shape [vocabularySize] filled with the repetition penalty value
-        const penaltyTensor = tf.fill([vocabularySize], repetitionPenalty)
-
         // Create a tensor of shape [sequenceLength] representing the penalty factors
-        // The penalty factors decrease linearly from 1 to 0 over the sequence length
-        const penaltyFactors = tf.linspace(1, 0, sequenceLength)
+        // The penalty factors increase exponentially from 0 to 1 over the sequence length
+        const penaltyFactors = tf.pow(tf.linspace(0, 1, sequenceLength), 2)
 
-        // Calculate the effective penalty for each token in the vocabulary
-        const effectivePenalty = tf.tidy(() => {
-            const oneHot = tf.oneHot(outputSequence.flatten(), vocabularySize)
-            const weightedOneHot = tf.mul(oneHot, penaltyFactors.expandDims(1))
-            return weightedOneHot.sum(0)
-        })
+        // Create a one-hot tensor of shape [sequenceLength, vocabularySize] representing the output sequence
+        const oneHot = tf.oneHot(outputSequence.flatten(), vocabularySize)
 
-        // Apply the repetition penalty to the logits
-        const penaltyMask = tf.mul(penaltyTensor.sub(1), effectivePenalty)
-        const penalizedLogits = logits.sub(penaltyMask)
+        // Multiply the one-hot tensor with the penalty factors along the sequence dimension
+        const penaltyMask = tf.mul(oneHot, penaltyFactors.expandDims(1))
+
+        // Subtract the penalty mask from the logits
+        const penalizedLogits = logits.sub(
+            penaltyMask.sum(0).mul(repetitionPenalty - 1)
+        )
 
         return penalizedLogits
     })
