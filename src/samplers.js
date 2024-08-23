@@ -115,17 +115,17 @@ class HTTPSampler {
 }
 
 class StridedSampler {
-    constructor(sampler) {
+    constructor(sampler, stride) {
         this.sampler = sampler
+        this.stride = stride || 0
         this.tokens = []
     }
 
-    async take({ tokenizer, maxSeqLen, stride } = {}) {
+    async take({ tokenizer, maxSeqLen } = {}) {
         while (true) {
             if (this.tokens.length >= maxSeqLen) {
                 const returnTokens = this.tokens.slice(0, maxSeqLen)
-                stride = Math.ceil(maxSeqLen / 2)
-                this.tokens = this.tokens.slice(stride)
+                this.tokens = this.tokens.slice(maxSeqLen - this.stride)
                 return returnTokens
             }
             const sample = await this.sampler.take({ tokenizer, maxSeqLen })
@@ -220,10 +220,11 @@ const samplers = {
     DirectorySampler: (directories, delimiter) =>
         new RandomSampler(new DirectorySampler(directories, delimiter)),
     HTTPSampler: (url) => new RandomSampler(new HTTPSampler(url)),
+    StridedSampler: (sampler, stride) => new StridedSampler(sampler, stride),
     CosmopediaSampler: (config) =>
-        new StridedSampler(new CosmopediaSampler(config)),
+        new StridedSampler(new CosmopediaSampler(config), 32),
     WikipediaSampler: (config) =>
-        new StridedSampler(new WikipediaSampler(config)),
+        new StridedSampler(new WikipediaSampler(config), 32),
     MultiSampler: (samplers) => new MultiSampler(samplers),
     WeightedSampler: (samplers, rates) => new WeightedSampler(samplers, rates)
 }

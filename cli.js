@@ -1,7 +1,8 @@
 import ODE from './src/index.js'
 
 /**
- * Any one of these arguments can be passed to the CLI like this:
+ * These are default settings. Any one of these arguments can
+ * be overwritten by passing them to the CLI, like this:
  * node cli.js --backend cpu --version 2 --batchSize 3
  */
 const options = {
