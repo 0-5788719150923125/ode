@@ -120,10 +120,8 @@ export default class FastAssociativeMemory extends LayerBase {
             this.hPrev = tf.keep(h.clone())
             this.hHistory.push(tf.keep(h))
 
-            let outputs = inputs.add(h)
-
-            outputs = outputs.slice(
-                [0, outputs.shape[1] - seqLen, 0],
+            const outputs = h.slice(
+                [0, h.shape[1] - seqLen, 0],
                 [batchSize, seqLen, -1]
             )
 
