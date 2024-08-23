@@ -41,14 +41,29 @@ export default class OpportunisticDegenerativeExample extends ODE {
             })
             .apply(inputs)
 
+        const stepSize = Math.floor(this.units / this.layers)
+
         outputs = this.ode.layers
             .ParabolicCompression({
-                units: this.units,
-                numSteps: 4
+                units: stepSize,
+                numSteps: 3
             })
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
+            const memory = this.ode.layers
+                .FastAssociativeMemory({
+                    activation: 'gelu',
+                    steps: 3,
+                    learningRate: 1e-3,
+                    decayRate: 0.9
+                })
+                .apply(outputs)
+
+            const context = this.ode.layers
+                .concatenate()
+                .apply([outputs, memory])
+
             outputs = this.ode.layers
                 .PrimerAttention({
                     numHeads: this.numHeads,
@@ -57,7 +72,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
                     ALiBiLength: this.ALiBiLength,
                     useBias: this.useBias
                 })
-                .apply(outputs)
+                .apply(context)
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
@@ -65,6 +80,13 @@ export default class OpportunisticDegenerativeExample extends ODE {
                     gateActivation: 'swish',
                     hiddenDim: this.mlpDim,
                     useBias: this.useBias
+                })
+                .apply(outputs)
+
+            outputs = this.ode.layers
+                .dense({
+                    units: this.units / 2,
+                    kernelInitializer: 'glorotNormal'
                 })
                 .apply(outputs)
         }
