@@ -247,6 +247,13 @@ export default class ModelBase {
         topK = 0,
         topP = 1,
         repetitionPenalty = 1,
+        mirostat = false,
+        mirostatState = {
+            tau: 5.0,
+            eta: 1.0,
+            maxRepetition: 512,
+            mu: 10.0 // Initialize mu to 2 * tau
+        },
         maxNewTokens = 50,
         stopToken = null
     } = {}) {
@@ -258,6 +265,8 @@ export default class ModelBase {
             topK,
             topP,
             repetitionPenalty,
+            mirostat,
+            mirostatState,
             maxNewTokens,
             stopToken
         })
@@ -277,6 +286,8 @@ async function generateText({
     topK,
     topP,
     repetitionPenalty,
+    mirostat,
+    mirostatState,
     maxNewTokens,
     stopToken
 } = {}) {
@@ -323,6 +334,8 @@ async function generateText({
                 topK,
                 topP,
                 repetitionPenalty,
+                mirostat,
+                mirostatState,
                 isSingleLabel
             )
             // Append the predicted token index to the list of token indices
@@ -364,6 +377,8 @@ function predictOnce(
     topK,
     topP,
     repetitionPenalty,
+    mirostat,
+    mirostatState,
     isSingleLabel
 ) {
     return tf.tidy(() => {
@@ -401,7 +416,9 @@ function predictOnce(
             temperature,
             topK,
             topP,
-            repetitionPenalty
+            repetitionPenalty,
+            mirostat,
+            mirostatState
         })
 
         return idxNext
@@ -416,11 +433,18 @@ function processLogits(
         temperature = 1.0,
         topK = 0,
         topP = 1.0,
-        repetitionPenalty = 1.0
+        repetitionPenalty = 1.0,
+        mirostat = false,
+        mirostatState = {}
     } = {}
 ) {
     return tf.tidy(() => {
         let processedLogits = logits
+
+        if (mirostat) {
+            console.log(mirostatState)
+            return mirostatSampling(processedLogits, mirostatState)
+        }
 
         // Apply repetition penalty if needed
         if (repetitionPenalty !== 1) {
@@ -586,6 +610,76 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
 
         return penalizedLogits
     })
+}
+
+function mirostatSampling(logits, mirostatState) {
+    return tf.tidy(() => {
+        const { tau, eta, maxRepetition } = mirostatState
+
+        // Sort the logits in descending order
+        const sortedLogits = tf.reverse(
+            tf.topk(logits, logits.shape[0]).values,
+            0
+        )
+        const sortedIndices = tf.reverse(
+            tf.topk(logits, logits.shape[0]).indices,
+            0
+        )
+
+        // Estimate s
+        const s = estimateZipfParam(sortedLogits.dataSync())
+
+        // Compute k
+        const k = Math.min(computeK(logits.shape[0], s, tau) + 1, maxRepetition)
+
+        // Truncate logits and indices
+        const truncatedLogits = sortedLogits.slice([0], [k])
+        const truncatedIndices = sortedIndices.slice([0], [k])
+
+        let sampledIdx, tokenProb
+        if (k === 1) {
+            // If there's only one outcome, directly use it
+            sampledIdx = 0
+            tokenProb = tf.sigmoid(truncatedLogits.gather([0])).dataSync()[0]
+        } else {
+            // Sample next token from truncated distribution
+            sampledIdx = tf.multinomial(truncatedLogits, 1).dataSync()[0]
+            tokenProb = tf
+                .sigmoid(truncatedLogits.gather([sampledIdx]))
+                .dataSync()[0]
+        }
+
+        // Compute surprise for the sampled token
+        const surprise = Math.log2(1 / tokenProb)
+
+        // Map the sampled index back to the original token space
+        const originalIdx = truncatedIndices.gather([sampledIdx]).flatten()
+
+        // Update maximum surprisal based on prediction error
+        const error = surprise - tau
+        mirostatState.mu = mirostatState.mu - eta * error
+
+        return originalIdx
+    })
+}
+
+function computeK(n, s, tau) {
+    const eps = s - 1
+    let k = Math.pow((eps * Math.pow(2, tau)) / (1 - Math.pow(n, -eps)), 1 / s)
+    k = Math.round(k)
+    return k
+}
+
+function estimateZipfParam(probs) {
+    let num = 0,
+        denom = 0
+    for (let i = 0; i < 100; i++) {
+        const b = probs[i] / probs[i + 1]
+        const t = (i + 2) / (i + 1)
+        num += Math.log(b) * Math.log(t)
+        denom += Math.log(t) ** 2
+    }
+    return num / denom
 }
 
 function enableGradientCheckpointing(model) {

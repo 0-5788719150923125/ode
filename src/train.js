@@ -449,6 +449,7 @@ export class PredictionSampler {
                 repetitionPenalty: args.repetitionPenalty,
                 topK: args.topK,
                 topP: args.topP,
+                mirostat: args.mirostat,
                 maxNewTokens: maxLength
             }
 

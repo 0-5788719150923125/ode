@@ -24,7 +24,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-1024-clean-v1'
+            model: 'englishcode-4096-balanced-v1'
         })
     }
 

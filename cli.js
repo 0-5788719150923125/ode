@@ -18,6 +18,7 @@ const options = {
     topK: 0,
     topP: 1.0,
     repetitionPenalty: 1.2,
+    mirostat: true,
     saveEvery: 0,
     corpus: 'https://www.gutenberg.org/files/100/old/shaks12.txt'
 }
