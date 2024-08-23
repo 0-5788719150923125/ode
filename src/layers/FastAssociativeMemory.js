@@ -1,6 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
+// https://arxiv.org/abs/1610.06258
 export default class FastAssociativeMemory extends LayerBase {
     constructor(config) {
         super(config)
