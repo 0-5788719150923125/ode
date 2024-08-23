@@ -450,6 +450,7 @@ export class PredictionSampler {
                 topK: args.topK,
                 topP: args.topP,
                 mirostat: args.mirostat,
+                mirostatState: args.mirostatState,
                 maxNewTokens: maxLength
             }
 

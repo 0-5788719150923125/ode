@@ -31,7 +31,7 @@ This library implements:
 -   custom tokenizers, including support for all Huggingface Tokenizers models
 -   dataset management via generator functions and iterable sampling strategies
 -   support for one-label, multi-label, one-hot and integer-encoded datasets
--   a number of text-decoding strategies, including greedy (argmax), temperature, top-k and top-p sampling
+-   a number of text-decoding strategies, including greedy (argmax), temperature, top-k, top-p, and Mirostat sampling
 -   object-oriented, extensible design
 -   tons more
 

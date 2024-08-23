@@ -18,7 +18,13 @@ const options = {
     topK: 0,
     topP: 1.0,
     repetitionPenalty: 1.2,
-    mirostat: true,
+    mirostat: false,
+    mirostatState: {
+        tau: 3.5, // target surprise
+        eta: 0.15, // learning rate
+        maxRepetition: 256, // max tokens to consider
+        mu: 7.0 // initial mu (2 * tau)
+    },
     saveEvery: 0,
     corpus: 'https://www.gutenberg.org/files/100/old/shaks12.txt'
 }

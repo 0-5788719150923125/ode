@@ -442,7 +442,6 @@ function processLogits(
         let processedLogits = logits
 
         if (mirostat) {
-            console.log(mirostatState)
             return mirostatSampling(processedLogits, mirostatState)
         }
 
@@ -612,6 +611,7 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
     })
 }
 
+// https://github.com/basusourya/mirostat/blob/master/mirostat.py
 function mirostatSampling(logits, mirostatState) {
     return tf.tidy(() => {
         const { tau, eta, mu, maxRepetition } = mirostatState
@@ -628,7 +628,10 @@ function mirostatSampling(logits, mirostatState) {
         const s = estimateZipfParam(sortedLogits)
 
         // Compute k
-        const k = Math.max(1, Math.min(computeK(n, s, mu), maxRepetition, n))
+        const k = Math.max(
+            1,
+            Math.min(computeK(n, s, mu) + 1, maxRepetition, n)
+        )
 
         // Truncate logits and indices
         const truncatedLogits = sortedLogits.slice([0], [k])
@@ -651,6 +654,7 @@ function mirostatSampling(logits, mirostatState) {
 
         // Compute surprise for the sampled token
         const surprise = tf.neg(tf.log(tokenProb)).div(tf.log(2))
+        // const surprise = tf.div(tf.log(tf.div(1, tokenProb)), Math.log(2))
 
         // Update mu based on prediction error
         const error = surprise.sub(tau)
