@@ -249,9 +249,9 @@ export default class ModelBase {
         repetitionPenalty = 1,
         mirostat = false,
         mirostatState = {
-            tau: 5.0,
-            eta: 1.0,
-            maxRepetition: 512,
+            tau: 5.0, // target surprise
+            eta: 1.0, // learning rate
+            maxRepetition: 512, // topk
             mu: 10.0 // Initialize mu to 2 * tau
         },
         maxNewTokens = 50,
@@ -614,72 +614,86 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
 
 function mirostatSampling(logits, mirostatState) {
     return tf.tidy(() => {
-        const { tau, eta, maxRepetition } = mirostatState
+        const { tau, eta, mu, maxRepetition } = mirostatState
+        const n = logits.shape[0]
 
-        // Sort the logits in descending order
-        const sortedLogits = tf.reverse(
-            tf.topk(logits, logits.shape[0]).values,
-            0
-        )
-        const sortedIndices = tf.reverse(
-            tf.topk(logits, logits.shape[0]).indices,
-            0
+        // Sort logits in descending order
+        const { values: sortedLogits, indices: sortedIndices } = tf.topk(
+            logits,
+            n,
+            true
         )
 
-        // Estimate s
-        const s = estimateZipfParam(sortedLogits.dataSync())
+        // Estimate Zipf parameter
+        const s = estimateZipfParam(sortedLogits)
 
         // Compute k
-        const k = Math.min(computeK(logits.shape[0], s, tau) + 1, maxRepetition)
+        const k = Math.max(1, Math.min(computeK(n, s, mu), maxRepetition, n))
 
         // Truncate logits and indices
         const truncatedLogits = sortedLogits.slice([0], [k])
         const truncatedIndices = sortedIndices.slice([0], [k])
 
         let sampledIdx, tokenProb
+
         if (k === 1) {
-            // If there's only one outcome, directly use it
-            sampledIdx = 0
-            tokenProb = tf.sigmoid(truncatedLogits.gather([0])).dataSync()[0]
+            // If there's only one token, select it directly
+            sampledIdx = tf.scalar(0, 'int32')
+            tokenProb = tf.sigmoid(truncatedLogits)
         } else {
-            // Sample next token from truncated distribution
-            sampledIdx = tf.multinomial(truncatedLogits, 1).dataSync()[0]
-            tokenProb = tf
-                .sigmoid(truncatedLogits.gather([sampledIdx]))
-                .dataSync()[0]
+            // Compute probabilities
+            const probs = tf.softmax(truncatedLogits)
+
+            // Sample next token
+            sampledIdx = tf.multinomial(probs.log(), 1).squeeze()
+            tokenProb = probs.gather(sampledIdx)
         }
 
         // Compute surprise for the sampled token
-        const surprise = Math.log2(1 / tokenProb)
+        const surprise = tf.neg(tf.log(tokenProb)).div(tf.log(2))
 
-        // Map the sampled index back to the original token space
-        const originalIdx = truncatedIndices.gather([sampledIdx]).flatten()
+        // Update mu based on prediction error
+        const error = surprise.sub(tau)
+        mirostatState.mu = tf
+            .maximum(tf.scalar(0), tf.scalar(mu).sub(error.mul(eta)))
+            .dataSync()[0]
 
-        // Update maximum surprisal based on prediction error
-        const error = surprise - tau
-        mirostatState.mu = mirostatState.mu - eta * error
+        // Map sampled index back to original token space
+        const originalIdx = truncatedIndices.gather(sampledIdx).flatten()
 
         return originalIdx
     })
 }
 
-function computeK(n, s, tau) {
-    const eps = s - 1
-    let k = Math.pow((eps * Math.pow(2, tau)) / (1 - Math.pow(n, -eps)), 1 / s)
-    k = Math.round(k)
-    return k
+function estimateZipfParam(sortedLogits) {
+    return tf.tidy(() => {
+        const numSamples = Math.min(100, sortedLogits.shape[0] - 1)
+        const logits = sortedLogits.slice([0], [numSamples + 1])
+
+        const i = tf.range(0, numSamples, 1)
+        const t = i.add(2).div(i.add(1))
+        const b = logits
+            .slice([0], [numSamples])
+            .div(logits.slice([1], [numSamples]))
+
+        const num = tf.sum(tf.log(b).mul(tf.log(t)))
+        const denom = tf.sum(tf.square(tf.log(t)))
+
+        return num.div(denom)
+    })
 }
 
-function estimateZipfParam(probs) {
-    let num = 0,
-        denom = 0
-    for (let i = 0; i < 100; i++) {
-        const b = probs[i] / probs[i + 1]
-        const t = (i + 2) / (i + 1)
-        num += Math.log(b) * Math.log(t)
-        denom += Math.log(t) ** 2
-    }
-    return num / denom
+function computeK(n, s, mu) {
+    return tf.tidy(() => {
+        const eps = s.sub(1)
+        const k = tf.pow(
+            eps
+                .mul(tf.pow(2, mu))
+                .div(tf.sub(1, tf.pow(tf.scalar(n), eps.neg()))),
+            tf.div(1, s)
+        )
+        return Math.round(k.arraySync())
+    })
 }
 
 function enableGradientCheckpointing(model) {
