@@ -1,6 +1,5 @@
 import {
     colors,
-    delay,
     elapsedTimeGenerator,
     emaGenerator,
     findMatches,
@@ -170,11 +169,10 @@ class GradientAccumulator {
             this.model.optimizer.applyGradients(clippedGrads)
 
             Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
-            // Object.values(filteredGrads).forEach((tensor) => tensor.dispose())
         }
 
         // Dispose of grads after accumulation
-        Object.values(this.gradients).forEach((grad) => grad && grad.dispose())
+        Object.values(this.gradients).forEach((grad) => grad.dispose())
     }
 }
 
@@ -449,7 +447,8 @@ export class PredictionSampler {
                 doSample: false,
                 temperature: args.temperature,
                 repetitionPenalty: args.repetitionPenalty,
-                // topK: 40,
+                topK: args.topK,
+                topP: args.topP,
                 maxNewTokens: maxLength
             }
 

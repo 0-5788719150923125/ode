@@ -15,6 +15,8 @@ const options = {
     sampleLength: 256,
     predictLength: 128,
     temperature: 0.7,
+    topK: 0,
+    topP: 1.0,
     repetitionPenalty: 1.2,
     saveEvery: 0,
     corpus: 'https://www.gutenberg.org/files/100/old/shaks12.txt'
