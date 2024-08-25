@@ -51,21 +51,21 @@ export default class OpportunisticDegenerativeExample extends ODE {
         for (let i = 0; i < this.layers; i++) {
             if (i % 2 !== 0) {
                 const quarter = this.units / 4
-                const [retained, transformed] = this.ode.layers
+                let [retained, updated] = this.ode.layers
                     .Split({
                         axis: -1,
                         numOrSizeSplits: [quarter * 3, quarter]
                     })
                     .apply(outputs)
 
-                const updated = this.ode.layers
+                updated = this.ode.layers
                     .FastAssociativeMemory({
-                        activation: 'relu',
+                        activation: 'gelu',
                         steps: 3,
                         learningRate: 1e-3,
                         decayRate: 0.9
                     })
-                    .apply(transformed)
+                    .apply(updated)
 
                 outputs = this.ode.layers
                     .concatenate({ axis: -1 })
