@@ -52,8 +52,7 @@ export class LinearCongruentialGenerator {
     }
 
     pseudoRandomBetween(min, max) {
-        const val = this.randomFloat(min, max)
-        return Math.floor(val * (max - min + 1) + min)
+        return Math.floor(this.randomFloat(min, max))
     }
 }
 
