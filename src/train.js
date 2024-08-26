@@ -92,6 +92,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 dataGenerator,
                 tokenizer: this.tokenizer,
                 learningRate: this.model.optimizer?.learningRate,
+                lossFunctions: this.lossFunctions,
                 ...trainArgs
             })
         }
@@ -326,7 +327,8 @@ async function batchMaker(
     encoding = 'oneHot',
     sourceFormat = 'text',
     imageSize = 500,
-    downsampling = 1.0
+    downsampling = 1.0,
+    mode = 'train'
 ) {
     let xsArray = []
     let ysArray = []
@@ -334,7 +336,8 @@ async function batchMaker(
     for (let i = 0; i < batchSize; ++i) {
         const sample = await dataGenerator.take({
             tokenizer,
-            maxSeqLen: inputLength + 1
+            maxSeqLen: inputLength + 1,
+            isValidating: mode === 'validation' ? true : false
         })
 
         const textIndices = preprocessData(
@@ -485,6 +488,8 @@ export class ValidationHandler {
     constructor(parent) {
         this.parent = parent
         this.lastStep = null
+        this.validationSteps = 100
+        this.loss = 0
     }
 
     async step(args) {
@@ -494,51 +499,42 @@ export class ValidationHandler {
             args.step !== 0 &&
             this.lastStep !== args.step
         ) {
+            console.log('performing validation...')
             this.lastStep = args.step
-            // const startTime = performance.now()
-            // const maxLength = args.predictLength
+            this.loss = 0
 
-            // const seedLength = randomBetween(16, maxLength - 16)
-            const sample = await args.dataGenerator.take({
-                tokenizer: args.tokenizer,
-                maxSeqLen: args.sampleLength,
-                isValidating: true
-            })
-            console.log(sample)
+            let totalSteps = 0
+            for (let i = 0; i <= this.validationSteps; i += args.batchSize) {
+                const valData = await batchMaker(
+                    args.dataGenerator,
+                    args.tokenizer,
+                    args.batchSize,
+                    args.sampleLength,
+                    args.labels,
+                    args.encoding,
+                    args.sourceFormat,
+                    args.imageSize,
+                    args.downsampling,
+                    'validation'
+                )
 
-            // let prompt = sample
-            // if (Array.isArray(sample)) {
-            //     prompt = args.tokenizer.decode(sample)
-            // }
+                tf.tidy(() => {
+                    const { grads, loss } = computeGradients(
+                        this.parent.model,
+                        args.lossFunctions,
+                        valData.xs,
+                        valData.ys,
+                        { training: false }
+                    )
 
-            // const params = {
-            //     doSample: false,
-            //     temperature: args.temperature,
-            //     repetitionPenalty: args.repetitionPenalty,
-            //     topK: args.topK,
-            //     topP: args.topP,
-            //     mirostat: args.mirostat,
-            //     mirostatState: args.mirostatState,
-            //     maxNewTokens: maxLength
-            // }
+                    this.loss += loss
+                })
 
-            // const output = await this.parent.generate({
-            //     prompt,
-            //     ...params
-            // })
-            // const endTime = performance.now()
-            // console.log(
-            //     `KWARGS: ${JSON.stringify(params)}, RATE: ${(
-            //         (endTime - startTime) /
-            //         (maxLength - seedLength)
-            //     ).toFixed(2)} ms/token`
-            // )
-            // console.log(
-            //     colors.BLUE +
-            //         prompt +
-            //         colors.WHITE +
-            //         output.slice(prompt.length, -1)
-            // )
+                tf.dispose([valData])
+                totalSteps += args.batchSize
+            }
+
+            this.loss = this.loss / args.totalSteps
         }
     }
 }
