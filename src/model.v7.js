@@ -84,7 +84,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
             {
                 function: this.ode.losses.categoricalFocalCrossEntropy,
                 weights: undefined,
-                smoothing: 0.0001,
+                smoothing: 0.1,
                 reduction: this.tf.Reduction.MEAN,
                 alpha: 0.25,
                 gamma: 2.0
