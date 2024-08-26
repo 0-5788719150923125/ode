@@ -8,6 +8,12 @@ export default class PhiDataset extends ParquetReader {
         this.schemaTemplate = config?.schema || [{ markdown: '\n\n' }]
         this.seed = config?.seed || 42
         this.rng = new LinearCongruentialGenerator(this.seed)
+        this.trainBatchIdx = 0
+        this.validationBatchIdx = 1
+        this.cachedText = {
+            train: '',
+            validation: ''
+        }
     }
 
     async fetchRandomShard() {
@@ -28,13 +34,8 @@ export default class PhiDataset extends ParquetReader {
         this.loaded = true
     }
 
-    async fillCache() {
-        while (this.cachedText.length < this.cacheSize) {
-            let batchIdx = this.rng.pseudoRandomBetween(
-                0,
-                this.table.batches.length - 1
-            )
-
+    async fillCache(mode, batchIdx = 0) {
+        while (this.cachedText[mode].length < this.cacheSize) {
             const text = []
 
             let rowIdx = null
@@ -42,35 +43,21 @@ export default class PhiDataset extends ParquetReader {
                 let column = this.table.batches[batchIdx].getChildAt(field.idx)
                 if (rowIdx === null) {
                     rowIdx = this.rng.pseudoRandomBetween(0, column.length - 1)
-                    // console.log(
-                    //     `has ${this.table.batches.length} batches, with ${
-                    //         column.length
-                    //     } rows, and ${
-                    //         column.length * this.table.batches.length
-                    //     } est combinations`
-                    // )
                 }
                 const prefix = field.value
                 const data = column.get(rowIdx)
                 text.push(prefix + data)
             }
-            this.cachedText += text.join(this.delimiter) + this.eosToken
+            this.cachedText[mode] += text.join(this.delimiter) + this.eosToken
         }
     }
 
     async getSample({ mode = 'train', size = 512 }) {
-        this.batches++
-        try {
-            if (this.batches % this.batchesBeforeRefresh === 0) {
-                await this.fetchRandomShard()
-            }
-            await this.fillCache()
-            const sample = this.cachedText.slice(0, size)
-            this.cachedText = this.cachedText.slice(size)
-            return sample
-        } catch (err) {
-            console.error(err)
-            return await this.getSample({ mode, size })
-        }
+        let batchIdx = this.trainBatchIdx
+        if (mode === 'validation') batchIdx = this.validationBatchIdx
+        await this.fillCache(mode, batchIdx)
+        const sample = this.cachedText[mode].slice(0, size)
+        this.cachedText[mode] = this.cachedText[mode].slice(size)
+        return sample
     }
 }
