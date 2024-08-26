@@ -16,6 +16,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         gradientAccumulationSteps: 1,
         sampleLength: 64,
         generateEvery: 64,
+        validateEvery: 0,
         predictLength: 50,
         saveEvery: 0,
         clipValue: 1.0,
@@ -476,6 +477,68 @@ export class PredictionSampler {
                     colors.WHITE +
                     output.slice(prompt.length, -1)
             )
+        }
+    }
+}
+
+export class ValidationHandler {
+    constructor(parent) {
+        this.parent = parent
+        this.lastStep = null
+    }
+
+    async step(args) {
+        if (
+            args.validateEvery > 0 &&
+            args.step % args.validateEvery === 0 &&
+            args.step !== 0 &&
+            this.lastStep !== args.step
+        ) {
+            this.lastStep = args.step
+            // const startTime = performance.now()
+            // const maxLength = args.predictLength
+
+            // const seedLength = randomBetween(16, maxLength - 16)
+            const sample = await args.dataGenerator.take({
+                tokenizer: args.tokenizer,
+                maxSeqLen: args.sampleLength,
+                isValidating: true
+            })
+            console.log(sample)
+
+            // let prompt = sample
+            // if (Array.isArray(sample)) {
+            //     prompt = args.tokenizer.decode(sample)
+            // }
+
+            // const params = {
+            //     doSample: false,
+            //     temperature: args.temperature,
+            //     repetitionPenalty: args.repetitionPenalty,
+            //     topK: args.topK,
+            //     topP: args.topP,
+            //     mirostat: args.mirostat,
+            //     mirostatState: args.mirostatState,
+            //     maxNewTokens: maxLength
+            // }
+
+            // const output = await this.parent.generate({
+            //     prompt,
+            //     ...params
+            // })
+            // const endTime = performance.now()
+            // console.log(
+            //     `KWARGS: ${JSON.stringify(params)}, RATE: ${(
+            //         (endTime - startTime) /
+            //         (maxLength - seedLength)
+            //     ).toFixed(2)} ms/token`
+            // )
+            // console.log(
+            //     colors.BLUE +
+            //         prompt +
+            //         colors.WHITE +
+            //         output.slice(prompt.length, -1)
+            // )
         }
     }
 }

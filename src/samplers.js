@@ -121,14 +121,18 @@ class StridedSampler {
         this.tokens = []
     }
 
-    async take({ tokenizer, maxSeqLen } = {}) {
+    async take({ tokenizer, maxSeqLen, isValidating = false } = {}) {
         while (true) {
             if (this.tokens.length >= maxSeqLen) {
                 const returnTokens = this.tokens.slice(0, maxSeqLen)
                 this.tokens = this.tokens.slice(maxSeqLen - this.stride)
                 return returnTokens
             }
-            const sample = await this.sampler.take({ tokenizer, maxSeqLen })
+            const sample = await this.sampler.take({
+                tokenizer,
+                maxSeqLen,
+                isValidating
+            })
             this.tokens.push(...tokenizer.encode(sample))
         }
     }
@@ -186,7 +190,7 @@ class CosmopediaSampler {
         if (!this.initialized) {
             await this.init()
         }
-        return await this.producer.getSample(config.maxSeqLen)
+        return await this.producer.getSample({ size: config.maxSeqLen })
     }
 }
 
@@ -208,7 +212,7 @@ class WikipediaSampler {
         if (!this.initialized) {
             await this.init()
         }
-        return await this.producer.getSample(config.maxSeqLen)
+        return await this.producer.getSample({ size: config.maxSeqLen })
     }
 }
 
@@ -229,7 +233,14 @@ class PhiSampler {
         if (!this.initialized) {
             await this.init()
         }
-        return await this.producer.getSample(config.maxSeqLen)
+        if (config.isValidating) {
+            return await this.producer.getSample({
+                mode: 'validation',
+                size: config.maxSeqLen
+            })
+        } else {
+            return await this.producer.getSample({ size: config.maxSeqLen })
+        }
     }
 }
 

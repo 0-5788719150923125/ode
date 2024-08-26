@@ -135,7 +135,7 @@ export default class ParquetReader {
         }
     }
 
-    async getSample(size = 512) {
+    async getSample({ mode = 'train', size = 512 }) {
         this.batches++
         try {
             if (this.batches % this.batchesBeforeRefresh === 0) {
@@ -147,7 +147,7 @@ export default class ParquetReader {
             return sample
         } catch (err) {
             console.error(err)
-            return await this.getSample(size)
+            return await this.getSample({ mode, size })
         }
     }
 }

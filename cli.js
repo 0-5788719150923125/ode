@@ -12,6 +12,7 @@ const options = {
     batchSize: 1,
     gradientAccumulationSteps: 1,
     generateEvery: 256,
+    validateEvery: 0,
     sampleLength: 256,
     predictLength: 128,
     temperature: 0.7,
@@ -107,12 +108,14 @@ async function orchestrate(options) {
             ConsoleLogger,
             // MetricsCollector,
             PredictionSampler,
+            ValidationHandler,
             ModelSaver
         } = await import('./src/train.js')
         await net.train(sampler, options, [
             ConsoleLogger,
             // MetricsCollector,
             PredictionSampler,
+            ValidationHandler,
             ModelSaver
         ])
     } else if (options.action === 'infer') {

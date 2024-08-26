@@ -57,4 +57,20 @@ export default class PhiDataset extends ParquetReader {
             this.cachedText += text.join(this.delimiter) + this.eosToken
         }
     }
+
+    async getSample({ mode = 'train', size = 512 }) {
+        this.batches++
+        try {
+            if (this.batches % this.batchesBeforeRefresh === 0) {
+                await this.fetchRandomShard()
+            }
+            await this.fillCache()
+            const sample = this.cachedText.slice(0, size)
+            this.cachedText = this.cachedText.slice(size)
+            return sample
+        } catch (err) {
+            console.error(err)
+            return await this.getSample({ mode, size })
+        }
+    }
 }
