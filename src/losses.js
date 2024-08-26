@@ -111,7 +111,7 @@ function MiLeCrossEntropy(
     yPred,
     weights = null,
     labelSmoothing = 0,
-    reduction = null,
+    reduction = tf.Reduction.MEAN,
     fromLogits = false,
     alpha = null,
     gamma = 1.0,
@@ -155,10 +155,10 @@ function MiLeCrossEntropy(
 }
 
 const customLosses = {
-    softmaxCrossEntropy: tf.losses.softmaxCrossEntropy,
     categoricalFocalCrossEntropy,
     MiLeCrossEntropy,
-    smoothGeneralizedCrossEntropy
+    smoothGeneralizedCrossEntropy,
+    softmaxCrossEntropy: tf.losses.softmaxCrossEntropy
 }
 
 export default customLosses
