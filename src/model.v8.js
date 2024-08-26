@@ -62,7 +62,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
                     .FastAssociativeMemory({
                         activation: 'gelu',
                         numSteps: 3,
-                        learningRate: 0.5,
+                        learningRate: 0.1,
                         decayRate: 0.9
                     })
                     .apply(updated)
