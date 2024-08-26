@@ -13,6 +13,7 @@ const options = {
     gradientAccumulationSteps: 1,
     generateEvery: 256,
     validateEvery: 0,
+    validationSteps: 512,
     sampleLength: 256,
     predictLength: 128,
     temperature: 0.7,

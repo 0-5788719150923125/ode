@@ -31,6 +31,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
     this.batch = 0
     this.step = this.model.optimizer.step || 0
     this.loss = 0
+    this.validationLoss = null
 
     const accumulator = new GradientAccumulator(
         this,
@@ -89,12 +90,17 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 batch: this.batch,
                 step: this.step,
                 loss: this.loss,
+                valLoss: this.validationLoss,
                 dataGenerator,
                 tokenizer: this.tokenizer,
                 learningRate: this.model.optimizer?.learningRate,
                 lossFunctions: this.lossFunctions,
                 ...trainArgs
             })
+            if (callback.getLosses) {
+                const { valLoss } = callback.getLosses()
+                this.validationLoss = valLoss
+            }
         }
 
         this.batch++
@@ -488,8 +494,11 @@ export class ValidationHandler {
     constructor(parent) {
         this.parent = parent
         this.lastStep = null
-        this.validationSteps = 100
-        this.loss = 0
+        this.loss = null
+    }
+
+    getLosses() {
+        return { valLoss: this.loss }
     }
 
     async step(args) {
@@ -504,7 +513,7 @@ export class ValidationHandler {
             this.loss = 0
 
             let totalSteps = 0
-            for (let i = 0; i <= this.validationSteps; i += args.batchSize) {
+            for (let i = 0; i <= args.validationSteps; i += args.batchSize) {
                 const valData = await batchMaker(
                     args.dataGenerator,
                     args.tokenizer,
@@ -531,10 +540,10 @@ export class ValidationHandler {
                 })
 
                 tf.dispose([valData])
-                totalSteps += args.batchSize
+                totalSteps = totalSteps + args.batchSize
             }
 
-            this.loss = this.loss / args.totalSteps
+            this.loss = this.loss / totalSteps
         }
     }
 }
@@ -562,6 +571,11 @@ export class ConsoleLogger {
             args.loss.toFixed(14).toString()
         )
         this.previousLoss = args.loss
+        let valLoss = ''
+
+        if (args.valLoss !== null) {
+            valLoss = `VAL=${args.valLoss.toFixed(3)}, `
+        }
 
         let memory = tf.memory()
         const numTensors = memory.numTensors
@@ -574,7 +588,7 @@ export class ConsoleLogger {
                 4
             )}, LOSS=${coloredLoss.old}${color}${
                 coloredLoss.new
-            }${white}, LR=${args.learningRate.toFixed(
+            }${white}, ${valLoss}LR=${args.learningRate.toFixed(
                 9
             )}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(
                 elapsed / 1000

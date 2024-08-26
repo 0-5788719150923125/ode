@@ -142,6 +142,7 @@ export default class ModelBase {
             step: this.step,
             batch: this.batch,
             loss: this.loss,
+            validationLoss: this.validationLoss,
             optimizer: this.model.optimizer.constructor.name
         }
     }
