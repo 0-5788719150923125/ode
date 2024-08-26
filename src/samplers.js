@@ -212,6 +212,27 @@ class WikipediaSampler {
     }
 }
 
+class PhiSampler {
+    constructor(config) {
+        this.config = config
+        this.producer = null
+    }
+
+    async init() {
+        const PhiDataset = (await import('./datasets/phi.js')).default
+        this.producer = new PhiDataset(this.config)
+        await this.producer.init()
+        this.initialized = true
+    }
+
+    async take(config) {
+        if (!this.initialized) {
+            await this.init()
+        }
+        return await this.producer.getSample(config.maxSeqLen)
+    }
+}
+
 const samplers = {
     RandomSampler: (sampler) => new RandomSampler(sampler),
     SequentialSampler: (sampler, stepSize) =>
@@ -225,6 +246,7 @@ const samplers = {
         new StridedSampler(new CosmopediaSampler(config), 32),
     WikipediaSampler: (config) =>
         new StridedSampler(new WikipediaSampler(config), 32),
+    PhiSampler: (config) => new StridedSampler(new PhiSampler(config), 32),
     MultiSampler: (samplers) => new MultiSampler(samplers),
     WeightedSampler: (samplers, rates) => new WeightedSampler(samplers, rates)
 }

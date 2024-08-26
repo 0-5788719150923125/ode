@@ -83,6 +83,8 @@ async function orchestrate(options) {
             sampler = samplers.CosmopediaSampler()
         } else if (options.corpus === 'wikipedia') {
             sampler = samplers.WikipediaSampler()
+        } else if (options.corpus === 'phi') {
+            sampler = samplers.PhiSampler()
         } else if (options.corpus === 'multi') {
             sampler = samplers.MultiSampler([
                 samplers.CosmopediaSampler(),
