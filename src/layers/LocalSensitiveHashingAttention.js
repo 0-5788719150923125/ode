@@ -21,31 +21,41 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             'queryKernel',
             [inputDim, this.numHeads * this.headDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.keyKernel = this.addWeight(
             'keyKernel',
             [inputDim, this.numHeads * this.headDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [inputDim, this.numHeads * this.headDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.projectionKernel = this.addWeight(
             'projectionKernel',
             [this.numHeads, this.headDim, this.projectionDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
             [this.numHeads * this.headDim, outputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         if (this.useBias) {
             this.queryBias = this.addWeight(
@@ -87,7 +97,9 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
                     `lshHashKernel${i}`,
                     [this.projectionDim, this.numBuckets],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
         }

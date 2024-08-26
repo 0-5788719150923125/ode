@@ -20,13 +20,17 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             'routerHiddenKernel',
             [inputDim, this.routerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.routerOutputKernel = this.addWeight(
             'routerOutputKernel',
             [this.routerDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         if (this.useBias) {
             this.routerHiddenBias = this.addWeight(
@@ -55,7 +59,9 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `inProjKernel-${i}`,
                     [inputDim, this.expertDim],
                     'float32',
-                    tf.initializers.glorotNormal()
+                    tf.initializers.glorotNormal({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
             this.gateProjKernels.push(
@@ -63,7 +69,9 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `gateProjKernel-${i}`,
                     [inputDim, this.expertDim],
                     'float32',
-                    tf.initializers.glorotNormal()
+                    tf.initializers.glorotNormal({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
             this.outProjKernels.push(
@@ -71,7 +79,9 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `outProjKernel-${i}`,
                     [this.expertDim, inputDim],
                     'float32',
-                    tf.initializers.glorotNormal()
+                    tf.initializers.glorotNormal({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
             if (this.useBias) {

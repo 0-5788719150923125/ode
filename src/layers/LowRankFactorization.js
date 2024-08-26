@@ -15,21 +15,27 @@ export default class LowRankFactorizationResidual extends LayerBase {
             'leftMatrix',
             [inputDim, this.rank],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.rightMatrix = this.addWeight(
             'rightMatrix',
             [this.rank, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.residualMatrix = this.addWeight(
             'residualMatrix',
             [inputDim, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

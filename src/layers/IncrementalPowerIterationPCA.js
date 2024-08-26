@@ -17,7 +17,9 @@ export default class IncrementalPowerIterationPCA extends LayerBase {
             'components',
             [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal({})
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

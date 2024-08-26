@@ -37,7 +37,9 @@ export default class ReLUKANMLP extends LayerBase {
                     `equalSizeConvKernel_${i}`,
                     [this.grid + this.k, lastDim, this.width[i]],
                     'float32',
-                    tf.initializers.glorotNormal()
+                    tf.initializers.glorotNormal({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             })
         }

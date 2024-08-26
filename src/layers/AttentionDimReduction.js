@@ -15,21 +15,27 @@ export default class AttentionDimReduction extends LayerBase {
             'queryWeights',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.keyWeights = this.addWeight(
             'keyWeights',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.valueWeights = this.addWeight(
             'valueWeights',
             [inputDim, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

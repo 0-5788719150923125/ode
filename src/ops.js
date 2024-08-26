@@ -24,9 +24,10 @@ const seedGenerator = (function () {
         },
         getSeed: function (min, max) {
             if (!instance) {
-                throw new Error(
-                    'Generator not initialized. Call setSeed first.'
+                console.warn(
+                    'Generator not seeded. Initializing weights with random values.'
                 )
+                return undefined
             }
             if (min !== undefined && max !== undefined) {
                 minValue = min

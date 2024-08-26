@@ -28,7 +28,9 @@ export default class GPT2Attention extends LayerBase {
             `c_attn-${randomString()}`,
             [this.units, 3 * this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.cAttnBias = this.addWeight(
             `c_attn-${randomString()}`,
@@ -40,7 +42,9 @@ export default class GPT2Attention extends LayerBase {
             `c_proj-${randomString()}`,
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.cProjBias = this.addWeight(
             `c_proj-${randomString()}`,

@@ -22,7 +22,9 @@ export default class Autoencoder extends LayerBase {
             'encoderKernel1',
             [inputDim, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.encoderBias1 = this.addWeight(
             'encoderBias1',
@@ -34,7 +36,9 @@ export default class Autoencoder extends LayerBase {
             'encoderKernel2',
             [this.innerDim, this.bottleneck * multiplier],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.encoderBias2 = this.addWeight(
             'encoderBias2',
@@ -48,7 +52,9 @@ export default class Autoencoder extends LayerBase {
             'decoderKernel1',
             [this.bottleneck, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.decoderBias1 = this.addWeight(
             'decoderBias1',
@@ -60,7 +66,9 @@ export default class Autoencoder extends LayerBase {
             'decoderKernel2',
             [this.innerDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.decoderBias2 = this.addWeight(
             'decoderBias2',

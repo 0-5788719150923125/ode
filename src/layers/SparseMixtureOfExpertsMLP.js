@@ -23,31 +23,41 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.switchingKernel = this.addWeight(
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.expertWeights = this.addWeight(
             'expertWeights',
             [this.numExperts, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.inProjKernel = this.addWeight(
             `inProjKernel`,
             [this.numExperts, inputDim, this.mlpDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
             [this.numExperts, this.mlpDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

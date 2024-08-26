@@ -22,7 +22,9 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.switchingHiddenBias = this.addWeight(
             'switchingHiddenBias',
@@ -34,7 +36,9 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.switchingBias = this.addWeight(
             'switchingBias',
@@ -46,7 +50,9 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'expertWeights',
             [this.numExperts, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.expertBiases = this.addWeight(
             'expertBiases',
@@ -58,7 +64,9 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'outputProjection',
             [this.topK * inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

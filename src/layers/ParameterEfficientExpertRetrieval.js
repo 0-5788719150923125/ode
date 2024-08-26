@@ -21,7 +21,9 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
                     `queryWeight${i}`,
                     [this.queryDim, inputDim],
                     'float32',
-                    tf.initializers.glorotNormal(),
+                    tf.initializers.glorotNormal({
+                        seed: this.ode.ops.getSeed()
+                    }),
                     null,
                     true
                 )
@@ -32,7 +34,9 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
             `expertWeights`,
             [this.numExperts, inputDim + outputDim],
             'float32',
-            tf.initializers.glorotNormal(),
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            }),
             null,
             true
         )

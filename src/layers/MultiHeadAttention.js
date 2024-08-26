@@ -18,7 +18,9 @@ export default class MultiHeadAttention extends LayerBase {
             'queryKernel',
             [units, this.headDim * this.numHeads * this.queriesPerHead],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         // Combined key and value projections for all heads
@@ -26,13 +28,17 @@ export default class MultiHeadAttention extends LayerBase {
             'keyKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         if (this.useBias) {
@@ -60,7 +66,9 @@ export default class MultiHeadAttention extends LayerBase {
             'outputKernel',
             [this.headDim * this.numHeads * this.queriesPerHead, units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         if (this.useBias) {
             this.outputBias = this.addWeight(

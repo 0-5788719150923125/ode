@@ -17,28 +17,36 @@ export default class ConstantSelfAttention extends LayerBase {
             'queryKernel',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.keyKernel = this.addWeight(
             'keyKernel',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.valueKernel = this.addWeight(
             'valueKernel',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
 
         this.featureMatrix = this.addWeight(
             'featureMatrix',
             [this.hiddenDim, this.numFeatures],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

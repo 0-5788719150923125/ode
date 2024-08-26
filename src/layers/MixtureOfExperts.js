@@ -17,7 +17,9 @@ export default class MixtureOfExperts extends LayerBase {
             'gatingHidden',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.gatingHiddenBias = this.addWeight(
             'gatingHiddenBias',
@@ -29,7 +31,9 @@ export default class MixtureOfExperts extends LayerBase {
             'gatingKernel',
             [this.hiddenDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.gatingBias = this.addWeight(
             'gatingBias',

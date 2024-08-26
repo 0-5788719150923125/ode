@@ -18,7 +18,9 @@ export default class VariableDimensionMLP extends LayerBase {
             'inProjKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.inProjBias = this.addWeight(
             'inProjBias',
@@ -31,7 +33,9 @@ export default class VariableDimensionMLP extends LayerBase {
             'outProjKernel',
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.outProjBias = this.addWeight(
             'outProjBias',

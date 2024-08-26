@@ -15,31 +15,41 @@ export default class AttentionFreeTransformer extends LayerBase {
             'toQ',
             [inputShape[inputShape.length - 1], this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.toK = this.addWeight(
             'toK',
             [inputShape[inputShape.length - 1], this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.toV = this.addWeight(
             'toV',
             [inputShape[inputShape.length - 1], this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.project = this.addWeight(
             'project',
             [this.hiddenDim, this.units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.wbias = this.addWeight(
             'wbias',
             [this.contextLength, this.contextLength],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

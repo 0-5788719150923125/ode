@@ -23,7 +23,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `queryKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
             this.keyKernels.push(
@@ -31,7 +33,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `keyKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
             this.valueKernels.push(
@@ -39,7 +43,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [inputDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ode.ops.getSeed()
+                    })
                 )
             )
             this.features.push(
@@ -58,7 +64,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
             'outputKernel',
             [this.headFeatures * this.numHeads, inputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

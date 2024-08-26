@@ -23,7 +23,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.switchingHiddenBias = this.addWeight(
             'switchingHiddenBias',
@@ -35,7 +37,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
         this.switchingBias = this.addWeight(
             'switchingBias',
@@ -49,7 +53,8 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'float32',
             tf.initializers.randomNormal({
                 mean: 1.0,
-                stddev: 0.1
+                stddev: 0.1,
+                seed: this.ode.ops.getSeed()
             })
         )
         this.expertBiases = this.addWeight(
@@ -62,7 +67,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
             'outputProjection',
             [this.topK * inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ode.ops.getSeed()
+            })
         )
     }
 

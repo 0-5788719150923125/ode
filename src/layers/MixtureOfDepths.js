@@ -19,7 +19,8 @@ export default class MixtureOfDepths extends LayerBase {
             tf.initializers.varianceScaling({
                 scale: 0.01,
                 distribution: 'normal',
-                mode: 'fanAvg'
+                mode: 'fanAvg',
+                seed: this.ode.ops.getSeed()
             })
         )
         this.routerBias = this.addWeight(
