@@ -6,8 +6,8 @@ export default class FastAssociativeMemory extends LayerBase {
     constructor(config) {
         super(config)
         this.activation = config.activation || 'relu'
-        this.steps = config.steps || 3
-        this.learningRate = config.learningRate || 1e-3
+        this.numSteps = config.numSteps || 3
+        this.learningRate = config.learningRate || 0.5
         this.decayRate = config.decayRate || 0.9
         this.hPrev = null
         this.hHistory = []
@@ -19,7 +19,7 @@ export default class FastAssociativeMemory extends LayerBase {
             'W',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.identity({ gain: 0.05 })
+            tf.initializers.glorotUniform()
         )
         this.C = this.addWeight(
             'C',
@@ -44,30 +44,30 @@ export default class FastAssociativeMemory extends LayerBase {
             if (!this.hPrev) {
                 this.hPrev = tf.zerosLike(inputs)
                 this.hHistory.push(tf.keep(this.hPrev.clone()))
-            } else {
-                const prevSeqLen = this.hPrev.shape[1]
-                if (prevSeqLen < seqLen) {
-                    const paddings = [
-                        [0, 0],
-                        [seqLen - prevSeqLen, 0],
-                        [0, 0]
-                    ]
-                    const hPr = this.hPrev.clone()
-                    this.hPrev.dispose()
-                    this.hPrev = hPr.pad(paddings, 1)
-                    this.hHistory = this.hHistory.map((h) => {
-                        const hClone = h.clone()
-                        h.dispose()
-                        return tf.keep(hClone.pad(paddings, 1))
-                    })
-                } else if (prevSeqLen > seqLen) {
-                    const paddings = [
-                        [0, 0],
-                        [prevSeqLen - seqLen, 0],
-                        [0, 0]
-                    ]
-                    inputs = inputs.pad(paddings, 0)
-                }
+            }
+
+            const prevSeqLen = this.hPrev.shape[1]
+            if (prevSeqLen < seqLen) {
+                const paddings = [
+                    [0, 0],
+                    [seqLen - prevSeqLen, 0],
+                    [0, 0]
+                ]
+                const hPr = this.hPrev.clone()
+                this.hPrev.dispose()
+                this.hPrev = hPr.pad(paddings, 1)
+                this.hHistory = this.hHistory.map((h) => {
+                    const hClone = h.clone()
+                    h.dispose()
+                    return tf.keep(hClone.pad(paddings, 1))
+                })
+            } else if (prevSeqLen > seqLen) {
+                const paddings = [
+                    [0, 0],
+                    [prevSeqLen - seqLen, 0],
+                    [0, 0]
+                ]
+                inputs = inputs.pad(paddings, 0)
             }
 
             let hInitial = this.ops.applyDense(
@@ -75,18 +75,14 @@ export default class FastAssociativeMemory extends LayerBase {
                 this.C.read(),
                 this.b.read()
             )
+
             hInitial = hInitial.add(
                 this.ops.applyDense(this.hPrev, this.W.read())
             )
 
-            hInitial = this.ops.rmsNorm(hInitial)
-
-            hInitial = tf.layers
-                .activation({ activation: this.activation })
-                .apply(hInitial)
-
             let h = hInitial
-            for (let s = 0; s < this.steps; s++) {
+
+            for (let s = 0; s < this.numSteps; s++) {
                 const attentionTerms = this.hHistory.map((hHist, idx) => {
                     const scalarProduct = tf.sum(tf.mul(hHist, h), -1, true)
 
@@ -111,7 +107,7 @@ export default class FastAssociativeMemory extends LayerBase {
                     .apply(h)
             }
 
-            while (this.hHistory.length > this.steps) {
+            while (this.hHistory.length > this.numSteps) {
                 this.hHistory[0].dispose()
                 this.hHistory.shift()
             }
@@ -133,7 +129,7 @@ export default class FastAssociativeMemory extends LayerBase {
         return {
             ...super.getConfig(),
             activation: this.activation,
-            steps: this.steps,
+            numSteps: this.numSteps,
             learningRate: this.learningRate,
             decayRate: this.decayRate
         }
