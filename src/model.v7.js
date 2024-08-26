@@ -18,13 +18,13 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.ALiBiLength = 1024
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
-        this.weightDecay = 1e-5
+        this.weightDecay = 1e-3
         this.cosineSteps = 4096
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-1024-clean-v1'
+            model: 'englishcode-4096-clean-v1'
         })
     }
 
@@ -82,10 +82,12 @@ export default class OpportunisticDegenerativeExample extends ODE {
     defineLossFunctions() {
         this.lossFunctions = [
             {
-                function: this.ode.losses.softmaxCrossEntropy,
-                weights: null,
+                function: this.ode.losses.categoricalFocalCrossEntropy,
+                weights: undefined,
                 smoothing: 0.0001,
-                reduction: this.tf.Reduction.MEAN
+                reduction: this.tf.Reduction.MEAN,
+                alpha: 0.25,
+                gamma: 2.0
             }
         ]
     }
