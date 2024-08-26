@@ -3,6 +3,7 @@ import '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-webgl'
 import '@tensorflow/tfjs-backend-webgpu'
 import customLayers from './layers.js'
+import customOps from './ops.js'
 import customLosses from './losses.js'
 import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
@@ -26,6 +27,7 @@ export default class ModelBase {
     constructor(config) {
         this.ode = {
             layers: customLayers,
+            ops: customOps,
             losses: customLosses,
             optimizers: customOptimizers,
             tokenizers: customTokenizers,

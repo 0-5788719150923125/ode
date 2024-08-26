@@ -1,10 +1,13 @@
 import ParquetReader from './readers/parquet.js'
+import { LinearCongruentialGenerator } from '../utils.js'
 
 export default class PhiDataset extends ParquetReader {
     constructor(config) {
         super(config)
         this.dataset = 'open-phi/textbooks'
         this.schemaTemplate = config?.schema || [{ markdown: '\n\n' }]
+        this.seed = config?.seed || 42
+        this.rng = new LinearCongruentialGenerator(this.seed)
     }
 
     async fetchRandomShard() {
@@ -23,5 +26,35 @@ export default class PhiDataset extends ParquetReader {
         }
         this.loadSchema(this.schemaTemplate)
         this.loaded = true
+    }
+
+    async fillCache() {
+        while (this.cachedText.length < this.cacheSize) {
+            let batchIdx = this.rng.pseudoRandomBetween(
+                0,
+                this.table.batches.length - 1
+            )
+
+            const text = []
+
+            let rowIdx = null
+            for (const field of this.schema) {
+                let column = this.table.batches[batchIdx].getChildAt(field.idx)
+                if (rowIdx === null) {
+                    rowIdx = this.rng.pseudoRandomBetween(0, column.length - 1)
+                    // console.log(
+                    //     `has ${this.table.batches.length} batches, with ${
+                    //         column.length
+                    //     } rows, and ${
+                    //         column.length * this.table.batches.length
+                    //     } est combinations`
+                    // )
+                }
+                const prefix = field.value
+                const data = column.get(rowIdx)
+                text.push(prefix + data)
+            }
+            this.cachedText += text.join(this.delimiter) + this.eosToken
+        }
     }
 }

@@ -14,7 +14,9 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
             `gateProjKernel`,
             [this.units, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ops.getSeed()
+            })
         )
         if (this.useBias)
             this.gateProjBias = this.addWeight(

@@ -20,7 +20,9 @@ export default class PrimerAttention extends LayerBase {
             'queryKernel',
             [units, this.headDim * this.numHeads * this.queriesPerHead],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
 
         // Combined key and value projections for all heads
@@ -28,13 +30,17 @@ export default class PrimerAttention extends LayerBase {
             'keyKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
 
         this.queryDepthwiseKernel = this.addWeight(
@@ -45,26 +51,34 @@ export default class PrimerAttention extends LayerBase {
                 this.numHeads * this.queriesPerHead
             ],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
         this.keyDepthwiseKernel = this.addWeight(
             'keyDepthwiseKernel',
             [this.depthwiseKernelSize, this.headDim, this.numHeads],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
         this.valueDepthwiseKernel = this.addWeight(
             'valueDepthwiseKernel',
             [this.depthwiseKernelSize, this.headDim, this.numHeads],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
 
         this.outputKernel = this.addWeight(
             'outputKernel',
             [this.headDim * this.numHeads * this.queriesPerHead, units],
             'float32',
-            tf.initializers.glorotUniform()
+            tf.initializers.glorotUniform({
+                seed: this.ops.getSeed()
+            })
         )
 
         if (this.useBias) {

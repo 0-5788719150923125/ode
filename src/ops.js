@@ -1,4 +1,32 @@
 import * as tf from '@tensorflow/tfjs'
+import { LinearCongruentialGenerator } from './utils.js'
+
+// Singleton implementation
+const getSeed = (function () {
+    let instance
+    let minValue
+    let maxValue
+
+    function createInstance(seed, min, max) {
+        minValue = min
+        maxValue = max
+        return new LinearCongruentialGenerator(seed)
+    }
+
+    return function (min, max, seed) {
+        if (!instance) {
+            if (min === undefined || max === undefined || seed === undefined) {
+                return undefined
+            }
+            instance = createInstance(seed, min, max)
+        } else if (min !== undefined && max !== undefined) {
+            minValue = min
+            maxValue = max
+        }
+
+        return instance.randomFloat(minValue, maxValue)
+    }
+})()
 
 // Helper function to generate Gumbel noise
 function sampleGumbel(shape, epsilon = 1e-8) {
@@ -94,6 +122,7 @@ function zip(tensor1, tensor2) {
 }
 
 export default {
+    getSeed,
     gumbelSoftmax,
     rmsNorm,
     applyALiBi,

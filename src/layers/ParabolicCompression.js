@@ -26,7 +26,9 @@ export default class ParabolicCompression extends LayerBase {
             'residualMatrix',
             [inputDim, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ops.getSeed()
+            })
         )
 
         this.projectionMatrices = []
@@ -44,7 +46,9 @@ export default class ParabolicCompression extends LayerBase {
                     `alpha-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ops.getSeed()
+                    })
                 )
             )
             this.beta.push(
@@ -52,7 +56,9 @@ export default class ParabolicCompression extends LayerBase {
                     `beta-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ops.getSeed()
+                    })
                 )
             )
             this.gamma.push(
@@ -60,7 +66,9 @@ export default class ParabolicCompression extends LayerBase {
                     `gamma-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ops.getSeed()
+                    })
                 )
             )
 
@@ -69,7 +77,9 @@ export default class ParabolicCompression extends LayerBase {
                     `projectionMatrix-${i}`,
                     [currentSize, newSize],
                     'float32',
-                    tf.initializers.glorotUniform()
+                    tf.initializers.glorotUniform({
+                        seed: this.ops.getSeed()
+                    })
                 )
             )
 

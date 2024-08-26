@@ -29,6 +29,34 @@ export function randomBetween(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
+export class LinearCongruentialGenerator {
+    constructor(seed) {
+        this.seed = seed || Date.now()
+        this.a = 1664525
+        this.c = 1013904223
+        this.m = Math.pow(2, 32)
+    }
+
+    nextInt() {
+        this.seed = (this.a * this.seed + this.c) % this.m
+        return this.seed
+    }
+
+    randomInt(min, max) {
+        const range = max - min + 1
+        return Math.floor(this.nextInt() / (this.m / range)) + min
+    }
+
+    randomFloat(min, max) {
+        return (this.nextInt() / this.m) * (max - min) + min
+    }
+
+    pseudoRandomBetween(min, max) {
+        const val = this.randomFloat(min, max)
+        return Math.floor(val * (max - min + 1) + min)
+    }
+}
+
 export function getRandomBiasedNumber(num1, num2, factor) {
     const min = Math.min(num1, num2)
     const max = Math.max(num1, num2)

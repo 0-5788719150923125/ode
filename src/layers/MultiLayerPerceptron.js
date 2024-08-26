@@ -16,13 +16,17 @@ export default class MultiLayerPerceptron extends LayerBase {
             `inProjKernel`,
             [this.units, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ops.getSeed()
+            })
         )
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
             [this.hiddenDim, this.units],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotNormal({
+                seed: this.ops.getSeed()
+            })
         )
         if (this.useBias) {
             this.inProjBias = this.addWeight(
