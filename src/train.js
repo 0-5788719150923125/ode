@@ -231,8 +231,7 @@ function computeGradients(
             loss = lossValue.dataSync()[0]
 
             if (isNaN(loss)) {
-                lossValue.print()
-                throw 'Loss value was NaN. Halting.'
+                throw 'Loss values were NaN. Halting.'
             }
 
             return lossValue

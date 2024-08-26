@@ -105,6 +105,7 @@ function smoothGeneralizedCrossEntropy(
 }
 
 // mitigating the bias of learning difficulties with tokens
+// https://arxiv.org/abs/2310.19531
 // https://github.com/suu990901/LLaMA-MiLe-Loss/blob/main/utils/trainer.py
 function MiLeCrossEntropy(
     yTrue,

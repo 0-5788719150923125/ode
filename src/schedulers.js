@@ -27,7 +27,15 @@ function* cosineScheduler(start, end, totalIterations, modulation = 1) {
     }
 }
 
-function* cosineWithRestartsScheduler(min, max, steps) {
+function* cosineWithRestartsScheduler(min, max, steps, warmupSteps) {
+    // Warmup phase
+    for (let i = 0; i < warmupSteps; i++) {
+        const t = i / warmupSteps
+        const lr = max * t
+        yield lr
+    }
+
+    // Cosine annealing with restarts
     while (true) {
         for (let i = 0; i < steps; i++) {
             const t = i / steps
@@ -39,10 +47,8 @@ function* cosineWithRestartsScheduler(min, max, steps) {
 }
 
 const schedulers = {
-    constantScheduler: (max) => constantScheduler(max),
-    cosineScheduler: (max, min, totalIterations, modulation) =>
-        cosineScheduler(max, min, totalIterations, modulation),
-    cosineWithRestartsScheduler: (min, max, totalIterations) =>
-        cosineWithRestartsScheduler(min, max, totalIterations)
+    constantScheduler,
+    cosineScheduler,
+    cosineWithRestartsScheduler
 }
 export default schedulers

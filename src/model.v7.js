@@ -20,6 +20,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.minLearningRate = 1e-6
         this.weightDecay = 1e-3
         this.cosineSteps = 4096
+        this.warmupSteps = 128
     }
 
     defineTokenizer() {
@@ -83,7 +84,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.lossFunctions = [
             {
                 function: this.ode.losses.MiLeCrossEntropy,
-                smoothing: 0.0001
+                smoothing: 0.01
             }
         ]
     }
@@ -93,7 +94,8 @@ export default class OpportunisticDegenerativeExample extends ODE {
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
                 this.learningRate,
-                this.cosineSteps
+                this.cosineSteps,
+                this.warmupSteps
             )
         ]
     }
