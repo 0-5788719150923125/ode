@@ -21,8 +21,8 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.weightDecay = 1e-3
         this.cosineSteps = 4096
         this.warmupSteps = 128
-        this.seed = 42
-        this.ode.ops.getSeed(1, 1000, this.seed)
+        const seed = 42
+        this.ode.ops.setSeed(1, 1000, seed)
     }
 
     defineTokenizer() {

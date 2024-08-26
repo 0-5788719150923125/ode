@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs'
 import { LinearCongruentialGenerator } from './utils.js'
 
 // Singleton implementation
-const getSeed = (function () {
+const seedGenerator = (function () {
     let instance
     let minValue
     let maxValue
@@ -13,20 +13,31 @@ const getSeed = (function () {
         return new LinearCongruentialGenerator(seed)
     }
 
-    return function (min, max, seed) {
-        if (!instance) {
-            if (min === undefined || max === undefined || seed === undefined) {
-                return undefined
+    return {
+        setSeed: function (seed, min, max) {
+            if (seed === undefined || min === undefined || max === undefined) {
+                throw new Error(
+                    'seed, min, and max must be provided to initialize'
+                )
             }
             instance = createInstance(seed, min, max)
-        } else if (min !== undefined && max !== undefined) {
-            minValue = min
-            maxValue = max
+        },
+        getSeed: function (min, max) {
+            if (!instance) {
+                throw new Error(
+                    'Generator not initialized. Call setSeed first.'
+                )
+            }
+            if (min !== undefined && max !== undefined) {
+                minValue = min
+                maxValue = max
+            }
+            return instance.randomFloat(minValue, maxValue)
         }
-
-        return instance.randomFloat(minValue, maxValue)
     }
 })()
+
+export const { setSeed, getSeed } = seedGenerator
 
 // Helper function to generate Gumbel noise
 function sampleGumbel(shape, epsilon = 1e-8) {
@@ -123,6 +134,7 @@ function zip(tensor1, tensor2) {
 
 export default {
     getSeed,
+    setSeed,
     gumbelSoftmax,
     rmsNorm,
     applyALiBi,
