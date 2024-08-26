@@ -54,16 +54,20 @@ function smoothGeneralizedCrossEntropy(
     yPred,
     weights = null,
     labelSmoothing = 0,
+    reduction = null,
     fromLogits = false,
-    q = 0.5,
-    eps = 1e-8
+    alpha = null,
+    gamma = null,
+    sigma = null,
+    epsilon = 1e-8,
+    q = 0.5
 ) {
     return tf.tidy(() => {
         // Ensure yPred is probabilities
         const pred = fromLogits ? tf.softmax(yPred) : yPred
 
         // Clip probabilities to avoid numerical instability
-        const predClipped = tf.clipByValue(pred, eps, 1.0 - eps)
+        const predClipped = tf.clipByValue(pred, epsilon, 1.0 - epsilon)
 
         // Calculate the numerator part of the GCE loss
         const numerator = tf.pow(predClipped, q)
@@ -71,12 +75,12 @@ function smoothGeneralizedCrossEntropy(
         // Make the numerator more numerically stable
         const predStable = tf.where(
             tf.greaterEqual(predClipped, 0),
-            tf.add(numerator, eps),
-            tf.neg(tf.add(tf.pow(tf.abs(predClipped), q), eps))
+            tf.add(numerator, epsilon),
+            tf.neg(tf.add(tf.pow(tf.abs(predClipped), q), epsilon))
         )
 
         // Calculate the denominator part of the GCE loss
-        const loss = tf.div(tf.sub(1, predStable), q + eps)
+        const loss = tf.div(tf.sub(1, predStable), q + epsilon)
 
         // Apply label smoothing
         const numClasses = pred.shape[pred.shape.length - 1]
@@ -100,9 +104,60 @@ function smoothGeneralizedCrossEntropy(
     })
 }
 
+// mitigating the bias of learning difficulties with tokens
+// https://github.com/suu990901/LLaMA-MiLe-Loss/blob/main/utils/trainer.py
+function MiLeCrossEntropy(
+    yTrue,
+    yPred,
+    weights = null,
+    labelSmoothing = 0,
+    reduction = null,
+    fromLogits = false,
+    alpha = null,
+    gamma = 1.0,
+    sigma = 1.0,
+    epsilon = 1e-8
+) {
+    return tf.tidy(() => {
+        // Ensure yPred is logits
+        const logits = fromLogits ? yPred : tf.logSoftmax(yPred)
+
+        // Calculate cross-entropy loss
+        let ceLoss = tf.losses.softmaxCrossEntropy(
+            yTrue,
+            logits,
+            undefined,
+            labelSmoothing,
+            tf.Reduction.NONE,
+            fromLogits
+        )
+
+        // Calculate entropy
+        const probs = fromLogits ? tf.softmax(logits) : yPred
+        const clippedProbs = tf.clipByValue(probs, epsilon, 1.0)
+        const entropy = tf.sum(
+            tf.neg(tf.mul(clippedProbs, tf.log(clippedProbs)))
+        )
+
+        // Calculate alpha (normalization factor)
+        const aDenom = tf.mean(tf.pow(tf.add(sigma, entropy), gamma))
+        const alpha = tf.div(1.0, aDenom)
+
+        // Calculate final loss
+        let losses = tf.mul(
+            alpha,
+            tf.mul(tf.pow(tf.add(sigma, entropy), gamma), ceLoss)
+        )
+
+        // Apply reduction
+        return tf.losses.computeWeightedLoss(losses, weights, reduction)
+    })
+}
+
 const customLosses = {
     softmaxCrossEntropy: tf.losses.softmaxCrossEntropy,
     categoricalFocalCrossEntropy,
+    MiLeCrossEntropy,
     smoothGeneralizedCrossEntropy
 }
 

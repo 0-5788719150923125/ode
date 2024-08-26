@@ -82,10 +82,8 @@ export default class OpportunisticDegenerativeExample extends ODE {
     defineLossFunctions() {
         this.lossFunctions = [
             {
-                function: this.ode.losses.categoricalFocalCrossEntropy,
-                // smoothing: 0.1,
-                alpha: 0.5,
-                gamma: 2.0
+                function: this.ode.losses.MiLeCrossEntropy,
+                smoothing: 0.0001
             }
         ]
     }

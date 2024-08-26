@@ -195,9 +195,12 @@ function computeGradients(
     const weights = lossFunctions[0].weights || null
     const smoothing = lossFunctions[0].smoothing || null
     const reduction = lossFunctions[0].reduction || tf.Reduction.MEAN
+    const fromLogits = lossFunctions[0].fromLogits || true
     const alpha = lossFunctions[0].alpha || undefined
     const gamma = lossFunctions[0].gamma || undefined
-    const fromLogits = lossFunctions[0].fromLogits || true
+    const sigma = lossFunctions[0].sigma || undefined
+    const epsilon = lossFunctions[0].epsilon || undefined
+    const q = lossFunctions[0].q || undefined
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
             const predictions = model.call(currentXs, meta)
@@ -210,7 +213,10 @@ function computeGradients(
                 reduction,
                 fromLogits,
                 alpha,
-                gamma
+                gamma,
+                sigma,
+                epsilon,
+                q
             )
 
             model.layers.forEach((layer) => {
