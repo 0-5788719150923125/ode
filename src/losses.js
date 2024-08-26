@@ -51,10 +51,10 @@ function categoricalFocalCrossEntropy(
     y_pred,
     weights = null,
     labelSmoothing = 0,
-    reduction = tf.Reduction.MEAN,
+    reduction = null,
+    fromLogits = false,
     alpha = 0.25,
-    gamma = 2.0,
-    fromLogits = false
+    gamma = 2.0
 ) {
     return tf.tidy(() => {
         // Clip the prediction value to prevent NaN's and Inf's
@@ -81,13 +81,17 @@ function categoricalFocalCrossEntropy(
             .mul(y_true, alpha)
             .add(tf.mul(tf.sub(1.0, y_true), 1.0 - alpha))
         const modulation_factor = tf.pow(tf.sub(1.0, y_pred), gamma)
-        const focal_loss = tf.mul(
+        let focal_loss = tf.mul(
             alpha_t,
             tf.mul(modulation_factor, cross_entropy)
         )
 
-        // Compute weighted loss with reduction
-        return tf.losses.computeWeightedLoss(focal_loss, weights, reduction)
+        if (weights !== null) {
+            focal_loss = tf.mul(focal_loss, weights.expandDims(-1))
+        }
+
+        // Compute scalar loss with reduction
+        return tf.mean(tf.sum(focal_loss, -1))
     })
 }
 
