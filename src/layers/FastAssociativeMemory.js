@@ -25,7 +25,7 @@ export default class FastAssociativeMemory extends LayerBase {
             'C',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal()
+            tf.initializers.glorotUniform()
         )
         this.b = this.addWeight(
             'b',
@@ -41,21 +41,20 @@ export default class FastAssociativeMemory extends LayerBase {
 
             const [batchSize, seqLen, features] = inputs.shape
 
-            if (!this.hPrev) {
-                this.hPrev = tf.zerosLike(inputs)
-                this.hHistory.push(tf.keep(this.hPrev.clone()))
+            if (this.hHistory.length < 1) {
+                this.hHistory.push(tf.keep(tf.zerosLike(inputs)))
             }
 
-            const prevSeqLen = this.hPrev.shape[1]
+            let hPrev = this.hHistory[this.hHistory.length - 1]
+
+            const prevSeqLen = hPrev.shape[1]
             if (prevSeqLen < seqLen) {
                 const paddings = [
                     [0, 0],
                     [seqLen - prevSeqLen, 0],
                     [0, 0]
                 ]
-                const hPr = this.hPrev.clone()
-                this.hPrev.dispose()
-                this.hPrev = hPr.pad(paddings, 1)
+                hPrev = hPrev.pad(paddings, 1)
                 this.hHistory = this.hHistory.map((h) => {
                     const hClone = h.clone()
                     h.dispose()
@@ -76,9 +75,7 @@ export default class FastAssociativeMemory extends LayerBase {
                 this.b.read()
             )
 
-            hInitial = hInitial.add(
-                this.ops.applyDense(this.hPrev, this.W.read())
-            )
+            hInitial = hInitial.add(this.ops.applyDense(hPrev, this.W.read()))
 
             let h = hInitial
 
@@ -107,13 +104,11 @@ export default class FastAssociativeMemory extends LayerBase {
                     .apply(h)
             }
 
-            while (this.hHistory.length > this.numSteps) {
+            while (this.hHistory.length >= this.numSteps) {
                 this.hHistory[0].dispose()
                 this.hHistory.shift()
             }
 
-            this.hPrev.dispose()
-            this.hPrev = tf.keep(h.clone())
             this.hHistory.push(tf.keep(h))
 
             const outputs = h.slice(
