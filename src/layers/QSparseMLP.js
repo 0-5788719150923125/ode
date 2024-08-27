@@ -18,7 +18,7 @@ export default class QSparseMLP extends LayerBase {
             [this.units, this.innerDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         if (this.useBias)
@@ -34,7 +34,7 @@ export default class QSparseMLP extends LayerBase {
             [this.innerDim, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         if (this.useBias)

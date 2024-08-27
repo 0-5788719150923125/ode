@@ -21,7 +21,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             [inputDim, this.routerDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.routerOutputKernel = this.addWeight(
@@ -29,7 +29,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             [this.routerDim, this.numExperts],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         if (this.useBias) {
@@ -60,7 +60,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     [inputDim, this.expertDim],
                     'float32',
                     tf.initializers.glorotNormal({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )
@@ -70,7 +70,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     [inputDim, this.expertDim],
                     'float32',
                     tf.initializers.glorotNormal({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )
@@ -80,7 +80,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     [this.expertDim, inputDim],
                     'float32',
                     tf.initializers.glorotNormal({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )

@@ -29,7 +29,7 @@ export default class GPT2Attention extends LayerBase {
             [this.units, 3 * this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.cAttnBias = this.addWeight(
@@ -43,7 +43,7 @@ export default class GPT2Attention extends LayerBase {
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.cProjBias = this.addWeight(

@@ -22,7 +22,7 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
                     [this.queryDim, inputDim],
                     'float32',
                     tf.initializers.glorotNormal({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     }),
                     null,
                     true
@@ -35,7 +35,7 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
             [this.numExperts, inputDim + outputDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             }),
             null,
             true

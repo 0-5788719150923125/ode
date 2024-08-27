@@ -20,7 +20,7 @@ export default class MixtureOfDepths extends LayerBase {
                 scale: 0.01,
                 distribution: 'normal',
                 mode: 'fanAvg',
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.routerBias = this.addWeight(

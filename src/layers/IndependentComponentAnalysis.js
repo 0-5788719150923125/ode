@@ -18,7 +18,7 @@ export default class IndependentComponentAnalysis extends LayerBase {
             this.kernelShape,
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
     }

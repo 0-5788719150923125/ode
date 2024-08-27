@@ -20,7 +20,7 @@ export default class FastAssociativeMemory extends LayerBase {
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.C = this.addWeight(
@@ -28,7 +28,7 @@ export default class FastAssociativeMemory extends LayerBase {
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.b = this.addWeight(

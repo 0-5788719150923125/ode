@@ -15,7 +15,7 @@ export default class SelfAttention extends LayerBase {
             [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.keyKernel = this.addWeight(
@@ -23,7 +23,7 @@ export default class SelfAttention extends LayerBase {
             [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.valueKernel = this.addWeight(
@@ -31,7 +31,7 @@ export default class SelfAttention extends LayerBase {
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
     }

@@ -21,7 +21,7 @@ export default class CapsNet extends LayerBase {
             [this.units, this.innerDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.inProjBias = this.addWeight(
@@ -36,7 +36,7 @@ export default class CapsNet extends LayerBase {
             [this.numCapsules * this.capsuleDim, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.outProjBias = this.addWeight(
@@ -52,7 +52,7 @@ export default class CapsNet extends LayerBase {
             [this.innerDim, this.numCapsules * this.capsuleDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.primaryCapsBias = this.addWeight(
@@ -164,7 +164,7 @@ class DigitCaps extends LayerBase {
             ],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.built = true

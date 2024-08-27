@@ -24,7 +24,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     [inputDim, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )
@@ -34,7 +34,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     [inputDim, this.headDim],
                     'float32',
                     tf.initializers.glorotUniform({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )
@@ -44,7 +44,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     [inputDim, this.headFeatures],
                     'float32',
                     tf.initializers.glorotUniform({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )
@@ -65,7 +65,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             [this.headFeatures * this.numHeads, inputDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
     }

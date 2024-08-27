@@ -18,7 +18,7 @@ export default class ConstantSelfAttention extends LayerBase {
             [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -27,7 +27,7 @@ export default class ConstantSelfAttention extends LayerBase {
             [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -36,7 +36,7 @@ export default class ConstantSelfAttention extends LayerBase {
             [inputDim, inputDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -45,7 +45,7 @@ export default class ConstantSelfAttention extends LayerBase {
             [this.hiddenDim, this.numFeatures],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
     }

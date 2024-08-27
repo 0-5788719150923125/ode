@@ -21,7 +21,7 @@ export default class StateSpace extends LayerBase {
             [inputDim, this.innerDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.recurrentKernel = this.addWeight(
@@ -35,7 +35,7 @@ export default class StateSpace extends LayerBase {
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.bias = this.addWeight(
@@ -49,7 +49,7 @@ export default class StateSpace extends LayerBase {
             [this.innerDim, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.meanBias = this.addWeight(
@@ -63,7 +63,7 @@ export default class StateSpace extends LayerBase {
             [this.innerDim, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.logVarBias = this.addWeight(

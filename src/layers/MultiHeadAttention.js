@@ -19,7 +19,7 @@ export default class MultiHeadAttention extends LayerBase {
             [units, this.headDim * this.numHeads * this.queriesPerHead],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -29,7 +29,7 @@ export default class MultiHeadAttention extends LayerBase {
             [units, this.headDim * this.numHeads],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.valueKernel = this.addWeight(
@@ -37,7 +37,7 @@ export default class MultiHeadAttention extends LayerBase {
             [units, this.headDim * this.numHeads],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -67,7 +67,7 @@ export default class MultiHeadAttention extends LayerBase {
             [this.headDim * this.numHeads * this.queriesPerHead, units],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         if (this.useBias) {

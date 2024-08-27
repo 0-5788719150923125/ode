@@ -16,7 +16,7 @@ export default class LowRankFactorizationResidual extends LayerBase {
             [inputDim, this.rank],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -25,7 +25,7 @@ export default class LowRankFactorizationResidual extends LayerBase {
             [this.rank, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 
@@ -34,7 +34,7 @@ export default class LowRankFactorizationResidual extends LayerBase {
             [inputDim, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
     }

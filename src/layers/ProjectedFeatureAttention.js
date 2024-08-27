@@ -22,7 +22,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 [inputDim, outputDim],
                 'float32',
                 tf.initializers.glorotUniform({
-                    seed: this.ode.ops.getSeed()
+                    seed: this.ops.getSeed()
                 })
             )
             if (this.useBias)
@@ -39,7 +39,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             [inputDim, this.numHeads * this.queriesPerHead * this.headFeatures],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.keyKernel = this.addWeight(
@@ -47,7 +47,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             [inputDim, this.numHeads * this.headDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.valueKernel = this.addWeight(
@@ -55,7 +55,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             [inputDim, this.numHeads * this.headDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.projectionKernel = this.addWeight(
@@ -63,7 +63,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             [this.numHeads, this.headDim, this.headFeatures],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.outputKernel = this.addWeight(
@@ -74,7 +74,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             ],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         if (this.useBias) {

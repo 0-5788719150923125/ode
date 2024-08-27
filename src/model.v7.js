@@ -90,7 +90,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.lossFunctions = [
             {
                 function: this.ode.losses.MiLeCrossEntropy,
-                smoothing: 0.01
+                smoothing: 0.0001
             }
         ]
     }

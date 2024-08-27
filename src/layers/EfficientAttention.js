@@ -20,7 +20,7 @@ export default class EfficientAttention extends LayerBase {
             [1, inputDepth, this.keyChannels],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.keys = this.addWeight(
@@ -28,7 +28,7 @@ export default class EfficientAttention extends LayerBase {
             [1, inputDepth, this.keyChannels],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.values = this.addWeight(
@@ -36,7 +36,7 @@ export default class EfficientAttention extends LayerBase {
             [1, inputDepth, this.valueChannels],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.reprojection = this.addWeight(
@@ -44,7 +44,7 @@ export default class EfficientAttention extends LayerBase {
             [1, this.valueChannels, inputDepth],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
     }

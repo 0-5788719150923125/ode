@@ -23,7 +23,7 @@ export default class SynthesizerAttention extends LayerBase {
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.w2 = this.addWeight(
@@ -43,7 +43,7 @@ export default class SynthesizerAttention extends LayerBase {
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.proj = this.addWeight(
@@ -51,7 +51,7 @@ export default class SynthesizerAttention extends LayerBase {
             [this.units, this.units],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
 

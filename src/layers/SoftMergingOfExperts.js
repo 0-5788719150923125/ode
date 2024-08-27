@@ -20,7 +20,7 @@ export default class SoftMergingOfExperts extends LayerBase {
             [inputDim, this.hiddenDim],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.routerHiddenBias = this.addWeight(
@@ -34,7 +34,7 @@ export default class SoftMergingOfExperts extends LayerBase {
             [this.hiddenDim, this.numExperts - 1],
             'float32',
             tf.initializers.glorotNormal({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.routerOutputBias = this.addWeight(

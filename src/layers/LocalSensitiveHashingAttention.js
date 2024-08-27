@@ -22,7 +22,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             [inputDim, this.numHeads * this.headDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.keyKernel = this.addWeight(
@@ -30,7 +30,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             [inputDim, this.numHeads * this.headDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.valueKernel = this.addWeight(
@@ -38,7 +38,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             [inputDim, this.numHeads * this.headDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.projectionKernel = this.addWeight(
@@ -46,7 +46,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             [this.numHeads, this.headDim, this.projectionDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         this.outputKernel = this.addWeight(
@@ -54,7 +54,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             [this.numHeads * this.headDim, outputDim],
             'float32',
             tf.initializers.glorotUniform({
-                seed: this.ode.ops.getSeed()
+                seed: this.ops.getSeed()
             })
         )
         if (this.useBias) {
@@ -98,7 +98,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
                     [this.projectionDim, this.numBuckets],
                     'float32',
                     tf.initializers.glorotUniform({
-                        seed: this.ode.ops.getSeed()
+                        seed: this.ops.getSeed()
                     })
                 )
             )
