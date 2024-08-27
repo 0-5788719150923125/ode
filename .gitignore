@@ -1,3 +1,4 @@
+*.txt
 .parcel-cache
 coverage
 cuda

@@ -18,15 +18,16 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.ALiBiLength = 1024
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
-        this.weightDecay = 1e-5
+        this.weightDecay = 1e-3
         this.cosineSteps = 4096
+        this.warmupSteps = 128
         const seed = 42
         this.ode.ops.setSeed(1, 1000, seed)
     }
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-balanced-v1'
+            model: 'englishcode-4096-clean-v1'
         })
     }
 
@@ -112,7 +113,6 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.lossFunctions = [
             {
                 function: this.ode.losses.softmaxCrossEntropy,
-                weights: null,
                 smoothing: 0.0001,
                 reduction: this.tf.Reduction.MEAN
             }
@@ -124,7 +124,8 @@ export default class OpportunisticDegenerativeExample extends ODE {
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
                 this.learningRate,
-                this.cosineSteps
+                this.cosineSteps,
+                this.warmupSteps
             )
         ]
     }
