@@ -5,11 +5,9 @@ import ODE from './model.v7.js'
  * @extends ODE
  */
 export default class OptimalDecisionEngine extends ODE {
-    defineLossFunction() {
-        return {
-            name: 'MiLeCrossEntropy',
-            smoothing: 0.0001,
-            reduction: this.tf.Reduction.MEAN
-        }
+    constructor(config) {
+        super(config)
+        this.selfModel = true
+        this.auxiliaryWeight = 0.1
     }
 }

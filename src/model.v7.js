@@ -21,8 +21,6 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.weightDecay = 1e-5
         this.cosineSteps = 4096
         this.warmupSteps = 128
-        this.selfModel = true
-        this.auxiliaryWeight = 0.1
     }
 
     defineTokenizer() {
