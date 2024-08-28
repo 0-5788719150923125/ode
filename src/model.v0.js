@@ -41,6 +41,7 @@ export default class ModelBase {
         this.model
         this.tokenizer
         this.contextLength = config.contextLength
+        this.learningRate = 1e-3
         if (config?.seed) {
             this.ops.setSeed(1, 1000, config.seed)
         }
@@ -59,13 +60,13 @@ export default class ModelBase {
         if (typeof this.tokenizer.init === 'function') {
             await this.tokenizer.init()
         }
-        this.defineLossFunctions()
+        this.lossFunction = this.defineLossFunction()
     }
 
     async init() {
         await this.preInit()
-        this.defineOptimizers()
-        this.defineSchedulers()
+        this.optimizers = this.defineOptimizers()
+        this.schedulers = this.defineSchedulers()
         this.defineBuild()
         this.compile()
         this.postInit()
@@ -98,7 +99,7 @@ export default class ModelBase {
             }
         }
         console.log('successfully loaded model from disk')
-        this.defineSchedulers()
+        this.schedulers = this.defineSchedulers()
         this.postInit()
     }
 
@@ -156,15 +157,13 @@ export default class ModelBase {
         this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
     }
 
-    defineLossFunctions() {
-        this.lossFunctions = [
-            {
-                function: this.ode.losses.softmaxCrossEntropy,
-                weights: null,
-                smoothing: null,
-                reduction: this.tf.Reduction.MEAN
-            }
-        ]
+    defineLossFunction() {
+        return {
+            name: 'softmaxCrossEntropy',
+            weights: null,
+            smoothing: null,
+            reduction: this.tf.Reduction.MEAN
+        }
     }
 
     defineBuild() {
@@ -172,8 +171,7 @@ export default class ModelBase {
     }
 
     defineOptimizers() {
-        this.learningRate = 1e-3
-        this.optimizers = [
+        return [
             this.ode.optimizers.AdamW({
                 learningRate: this.learningRate,
                 weightDecay: 1e-2
@@ -182,17 +180,14 @@ export default class ModelBase {
     }
 
     defineSchedulers() {
-        this.learningRate = 1e-3
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
+        return [this.ode.schedulers.constantScheduler(this.learningRate)]
     }
 
     compile() {
         // this.model = enableGradientCheckpointing(this.model)
         this.model.compile({
             optimizer: this.optimizers[0],
-            loss: this.lossFunctions[0].function
+            loss: this.ode.losses[this.lossFunction.name]
         })
     }
 

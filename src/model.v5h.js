@@ -82,18 +82,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.cosineWithRestartsScheduler(
-                this.minLearningRate,
-                this.learningRate,
-                this.steps
-            )
-        ]
-    }
-
     defineOptimizers() {
-        this.optimizers = [
+        return [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay

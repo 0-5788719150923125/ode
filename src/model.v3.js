@@ -55,17 +55,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
-    }
-
-    defineOptimizers() {
-        this.optimizers = [
-            this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: this.weightDecay
-            })
-        ]
+        return [this.ode.schedulers.constantScheduler(this.learningRate)]
     }
 }

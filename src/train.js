@@ -1,3 +1,4 @@
+import losses from './losses.js'
 import {
     colors,
     elapsedTimeGenerator,
@@ -94,7 +95,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 dataGenerator,
                 tokenizer: this.tokenizer,
                 learningRate: this.model.optimizer?.learningRate,
-                lossFunctions: this.lossFunctions,
+                lossFunction: this.lossFunction,
                 ...trainArgs
             })
             if (r?.valLoss) {
@@ -113,7 +114,7 @@ class GradientAccumulator {
     constructor(parent, accumulationSteps, clipValue) {
         this.parent = parent
         this.model = this.parent.model
-        this.lossFunctions = this.parent.lossFunctions
+        this.lossFunction = this.parent.lossFunction
         this.accumulationSteps = accumulationSteps
         this.clipValue = clipValue
         this.accumulationCounter = 0
@@ -125,7 +126,7 @@ class GradientAccumulator {
     async compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
             this.model,
-            this.lossFunctions,
+            this.lossFunction,
             currentXs,
             currentYs,
             {
@@ -190,17 +191,17 @@ function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
     }
 }
 
-function computeLoss(model, lossFunctions, labels, logits) {
-    const lossFunction = lossFunctions[0].function
-    const weights = lossFunctions[0].weights || null
-    const smoothing = lossFunctions[0].smoothing || null
-    const reduction = lossFunctions[0].reduction || tf.Reduction.MEAN
-    const fromLogits = lossFunctions[0].fromLogits || true
-    const alpha = lossFunctions[0].alpha || undefined
-    const gamma = lossFunctions[0].gamma || undefined
-    const sigma = lossFunctions[0].sigma || undefined
-    const epsilon = lossFunctions[0].epsilon || undefined
-    const q = lossFunctions[0].q || undefined
+function computeLoss(model, lossFunctionArgs, labels, logits) {
+    const lossFunction = losses[lossFunctionArgs.name]
+    const weights = lossFunctionArgs.weights || null
+    const smoothing = lossFunctionArgs.smoothing || null
+    const reduction = lossFunctionArgs.reduction || tf.Reduction.MEAN
+    const fromLogits = lossFunctionArgs.fromLogits || true
+    const alpha = lossFunctionArgs.alpha || undefined
+    const gamma = lossFunctionArgs.gamma || undefined
+    const sigma = lossFunctionArgs.sigma || undefined
+    const epsilon = lossFunctionArgs.epsilon || undefined
+    const q = lossFunctionArgs.q || undefined
 
     let lossValue = lossFunction(
         labels,
@@ -230,7 +231,7 @@ function computeLoss(model, lossFunctions, labels, logits) {
 
 function computeGradients(
     model,
-    lossFunctions,
+    lossFunction,
     currentXs,
     currentYs,
     meta = { training: true }
@@ -242,7 +243,7 @@ function computeGradients(
 
             let lossValue = computeLoss(
                 model,
-                lossFunctions,
+                lossFunction,
                 currentYs,
                 predictions[0]
             )
@@ -541,7 +542,7 @@ export class ValidationHandler {
 
                     let lossValue = computeLoss(
                         this.parent.model,
-                        args.lossFunctions,
+                        args.lossFunction,
                         valData.ys,
                         predictions[0]
                     )

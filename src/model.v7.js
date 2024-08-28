@@ -21,8 +21,6 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.weightDecay = 1e-5
         this.cosineSteps = 4096
         this.warmupSteps = 128
-        const seed = 42
-        this.ode.ops.setSeed(1, 1000, seed)
     }
 
     defineTokenizer() {
@@ -82,17 +80,23 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineLossFunctions() {
-        this.lossFunctions = [
-            {
-                function: this.ode.losses.MiLeCrossEntropy,
-                smoothing: 0.0001
-            }
-        ]
+    // defineLossFunction() {
+    //     this.lossFunction = {
+    //         name: 'MiLeCrossEntropy',
+    //         smoothing: 0.0001
+    //     }
+    // }
+
+    defineLossFunction() {
+        return {
+            name: 'softmaxCrossEntropy',
+            smoothing: 0.0001,
+            reduction: this.tf.Reduction.MEAN
+        }
     }
 
     defineSchedulers() {
-        this.schedulers = [
+        return [
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
                 this.learningRate,
@@ -103,7 +107,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
     }
 
     defineOptimizers() {
-        this.optimizers = [
+        return [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay,

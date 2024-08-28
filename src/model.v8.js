@@ -80,18 +80,16 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.model = this.tf.model({ inputs, outputs })
     }
 
-    defineLossFunctions() {
-        this.lossFunctions = [
-            {
-                function: this.ode.losses.softmaxCrossEntropy,
-                smoothing: 0.0001,
-                reduction: this.tf.Reduction.MEAN
-            }
-        ]
+    defineLossFunction() {
+        return {
+            name: 'softmaxCrossEntropy',
+            smoothing: 0.0001,
+            reduction: this.tf.Reduction.MEAN
+        }
     }
 
     defineSchedulers() {
-        this.schedulers = [
+        return [
             this.ode.schedulers.cosineWithRestartsScheduler(
                 this.minLearningRate,
                 this.learningRate,
@@ -102,7 +100,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
     }
 
     defineOptimizers() {
-        this.optimizers = [
+        return [
             this.ode.optimizers.Lamb({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay

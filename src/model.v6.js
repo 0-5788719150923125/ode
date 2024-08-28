@@ -65,13 +65,11 @@ export default class OpenDoorExperiment extends ODE {
     }
 
     defineSchedulers() {
-        this.schedulers = [
-            this.ode.schedulers.constantScheduler(this.learningRate)
-        ]
+        return [this.ode.schedulers.constantScheduler(this.learningRate)]
     }
 
     defineOptimizers() {
-        this.optimizers = [
+        return [
             this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
                 weightDecay: this.weightDecay,
