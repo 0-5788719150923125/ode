@@ -227,7 +227,6 @@ function computeLoss(
     const q = lossFunctionArgs.q || undefined
 
     const prediction = logits[0]
-    const hiddenStates = logits.slice(1)
 
     let lossValue = lossFunction(
         labels,
@@ -252,7 +251,8 @@ function computeLoss(
         }
     })
 
-    if (selfModel && hiddenStates.length > 0) {
+    if (selfModel) {
+        const hiddenStates = logits.slice(1)
         const selfModelingLoss = modelSelf(
             prediction,
             hiddenStates,
