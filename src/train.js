@@ -541,8 +541,8 @@ export class ValidationHandler {
 
         this.lastStep = args.step
 
-        let trueNLL = 0
-        let totalNLL = 0 // Total Negative Log Likelihood
+        let trueNLL = 0 // Negative Log Likelihood
+        let totalNLL = 0
         let totalTokens = 0
         let totalSteps = 0
 
@@ -689,6 +689,7 @@ export class MetricsCollector {
         this.buffer = []
         this.flushInterval = 5000 // 5 seconds
         this.maxBufferSize = 100
+        this.historyLength = 25
         this.fs = null
     }
 
@@ -774,18 +775,14 @@ export class MetricsCollector {
                         useBias: this.parent?.useBias,
                         ALiBiLength: this.parent?.ALiBiLength
                     },
-                    loss: this.appendToArray(
-                        existingEntry.loss || [],
-                        metrics.loss,
-                        3
-                    ),
+                    loss: metrics.loss,
                     validationLoss:
                         metrics.valLoss != null &&
                         metrics.valLoss !== lastValidationLoss
                             ? this.appendToArray(
                                   existingEntry.validationLoss || [],
                                   metrics.valLoss,
-                                  3
+                                  this.historyLength
                               )
                             : existingEntry.validationLoss || [],
                     validationPerplexity:
@@ -794,7 +791,7 @@ export class MetricsCollector {
                             ? this.appendToArray(
                                   existingEntry.validationPerplexity || [],
                                   metrics.valPerplexity,
-                                  3
+                                  this.historyLength
                               )
                             : existingEntry.validationPerplexity || [],
                     metricsInterval: this.maxBufferSize,
