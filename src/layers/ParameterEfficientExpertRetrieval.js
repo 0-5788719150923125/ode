@@ -1,6 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './base.js'
 
+// https://arxiv.org/abs/2407.04153
 export default class ParameterEfficientExpertRetrieval extends LayerBase {
     constructor(config) {
         super(config)
