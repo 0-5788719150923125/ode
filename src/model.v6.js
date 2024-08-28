@@ -61,7 +61,7 @@ export default class OpenDoorExperiment extends ODE {
 
         outputs = embeddings.apply(outputs)
 
-        this.model = this.tf.model({ inputs, outputs })
+        return this.tf.model({ inputs, outputs })
     }
 
     defineSchedulers() {

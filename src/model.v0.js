@@ -67,7 +67,7 @@ export default class ModelBase {
         await this.preInit()
         this.optimizers = this.defineOptimizers()
         this.schedulers = this.defineSchedulers()
-        this.defineBuild()
+        this.model = this.defineBuild()
         this.compile()
         this.postInit()
     }

@@ -77,7 +77,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
             })
             .apply(outputs)
 
-        this.model = this.tf.model({ inputs, outputs })
+        return this.tf.model({ inputs, outputs })
     }
 
     // defineLossFunction() {

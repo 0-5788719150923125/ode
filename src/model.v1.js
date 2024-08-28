@@ -15,9 +15,9 @@ export default class OmnipresentDegenerateEntity extends ODE {
     }
 
     defineBuild() {
-        this.model = this.tf.sequential()
+        const model = this.tf.sequential()
 
-        this.model.add(
+        model.add(
             this.tf.layers.embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.units
@@ -25,7 +25,7 @@ export default class OmnipresentDegenerateEntity extends ODE {
         )
 
         for (let i = 0; i < this.layers; i++)
-            this.model.add(
+            model.add(
                 this.tf.layers.lstm({
                     units: this.units,
                     activation: 'tanh',
@@ -34,11 +34,13 @@ export default class OmnipresentDegenerateEntity extends ODE {
                 })
             )
 
-        this.model.add(
+        model.add(
             this.tf.layers.dense({
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })
         )
+
+        return model
     }
 }
