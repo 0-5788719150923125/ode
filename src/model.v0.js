@@ -27,7 +27,6 @@ export default class ModelBase {
     constructor(config) {
         this.ode = {
             layers: customLayers,
-            ops: customOps,
             losses: customLosses,
             optimizers: customOptimizers,
             tokenizers: customTokenizers,
@@ -35,10 +34,15 @@ export default class ModelBase {
             samplers: customSamplers,
             expert: Expert
         }
+        this.ops = customOps
         this.config = config
         this.model
         this.tokenizer
         this.contextLength = config.contextLength
+        if (config?.seed) {
+            this.ops.setSeed(1, 1000, config.seed)
+            return
+        }
     }
 
     async preInit() {
