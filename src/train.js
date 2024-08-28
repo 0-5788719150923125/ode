@@ -268,8 +268,21 @@ function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
     let selfModelingLoss = 0
 
     hiddenStates.forEach((hiddenState) => {
-        // const mse = tf.losses.meanSquaredError(hiddenState, prediction)
-        const loss = losses(hiddenState, prediction)
+        const loss = tf.tidy(() => {
+            // Flatten the tensors
+            const flat1 = prediction.reshape([-1])
+            const flat2 = hiddenState.reshape([-1])
+
+            // Determine the length to use (minimum of the two flattened tensors)
+            const minLength = Math.min(flat1.shape[0], flat2.shape[0])
+
+            // Slice the tensors to the common length
+            const slice1 = flat1.slice([0], [minLength])
+            const slice2 = flat2.slice([0], [minLength])
+
+            return losses.meanSquaredError(slice1, slice2)
+        })
+
         selfModelingLoss = tf.add(selfModelingLoss, loss)
     })
 
