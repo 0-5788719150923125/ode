@@ -96,7 +96,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength(),
-                kernelInitializer: this.tf.initializers.glorotUniform()
+                kernelInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(outputs)
 

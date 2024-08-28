@@ -38,7 +38,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.embeddings,
-                embeddingsInitializer: this.tf.initializers.glorotUniform()
+                embeddingsInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(inputs)
 
@@ -73,7 +73,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength(),
-                kernelInitializer: this.tf.initializers.glorotUniform()
+                kernelInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(outputs)
 

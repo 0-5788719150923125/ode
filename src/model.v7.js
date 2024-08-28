@@ -18,7 +18,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.ALiBiLength = 1024
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
-        this.weightDecay = 1e-3
+        this.weightDecay = 1e-5
         this.cosineSteps = 4096
         this.warmupSteps = 128
         const seed = 42
@@ -40,7 +40,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.embeddings,
-                embeddingsInitializer: this.tf.initializers.glorotUniform()
+                embeddingsInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(inputs)
 
@@ -75,7 +75,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength(),
-                kernelInitializer: this.tf.initializers.glorotUniform()
+                kernelInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(outputs)
 
