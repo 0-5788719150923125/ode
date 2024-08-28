@@ -802,7 +802,7 @@ export class MetricsCollector {
                     validateEvery: metrics.validateEvery,
                     validationSteps: metrics.validationSteps,
                     sampleLength: metrics.sampleLength,
-                    tokenizer: metrics.tokenizer.model,
+                    tokenizer: metrics.tokenizer?.model,
                     optimizer: {
                         name: this.parent.optimizers[0].constructor.name,
                         learningRate: metrics.learningRate,
