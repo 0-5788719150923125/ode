@@ -643,8 +643,6 @@ export class ConsoleLogger {
     }
 }
 
-import { promises as fs } from 'fs'
-
 function formatDate(date) {
     const months = [
         'January',
@@ -679,10 +677,32 @@ export class MetricsCollector {
         this.runId = randomString(7)
         this.buffer = []
         this.flushInterval = 5000 // 5 seconds
-        this.maxBufferSize = 100
+        this.maxBufferSize = 10
+        this.fs = null
+    }
+
+    appendToArray(array, item, maxItems) {
+        const newArray = [...array]
+        newArray.unshift(item)
+        while (newArray.length > maxItems) {
+            newArray.pop()
+        }
+        return newArray
     }
 
     async step(metrics) {
+        const isBrowser =
+            (typeof self !== 'undefined' &&
+                typeof self.importScripts === 'function') ||
+            typeof window !== 'undefined'
+
+        if (isBrowser) return
+
+        if (this.fs === null) {
+            const fsModule = await import('fs')
+            this.fs = fsModule.promises
+        }
+
         const timestamp = Date.now()
         const logEntry = {
             runId: this.runId,
@@ -703,7 +723,10 @@ export class MetricsCollector {
         try {
             let data = []
             try {
-                const fileContent = await fs.readFile(this.filename, 'utf8')
+                const fileContent = await this.fs.readFile(
+                    this.filename,
+                    'utf8'
+                )
                 data = JSON.parse(fileContent)
             } catch (error) {
                 // File doesn't exist or is empty, start with an empty array
@@ -713,6 +736,15 @@ export class MetricsCollector {
                 const existingIndex = data.findIndex(
                     (entry) => entry.runId === this.runId
                 )
+                const existingLosses = data[existingIndex]
+                    ? data[existingIndex].loss
+                    : []
+                const existingValidationLosses = data[existingIndex]
+                    ? data[existingIndex].validationLoss
+                    : []
+                const existingValidationPerplexities = data[existingIndex]
+                    ? data[existingIndex].validationPerplexity
+                    : []
 
                 const filteredMetrics = {
                     runId: this.runId,
@@ -722,9 +754,18 @@ export class MetricsCollector {
                     class: this.parent.constructor.name,
                     batch: metrics.batch,
                     step: metrics.step,
-                    loss: metrics.loss,
-                    validationLoss: metrics?.valLoss,
-                    validationPerplexity: metrics?.valPerplexity,
+                    loss: this.appendToArray(existingLosses, metrics.loss, 3),
+                    validationLoss: this.appendToArray(
+                        existingValidationLosses,
+                        metrics?.valLoss,
+                        3
+                    ),
+                    validationPerplexity: this.appendToArray(
+                        existingValidationPerplexities,
+                        metrics?.valPerplexity,
+                        3
+                    ),
+                    metricsInterval: this.maxBufferSize,
                     lossFunction: metrics.lossFunction,
                     validateEvery: metrics.validateEvery,
                     validationSteps: metrics.validationSteps,
@@ -767,7 +808,7 @@ export class MetricsCollector {
             data.sort((a, b) => b.timestamp - a.timestamp)
 
             // Write the updated data back to the file
-            await fs.writeFile(
+            await this.fs.writeFile(
                 this.filename,
                 JSON.stringify(data, null, 4),
                 'utf8'
