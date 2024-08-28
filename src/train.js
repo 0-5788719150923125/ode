@@ -864,6 +864,8 @@ export class MetricsCollector {
                         minLearningRate: this.parent?.minLearningRate,
                         maxLearningRate: this.parent?.learningRate
                     },
+                    selfModel: this.parent?.selfModel,
+                    auxiliaryWeight: this.parent?.auxiliaryWeight,
                     seed: metrics.seed,
                     corpus: metrics.corpus
                 }
