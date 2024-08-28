@@ -31,7 +31,7 @@ def plot_metric(data, metric_key, metric_name):
     for run in data:
         steps, metric_values = process_run_data(run, metric_key)
         total_params = run['totalParams']
-        label = f"{run['class']}\nv{run['version']}-{total_params / one_million:.2f}M (id:{run['runId']})"
+        label = f"v{run['version']} | {total_params / one_million:.2f}M | {run['runId']}\n{run['class']}"
         plt.plot(steps, metric_values, marker='o', label=label)
 
     plt.title(f"{metric_name} Over Time", fontsize=16)
