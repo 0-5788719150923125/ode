@@ -42,6 +42,7 @@ export default class ModelBase {
         this.tokenizer
         this.contextLength = config.contextLength
         this.learningRate = 1e-3
+        this.totalParams = 0
         if (config?.seed) {
             this.ops.setSeed(1, 1000, config.seed)
         }
@@ -195,7 +196,7 @@ export default class ModelBase {
     postInit() {
         console.log(this.model.optimizer)
         console.log(this.model.summary())
-        this.countParams()
+        this.totalParams = this.countParams()
         console.log(this.config)
         console.log(
             `\nTokenizer contains ${this.tokenizer.getLength()} tokens.`
@@ -221,6 +222,7 @@ export default class ModelBase {
             (expertParams / oneMillion).toFixed(2) + 'M',
             'expert params'
         )
+        return layerParams + expertParams
     }
 
     getWeightsByLayerPrefix(prefix = 'emb') {

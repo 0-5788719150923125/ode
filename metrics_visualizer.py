@@ -23,20 +23,28 @@ def process_run_data(run, metric_key):
     return steps, metric_values
 
 def plot_metric(data, metric_key, metric_name):
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(14, 8))  # Increased figure size
     sns.set_style("whitegrid")
+
+    one_million = 1_000_000
 
     for run in data:
         steps, metric_values = process_run_data(run, metric_key)
-        plt.plot(steps, metric_values, marker='o', label=f"v{run['version']} ({run['runId']})")
+        total_params = run['totalParams']
+        label = f"{run['class']}\nv{run['version']}-{total_params / one_million:.2f}M (id:{run['runId']})"
+        plt.plot(steps, metric_values, marker='o', label=label)
 
     plt.title(f"{metric_name} Over Time", fontsize=16)
     plt.xlabel("Steps", fontsize=12)
     plt.ylabel(metric_name, fontsize=12)
-    plt.legend(title="Run ID", title_fontsize=12)
+    
+    # Adjust legend
+    # plt.legend(title="Run Info", title_fontsize=12, fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.legend(title="Run Info", title_fontsize=12)
+    
     plt.yscale('log')  # Use log scale for y-axis to better visualize small differences
     plt.tight_layout()
-    plt.savefig(f'metrics_{metric_key.lower()}.png', dpi=300)
+    plt.savefig(f'metrics_{metric_key.lower()}.png', dpi=300, bbox_inches='tight')
     plt.close()
 
 def main():

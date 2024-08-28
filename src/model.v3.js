@@ -4,7 +4,7 @@ import ODE from './model.v2.js'
  * The simplest transformer.
  * @extends ODE
  */
-export default class OmniscientDeterministicEngine extends ODE {
+export default class OptimalDecisionEngine extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 3

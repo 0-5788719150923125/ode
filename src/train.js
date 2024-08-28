@@ -764,6 +764,7 @@ export class MetricsCollector {
                     step: metrics.step,
                     version: metrics.version,
                     class: this.parent.constructor.name,
+                    totalParams: this.parent.totalParams,
                     architecture: {
                         units: this.parent?.units,
                         layers: this.parent?.layers,

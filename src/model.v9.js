@@ -4,7 +4,7 @@ import ODE from './model.v2.js'
  * In development.
  * @extends ODE
  */
-export default class OpportunisticDegenerativeExample extends ODE {
+export default class OmnilateralDynamicEvaluator extends ODE {
     constructor(config) {
         super(config)
         this.layers = config.layers || 6
