@@ -5,3 +5,4 @@ coverage
 cuda
 data
 node_modules
+venv
