@@ -400,6 +400,11 @@ function predictOnce(
             logits = this.model.predict(idxCond)
         }
 
+        // For models that export multiple output states, we only use the first
+        if (Array.isArray(logits)) {
+            logits = logits[0]
+        }
+
         if (logits.shape.length === 3) {
             const logitsTimesteps = logits.shape[1]
             const idxTimesteps = idx.shape[1]
