@@ -530,10 +530,11 @@ export class ValidationHandler {
 
         this.lastStep = args.step
 
-        let loss = 0
-        let totalLoss = 0
+        let trueNLL = 0
+        let totalNLL = 0 // Total Negative Log Likelihood
         let totalTokens = 0
         let totalSteps = 0
+
         for (let i = 0; i <= args.validationSteps; i += args.batchSize) {
             const valData = await batchMaker(
                 args.dataGenerator,
@@ -552,7 +553,9 @@ export class ValidationHandler {
 
             tf.tidy(() => {
                 const predictions = this.parent.model.call(valData.xs, {
-                    training: false
+                    training: false,
+                    step: args.step,
+                    batch: args.batch
                 })
 
                 const lossValue = computeLoss(
@@ -563,10 +566,10 @@ export class ValidationHandler {
                 )
 
                 const numTokens = batchSize * seqLen
-                const lossScalar = lossValue.dataSync()[0]
+                const batchNLL = lossValue.dataSync()[0]
 
-                loss += lossScalar
-                totalLoss += lossScalar * numTokens
+                trueNLL += batchNLL
+                totalNLL += batchNLL * numTokens
                 totalTokens += numTokens
             })
 
@@ -575,9 +578,9 @@ export class ValidationHandler {
             totalSteps += batchSize
         }
 
-        const valLoss = loss / totalSteps
-        const averageLoss = totalLoss / totalTokens
-        const valPerplexity = Math.exp(averageLoss)
+        const valLoss = trueNLL / totalSteps
+        const averageNLL = totalNLL / totalTokens
+        const valPerplexity = Math.exp(averageNLL)
 
         return { valLoss, valPerplexity }
     }
