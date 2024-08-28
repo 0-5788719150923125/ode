@@ -5,7 +5,8 @@ import {
     emaGenerator,
     findMatches,
     preprocessData,
-    randomBetween
+    randomBetween,
+    randomString
 } from './utils.js'
 
 let tf
@@ -642,29 +643,140 @@ export class ConsoleLogger {
     }
 }
 
+import { promises as fs } from 'fs'
+
+function formatDate(date) {
+    const months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
+    ]
+    const month = months[date.getMonth()]
+    const day = date.getDate()
+    const year = date.getFullYear()
+    let hours = date.getHours()
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    hours = hours % 12
+    hours = hours ? hours : 12 // the hour '0' should be '12'
+
+    return `${month} ${day}, ${year} @ ${hours}:${minutes}${ampm}`
+}
+
 export class MetricsCollector {
     constructor(parent) {
         this.parent = parent
+        this.filename = './metrics.json'
+        this.runId = randomString(7)
+        this.buffer = []
+        this.flushInterval = 5000 // 5 seconds
+        this.maxBufferSize = 100
     }
 
-    async step(stats) {
-        await this.saveStatsToFile('./data/metrics.gg', {
-            batch: stats.batch,
-            step: stats.step,
-            loss: stats.loss
-        })
-    }
-
-    async saveStatsToFile(filename, stats) {
-        if (!this.fs) {
-            this.fs = await import('fs')
-            try {
-                this.fs.unlinkSync(filename)
-            } catch (err) {
-                // pass
-            }
+    async step(metrics) {
+        const timestamp = Date.now()
+        const logEntry = {
+            runId: this.runId,
+            timestamp,
+            ...metrics
         }
-        const statsString = JSON.stringify(stats) + '\n'
-        this.fs.appendFileSync(filename, statsString, 'utf8')
+
+        this.buffer.push(logEntry)
+
+        if (this.buffer.length >= this.maxBufferSize) {
+            await this.flush()
+        }
+    }
+
+    async flush() {
+        if (this.buffer.length === 0) return
+
+        try {
+            let data = []
+            try {
+                const fileContent = await fs.readFile(this.filename, 'utf8')
+                data = JSON.parse(fileContent)
+            } catch (error) {
+                // File doesn't exist or is empty, start with an empty array
+            }
+
+            for (const metrics of this.buffer) {
+                const existingIndex = data.findIndex(
+                    (entry) => entry.runId === this.runId
+                )
+
+                const filteredMetrics = {
+                    runId: this.runId,
+                    timestamp: metrics.timestamp,
+                    date: formatDate(new Date(metrics.timestamp)),
+                    version: metrics.version,
+                    class: this.parent.constructor.name,
+                    batch: metrics.batch,
+                    step: metrics.step,
+                    loss: metrics.loss,
+                    validationLoss: metrics?.valLoss,
+                    validationPerplexity: metrics?.valPerplexity,
+                    lossFunction: metrics.lossFunction,
+                    validateEvery: metrics.validateEvery,
+                    validationSteps: metrics.validationSteps,
+                    sampleLength: metrics.sampleLength,
+                    tokenizer: metrics.tokenizer.model,
+                    optimizer: {
+                        name: this.parent.optimizers[0].constructor.name,
+                        learningRate: metrics.learningRate,
+                        weightDecay: this.parent.optimizers[0].weightDecay
+                    },
+                    scheduler: {
+                        warmupSteps: this.parent?.warmupSteps,
+                        cosineSteps: this.parent?.cosineSteps,
+                        minLearningRate: this.parent?.minLearningRate,
+                        maxLearningRate: this.parent?.learningRate
+                    },
+                    architecture: {
+                        units: this.parent?.units,
+                        layers: this.parent?.layers,
+                        embeddings: this.parent?.embeddings,
+                        numHeads: this.parent?.numHeads,
+                        queriesPerHead: this.parent?.queriesPerHead,
+                        mlpDim: this.parent?.mlpDim,
+                        headDim: this.parent?.headDim,
+                        useBias: this.parent?.useBias,
+                        ALiBiLength: this.parent?.ALiBiLength
+                    },
+                    seed: metrics.seed,
+                    corpus: metrics.corpus
+                }
+
+                if (existingIndex !== -1) {
+                    data[existingIndex] = filteredMetrics
+                } else {
+                    data.push(filteredMetrics)
+                }
+            }
+
+            // Sort the data by timestamp, most recent first
+            data.sort((a, b) => b.timestamp - a.timestamp)
+
+            // Write the updated data back to the file
+            await fs.writeFile(
+                this.filename,
+                JSON.stringify(data, null, 4),
+                'utf8'
+            )
+
+            // Clear the buffer after successful write
+            this.buffer = []
+        } catch (err) {
+            console.error('Error flushing metrics:', err)
+        }
     }
 }

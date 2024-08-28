@@ -1,4 +1,5 @@
 *.txt
+*.json
 .parcel-cache
 coverage
 cuda
