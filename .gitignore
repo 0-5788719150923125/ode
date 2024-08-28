@@ -1,6 +1,7 @@
 *.txt
 *.json
-./*.png
+*.png
+!./*.png
 .parcel-cache
 coverage
 cuda
