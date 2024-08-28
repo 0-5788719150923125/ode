@@ -20,7 +20,7 @@ export default function MiLeCrossEntropy(
         const logits = fromLogits ? yPred : tf.logSoftmax(yPred)
 
         // Calculate cross-entropy loss
-        let ceLoss = tf.losses.softmaxCrossEntropy(
+        let crossEntropy = tf.losses.softmaxCrossEntropy(
             yTrue,
             logits,
             undefined,
@@ -43,7 +43,7 @@ export default function MiLeCrossEntropy(
         // Calculate final loss
         let losses = tf.mul(
             alpha,
-            tf.mul(tf.pow(tf.add(sigma, entropy), gamma), ceLoss)
+            tf.mul(tf.pow(tf.add(sigma, entropy), gamma), crossEntropy)
         )
 
         // Apply reduction

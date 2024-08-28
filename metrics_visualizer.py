@@ -26,27 +26,26 @@ def plot_metric(data, metric_key, metric_name):
     plt.figure(figsize=(14, 8))  # Increased figure size
     sns.set_style("whitegrid")
 
-    one_million = 1_000_000
+    one_million_bytes = 1_000_000
 
     for run in data:
         steps, metric_values = process_run_data(run, metric_key)
         total_params = run['totalParams']
-        label = f"v{run['version']} | {total_params / one_million:.2f}M | {run['runId']}\n{run['class']}"
+        total_megabytes = total_params / one_million_bytes
+        label = f"v{run['version']} | {total_megabytes:.2f}M | {run['runId']}\n{run['class']}\n{run.get('lossFunction').get('name')}"
         plt.plot(steps, metric_values, marker='o', label=label)
 
     plt.title(f"{metric_name} Over Time", fontsize=16)
     plt.xlabel("Steps", fontsize=12)
     plt.ylabel(metric_name, fontsize=12)
-    
-    plt.yscale('log')  # Use log scale for y-axis to better visualize small differences
 
     # Adjust legend
-    # plt.legend(title="Run Info", title_fontsize=12, fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.legend(title="Run Info", title_fontsize=12)
     
     plt.yscale('log')  # Use log scale for y-axis to better visualize small differences
     plt.tight_layout()
-    plt.savefig(f'metrics_{metric_key.lower()}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'metrics_{metric_key}.png', dpi=300, bbox_inches='tight')
+
     plt.close()
 
 def main():
