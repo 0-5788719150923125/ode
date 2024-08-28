@@ -268,8 +268,9 @@ function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
     let selfModelingLoss = 0
 
     hiddenStates.forEach((hiddenState) => {
-        const mse = tf.losses.meanSquaredError(hiddenState, prediction)
-        selfModelingLoss = tf.add(selfModelingLoss, mse)
+        // const mse = tf.losses.meanSquaredError(hiddenState, prediction)
+        const loss = losses(hiddenState, prediction)
+        selfModelingLoss = tf.add(selfModelingLoss, loss)
     })
 
     return tf.mul(selfModelingLoss, auxiliaryWeight)
