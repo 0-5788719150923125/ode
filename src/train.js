@@ -86,7 +86,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         this.loss = accumulator.getLoss()
 
         for (const callback of callbacks) {
-            await callback.step({
+            const r = await callback.step({
                 batch: this.batch,
                 step: this.step,
                 loss: this.loss,
@@ -97,9 +97,8 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 lossFunctions: this.lossFunctions,
                 ...trainArgs
             })
-            if (callback.getLosses) {
-                const { valLoss } = callback.getLosses()
-                this.validationLoss = valLoss
+            if (r?.valLoss) {
+                this.validationLoss = r.valLoss
             }
         }
 
@@ -191,14 +190,7 @@ function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
     }
 }
 
-function computeGradients(
-    model,
-    lossFunctions,
-    currentXs,
-    currentYs,
-    meta = { training: true }
-) {
-    let loss
+function computeLoss(model, lossFunctions, labels, logits) {
     const lossFunction = lossFunctions[0].function
     const weights = lossFunctions[0].weights || null
     const smoothing = lossFunctions[0].smoothing || null
@@ -209,32 +201,51 @@ function computeGradients(
     const sigma = lossFunctions[0].sigma || undefined
     const epsilon = lossFunctions[0].epsilon || undefined
     const q = lossFunctions[0].q || undefined
+
+    let lossValue = lossFunction(
+        labels,
+        logits,
+        weights,
+        smoothing,
+        reduction,
+        fromLogits,
+        alpha,
+        gamma,
+        sigma,
+        epsilon,
+        q
+    )
+
+    model.layers.forEach((layer) => {
+        if (layer.hasOwnProperty('extraLoss')) {
+            lossValue = tf.add(lossValue, layer.extraLoss)
+
+            tf.dispose(layer.extraLoss)
+            layer.extraLoss = null
+        }
+    })
+
+    return lossValue
+}
+
+function computeGradients(
+    model,
+    lossFunctions,
+    currentXs,
+    currentYs,
+    meta = { training: true }
+) {
+    let loss
     const { value, grads } = tf.tidy(() =>
         tf.variableGrads(() => {
             const predictions = model.call(currentXs, meta)
 
-            let lossValue = lossFunction(
+            let lossValue = computeLoss(
+                model,
+                lossFunctions,
                 currentYs,
-                predictions[0],
-                weights,
-                smoothing,
-                reduction,
-                fromLogits,
-                alpha,
-                gamma,
-                sigma,
-                epsilon,
-                q
+                predictions[0]
             )
-
-            model.layers.forEach((layer) => {
-                if (layer.hasOwnProperty('extraLoss')) {
-                    lossValue = tf.add(lossValue, layer.extraLoss)
-
-                    tf.dispose(layer.extraLoss)
-                    layer.extraLoss = null
-                }
-            })
 
             loss = lossValue.dataSync()[0]
 
@@ -497,10 +508,6 @@ export class ValidationHandler {
         this.loss = null
     }
 
-    getLosses() {
-        return { valLoss: this.loss }
-    }
-
     async step(args) {
         if (
             args.validateEvery > 0 &&
@@ -527,23 +534,28 @@ export class ValidationHandler {
                 )
 
                 tf.tidy(() => {
-                    const { grads, loss } = computeGradients(
+                    const predictions = this.parent.model.call(valData.xs, {
+                        training: false
+                    })
+
+                    let lossValue = computeLoss(
                         this.parent.model,
                         args.lossFunctions,
-                        valData.xs,
                         valData.ys,
-                        { training: false }
+                        predictions[0]
                     )
 
-                    this.loss += loss
+                    this.loss += lossValue.dataSync()[0]
                 })
 
-                tf.dispose([valData])
+                tf.dispose([valData.xs, valData.ys])
                 totalSteps = totalSteps + args.batchSize
             }
 
             this.loss = this.loss / totalSteps
         }
+
+        return { valLoss: this.loss }
     }
 }
 
