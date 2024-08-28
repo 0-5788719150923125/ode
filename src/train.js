@@ -728,7 +728,7 @@ export class MetricsCollector {
         this.buffer = []
         this.flushInterval = 5000 // 5 seconds
         this.maxBufferSize = 100
-        this.historyLength = 25
+        this.historyLength = 250
         this.fs = null
     }
 
