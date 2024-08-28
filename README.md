@@ -2,16 +2,6 @@
 
 omniscient deterministic engine
 
-# usage
-
-See: [cli.js](./cli.js)
-
-Example:
-
-```sh
-node cli.js --version 6 --batchSize 8 --gradientAccumulationSteps 8 --sampleLength 256 --generateEvery 512 --predictLength 512 --saveEvery 250 --action train
-```
-
 # features
 
 This library implements:
@@ -28,6 +18,55 @@ This library implements:
 -   a number of text-decoding strategies, including greedy (argmax), temperature, top-k, top-p, and Mirostat sampling
 -   object-oriented, extensible design
 -   tons more
+
+# usage
+
+See [cli.js](./cli.js) for complete usage.
+
+## CLI Example:
+
+```sh
+node cli.js \
+  --version 6 \
+  --batchSize 2 \
+  --gradientAccumulationSteps 8 \
+  --sampleLength 256 \
+  --generateEvery 512 \
+  --predictLength 512 \
+  --saveEvery 250 \
+  --action train
+```
+
+## Library Example:
+
+```js
+import ODE from 'ode'
+
+const net = await ODE({
+    backend: 'webgl', // available backends: ['tensorflow', 'webgl', 'webgpu']
+    version: 6
+})
+
+await net.init()
+
+const dataSampler = net.ode.samplers.CosmopediaSampler()
+await net.train(dataSampler, {
+    batchSize: 1,
+    gradientAccumulationSteps: 64,
+    sampleLength: 256,
+    saveEvery: 100
+})
+
+const output = await net.generate({
+    prompt: 'Once upon a time, ',
+    doSample: true,
+    temperature: 0.7,
+    maxNewTokens: 64,
+    repetitionPenalty: 1.2
+})
+
+console.log(output)
+```
 
 # todo
 

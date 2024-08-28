@@ -43,7 +43,6 @@ export default class ModelBase {
         this.contextLength = config.contextLength
         if (config?.seed) {
             this.ops.setSeed(1, 1000, config.seed)
-            return
         }
     }
 
@@ -283,7 +282,7 @@ export default class ModelBase {
         return output
     }
 
-    async train(dataGenerator, args, callbacks) {
+    async train(dataGenerator, args, callbacks = []) {
         return await trainModel.call(this, dataGenerator, args, callbacks)
     }
 }

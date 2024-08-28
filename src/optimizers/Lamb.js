@@ -63,7 +63,6 @@ export default class Lamb extends tf.Optimizer {
 
             tf.tidy(() => {
                 const { expAvg, expAvgSq } = this.STATE[name]
-                let { expGradNorm } = this.STATE[name]
 
                 if (this.preNorm) {
                     gradient = gradient.div(globalGradNorm)
@@ -82,7 +81,7 @@ export default class Lamb extends tf.Optimizer {
                     }
                 }
 
-                const sGrad = this.getAdaNormGradient(gradient, expGradNorm)
+                const sGrad = this.getAdaNormGradient(gradient, name)
 
                 expAvg.assign(expAvg.mul(beta1).add(sGrad.mul(beta3)))
                 expAvgSq.assign(
@@ -150,8 +149,10 @@ export default class Lamb extends tf.Optimizer {
         return this.incrementIterations()
     }
 
-    getAdaNormGradient(gradient, expGradNorm) {
+    getAdaNormGradient(gradient, name) {
         if (!this.adaNorm) return gradient
+
+        let { expGradNorm } = this.STATE[name]
 
         expGradNorm.assign(
             expGradNorm.mul(this.r).add(gradient.norm().mul(1 - this.r))
@@ -178,11 +179,11 @@ export default class Lamb extends tf.Optimizer {
         const weights = []
         Object.entries(this.STATE).map(([name, state]) => {
             weights.push({ name: `${name}__expAvg`, tensor: state.expAvg })
-            weights.push({ name: `${name}__expAvgSq`, tensor: state.expAvg })
+            weights.push({ name: `${name}__expAvgSq`, tensor: state.expAvgSq })
             if (state.expGradNorm) {
                 weights.push({
                     name: `${name}__expGradNorm`,
-                    tensor: state.expAvg
+                    tensor: state.expGradNorm
                 })
             }
         })

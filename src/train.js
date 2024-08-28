@@ -443,7 +443,7 @@ export class ModelSaver {
     }
 }
 
-export class PredictionSampler {
+export class InferenceGenerator {
     constructor(parent) {
         this.parent = parent
         this.lastStep = 0
@@ -455,6 +455,7 @@ export class PredictionSampler {
             args.step % args.generateEvery === 0 &&
             this.lastStep !== args.step
         ) {
+            this.lastStep = args.step
             const startTime = performance.now()
             const maxLength = args.predictLength
 
