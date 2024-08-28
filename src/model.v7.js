@@ -80,13 +80,6 @@ export default class OmniscientDeterministicEngine extends ODE {
         return this.tf.model({ inputs, outputs })
     }
 
-    // defineLossFunction() {
-    //     return {
-    //         name: 'MiLeCrossEntropy',
-    //         smoothing: 0.0001
-    //     }
-    // }
-
     defineLossFunction() {
         return {
             name: 'softmaxCrossEntropy',
