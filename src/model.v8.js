@@ -1,4 +1,4 @@
-import ODE from './model.v8.js'
+import ODE from './model.v7.js'
 
 /**
  * In development.
@@ -8,7 +8,8 @@ export default class OptimalDecisionEngine extends ODE {
     defineLossFunction() {
         return {
             name: 'MiLeCrossEntropy',
-            smoothing: 0.0001
+            smoothing: 0.0001,
+            reduction: this.tf.Reduction.MEAN
         }
     }
 }
