@@ -11,7 +11,7 @@ const options = {
     version: 3,
     batchSize: 1,
     gradientAccumulationSteps: 1,
-    generateEvery: 256,
+    generateEvery: 32,
     validateEvery: 0,
     validationSteps: 512,
     sampleLength: 256,

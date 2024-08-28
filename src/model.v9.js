@@ -18,7 +18,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
         this.ALiBiLength = 1024
         this.learningRate = 1e-4
         this.minLearningRate = 1e-6
-        this.weightDecay = 1e-5
+        this.weightDecay = 1e-3
         this.cosineSteps = 4096
         this.warmupSteps = 128
         const seed = 42
@@ -27,7 +27,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
     defineTokenizer() {
         this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-consistent-v1'
+            model: 'englishcode-4096-clean-v1'
         })
     }
 
@@ -40,7 +40,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .embedding({
                 inputDim: this.tokenizer.getLength(),
                 outputDim: this.embeddings,
-                embeddingsInitializer: this.tf.initializers.glorotUniform({
+                kernelInitializer: this.tf.initializers.glorotUniform({
                     seed: this.ode.ops.getSeed()
                 })
             })
@@ -54,6 +54,29 @@ export default class OpportunisticDegenerativeExample extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.layers; i++) {
+            if (i % 2 !== 0) {
+                const quarter = this.units / 4
+                let [updated, retained] = this.ode.layers
+                    .Split({
+                        axis: -1,
+                        numOrSizeSplits: [quarter, quarter * 3]
+                    })
+                    .apply(outputs)
+
+                updated = this.ode.layers
+                    .FastAssociativeMemory({
+                        activation: 'gelu',
+                        numSteps: 3,
+                        learningRate: 0.1,
+                        decayRate: 0.9
+                    })
+                    .apply(updated)
+
+                outputs = this.ode.layers
+                    .concatenate({ axis: -1 })
+                    .apply([retained, updated])
+            }
+
             outputs = this.ode.layers
                 .PrimerAttention({
                     numHeads: this.numHeads,
@@ -109,10 +132,11 @@ export default class OpportunisticDegenerativeExample extends ODE {
 
     defineOptimizers() {
         this.optimizers = [
-            this.ode.optimizers.Lamb({
+            this.ode.optimizers.Lion({
                 learningRate: this.learningRate,
-                weightDecay: this.weightDecay
-                // rectify: true
+                weightDecay: this.weightDecay,
+                useGc: true,
+                adaNorm: true
             })
         ]
     }

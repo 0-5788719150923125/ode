@@ -423,7 +423,6 @@ export class ModelSaver {
     async step(args) {
         if (
             args.saveEvery !== 0 &&
-            args.step !== 0 &&
             args.step % args.saveEvery === 0 &&
             args.step !== this.savedAt
         ) {
@@ -436,13 +435,14 @@ export class ModelSaver {
 export class PredictionSampler {
     constructor(parent) {
         this.parent = parent
+        this.lastStep = 0
     }
 
     async step(args) {
         if (
             args.generateEvery > 0 &&
-            args.batch % args.generateEvery === 0 &&
-            args.batch !== 0
+            args.step % args.generateEvery === 0 &&
+            this.lastStep !== args.step
         ) {
             const startTime = performance.now()
             const maxLength = args.predictLength
@@ -493,7 +493,7 @@ export class PredictionSampler {
 export class ValidationHandler {
     constructor(parent) {
         this.parent = parent
-        this.lastStep = null
+        this.lastStep = 0
         this.loss = null
     }
 
@@ -505,7 +505,6 @@ export class ValidationHandler {
         if (
             args.validateEvery > 0 &&
             args.step % args.validateEvery === 0 &&
-            args.step !== 0 &&
             this.lastStep !== args.step
         ) {
             console.log('performing validation...')
