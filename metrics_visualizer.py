@@ -69,9 +69,9 @@ def main():
     
     for metric in args.metric:
         metric_key = metric[-1]
-        metric_name = ' '.join(word.capitalize() for word in metric_key.split('_'))
+        metric_name = ' '.join(word for word in metric_key.split('_'))
         plot_metric(data, metric_key, metric_name, args.label)
-        print(f"{metric_name} visualization saved as 'metrics_{metric_key.lower()}.png'")
+        print(f"{metric_name} visualization saved as 'metrics_{metric_key}.png'")
 
 if __name__ == "__main__":
     main()

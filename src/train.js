@@ -264,6 +264,7 @@ function computeLoss(
     return lossValue
 }
 
+// https://arxiv.org/abs/2407.10188
 function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
     let selfModelingLoss = 0
 
