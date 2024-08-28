@@ -33,6 +33,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
     this.step = this.model.optimizer.step || 0
     this.loss = 0
     this.validationLoss = null
+    this.validationPerplexity = null
 
     const accumulator = new GradientAccumulator(
         this,
@@ -92,6 +93,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
                 step: this.step,
                 loss: this.loss,
                 valLoss: this.validationLoss,
+                valPerplexity: this.validationPerplexity,
                 dataGenerator,
                 tokenizer: this.tokenizer,
                 learningRate: this.model.optimizer?.learningRate,
@@ -100,6 +102,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             })
             if (r?.valLoss) {
                 this.validationLoss = r.valLoss
+                this.validationPerplexity = r.valPerplexity
             }
         }
 
@@ -434,13 +437,15 @@ export class ModelSaver {
 
     async step(args) {
         if (
-            args.saveEvery !== 0 &&
-            args.step % args.saveEvery === 0 &&
-            args.step !== this.savedAt
+            args.saveEvery === 0 ||
+            args.step % args.saveEvery !== 0 ||
+            this.savedAt === args.step
         ) {
-            await this.parent.save()
-            this.savedAt = args.step
+            return
         }
+
+        await this.parent.save()
+        this.savedAt = args.step
     }
 }
 
@@ -452,54 +457,57 @@ export class InferenceGenerator {
 
     async step(args) {
         if (
-            args.generateEvery > 0 &&
-            args.step % args.generateEvery === 0 &&
-            this.lastStep !== args.step
+            args.generateEvery === 0 ||
+            args.step % args.generateEvery !== 0 ||
+            this.lastStep === args.step
         ) {
-            this.lastStep = args.step
-            const startTime = performance.now()
-            const maxLength = args.predictLength
-
-            const seedLength = randomBetween(16, maxLength - 16)
-            const sample = await args.dataGenerator.take({
-                tokenizer: args.tokenizer,
-                maxSeqLen: seedLength
-            })
-
-            let prompt = sample
-            if (Array.isArray(sample)) {
-                prompt = args.tokenizer.decode(sample)
-            }
-
-            const params = {
-                doSample: false,
-                temperature: args.temperature,
-                repetitionPenalty: args.repetitionPenalty,
-                topK: args.topK,
-                topP: args.topP,
-                mirostat: args.mirostat,
-                mirostatState: args.mirostatState,
-                maxNewTokens: maxLength
-            }
-
-            const output = await this.parent.generate({
-                prompt,
-                ...params
-            })
-            const endTime = performance.now()
-            console.log(
-                `KWARGS: ${JSON.stringify(params)}, RATE: ${(
-                    (endTime - startTime) /
-                    (maxLength - seedLength)
-                ).toFixed(2)} ms/token`
-            )
-            console.log(
-                colors.BLUE +
-                    prompt +
-                    colors.WHITE +
-                    output.slice(prompt.length, -1)
-            )
+            return
         }
+
+        this.lastStep = args.step
+
+        const startTime = performance.now()
+        const maxLength = args.predictLength
+
+        const seedLength = randomBetween(16, maxLength - 16)
+        const sample = await args.dataGenerator.take({
+            tokenizer: args.tokenizer,
+            maxSeqLen: seedLength
+        })
+
+        let prompt = sample
+        if (Array.isArray(sample)) {
+            prompt = args.tokenizer.decode(sample)
+        }
+
+        const params = {
+            doSample: false,
+            temperature: args.temperature,
+            repetitionPenalty: args.repetitionPenalty,
+            topK: args.topK,
+            topP: args.topP,
+            mirostat: args.mirostat,
+            mirostatState: args.mirostatState,
+            maxNewTokens: maxLength
+        }
+
+        const output = await this.parent.generate({
+            prompt,
+            ...params
+        })
+        const endTime = performance.now()
+        console.log(
+            `KWARGS: ${JSON.stringify(params)}, RATE: ${(
+                (endTime - startTime) /
+                (maxLength - seedLength)
+            ).toFixed(2)} ms/token`
+        )
+        console.log(
+            colors.BLUE +
+                prompt +
+                colors.WHITE +
+                output.slice(prompt.length, -1)
+        )
     }
 }
 
@@ -507,57 +515,71 @@ export class ValidationHandler {
     constructor(parent) {
         this.parent = parent
         this.lastStep = 0
-        this.loss = null
     }
 
     async step(args) {
         if (
-            args.validateEvery > 0 &&
-            args.step % args.validateEvery === 0 &&
-            this.lastStep !== args.step
+            args.validateEvery === 0 ||
+            args.step % args.validateEvery !== 0 ||
+            this.lastStep === args.step
         ) {
-            console.log('performing validation...')
-            this.lastStep = args.step
-            this.loss = 0
-
-            let totalSteps = 0
-            for (let i = 0; i <= args.validationSteps; i += args.batchSize) {
-                const valData = await batchMaker(
-                    args.dataGenerator,
-                    args.tokenizer,
-                    args.batchSize,
-                    args.sampleLength,
-                    args.labels,
-                    args.encoding,
-                    args.sourceFormat,
-                    args.imageSize,
-                    args.downsampling,
-                    'validation'
-                )
-
-                tf.tidy(() => {
-                    const predictions = this.parent.model.call(valData.xs, {
-                        training: false
-                    })
-
-                    let lossValue = computeLoss(
-                        this.parent.model,
-                        args.lossFunction,
-                        valData.ys,
-                        predictions[0]
-                    )
-
-                    this.loss += lossValue.dataSync()[0]
-                })
-
-                tf.dispose([valData.xs, valData.ys])
-                totalSteps = totalSteps + args.batchSize
-            }
-
-            this.loss = this.loss / totalSteps
+            return
         }
 
-        return { valLoss: this.loss }
+        console.log('performing validation...')
+
+        this.lastStep = args.step
+
+        let loss = 0
+        let totalLoss = 0
+        let totalTokens = 0
+        let totalSteps = 0
+        for (let i = 0; i <= args.validationSteps; i += args.batchSize) {
+            const valData = await batchMaker(
+                args.dataGenerator,
+                args.tokenizer,
+                args.batchSize,
+                args.sampleLength,
+                args.labels,
+                args.encoding,
+                args.sourceFormat,
+                args.imageSize,
+                args.downsampling,
+                'validation'
+            )
+
+            const [batchSize, seqLen, numFeatures] = valData.ys.shape
+
+            tf.tidy(() => {
+                const predictions = this.parent.model.call(valData.xs, {
+                    training: false
+                })
+
+                const lossValue = computeLoss(
+                    this.parent.model,
+                    args.lossFunction,
+                    valData.ys,
+                    predictions[0]
+                )
+
+                const numTokens = batchSize * seqLen
+                const lossScalar = lossValue.dataSync()[0]
+
+                loss += lossScalar
+                totalLoss += lossScalar * numTokens
+                totalTokens += numTokens
+            })
+
+            tf.dispose([valData.xs, valData.ys])
+
+            totalSteps += batchSize
+        }
+
+        const valLoss = loss / totalSteps
+        const averageLoss = totalLoss / totalTokens
+        const valPerplexity = Math.exp(averageLoss)
+
+        return { valLoss, valPerplexity }
     }
 }
 
@@ -584,10 +606,12 @@ export class ConsoleLogger {
             args.loss.toFixed(14).toString()
         )
         this.previousLoss = args.loss
-        let valLoss = ''
+        let valData = ''
 
         if (args.valLoss !== null) {
-            valLoss = `VAL=${args.valLoss.toFixed(3)}, `
+            valData = `VAL=${args.valLoss.toFixed(
+                3
+            )}, PPL=${args.valPerplexity.toFixed(3)}, `
         }
 
         let memory = tf.memory()
@@ -601,7 +625,7 @@ export class ConsoleLogger {
                 4
             )}, LOSS=${coloredLoss.old}${color}${
                 coloredLoss.new
-            }${white}, ${valLoss}LR=${args.learningRate.toFixed(
+            }${white}, ${valData}LR=${args.learningRate.toFixed(
                 9
             )}, ${memory}GB, TENSORS=${numTensors}, ELAPSED=${(
                 elapsed / 1000
