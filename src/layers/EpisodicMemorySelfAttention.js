@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/2407.09450
 export default class EpisodicMemorySelfAttention extends LayerBase {
@@ -19,25 +19,19 @@ export default class EpisodicMemorySelfAttention extends LayerBase {
             `queryKernel`,
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             `keyKernel`,
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             `valueKernel`,
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

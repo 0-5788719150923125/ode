@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class MixtureOfExperts extends LayerBase {
     constructor(config) {
@@ -17,29 +17,25 @@ export default class MixtureOfExperts extends LayerBase {
             'gatingHidden',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.gatingHiddenBias = this.addWeight(
             'gatingHiddenBias',
             [this.hiddenDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.gatingKernel = this.addWeight(
             'gatingKernel',
             [this.hiddenDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.gatingBias = this.addWeight(
             'gatingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
     }
 

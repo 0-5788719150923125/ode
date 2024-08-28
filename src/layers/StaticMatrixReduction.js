@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://en.wikipedia.org/wiki/Johnson%E2%80%93Lindenstrauss_lemma
 export default class ProjectedFeatureReduction extends LayerBase {
@@ -16,7 +16,7 @@ export default class ProjectedFeatureReduction extends LayerBase {
             'projectionMatrix',
             [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers.randomNormal({
+            this.initializers.randomNormal({
                 mean: 0,
                 stdDev: this.scale / Math.sqrt(this.outputDim),
                 seed: this.seed

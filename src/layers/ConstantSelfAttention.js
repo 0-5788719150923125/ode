@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // By projecting features into a lower dimension, we can keep memory
 // consumption at a constant, manageable level.
@@ -17,36 +17,28 @@ export default class ConstantSelfAttention extends LayerBase {
             'queryKernel',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         this.keyKernel = this.addWeight(
             'keyKernel',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         this.valueKernel = this.addWeight(
             'valueKernel',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         this.featureMatrix = this.addWeight(
             'featureMatrix',
             [this.hiddenDim, this.numFeatures],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

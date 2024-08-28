@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class SparseMixtureOfExperts extends LayerBase {
     constructor(config) {
@@ -22,51 +22,43 @@ export default class SparseMixtureOfExperts extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.switchingHiddenBias = this.addWeight(
             'switchingHiddenBias',
             [this.switchingDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.switchingKernel = this.addWeight(
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.switchingBias = this.addWeight(
             'switchingBias',
             [this.numExperts],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.expertWeights = this.addWeight(
             'expertWeights',
             [this.numExperts, inputDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.expertBiases = this.addWeight(
             'expertBiases',
             [this.topK, inputDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.outputProjection = this.addWeight(
             'outputProjection',
             [this.topK * inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

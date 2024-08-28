@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class SelfAttention extends LayerBase {
     constructor(config) {
@@ -14,25 +14,19 @@ export default class SelfAttention extends LayerBase {
             `queryKernel`,
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             `keyKernel`,
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             `valueKernel`,
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

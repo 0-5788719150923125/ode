@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 import customActivations from '../activations.js'
 
 export default class ParabolicCompression extends LayerBase {
@@ -26,9 +26,7 @@ export default class ParabolicCompression extends LayerBase {
             'residualMatrix',
             [inputDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
 
         this.projectionMatrices = []
@@ -46,9 +44,7 @@ export default class ParabolicCompression extends LayerBase {
                     `alpha-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
             this.beta.push(
@@ -56,9 +52,7 @@ export default class ParabolicCompression extends LayerBase {
                     `beta-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
             this.gamma.push(
@@ -66,9 +60,7 @@ export default class ParabolicCompression extends LayerBase {
                     `gamma-${i}`,
                     [1, newSize],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
 
@@ -77,9 +69,7 @@ export default class ParabolicCompression extends LayerBase {
                     `projectionMatrix-${i}`,
                     [currentSize, newSize],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
 

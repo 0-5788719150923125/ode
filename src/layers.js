@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './layers/base.js'
+import LayerBase from './layers/_base.js'
 import { randomString } from './utils.js'
 import AdaptiveMixtureOfExperts from './layers/AdaptiveMixtureOfExperts.js'
 import Antirectifier from './layers/Antirectifier.js'

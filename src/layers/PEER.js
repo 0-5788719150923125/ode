@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class PEER extends LayerBase {
     constructor(config) {
@@ -21,7 +21,7 @@ export default class PEER extends LayerBase {
                 `subKeys1`,
                 [numSubKeys, this.units / 2],
                 'float32',
-                tf.initializers.glorotNormal({ seed: this.ops.getSeed() })
+                this.initializers.glorotNormal()
             )
         )
         this.subKeys.push(
@@ -29,33 +29,33 @@ export default class PEER extends LayerBase {
                 `subKeys2`,
                 [numSubKeys, this.units / 2],
                 'float32',
-                tf.initializers.glorotNormal({ seed: this.ops.getSeed() })
+                this.initializers.glorotNormal()
             )
         )
         this.downProj = this.addWeight(
             `downProj`,
             [this.numExperts, this.units],
             'float32',
-            tf.initializers.glorotNormal({ seed: this.ops.getSeed() })
+            this.initializers.glorotNormal()
         )
         this.upProj = this.addWeight(
             `upProj`,
             [this.numExperts, this.units],
             'float32',
-            tf.initializers.glorotNormal({ seed: this.ops.getSeed() })
+            this.initializers.glorotNormal()
         )
         this.queryKernel = this.addWeight(
             `queryKernel`,
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal({ seed: this.ops.getSeed() })
+            this.initializers.glorotNormal()
         )
         if (this.useBias) {
             this.queryBias = this.addWeight(
                 `queryBias`,
                 [this.units],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
         }
     }

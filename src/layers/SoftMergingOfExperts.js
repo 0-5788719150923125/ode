@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/2306.03745
 export default class SoftMergingOfExperts extends LayerBase {
@@ -19,29 +19,25 @@ export default class SoftMergingOfExperts extends LayerBase {
             'routerHiddenKernel',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.routerHiddenBias = this.addWeight(
             'routerHiddenBias',
             [this.hiddenDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.routerOutputKernel = this.addWeight(
             'routerOutputKernel',
             [this.hiddenDim, this.numExperts - 1],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.routerOutputBias = this.addWeight(
             'routerOutputBias',
             [this.numExperts - 1],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         for (const expert of this.experts) {

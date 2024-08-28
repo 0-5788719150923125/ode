@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class LocalSensitiveHashingAttention extends LayerBase {
     constructor(config) {
@@ -21,72 +21,62 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
             'queryKernel',
             [inputDim, this.numHeads * this.headDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             'keyKernel',
             [inputDim, this.numHeads * this.headDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [inputDim, this.numHeads * this.headDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.projectionKernel = this.addWeight(
             'projectionKernel',
             [this.numHeads, this.headDim, this.projectionDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
             [this.numHeads * this.headDim, outputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         if (this.useBias) {
             this.queryBias = this.addWeight(
                 'queryBias',
                 [this.numHeads * this.headDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.keyBias = this.addWeight(
                 'keyBias',
                 [this.numHeads * this.headDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.valueBias = this.addWeight(
                 'valueBias',
                 [this.numHeads * this.headDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.projectionBias = this.addWeight(
                 'projectionBias',
                 [this.numHeads, this.projectionDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.outputBias = this.addWeight(
                 'outputBias',
                 [outputDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
         }
 
@@ -97,9 +87,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
                     `lshHashKernel${i}`,
                     [this.projectionDim, this.numBuckets],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
         }

@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class ProjectedFeatureAttention extends LayerBase {
     constructor(config) {
@@ -23,9 +23,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `queryKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
             this.keyKernels.push(
@@ -33,9 +31,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `keyKernel_${i}`,
                     [inputDim, this.headDim],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
             this.valueKernels.push(
@@ -43,9 +39,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `valueKernel_${i}`,
                     [inputDim, this.headFeatures],
                     'float32',
-                    tf.initializers.glorotUniform({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotUniform()
                 )
             )
             this.features.push(
@@ -53,7 +47,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                     `featureMatrix_${i}`,
                     [this.headDim, this.headFeatures],
                     'float32',
-                    tf.initializers.orthogonal({ gain: 1.0 }),
+                    this.initializers.orthogonal({ gain: 1.0 }),
                     null,
                     false
                 )
@@ -64,9 +58,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
             'outputKernel',
             [this.headFeatures * this.numHeads, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

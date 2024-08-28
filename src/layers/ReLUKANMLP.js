@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class ReLUKANMLP extends LayerBase {
     constructor(config) {
@@ -23,23 +23,21 @@ export default class ReLUKANMLP extends LayerBase {
                     `phaseLow_${i}`,
                     [lastDim, this.grid + this.k],
                     'float32',
-                    tf.initializers.constant({ value: phaseLow }),
+                    this.initializers.constant({ value: phaseLow }),
                     this.trainAB
                 ),
                 phaseHeight: this.addWeight(
                     `phaseHeight_${i}`,
                     [lastDim, this.grid + this.k],
                     'float32',
-                    tf.initializers.constant({ value: phaseHeight }),
+                    this.initializers.constant({ value: phaseHeight }),
                     this.trainAB
                 ),
                 equalSizeConvKernel: this.addWeight(
                     `equalSizeConvKernel_${i}`,
                     [this.grid + this.k, lastDim, this.width[i]],
                     'float32',
-                    tf.initializers.glorotNormal({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotNormal()
                 )
             })
         }

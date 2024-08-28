@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class Autoencoder extends LayerBase {
     constructor(config) {
@@ -22,29 +22,25 @@ export default class Autoencoder extends LayerBase {
             'encoderKernel1',
             [inputDim, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.encoderBias1 = this.addWeight(
             'encoderBias1',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.encoderKernel2 = this.addWeight(
             'encoderKernel2',
             [this.innerDim, this.bottleneck * multiplier],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.encoderBias2 = this.addWeight(
             'encoderBias2',
             [this.bottleneck * multiplier],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         // Initialize dense layers for decoder
@@ -52,29 +48,25 @@ export default class Autoencoder extends LayerBase {
             'decoderKernel1',
             [this.bottleneck, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.decoderBias1 = this.addWeight(
             'decoderBias1',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.decoderKernel2 = this.addWeight(
             'decoderKernel2',
             [this.innerDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.decoderBias2 = this.addWeight(
             'decoderBias2',
             [this.outputDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
     }
 

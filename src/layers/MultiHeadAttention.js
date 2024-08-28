@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class MultiHeadAttention extends LayerBase {
     constructor(config) {
@@ -18,9 +18,7 @@ export default class MultiHeadAttention extends LayerBase {
             'queryKernel',
             [units, this.headDim * this.numHeads * this.queriesPerHead],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         // Combined key and value projections for all heads
@@ -28,17 +26,13 @@ export default class MultiHeadAttention extends LayerBase {
             'keyKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         if (this.useBias) {
@@ -46,19 +40,19 @@ export default class MultiHeadAttention extends LayerBase {
                 'queryBias',
                 [this.headDim * this.numHeads * this.queriesPerHead],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.keyBias = this.addWeight(
                 'keyBias',
                 [this.headDim * this.numHeads],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.valueBias = this.addWeight(
                 'valueBias',
                 [this.headDim * this.numHeads],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
         }
 
@@ -66,16 +60,14 @@ export default class MultiHeadAttention extends LayerBase {
             'outputKernel',
             [this.headDim * this.numHeads * this.queriesPerHead, units],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         if (this.useBias) {
             this.outputBias = this.addWeight(
                 'outputBias',
                 [units],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
         }
     }

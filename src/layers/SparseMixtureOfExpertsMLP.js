@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class SparseMixtureOfExpertsMLP extends LayerBase {
     constructor(config) {
@@ -23,41 +23,31 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
             'switchingHidden',
             [inputDim, this.switchingDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.switchingKernel = this.addWeight(
             'switchingKernel',
             [this.switchingDim, this.numExperts],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.expertWeights = this.addWeight(
             'expertWeights',
             [this.numExperts, inputDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.inProjKernel = this.addWeight(
             `inProjKernel`,
             [this.numExperts, inputDim, this.mlpDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
             [this.numExperts, this.mlpDim, inputDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
     }
 

@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/2306.03745
 export default class SoftMergingOfExpertsMLP extends LayerBase {
@@ -20,30 +20,26 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
             'routerHiddenKernel',
             [inputDim, this.routerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.routerOutputKernel = this.addWeight(
             'routerOutputKernel',
             [this.routerDim, this.numExperts],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         if (this.useBias) {
             this.routerHiddenBias = this.addWeight(
                 'routerHiddenBias',
                 [this.routerDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.routerOutputBias = this.addWeight(
                 'routerOutputBias',
                 [this.numExperts],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
         }
 
@@ -59,9 +55,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `inProjKernel-${i}`,
                     [inputDim, this.expertDim],
                     'float32',
-                    tf.initializers.glorotNormal({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotNormal()
                 )
             )
             this.gateProjKernels.push(
@@ -69,9 +63,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `gateProjKernel-${i}`,
                     [inputDim, this.expertDim],
                     'float32',
-                    tf.initializers.glorotNormal({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotNormal()
                 )
             )
             this.outProjKernels.push(
@@ -79,9 +71,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                     `outProjKernel-${i}`,
                     [this.expertDim, inputDim],
                     'float32',
-                    tf.initializers.glorotNormal({
-                        seed: this.ops.getSeed()
-                    })
+                    this.initializers.glorotNormal()
                 )
             )
             if (this.useBias) {
@@ -90,7 +80,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                         `inProjBias-${i}`,
                         [this.expertDim],
                         'float32',
-                        tf.initializers.zeros()
+                        this.initializers.zeros()
                     )
                 )
                 this.gateProjBiases.push(
@@ -98,7 +88,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                         `gateProjBias-${i}`,
                         [this.expertDim],
                         'float32',
-                        tf.initializers.zeros()
+                        this.initializers.zeros()
                     )
                 )
                 this.outProjBiases.push(
@@ -106,7 +96,7 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                         `outProjBias-${i}`,
                         [inputDim],
                         'float32',
-                        tf.initializers.zeros()
+                        this.initializers.zeros()
                     )
                 )
             }

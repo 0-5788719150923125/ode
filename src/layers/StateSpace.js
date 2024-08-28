@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // This is not a very good state space model. This one is recurrent and
 // slow, while modern designs are fast and parallelizable.
@@ -20,57 +20,49 @@ export default class StateSpace extends LayerBase {
             'kernel',
             [inputDim, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.recurrentKernel = this.addWeight(
             'recurrentKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.orthogonal({ gain: 1 })
+            this.initializers.orthogonal({ gain: 1 })
         )
         this.outputKernel = this.addWeight(
             'outputKernel',
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.bias = this.addWeight(
             'bias',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.meanKernel = this.addWeight(
             'meanKernel',
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.meanBias = this.addWeight(
             'meanBias',
             [this.units],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.logVarKernel = this.addWeight(
             'logVarKernel',
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.logVarBias = this.addWeight(
             'logVarBias',
             [this.units],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
     }
 

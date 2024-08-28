@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class VariableDimensionMLP extends LayerBase {
     constructor(config) {
@@ -18,30 +18,26 @@ export default class VariableDimensionMLP extends LayerBase {
             'inProjKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.inProjBias = this.addWeight(
             'inProjBias',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         this.outProjKernel = this.addWeight(
             'outProjKernel',
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.outProjBias = this.addWeight(
             'outProjBias',
             [this.units],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         // Residual connections/skip connections are critical here

@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/1709.01507
 export default class SqueezeAndExcitation extends LayerBase {

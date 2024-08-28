@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/1610.06258
 export default class FastAssociativeMemory extends LayerBase {
@@ -19,23 +19,19 @@ export default class FastAssociativeMemory extends LayerBase {
             'W',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.C = this.addWeight(
             'C',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.b = this.addWeight(
             'b',
             [inputDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
     }
 

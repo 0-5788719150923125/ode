@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class IncrementalPowerIterationPCA extends LayerBase {
     constructor(config) {
@@ -17,9 +17,7 @@ export default class IncrementalPowerIterationPCA extends LayerBase {
             'components',
             [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
     }
 

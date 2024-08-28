@@ -1,10 +1,12 @@
 import * as tf from '@tensorflow/tfjs'
 import customOps from '../ops.js'
+import customInitializers from '../initializers.js'
 
 export default class LayerBase extends tf.layers.Layer {
     constructor(config) {
         super(config)
         this.ops = customOps
+        this.initializers = customInitializers
         this.useBias = config?.useBias || false
         this.ALiBiLength = config?.ALiBiLength || false
     }

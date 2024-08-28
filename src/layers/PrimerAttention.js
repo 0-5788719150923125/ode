@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/2109.08668v2
 export default class PrimerAttention extends LayerBase {
@@ -20,9 +20,7 @@ export default class PrimerAttention extends LayerBase {
             'queryKernel',
             [units, this.headDim * this.numHeads * this.queriesPerHead],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         // Combined key and value projections for all heads
@@ -30,17 +28,13 @@ export default class PrimerAttention extends LayerBase {
             'keyKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [units, this.headDim * this.numHeads],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         this.queryDepthwiseKernel = this.addWeight(
@@ -51,34 +45,26 @@ export default class PrimerAttention extends LayerBase {
                 this.numHeads * this.queriesPerHead
             ],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.keyDepthwiseKernel = this.addWeight(
             'keyDepthwiseKernel',
             [this.depthwiseKernelSize, this.headDim, this.numHeads],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueDepthwiseKernel = this.addWeight(
             'valueDepthwiseKernel',
             [this.depthwiseKernelSize, this.headDim, this.numHeads],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         this.outputKernel = this.addWeight(
             'outputKernel',
             [this.headDim * this.numHeads * this.queriesPerHead, units],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
 
         if (this.useBias) {
@@ -86,25 +72,25 @@ export default class PrimerAttention extends LayerBase {
                 'queryBias',
                 [this.headDim * this.numHeads * this.queriesPerHead],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.keyBias = this.addWeight(
                 'keyBias',
                 [this.headDim * this.numHeads],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.valueBias = this.addWeight(
                 'valueBias',
                 [this.headDim * this.numHeads],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
             this.outputBias = this.addWeight(
                 'outputBias',
                 [units],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
         }
     }

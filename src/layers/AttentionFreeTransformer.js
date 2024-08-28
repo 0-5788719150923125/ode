@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://github.com/rish-16/aft-pytorch/blob/main/aft_pytorch/aft_pytorch.py
 export default class AttentionFreeTransformer extends LayerBase {
@@ -15,41 +15,31 @@ export default class AttentionFreeTransformer extends LayerBase {
             'toQ',
             [inputShape[inputShape.length - 1], this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.toK = this.addWeight(
             'toK',
             [inputShape[inputShape.length - 1], this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.toV = this.addWeight(
             'toV',
             [inputShape[inputShape.length - 1], this.hiddenDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.project = this.addWeight(
             'project',
             [this.hiddenDim, this.units],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.wbias = this.addWeight(
             'wbias',
             [this.contextLength, this.contextLength],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

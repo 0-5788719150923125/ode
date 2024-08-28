@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // A chunk-based approach leads to O(n * chunk_size) memory, which is
 // linear if chunk size is fixed.
@@ -17,25 +17,19 @@ export default class ChunkedSelfAttention extends LayerBase {
             'queryKernel',
             [inputDim, this.projection],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.keyKernel = this.addWeight(
             'keyKernel',
             [inputDim, this.projection],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.valueKernel = this.addWeight(
             'valueKernel',
             [inputDim, inputDim],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 

@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class LowRankFactorizationResidual extends LayerBase {
     constructor(config) {
@@ -15,27 +15,21 @@ export default class LowRankFactorizationResidual extends LayerBase {
             'leftMatrix',
             [inputDim, this.rank],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
 
         this.rightMatrix = this.addWeight(
             'rightMatrix',
             [this.rank, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
 
         this.residualMatrix = this.addWeight(
             'residualMatrix',
             [inputDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
     }
 

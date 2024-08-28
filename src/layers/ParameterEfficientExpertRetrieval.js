@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/2407.04153
 export default class ParameterEfficientExpertRetrieval extends LayerBase {
@@ -22,9 +22,7 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
                     `queryWeight${i}`,
                     [this.queryDim, inputDim],
                     'float32',
-                    tf.initializers.glorotNormal({
-                        seed: this.ops.getSeed()
-                    }),
+                    this.initializers.glorotNormal(),
                     null,
                     true
                 )
@@ -35,9 +33,7 @@ export default class ParameterEfficientExpertRetrieval extends LayerBase {
             `expertWeights`,
             [this.numExperts, inputDim + outputDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            }),
+            this.initializers.glorotNormal(),
             null,
             true
         )

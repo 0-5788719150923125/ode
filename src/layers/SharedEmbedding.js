@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class SharedEmbedding extends LayerBase {
     constructor(config) {
@@ -16,9 +16,7 @@ export default class SharedEmbedding extends LayerBase {
             'embeddings',
             [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers[this.embeddingsInitializer]({
-                seed: this.ops.getSeed()
-            })
+            tf.initializers[this.embeddingsInitializer]()
         )
     }
 

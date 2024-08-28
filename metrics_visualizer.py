@@ -14,8 +14,11 @@ def process_run_data(run, metric_key):
     # Calculate the number of steps based on the length of metric_values
     num_steps = len(metric_values)
     
-    # Generate steps starting from the current step and going backwards
-    steps = [current_step - (validate_every * i) for i in range(num_steps)][::-1]
+    # Calculate the last validation step (align to validation interval)
+    last_validation_step = current_step - (current_step % validate_every)
+    
+    # Generate steps starting from the last validation step and going backwards
+    steps = [last_validation_step - (validate_every * i) for i in range(num_steps)][::-1]
     
     return steps, metric_values
 

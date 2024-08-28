@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class AttentionDimReduction extends LayerBase {
     constructor(config) {
@@ -15,27 +15,21 @@ export default class AttentionDimReduction extends LayerBase {
             'queryWeights',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
 
         this.keyWeights = this.addWeight(
             'keyWeights',
             [inputDim, this.hiddenDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
 
         this.valueWeights = this.addWeight(
             'valueWeights',
             [inputDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
     }
 

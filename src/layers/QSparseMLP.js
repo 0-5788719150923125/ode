@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class QSparseMLP extends LayerBase {
     constructor(config) {
@@ -17,32 +17,28 @@ export default class QSparseMLP extends LayerBase {
             `inProjKernel`,
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         if (this.useBias)
             this.inProjBias = this.addWeight(
                 `inProjBias`,
                 [this.innerDim],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
 
         this.outProjKernel = this.addWeight(
             `outProjKernel`,
             [this.innerDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         if (this.useBias)
             this.outProjBias = this.addWeight(
                 `outProjBias`,
                 [this.units],
                 'float32',
-                tf.initializers.zeros()
+                this.initializers.zeros()
             )
     }
 

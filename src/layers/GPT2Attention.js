@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class GPT2Attention extends LayerBase {
     constructor(config) {
@@ -28,29 +28,25 @@ export default class GPT2Attention extends LayerBase {
             `c_attn-${randomString()}`,
             [this.units, 3 * this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.cAttnBias = this.addWeight(
             `c_attn-${randomString()}`,
             [3 * this.units],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.cProjKernel = this.addWeight(
             `c_proj-${randomString()}`,
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.cProjBias = this.addWeight(
             `c_proj-${randomString()}`,
             [this.units],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
     }

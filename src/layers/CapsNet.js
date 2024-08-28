@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class CapsNet extends LayerBase {
     constructor(config) {
@@ -20,30 +20,26 @@ export default class CapsNet extends LayerBase {
             'inProjKernel',
             [this.units, this.innerDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.inProjBias = this.addWeight(
             'inProjBias',
             [this.innerDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         this.outProjKernel = this.addWeight(
             'outProjKernel',
             [this.numCapsules * this.capsuleDim, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.outProjBias = this.addWeight(
             'outProjBias',
             [this.units],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         // Initialize weights for primary capsules
@@ -51,15 +47,13 @@ export default class CapsNet extends LayerBase {
             'primaryCapsKernel',
             [this.innerDim, this.numCapsules * this.capsuleDim],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.primaryCapsBias = this.addWeight(
             'primaryCapsBias',
             [this.numCapsules * this.capsuleDim],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
 
         this.digitCaps = new DigitCaps({
@@ -163,9 +157,7 @@ class DigitCaps extends LayerBase {
                 inputShape[2]
             ],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.built = true
     }

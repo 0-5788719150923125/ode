@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://arxiv.org/abs/2005.00743
 // https://github.com/iafarhan/causal-synthesizer-multihead-attention/blob/main/synthesizer.py
@@ -22,37 +22,31 @@ export default class SynthesizerAttention extends LayerBase {
             `w1`,
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.w2 = this.addWeight(
             `w2`,
             [this.units / this.heads, this.blockSize],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.b2 = this.addWeight(
             `b2`,
             [this.blockSize],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
         this.value = this.addWeight(
             `value`,
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
         this.proj = this.addWeight(
             `proj`,
             [this.units, this.units],
             'float32',
-            tf.initializers.glorotNormal({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotNormal()
         )
 
         if (this.epsilon) {

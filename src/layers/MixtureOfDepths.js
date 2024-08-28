@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 export default class MixtureOfDepths extends LayerBase {
     constructor(config) {
@@ -16,18 +16,17 @@ export default class MixtureOfDepths extends LayerBase {
             'routerKernel',
             [inputDim, 1],
             'float32',
-            tf.initializers.varianceScaling({
+            this.initializers.varianceScaling({
                 scale: 0.01,
                 distribution: 'normal',
-                mode: 'fanAvg',
-                seed: this.ops.getSeed()
+                mode: 'fanAvg'
             })
         )
         this.routerBias = this.addWeight(
             'routerBias',
             [1],
             'float32',
-            tf.initializers.zeros()
+            this.initializers.zeros()
         )
     }
 

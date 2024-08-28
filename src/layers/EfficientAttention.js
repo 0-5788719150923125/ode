@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import LayerBase from './base.js'
+import LayerBase from './_base.js'
 
 // https://github.com/cmsflash/efficient-attention/blob/master/efficient_attention.py
 // currently failing, because the causal mask makes loss values extremely high
@@ -19,33 +19,25 @@ export default class EfficientAttention extends LayerBase {
             'queries',
             [1, inputDepth, this.keyChannels],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.keys = this.addWeight(
             'keys',
             [1, inputDepth, this.keyChannels],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.values = this.addWeight(
             'values',
             [1, inputDepth, this.valueChannels],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
         this.reprojection = this.addWeight(
             'reprojection',
             [1, this.valueChannels, inputDepth],
             'float32',
-            tf.initializers.glorotUniform({
-                seed: this.ops.getSeed()
-            })
+            this.initializers.glorotUniform()
         )
     }
 
