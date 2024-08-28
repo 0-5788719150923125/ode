@@ -21,6 +21,8 @@ export default class OmniscientDeterministicEngine extends ODE {
         this.weightDecay = 1e-5
         this.cosineSteps = 4096
         this.warmupSteps = 128
+        // this.selfModel = true
+        // this.auxiliaryWeight = 0.1
     }
 
     defineTokenizer() {
@@ -49,6 +51,8 @@ export default class OmniscientDeterministicEngine extends ODE {
             })
             .apply(outputs)
 
+        const exportedStates = []
+
         for (let i = 0; i < this.layers; i++) {
             outputs = this.ode.layers
                 .PrimerAttention({
@@ -60,6 +64,8 @@ export default class OmniscientDeterministicEngine extends ODE {
                 })
                 .apply(outputs)
 
+            exportedStates.push(outputs)
+
             outputs = this.ode.layers
                 .GatedLinearMLP({
                     activation: 'mish',
@@ -68,6 +74,8 @@ export default class OmniscientDeterministicEngine extends ODE {
                     useBias: this.useBias
                 })
                 .apply(outputs)
+
+            exportedStates.push(outputs)
         }
 
         outputs = this.ode.layers
@@ -77,7 +85,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             })
             .apply(outputs)
 
-        return this.tf.model({ inputs, outputs })
+        return this.tf.model({ inputs, outputs: [outputs, ...exportedStates] })
     }
 
     defineLossFunction() {
