@@ -68,6 +68,12 @@ const output = await net.generate({
 console.log(output)
 ```
 
+## Produce Metrics:
+
+```sh
+python metrics_visualizer.py --label selfModel auxiliaryWeight
+```
+
 # todo
 
 -   [] in cross attention, queries are generated from one embedding, and keys/values from another (A "peer" is all you need)

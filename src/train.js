@@ -596,6 +596,8 @@ export class ValidationHandler {
         let totalTokens = 0
         let totalSteps = 0
 
+        let maxBatchSize = 0
+
         for (let i = 0; i <= args.validationSteps; i += args.batchSize) {
             const valData = await batchMaker(
                 args.dataGenerator,
@@ -611,6 +613,13 @@ export class ValidationHandler {
             )
 
             const [batchSize, seqLen, numFeatures] = valData.ys.shape
+
+            maxBatchSize = Math.max(maxBatchSize, batchSize)
+
+            if (batchSize < maxBatchSize) {
+                console.log('batch size was wrong, returning')
+                break
+            }
 
             tf.tidy(() => {
                 const predictions = this.parent.model.call(valData.xs, {
