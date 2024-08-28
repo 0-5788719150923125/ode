@@ -24,8 +24,8 @@ export default class OpportunisticDegenerativeExample extends ODE {
     }
 
     defineTokenizer() {
-        this.tokenizer = this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-clean-v1'
+        return this.ode.tokenizers.TokenMonster({
+            model: 'englishcode-4096-consistent-v1'
         })
     }
 
@@ -81,7 +81,7 @@ export default class OpportunisticDegenerativeExample extends ODE {
     }
 
     // defineLossFunction() {
-    //     this.lossFunction = {
+    //     return {
     //         name: 'MiLeCrossEntropy',
     //         smoothing: 0.0001
     //     }

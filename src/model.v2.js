@@ -17,7 +17,7 @@ export default class OriginalDecoderEncoder extends ODE {
     }
 
     defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.XenovaTokenizer({
+        return this.ode.tokenizers.XenovaTokenizer({
             model: config?.model || 'openai-community/gpt2'
         })
     }

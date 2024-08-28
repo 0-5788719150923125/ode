@@ -18,7 +18,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     defineTokenizer() {
-        this.tokenizer = this.ode.tokenizers.TokenMonster({
+        return this.ode.tokenizers.TokenMonster({
             model: 'englishcode-4096-clean-v1'
         })
     }

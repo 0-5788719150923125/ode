@@ -56,7 +56,7 @@ export default class ModelBase {
         }
         await this.tf.ready()
         await this.tf.setBackend(this.config.backend || 'cpu')
-        this.defineTokenizer()
+        this.tokenizer = this.defineTokenizer()
         if (typeof this.tokenizer.init === 'function') {
             await this.tokenizer.init()
         }
@@ -153,8 +153,8 @@ export default class ModelBase {
         }
     }
 
-    defineTokenizer(config) {
-        this.tokenizer = this.ode.tokenizers.CharacterTokenizer()
+    defineTokenizer() {
+        return this.ode.tokenizers.CharacterTokenizer()
     }
 
     defineLossFunction() {
