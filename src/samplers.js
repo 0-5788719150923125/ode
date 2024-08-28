@@ -187,9 +187,7 @@ class CosmopediaSampler {
     }
 
     async take(config) {
-        if (!this.initialized) {
-            await this.init()
-        }
+        if (!this.initialized) await this.init()
         return await this.producer.getSample({ size: config.maxSeqLen })
     }
 }
@@ -209,9 +207,7 @@ class WikipediaSampler {
     }
 
     async take(config) {
-        if (!this.initialized) {
-            await this.init()
-        }
+        if (!this.initialized) await this.init()
         return await this.producer.getSample({ size: config.maxSeqLen })
     }
 }
@@ -230,16 +226,17 @@ class PhiSampler {
     }
 
     async take(config) {
-        if (!this.initialized) {
-            await this.init()
-        }
+        if (!this.initialized) await this.init()
         if (config.isValidating) {
             return await this.producer.getSample({
                 mode: 'validation',
                 size: config.maxSeqLen
             })
         } else {
-            return await this.producer.getSample({ size: config.maxSeqLen })
+            return await this.producer.getSample({
+                mode: 'train',
+                size: config.maxSeqLen
+            })
         }
     }
 }
