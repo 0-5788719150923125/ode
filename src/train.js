@@ -47,6 +47,16 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         callbacks.push(new callback(this))
     }
 
+    process.on('SIGINT', async () => {
+        console.log('Received SIGINT. Gracefully stopping callbacks...')
+        for (const callback of callbacks) {
+            if (typeof callback.close !== 'undefined') {
+                await callback.close()
+            }
+        }
+        process.exit(0)
+    })
+
     // a custom training loop
     while (true) {
         await tf.nextFrame()
@@ -674,6 +684,7 @@ export class MetricsCollector {
     constructor(parent) {
         this.parent = parent
         this.filename = './metrics.json'
+        this.tempFilename = './metrics.tmp.json'
         this.runId = randomString(7)
         this.buffer = []
         this.flushInterval = 5000 // 5 seconds
@@ -720,104 +731,120 @@ export class MetricsCollector {
     async flush() {
         if (this.buffer.length === 0) return
 
+        let data = []
         try {
-            let data = []
-            try {
-                const fileContent = await this.fs.readFile(
-                    this.filename,
-                    'utf8'
-                )
-                data = JSON.parse(fileContent)
-            } catch (error) {
-                // File doesn't exist or is empty, start with an empty array
-            }
+            const fileContent = await this.fs.readFile(this.filename, 'utf8')
+            data = JSON.parse(fileContent)
+        } catch (error) {
+            // File doesn't exist or is empty, start with an empty array
+        }
 
-            for (const metrics of this.buffer) {
-                const existingIndex = data.findIndex(
-                    (entry) => entry.runId === this.runId
-                )
-                const existingLosses = data[existingIndex]
-                    ? data[existingIndex].loss
-                    : []
-                const existingValidationLosses = data[existingIndex]
-                    ? data[existingIndex].validationLoss
-                    : []
-                const existingValidationPerplexities = data[existingIndex]
-                    ? data[existingIndex].validationPerplexity
-                    : []
-
-                const filteredMetrics = {
-                    runId: this.runId,
-                    timestamp: metrics.timestamp,
-                    date: formatDate(new Date(metrics.timestamp)),
-                    version: metrics.version,
-                    class: this.parent.constructor.name,
-                    batch: metrics.batch,
-                    step: metrics.step,
-                    loss: this.appendToArray(existingLosses, metrics.loss, 3),
-                    validationLoss: this.appendToArray(
-                        existingValidationLosses,
-                        metrics?.valLoss,
-                        3
-                    ),
-                    validationPerplexity: this.appendToArray(
-                        existingValidationPerplexities,
-                        metrics?.valPerplexity,
-                        3
-                    ),
-                    metricsInterval: this.maxBufferSize,
-                    lossFunction: metrics.lossFunction,
-                    validateEvery: metrics.validateEvery,
-                    validationSteps: metrics.validationSteps,
-                    sampleLength: metrics.sampleLength,
-                    tokenizer: metrics.tokenizer.model,
-                    optimizer: {
-                        name: this.parent.optimizers[0].constructor.name,
-                        learningRate: metrics.learningRate,
-                        weightDecay: this.parent.optimizers[0].weightDecay
-                    },
-                    scheduler: {
-                        warmupSteps: this.parent?.warmupSteps,
-                        cosineSteps: this.parent?.cosineSteps,
-                        minLearningRate: this.parent?.minLearningRate,
-                        maxLearningRate: this.parent?.learningRate
-                    },
-                    architecture: {
-                        units: this.parent?.units,
-                        layers: this.parent?.layers,
-                        embeddings: this.parent?.embeddings,
-                        numHeads: this.parent?.numHeads,
-                        queriesPerHead: this.parent?.queriesPerHead,
-                        mlpDim: this.parent?.mlpDim,
-                        headDim: this.parent?.headDim,
-                        useBias: this.parent?.useBias,
-                        ALiBiLength: this.parent?.ALiBiLength
-                    },
-                    seed: metrics.seed,
-                    corpus: metrics.corpus
-                }
-
-                if (existingIndex !== -1) {
-                    data[existingIndex] = filteredMetrics
-                } else {
-                    data.push(filteredMetrics)
-                }
-            }
-
-            // Sort the data by timestamp, most recent first
-            data.sort((a, b) => b.timestamp - a.timestamp)
-
-            // Write the updated data back to the file
-            await this.fs.writeFile(
-                this.filename,
-                JSON.stringify(data, null, 4),
-                'utf8'
+        for (const metrics of this.buffer) {
+            const existingIndex = data.findIndex(
+                (entry) => entry.runId === this.runId
             )
 
-            // Clear the buffer after successful write
-            this.buffer = []
-        } catch (err) {
-            console.error('Error flushing metrics:', err)
+            const existingEntry =
+                existingIndex !== -1 ? data[existingIndex] : {}
+
+            const lastValidationLoss = existingEntry.validationLoss?.[0]
+            const lastValidationPerplexity =
+                existingEntry.validationPerplexity?.[0]
+
+            const filteredMetrics = {
+                runId: this.runId,
+                timestamp: metrics.timestamp,
+                date: formatDate(new Date(metrics.timestamp)),
+                version: metrics.version,
+                class: this.parent.constructor.name,
+                batch: metrics.batch,
+                step: metrics.step,
+                loss: this.appendToArray(
+                    existingEntry.loss || [],
+                    metrics.loss,
+                    3
+                ),
+                validationLoss:
+                    metrics.valLoss != null &&
+                    metrics.valLoss !== lastValidationLoss
+                        ? this.appendToArray(
+                              existingEntry.validationLoss || [],
+                              metrics.valLoss,
+                              3
+                          )
+                        : existingEntry.validationLoss || [],
+                validationPerplexity:
+                    metrics.valPerplexity != null &&
+                    metrics.valPerplexity !== lastValidationPerplexity
+                        ? this.appendToArray(
+                              existingEntry.validationPerplexity || [],
+                              metrics.valPerplexity,
+                              3
+                          )
+                        : existingEntry.validationPerplexity || [],
+                metricsInterval: this.maxBufferSize,
+                lossFunction: metrics.lossFunction,
+                validateEvery: metrics.validateEvery,
+                validationSteps: metrics.validationSteps,
+                sampleLength: metrics.sampleLength,
+                tokenizer: metrics.tokenizer.model,
+                optimizer: {
+                    name: this.parent.optimizers[0].constructor.name,
+                    learningRate: metrics.learningRate,
+                    weightDecay: this.parent.optimizers[0].weightDecay
+                },
+                scheduler: {
+                    warmupSteps: this.parent?.warmupSteps,
+                    cosineSteps: this.parent?.cosineSteps,
+                    minLearningRate: this.parent?.minLearningRate,
+                    maxLearningRate: this.parent?.learningRate
+                },
+                architecture: {
+                    units: this.parent?.units,
+                    layers: this.parent?.layers,
+                    embeddings: this.parent?.embeddings,
+                    numHeads: this.parent?.numHeads,
+                    queriesPerHead: this.parent?.queriesPerHead,
+                    mlpDim: this.parent?.mlpDim,
+                    headDim: this.parent?.headDim,
+                    useBias: this.parent?.useBias,
+                    ALiBiLength: this.parent?.ALiBiLength
+                },
+                seed: metrics.seed,
+                corpus: metrics.corpus
+            }
+
+            if (existingIndex !== -1) {
+                data[existingIndex] = filteredMetrics
+            } else {
+                data.push(filteredMetrics)
+            }
+        }
+
+        // Sort the data by timestamp, most recent first
+        data.sort((a, b) => b.timestamp - a.timestamp)
+
+        // Write to a temporary file first
+        await this.fs.writeFile(
+            this.tempFilename,
+            JSON.stringify(data, null, 4),
+            'utf8'
+        )
+
+        // Rename the temporary file to the actual filename
+        await this.fs.rename(this.tempFilename, this.filename)
+
+        // Clear the buffer after successful write
+        this.buffer = []
+    }
+
+    async close() {
+        await this.flush()
+        // Attempt to remove the temporary file if it exists
+        try {
+            await this.fs.unlink(this.tempFilename)
+        } catch (error) {
+            // Ignore errors if the file doesn't exist
         }
     }
 }
