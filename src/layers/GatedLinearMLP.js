@@ -18,6 +18,7 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 seed: this.ops.getSeed()
             })
         )
+
         if (this.useBias)
             this.gateProjBias = this.addWeight(
                 `gateProjBias`,

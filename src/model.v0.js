@@ -5,6 +5,7 @@ import '@tensorflow/tfjs-backend-webgpu'
 import customLayers from './layers.js'
 import customOps from './ops.js'
 import customLosses from './losses.js'
+import customInitializers from './initializers.js'
 import customOptimizers from './optimizers.js'
 import customTokenizers from './tokenizers.js'
 import customSchedulers from './schedulers.js'
@@ -28,6 +29,7 @@ export default class ModelBase {
         this.ode = {
             layers: customLayers,
             losses: customLosses,
+            initializers: customInitializers,
             optimizers: customOptimizers,
             tokenizers: customTokenizers,
             schedulers: customSchedulers,
