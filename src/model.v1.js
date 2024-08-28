@@ -20,8 +20,7 @@ export default class OmnipresentDegenerateEntity extends ODE {
         this.model.add(
             this.tf.layers.embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
-                maskZero: true
+                outputDim: this.units
             })
         )
 
