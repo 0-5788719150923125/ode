@@ -43,7 +43,7 @@ node cli.js \
 import ODE from 'ode'
 
 const net = await ODE({
-    backend: 'webgl', // available backends: ['tensorflow', 'webgl', 'webgpu']
+    backend: 'webgl', // available backends: ['cpu', 'tensorflow', 'webgl', 'webgpu']
     version: 6
 })
 
