@@ -37,7 +37,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.xlabel("Steps", fontsize=12)
     plt.ylabel(formatted_name, fontsize=12)
 
-    plt.legend(title="Run Info", title_fontsize=12, bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.legend(title="Run Info", title_fontsize=12, loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fancybox=True, shadow=True)
 
     # Remove extreme outliers for better scaling
     filtered_values = remove_outliers(all_values)
@@ -68,6 +68,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.tight_layout()
     plt.savefig(f'metrics_{metric_key}.png', dpi=300, bbox_inches='tight')
     plt.close()
+    
 def load_data(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
