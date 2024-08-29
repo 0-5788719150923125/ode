@@ -1,4 +1,4 @@
-import ODE from './model.v0.js'
+import ODE from './model.v2.js'
 
 /**
  * A baseline, highly-performant small model.

@@ -57,6 +57,6 @@ export default class OptimalDecisionEngine extends ODE {
     }
 
     defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.learningRate)]
+        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
     }
 }

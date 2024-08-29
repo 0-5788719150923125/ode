@@ -26,7 +26,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         encoding: this.encoding || 'oneHot',
         sourceFormat: this.sourceFormat || 'text',
         imageSize: this.imageSize || 500,
-        downsampling: this.downsampling?.rate || 1.0,
         ...args
     }
 
@@ -75,22 +74,8 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             trainArgs.labels,
             trainArgs.encoding,
             trainArgs.sourceFormat,
-            trainArgs.imageSize,
-            trainArgs.downsampling
+            trainArgs.imageSize
         )
-
-        // if (trainArgs.downsampling) {
-        //     const newTimeSteps = Math.floor(data.ys.shape[1] / 2)
-        //     if (data.ys.shape[1] > newTimeSteps) {
-        //         const newYs = tf.slice(
-        //             data.ys,
-        //             [0, data.ys.shape[1] - newTimeSteps, 0],
-        //             [trainArgs.batchSize, newTimeSteps, data.ys.shape[2]]
-        //         )
-        //         data.ys.dispose()
-        //         data.ys = newYs
-        //     }
-        // }
 
         // Fetch data and compute gradients
         await accumulator.compute(data.xs, data.ys)
@@ -410,7 +395,6 @@ async function batchMaker(
     encoding = 'oneHot',
     sourceFormat = 'text',
     imageSize = 500,
-    downsampling = 1.0,
     mode = 'train'
 ) {
     let xsArray = []
@@ -609,7 +593,6 @@ export class ValidationHandler {
                 args.encoding,
                 args.sourceFormat,
                 args.imageSize,
-                args.downsampling,
                 'validation'
             )
 
@@ -827,17 +810,7 @@ export class MetricsCollector {
                     version: metrics.version,
                     class: this.parent.constructor.name,
                     totalParams: this.parent.totalParams,
-                    architecture: {
-                        units: this.parent?.units,
-                        layers: this.parent?.layers,
-                        embeddings: this.parent?.embeddings,
-                        numHeads: this.parent?.numHeads,
-                        queriesPerHead: this.parent?.queriesPerHead,
-                        mlpDim: this.parent?.mlpDim,
-                        headDim: this.parent?.headDim,
-                        useBias: this.parent?.useBias,
-                        ALiBiLength: this.parent?.ALiBiLength
-                    },
+                    configuration: this.parent.config,
                     loss: metrics.loss,
                     validationLoss:
                         metrics.valLoss != null &&
@@ -859,25 +832,12 @@ export class MetricsCollector {
                             : existingEntry.validationPerplexity || [],
                     metricsInterval: this.maxBufferSize,
                     lossFunction: metrics.lossFunction,
-                    validateEvery: metrics.validateEvery,
-                    validationSteps: metrics.validationSteps,
-                    sampleLength: metrics.sampleLength,
                     tokenizer: metrics.tokenizer?.model,
                     optimizer: {
                         name: this.parent.optimizers[0].constructor.name,
                         learningRate: metrics.learningRate,
                         weightDecay: this.parent.optimizers[0].weightDecay
-                    },
-                    scheduler: {
-                        warmupSteps: this.parent?.warmupSteps,
-                        cosineSteps: this.parent?.cosineSteps,
-                        minLearningRate: this.parent?.minLearningRate,
-                        maxLearningRate: this.parent?.learningRate
-                    },
-                    selfModel: this.parent.config?.selfModel,
-                    auxiliaryWeight: this.parent.config?.auxiliaryWeight,
-                    seed: metrics.seed,
-                    corpus: metrics.corpus
+                    }
                 }
 
                 if (existingIndex !== -1) {

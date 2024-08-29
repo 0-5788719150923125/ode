@@ -37,11 +37,10 @@ export default class ModelBase {
             expert: Expert
         }
         this.ops = customOps
-        this.config = config
+        this.config = { learningRate: 1e-3, weightDecay: 1e-5, ...config }
         this.model
         this.tokenizer
         this.contextLength = config.contextLength
-        this.learningRate = 1e-3
         this.totalParams = 0
         if (config?.seed) {
             this.ops.setSeed(1, 1000, config.seed)
@@ -175,14 +174,14 @@ export default class ModelBase {
     defineOptimizers() {
         return [
             this.ode.optimizers.AdamW({
-                learningRate: this.learningRate,
-                weightDecay: 1e-2
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
             })
         ]
     }
 
     defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.learningRate)]
+        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
     }
 
     compile() {
@@ -502,7 +501,12 @@ function predictMany({ prompt } = {}) {
     )
 
     // Predict with the model
-    const prediction = this.model.predict(inputs)
+    let prediction = this.model.predict(inputs)
+
+    // Some models output multiple tensors, so we only keep the first
+    if (Array.isArray(prediction)) {
+        prediction = prediction[0]
+    }
 
     // Squeeze to remove batch dimension since batch size is 1
     const squeezedPred = prediction.squeeze()
