@@ -3,10 +3,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
 from functools import reduce
+import re
 
 def load_data(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
+
+def split_variable(string):
+    # Split the string on capital letters
+    words = re.findall(r'[A-Z]?[a-z]+|[A-Z]{2,}(?=[A-Z][a-z]|\d|\W|$)|\d+', string)
+    
+    # Join the words with spaces and capitalize each word
+    return ' '.join(word.capitalize() for word in words)
 
 def process_run_data(run, metric_key):
     validate_every = run['validateEvery']
@@ -47,9 +55,10 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
         label = "\n".join(label_parts)
         plt.plot(steps, metric_values, marker='o', label=label)
 
-    plt.title(f"{metric_name} Over Time", fontsize=16)
+    formatted_name = split_variable(metric_name)
+    plt.title(f"{formatted_name} Over Time", fontsize=16)
     plt.xlabel("Steps", fontsize=12)
-    plt.ylabel(metric_name, fontsize=12)
+    plt.ylabel(formatted_name, fontsize=12)
 
     plt.legend(title="Run Info", title_fontsize=12)
     plt.yscale('log')
@@ -71,7 +80,7 @@ def main():
         metric_key = metric[-1]
         metric_name = ' '.join(word for word in metric_key.split('_'))
         plot_metric(data, metric_key, metric_name, args.label)
-        print(f"{metric_name} visualization saved as 'metrics_{metric_key}.png'")
+        print(f"'{metric_name}' visualization saved as 'metrics_{metric_key}.png'")
 
 if __name__ == "__main__":
     main()
