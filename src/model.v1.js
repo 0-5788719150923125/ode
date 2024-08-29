@@ -7,9 +7,13 @@ import ODE from './model.v0.js'
  */
 export default class OmnipresentDegenerateEntity extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 128
+        const defaults = {
+            layers: 3,
+            units: 128,
+            learningRate: 1e-4,
+            weightDecay: 1e-5
+        }
+        super({ ...defaults, ...config })
         this.labels = 'oneLabel'
         this.autoregressive = true
     }
@@ -20,17 +24,17 @@ export default class OmnipresentDegenerateEntity extends ODE {
         model.add(
             this.tf.layers.embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.units
+                outputDim: this.config.units
             })
         )
 
-        for (let i = 0; i < this.layers; i++)
+        for (let i = 0; i < this.config.layers; i++)
             model.add(
                 this.tf.layers.lstm({
-                    units: this.units,
+                    units: this.config.units,
                     activation: 'tanh',
                     recurrentActivation: 'sigmoid',
-                    returnSequences: i < this.layers - 1 // False for the last layer
+                    returnSequences: i < this.config.layers - 1 // False for the last layer
                 })
             )
 

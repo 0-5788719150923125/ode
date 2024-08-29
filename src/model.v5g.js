@@ -6,11 +6,13 @@ import ODE from './model.v2.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.learningRate = 0.0001
-        this.weightDecay = 0.001
+        const defaults = {
+            layers: 5,
+            units: 128,
+            learningRate: 1e-4,
+            weightDecay: 1e-5
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -26,7 +28,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
+            outputDim: this.config.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -34,10 +36,10 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .SelfAttention({
-                    hiddenDim: this.units * 4
+                    hiddenDim: this.config.units * 4
                 })
                 .apply(outputs)
 
@@ -58,8 +60,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     defineOptimizers() {
         return [
             this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: this.weightDecay
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
             })
         ]
     }

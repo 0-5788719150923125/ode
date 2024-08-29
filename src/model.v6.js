@@ -6,17 +6,19 @@ import ODE from './model.v2.js'
  */
 export default class OpenDoorExperiment extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 4
-        this.units = config.units || 256
-        this.numHeads = config.heads || 8
-        this.queriesPerHead = config.queriesPerHead || 1
-        this.headDim = config.headDim || 128
-        this.mlpDim = config.mlpDim || 1024
-        this.useBias = config.useBias || true
-        this.ALiBiLength = 1024
-        this.learningRate = 0.0001
-        this.weightDecay = 0.00001
+        const defaults = {
+            layers: 4,
+            units: 256,
+            numHeads: 8,
+            queriesPerHead: 1,
+            headDim: 128,
+            mlpDim: 1024,
+            useBias: true,
+            ALiBiLength: 1024,
+            learningRate: 1e-4,
+            weightDecay: 1e-5
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -32,20 +34,20 @@ export default class OpenDoorExperiment extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
+            outputDim: this.config.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
         let outputs = embeddings.apply(inputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .MultiHeadAttention({
-                    numHeads: this.numHeads,
-                    headDim: this.headDim,
-                    queriesPerHead: this.queriesPerHead,
-                    ALiBiLength: this.ALiBiLength,
-                    useBias: this.useBias
+                    numHeads: this.config.numHeads,
+                    headDim: this.config.headDim,
+                    queriesPerHead: this.config.queriesPerHead,
+                    ALiBiLength: this.config.ALiBiLength,
+                    useBias: this.config.useBias
                 })
                 .apply(outputs)
 
@@ -53,8 +55,8 @@ export default class OpenDoorExperiment extends ODE {
                 .GatedLinearMLP({
                     activation: 'mish',
                     gateActivation: 'swish',
-                    hiddenDim: this.mlpDim,
-                    useBias: this.useBias
+                    hiddenDim: this.config.mlpDim,
+                    useBias: this.config.useBias
                 })
                 .apply(outputs)
         }
@@ -65,14 +67,14 @@ export default class OpenDoorExperiment extends ODE {
     }
 
     defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.learningRate)]
+        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
     }
 
     defineOptimizers() {
         return [
             this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: this.weightDecay,
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay,
                 useGc: true
             })
         ]

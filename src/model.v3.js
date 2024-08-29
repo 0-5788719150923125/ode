@@ -6,11 +6,13 @@ import ODE from './model.v2.js'
  */
 export default class OptimalDecisionEngine extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.learningRate = 0.0001
-        this.weightDecay = 0.001
+        const defaults = {
+            layers: 3,
+            units: 256,
+            learningRate: 1e-4,
+            weightDecay: 1e-5
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -26,7 +28,7 @@ export default class OptimalDecisionEngine extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
+            outputDim: this.config.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -34,16 +36,16 @@ export default class OptimalDecisionEngine extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .SelfAttention({
-                    hiddenDim: this.units * 4
+                    hiddenDim: this.config.units * 4
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    hiddenDim: this.units * 4,
+                    hiddenDim: this.config.units * 4,
                     activation: 'swish'
                 })
                 .apply(outputs)

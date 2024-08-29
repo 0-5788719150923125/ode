@@ -6,22 +6,24 @@ import ODE from './model.v2.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 5
-        this.units = config.units || 128
-        this.embeddings = config.embeddings || 512
-        this.rank = config.rank || 96
-        this.numExperts = config.numExperts || 3
-        this.routerDim = config.routerDim || 512
-        this.numHeads = config.numHeads || 8
-        this.headDim = config.headDim || 96
-        this.headFeatures = config.headFeatures || 64
-        this.mlpDim = config.mlpDim || 512
-        this.learningRate = 0.0001
-        this.minLearningRate = 0.00000001
-        this.weightDecay = 0.001
-        this.steps = 2048
-        this.ALiBiLength = 1024
+        const defaults = {
+            layers: 5,
+            units: 128,
+            embeddings: 512,
+            rank: 96,
+            numExperts: 3,
+            routerDim: 512,
+            numHeads: 8,
+            headDim: 96,
+            headFeatures: 64,
+            mlpDim: 512,
+            learningRate: 1e-4,
+            minLearningRate: 1e-6,
+            weightDecay: 1e-5,
+            cosineSteps: 2048,
+            ALiBiLength: 1024
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -37,7 +39,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.embeddings,
+            outputDim: this.config.embeddings,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -45,25 +47,25 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .LowRankFactorization({
-                outputDim: this.units,
-                rank: this.rank
+                outputDim: this.config.units,
+                rank: this.config.rank
             })
             .apply(outputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .ProjectedFeatureAttention({
-                    numHeads: this.numHeads,
-                    headDim: this.headDim,
-                    headFeatures: this.headFeatures,
-                    ALiBiLength: this.ALiBiLength
+                    numHeads: this.config.numHeads,
+                    headDim: this.config.headDim,
+                    headFeatures: this.config.headFeatures,
+                    ALiBiLength: this.config.ALiBiLength
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .SoftMergingOfExperts({
                     activation: 'mish',
-                    hiddenDim: this.routerDim,
+                    hiddenDim: this.config.routerDim,
                     experts: this.createFeedforwardExperts(outputs.shape)
                 })
                 .apply(outputs)
@@ -71,7 +73,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.embeddings
+                units: this.config.embeddings
             })
             .apply(outputs)
 
@@ -83,21 +85,21 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     defineOptimizers() {
         this.optimizers = [
             this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: this.weightDecay
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
             })
         ]
     }
 
     createFeedforwardExperts(inputShape) {
         // We add 1 extra expert, since the first one is an in-place, weighted average of all other experts.
-        return Array(this.numExperts + 1)
+        return Array(this.config.numExperts + 1)
             .fill(0)
             .map((_, i) => {
                 return this.ode.expert({
                     type: 'GatedLinearMLP',
                     inputShape,
-                    hiddenDim: this.mlpDim,
+                    hiddenDim: this.config.mlpDim,
                     activation: 'mish',
                     gateActivation: 'sigmoid'
                 })

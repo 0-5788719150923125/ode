@@ -6,21 +6,23 @@ import ODE from './model.v2.js'
  */
 export default class OmnilateralDynamicEvaluator extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 6
-        this.units = config.units || 180
-        this.embeddings = config.embeddings || 540
-        this.numHeads = config.heads || 4
-        this.queriesPerHead = config.queriesPerHead || 2
-        this.headDim = config.headDim || 45
-        this.mlpDim = config.mlpDim || 1080
-        this.useBias = config.useBias || true
-        this.ALiBiLength = 1024
-        this.learningRate = 1e-4
-        this.minLearningRate = 1e-6
-        this.weightDecay = 1e-5
-        this.cosineSteps = 4096
-        this.warmupSteps = 128
+        const defaults = {
+            layers: 6,
+            units: 180,
+            embeddings: 540,
+            numHeads: 4,
+            queriesPerHead: 2,
+            headDim: 45,
+            mlpDim: 1080,
+            useBias: true,
+            ALiBiLength: 1024,
+            learningRate: 1e-4,
+            minLearningRate: 1e-6,
+            weightDecay: 1e-5,
+            cosineSteps: 4096,
+            warmupSteps: 128
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -37,21 +39,21 @@ export default class OmnilateralDynamicEvaluator extends ODE {
         let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.embeddings,
+                outputDim: this.config.embeddings,
                 kernelInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(inputs)
 
         outputs = this.ode.layers
             .ParabolicCompression({
-                units: this.units,
+                units: this.config.units,
                 numSteps: 4
             })
             .apply(outputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             if (i % 2 !== 0) {
-                const quarter = this.units / 4
+                const quarter = this.config.units / 4
                 let [updated, retained] = this.ode.layers
                     .Split({
                         axis: -1,
@@ -75,11 +77,11 @@ export default class OmnilateralDynamicEvaluator extends ODE {
 
             outputs = this.ode.layers
                 .PrimerAttention({
-                    numHeads: this.numHeads,
-                    headDim: this.headDim,
-                    queriesPerHead: this.queriesPerHead,
-                    ALiBiLength: this.ALiBiLength,
-                    useBias: this.useBias
+                    numHeads: this.config.numHeads,
+                    headDim: this.config.headDim,
+                    queriesPerHead: this.config.queriesPerHead,
+                    ALiBiLength: this.config.ALiBiLength,
+                    useBias: this.config.useBias
                 })
                 .apply(outputs)
 
@@ -87,8 +89,8 @@ export default class OmnilateralDynamicEvaluator extends ODE {
                 .GatedLinearMLP({
                     activation: 'mish',
                     gateActivation: 'swish',
-                    hiddenDim: this.mlpDim,
-                    useBias: this.useBias
+                    hiddenDim: this.config.mlpDim,
+                    useBias: this.config.useBias
                 })
                 .apply(outputs)
         }
@@ -114,10 +116,10 @@ export default class OmnilateralDynamicEvaluator extends ODE {
     defineSchedulers() {
         return [
             this.ode.schedulers.cosineWithRestartsScheduler(
-                this.minLearningRate,
-                this.learningRate,
-                this.cosineSteps,
-                this.warmupSteps
+                this.config.minLearningRate,
+                this.config.learningRate,
+                this.config.cosineSteps,
+                this.config.warmupSteps
             )
         ]
     }
@@ -125,8 +127,8 @@ export default class OmnilateralDynamicEvaluator extends ODE {
     defineOptimizers() {
         return [
             this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: this.weightDecay,
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay,
                 useGc: true,
                 adaNorm: true
             })

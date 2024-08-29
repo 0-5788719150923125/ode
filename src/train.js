@@ -143,8 +143,8 @@ class GradientAccumulator {
             this.lossFunction,
             currentXs,
             currentYs,
-            this.parent.selfModel,
-            this.parent.auxiliaryWeight,
+            this.parent.config.selfModel,
+            this.parent.config.auxiliaryWeight,
             {
                 training: true,
                 step: this.currentStep,
@@ -634,8 +634,8 @@ export class ValidationHandler {
                     args.lossFunction,
                     valData.ys,
                     predictions,
-                    this.parent.selfModel,
-                    this.parent.auxiliaryWeight
+                    this.parent.config.selfModel,
+                    this.parent.config.auxiliaryWeight
                 )
 
                 const numTokens = batchSize * seqLen
@@ -874,8 +874,8 @@ export class MetricsCollector {
                         minLearningRate: this.parent?.minLearningRate,
                         maxLearningRate: this.parent?.learningRate
                     },
-                    selfModel: this.parent?.selfModel,
-                    auxiliaryWeight: this.parent?.auxiliaryWeight,
+                    selfModel: this.parent.config?.selfModel,
+                    auxiliaryWeight: this.parent.config?.auxiliaryWeight,
                     seed: metrics.seed,
                     corpus: metrics.corpus
                 }

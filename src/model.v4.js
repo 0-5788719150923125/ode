@@ -7,12 +7,14 @@ import ODE from './model.v2.js'
  */
 export default class OpportunisticDialogueEngine extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 6
-        this.heads = config.heads || 8
-        this.units = config.units || 512
-        this.hiddenDim = config.hiddenDim || this.units * 4
-        this.alpha = config.alpha || 0.22
+        const defaults = {
+            layers: 6,
+            units: 512,
+            numHeads: 8,
+            mlpDim: 2048,
+            alpha: 0.22
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -29,26 +31,26 @@ export default class OpportunisticDialogueEngine extends ODE {
         let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
+                outputDim: this.config.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
 
         outputs = this.ode.layers.SinusoidalPositionalEncoding().apply(outputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .SynthesizerAttention({
-                    units: this.units,
+                    units: this.config.units,
                     blockSize: this.contextLength,
-                    heads: this.heads,
-                    alpha: this.alpha
+                    heads: this.config.numHeads,
+                    alpha: this.config.alpha
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
-                    hiddenDim: this.hiddenDim,
+                    hiddenDim: this.config.mlpDim,
                     activation: 'swish',
                     gateActivation: 'sigmoid'
                 })

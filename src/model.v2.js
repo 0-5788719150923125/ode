@@ -6,13 +6,15 @@ import ODE from './model.v1.js'
  */
 export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 4
-        this.numHeads = config.heads || 8
-        this.units = config.units || 128
-        this.mlpDim = config.mlpDim || 512
-        this.dropout = config.dropout || 0.1
-        this.epsilon = config.epsilon || 1e-5
+        const defaults = {
+            layers: 4,
+            units: 128,
+            numHeads: 8,
+            mlpDim: 512,
+            dropout: 0.1,
+            epsilon: 1e-5
+        }
+        super({ ...defaults, ...config })
         this.labels = 'multiLabel'
     }
 
@@ -29,7 +31,7 @@ export default class OriginalDecoderEncoder extends ODE {
             .embedding({
                 name: 'wte',
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.units,
+                outputDim: this.config.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(inputs)
@@ -40,7 +42,7 @@ export default class OriginalDecoderEncoder extends ODE {
             .embedding({
                 name: 'wpe',
                 inputDim: this.contextLength,
-                outputDim: this.units,
+                outputDim: this.config.units,
                 embeddingsInitializer: 'glorotUniform'
             })
             .apply(range)
@@ -52,36 +54,36 @@ export default class OriginalDecoderEncoder extends ODE {
         outputs = this.tf.layers
             .dropout({
                 name: 'dropout',
-                rate: this.dropout
+                rate: this.config.dropout
             })
             .apply(outputs)
 
         outputs = this.tf.layers
             .layerNormalization({
                 name: 'emb/ln',
-                epsilon: this.epsilon
+                epsilon: this.config.epsilon
             })
             .apply(outputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .GPT2Attention({
                     blockSize: this.contextLength,
-                    units: this.units,
-                    heads: this.numHeads,
-                    dropout: this.dropout,
-                    epsilon: this.epsilon,
+                    units: this.config.units,
+                    heads: this.config.numHeads,
+                    dropout: this.config.dropout,
+                    epsilon: this.config.epsilon,
                     bias: false
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
-                    units: this.units,
-                    hiddenDim: this.mlpDim,
-                    heads: this.numHeads,
-                    dropout: this.dropout,
-                    epsilon: this.epsilon,
+                    units: this.config.units,
+                    hiddenDim: this.config.mlpDim,
+                    heads: this.config.numHeads,
+                    dropout: this.config.dropout,
+                    epsilon: this.config.epsilon,
                     activation: 'gelu'
                 })
                 .apply(outputs)

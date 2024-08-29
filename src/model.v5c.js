@@ -6,17 +6,18 @@ import ODE from './model.v2.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.routerDim = config.routerDim || 1024
-        this.headDim = config.headDim || 2048
-        this.mlpDim = config.mlpDim || 1024
-        this.capacity = config.capacity || 0.25
-        this.learningRate = 0.00022
-        this.minLearningRate = 0.00000001
-        this.weightDecay = 0.001
-        this.steps = 1024
+        const defaults = {
+            layers: 3,
+            units: 256,
+            routerDim: 1024,
+            headDim: 2048,
+            mlpDim: 1024,
+            capacity: 0.25,
+            learningRate: 2e-4,
+            minLearningRate: 1e-6,
+            cosineSteps: 2048
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -32,7 +33,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
+            outputDim: this.config.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -40,22 +41,22 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .MixtureOfDepths({
-                    routerDim: this.routerDim,
+                    routerDim: this.config.routerDim,
                     activation: 'gelu_new',
-                    capacity: this.capacity,
+                    capacity: this.config.capacity,
                     experts: [
                         this.ode.expert({
                             type: 'SelfAttention',
                             inputShape: outputs.shape,
-                            projection: this.headDim
+                            projection: this.config.headDim
                         }),
                         this.ode.expert({
                             type: 'GatedLinearMLP',
                             inputShape: outputs.shape,
-                            hiddenDim: this.mlpDim,
+                            hiddenDim: this.config.mlpDim,
                             activation: 'gelu_new'
                         })
                     ]
@@ -71,8 +72,8 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     defineOptimizers() {
         return [
             this.ode.optimizers.Lion({
-                learningRate: this.learningRate,
-                weightDecay: this.weightDecay
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
             })
         ]
     }

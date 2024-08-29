@@ -6,15 +6,17 @@ import ODE from './model.v3.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 3
-        this.units = config.units || 256
-        this.headDim = config.headDim || 1024
-        this.mlpDim = config.mlpDim || 768
-        this.numExperts = config.numExperts || 3
-        this.topK = config.topK || 2
-        this.switchingDim = config.switchingDim || 512
-        this.temperature = config.temperature || 0.8
+        const defaults = {
+            layers: 3,
+            units: 256,
+            headDim: 1024,
+            mlpDim: 768,
+            numExperts: 3,
+            topK: 2,
+            switchingDim: 512,
+            temperature: 0.8
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -30,7 +32,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.units,
+            outputDim: this.config.units,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -38,19 +40,19 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         let outputs = encoding.apply(embeddings.apply(inputs))
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .SelfAttention({
-                    hiddenDim: this.headDim
+                    hiddenDim: this.config.headDim
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .AdaptiveMixtureOfExperts({
-                    topK: this.topK,
-                    switchingDim: this.switchingDim,
+                    topK: this.config.topK,
+                    switchingDim: this.config.switchingDim,
                     activation: 'swish',
-                    temperature: this.temperature,
+                    temperature: this.config.temperature,
                     experts: this.createMLPExperts(outputs.shape)
                 })
                 .apply(outputs)
@@ -62,13 +64,13 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     createMLPExperts(inputShape) {
-        return Array(this.numExperts)
+        return Array(this.config.numExperts)
             .fill(0)
             .map((_, i) => {
                 return this.ode.expert({
                     type: 'MultiLayerPerceptron',
                     inputShape,
-                    hiddenDim: this.mlpDim,
+                    hiddenDim: this.config.mlpDim,
                     activation: 'swish'
                 })
             })

@@ -6,14 +6,16 @@ import ODE from './model.v2.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        super(config)
-        this.layers = config.layers || 8
-        this.units = config.units || 32
-        this.embeddings = config.embeddings || 256
-        this.numExperts = config.numExperts || 23
-        this.moeDim = config.moeDim || 128
-        this.headDim = config.headDim || 1024
-        this.mlpDim = config.mlpDim || 64
+        const defaults = {
+            layers: 8,
+            units: 32,
+            embeddings: 256,
+            numExperts: 23,
+            moeDim: 128,
+            headDim: 1024,
+            mlpDim: 64
+        }
+        super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
@@ -29,7 +31,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         const embeddings = this.ode.layers.embedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.embeddings,
+            outputDim: this.config.embeddings,
             embeddingsInitializer: 'glorotUniform'
         })
 
@@ -39,23 +41,23 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.units,
+                units: this.config.units,
                 activation: 'mish'
             })
             .apply(outputs)
 
-        for (let i = 0; i < this.layers; i++) {
+        for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
                 .SelfAttention({
-                    units: this.units,
-                    hiddenDim: this.headDim
+                    units: this.config.units,
+                    hiddenDim: this.config.headDim
                 })
                 .apply(outputs)
 
             outputs = this.ode.layers
                 .SwarmOfExperts({
                     activation: 'mish',
-                    hiddenDim: this.moeDim,
+                    hiddenDim: this.config.moeDim,
                     experts: this.createFeedforwardExperts(outputs.shape)
                 })
                 .apply(outputs)
@@ -63,7 +65,7 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         outputs = this.ode.layers
             .dense({
-                units: this.embeddings,
+                units: this.config.embeddings,
                 activation: 'mish'
             })
             .apply(outputs)
@@ -79,13 +81,13 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
     }
 
     createFeedforwardExperts(inputShape) {
-        return Array(this.numExperts)
+        return Array(this.config.numExperts)
             .fill(0)
             .map((_, i) => {
                 return this.ode.expert({
                     type: 'GatedLinearMLP',
                     inputShape,
-                    hiddenDim: this.mlpDim,
+                    hiddenDim: this.config.mlpDim,
                     activation: 'mish'
                 })
             })
