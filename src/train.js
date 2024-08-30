@@ -694,11 +694,19 @@ function extractLayerInfo(model) {
         // Split the layer name on the dash and get the prefix
         const [prefix] = layerName.split('-')
 
-        // If this prefix hasn't been seen before, add it to the object
+        // If this prefix hasn't been seen before, initialize it with a new Set
         if (!layerInfoObject[prefix]) {
-            layerInfoObject[prefix] = className
+            layerInfoObject[prefix] = new Set()
         }
+
+        // Add the class name to the Set for this prefix
+        layerInfoObject[prefix].add(className)
     })
+
+    // Convert Sets to Arrays for easier handling if needed
+    for (const prefix in layerInfoObject) {
+        layerInfoObject[prefix] = Array.from(layerInfoObject[prefix])
+    }
 
     return layerInfoObject
 }

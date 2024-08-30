@@ -44,7 +44,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
 
     if len(filtered_values) > 0:
         vmin, vmax = np.min(filtered_values), np.max(filtered_values)
-        plt.ylim(vmin, vmax)
+        # plt.ylim(vmin, vmax)
 
         # Use symlog scale
         linthresh = max(abs(vmin), abs(vmax)) * 1e-3  # Adjust this value as needed
