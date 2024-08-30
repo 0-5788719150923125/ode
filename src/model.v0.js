@@ -42,6 +42,7 @@ export default class ModelBase {
         this.tokenizer
         this.contextLength = config.contextLength
         this.totalParams = 0
+        this.wasResumed = false
         if (config?.seed) {
             this.ops.setSeed(1, 1000, config.seed)
         }
@@ -101,6 +102,7 @@ export default class ModelBase {
         console.log('successfully loaded model from disk')
         this.schedulers = this.defineSchedulers()
         this.postInit()
+        this.wasResumed = true
     }
 
     async save(type = 'file', path = `data/models/ode`) {

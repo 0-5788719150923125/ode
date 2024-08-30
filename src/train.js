@@ -687,11 +687,13 @@ export class MetricsCollector {
             JSON.stringify(this.parent.config),
             7
         )
+        this.metricsData = null
         this.buffer = []
         this.flushInterval = 5000 // 5 seconds
         this.maxBufferSize = 100
         this.historyLength = 250
         this.fs = null
+        this.isFirstStep = true
     }
 
     appendToArray(array, item, maxItems) {
@@ -704,16 +706,19 @@ export class MetricsCollector {
     }
 
     async step(metrics) {
-        const isBrowser =
-            (typeof self !== 'undefined' &&
-                typeof self.importScripts === 'function') ||
-            typeof window !== 'undefined'
-
-        if (isBrowser) return
-
         if (this.fs === null) {
             const fsModule = await import('fs')
             this.fs = fsModule.promises
+        }
+
+        // Handle old metrics deletion or initialization only on the first step
+        if (this.isFirstStep) {
+            if (this.parent.wasResumed) {
+                await this.loadExistingData()
+            } else {
+                await this.resetMetrics()
+            }
+            this.isFirstStep = false
         }
 
         const timestamp = Date.now()
@@ -725,32 +730,22 @@ export class MetricsCollector {
 
         this.buffer.push(logEntry)
 
-        if (this.buffer.length >= this.maxBufferSize) {
-            await this.flush()
-        }
+        await this.flush()
     }
 
     async flush() {
         if (this.buffer.length === 0) return
+        if (this.buffer.length < this.maxBufferSize) return
 
         try {
-            let data = []
-            try {
-                const fileContent = await this.fs.readFile(
-                    this.filename,
-                    'utf8'
-                )
-                data = JSON.parse(fileContent)
-            } catch (error) {
-                // File doesn't exist or is empty, start with an empty array
-            }
+            let data = this.metricsData || []
 
             for (const metrics of this.buffer) {
                 const existingIndex = data.findIndex(
                     (entry) => entry.runId === this.runId
                 )
 
-                const existingEntry =
+                let existingEntry =
                     existingIndex !== -1 ? data[existingIndex] : {}
 
                 const lastValidationLoss = existingEntry.validationLoss?.[0]
@@ -790,9 +785,9 @@ export class MetricsCollector {
                     lossFunction: metrics.lossFunction,
                     tokenizer: metrics.tokenizer?.model,
                     optimizer: {
-                        name: this.parent.optimizers[0].constructor.name,
+                        name: this.parent.model.optimizer.constructor.name,
                         learningRate: metrics.learningRate,
-                        weightDecay: this.parent.optimizers[0].weightDecay
+                        weightDecay: this.parent.model.optimizer.weightDecay
                     }
                 }
 
@@ -816,17 +811,50 @@ export class MetricsCollector {
             // Rename the temporary file to the actual filename
             await this.fs.rename(this.tempFilename, this.filename)
 
+            this.metricsData = data
+
             // Clear the buffer after successful write
             this.buffer = []
         } catch (err) {
-            // pass
+            // console.error(err)
+        }
+    }
+
+    async loadExistingData() {
+        try {
+            const fileContent = await this.fs.readFile(this.filename, 'utf8')
+            this.metricsData = JSON.parse(fileContent)
+        } catch (error) {
+            this.metricsData = []
+        }
+    }
+
+    async resetMetrics() {
+        try {
+            const fileContent = await this.fs.readFile(this.filename, 'utf8')
+            let data = JSON.parse(fileContent)
+
+            // Filter out entries with the current runId
+            data = data.filter((entry) => entry.runId !== this.runId)
+
+            // Write the filtered data back to the file
+            await this.fs.writeFile(
+                this.filename,
+                JSON.stringify(data, null, 4),
+                'utf8'
+            )
+
+            console.log(`Reset metrics for this runId: ${this.runId}`)
+            this.metricsData = data // Update the existingData
+        } catch (error) {
+            this.metricsData = [] // Initialize with an empty array if file doesn't exist
         }
     }
 
     async close() {
         await this.flush()
-        // Attempt to remove the temporary file if it exists
         try {
+            // Attempt to remove the temporary file if it exists
             await this.fs.unlink(this.tempFilename)
         } catch (error) {
             // Ignore errors if the file doesn't exist
