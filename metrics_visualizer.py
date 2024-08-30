@@ -92,7 +92,7 @@ def process_run_data(run, metric_key):
 
 def get_nested_value(data, keys):
     if isinstance(keys, str):
-        return data.get(keys)
+        keys = keys.split('.')
     return reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else {}, keys, data)
 
 def remove_outliers(data, m=2.0):

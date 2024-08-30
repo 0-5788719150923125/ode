@@ -684,9 +684,30 @@ export class ConsoleLogger {
     }
 }
 
+function extractLayerInfo(model) {
+    const layerInfoObject = {}
+
+    model.layers.forEach((layer) => {
+        const className = layer.constructor.name
+        const layerName = layer.name
+
+        // Split the layer name on the dash and get the prefix
+        const [prefix] = layerName.split('-')
+
+        // If this prefix hasn't been seen before, add it to the object
+        if (!layerInfoObject[prefix]) {
+            layerInfoObject[prefix] = className
+        }
+    })
+
+    return layerInfoObject
+}
+
 export class MetricsCollector {
     constructor(parent) {
         this.parent = parent
+        this.layerInfo = extractLayerInfo(parent.model)
+        console.log('layer types', this.layerInfo)
         this.filename = './metrics.json'
         this.tempFilename = './metrics.tmp.json'
         this.runId = deterministicRandomString(
@@ -766,6 +787,7 @@ export class MetricsCollector {
                     step: metrics.step,
                     version: metrics.version,
                     class: this.parent.constructor.name,
+                    layers: this.layerInfo,
                     totalParams: this.parent.totalParams,
                     configuration: this.parent.config,
                     loss: metrics.loss,
