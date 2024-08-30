@@ -25,7 +25,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         saveEvery: 0,
         clipValue: 1.0,
         labels: this.labels || 'multiLabel',
-        encoding: this.encoding || 'oneHot',
         ...args
     }
 
@@ -71,8 +70,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             this.tokenizer,
             trainArgs.batchSize,
             trainArgs.sampleLength,
-            trainArgs.labels,
-            trainArgs.encoding
+            trainArgs.labels
         )
 
         // Fetch data and compute gradients
@@ -444,7 +442,6 @@ async function batchMaker(
     batchSize,
     inputLength,
     labels = 'multiLabel',
-    encoding = 'oneHot',
     mode = 'train'
 ) {
     let xsArray = []
@@ -486,26 +483,17 @@ async function batchMaker(
     const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
     const ysTensor = tf.tidy(() => {
-        if (encoding === 'integer') {
-            // Output labels as integers
-            if (mode === 'oneLabel') {
-                return tf.tensor1d(ysArray.flat(), 'int32')
-            } else {
-                return tf.tensor2d(ysArray, [batchSize, inputLength], 'int32')
-            }
+        // Output labels as one-hot encoded
+        if (labels === 'oneLabel') {
+            return tf.oneHot(
+                tf.tensor1d(ysArray.flat(), 'int32'),
+                tokenizer.getLength()
+            )
         } else {
-            // Output labels as one-hot encoded
-            if (labels === 'oneLabel') {
-                return tf.oneHot(
-                    tf.tensor1d(ysArray.flat(), 'int32'),
-                    tokenizer.getLength()
-                )
-            } else {
-                return tf
-                    .tensor2d(ysArray, [batchSize, inputLength], 'int32')
-                    .oneHot(tokenizer.getLength())
-                    .reshape([batchSize, inputLength, tokenizer.getLength()])
-            }
+            return tf
+                .tensor2d(ysArray, [batchSize, inputLength], 'int32')
+                .oneHot(tokenizer.getLength())
+                .reshape([batchSize, inputLength, tokenizer.getLength()])
         }
     })
 
@@ -627,7 +615,6 @@ export class ValidationHandler {
                 args.batchSize,
                 args.sampleLength,
                 args.labels,
-                args.encoding,
                 'validation'
             )
 
