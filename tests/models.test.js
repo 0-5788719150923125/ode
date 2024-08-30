@@ -25,7 +25,9 @@ describe('Model tests', () => {
             beforeAll(async () => {
                 net = await ODE({
                     backend: 'tensorflow',
-                    version
+                    version,
+                    sampleLength: 64,
+                    contextLength: 64
                 })
             }, timeout)
 
