@@ -4,7 +4,7 @@ import ODE from './model.v7.js'
  * A baseline, highly-performant small model.
  * @extends ODE
  */
-export default class OmniscientDeterministicEngine extends ODE {
+export default class OptionalDecisionExecution extends ODE {
     defineBuild() {
         const inputs = this.ode.layers.input({
             shape: [null]

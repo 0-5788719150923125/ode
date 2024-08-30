@@ -78,7 +78,7 @@ def split_variable(string):
     return ' '.join(word.capitalize() for word in words)
 
 def process_run_data(run, metric_key):
-    validate_every = run['validateEvery']
+    validate_every = run['configuration']['validateEvery']
     current_step = run['step']
     metric_values = run[metric_key][::-1]
     
@@ -111,7 +111,7 @@ def main():
     parser = argparse.ArgumentParser(description='Visualize metrics from JSON data.')
     parser.add_argument('--metric', nargs='+', action='append', default=[['validationLoss'], ['validationPerplexity']],
                         help='Metrics to visualize. Can be specified multiple times.')
-    parser.add_argument('--label', nargs='+', action='store', default=[['lossFunction', 'name']],
+    parser.add_argument('--label', nargs='+', action='store', default=[['date']],
                         help='Additional metrics to include in the label. Can be specified multiple times.')
     args = parser.parse_args()
 

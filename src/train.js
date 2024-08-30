@@ -17,6 +17,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
     const trainArgs = {
         batchSize: 32,
         gradientAccumulationSteps: 1,
+        trainSteps: Infinity,
         sampleLength: 64,
         generateEvery: 64,
         validateEvery: 0,
@@ -102,6 +103,11 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         this.batch++
         if (this.batch % trainArgs.gradientAccumulationSteps === 0) {
             this.step++
+        }
+        if (this.step >= trainArgs.trainSteps) {
+            console.log(`Reached step ${this.step}. Halting.`)
+            this.save()
+            break
         }
     }
 }

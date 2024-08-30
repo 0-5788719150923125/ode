@@ -4,7 +4,7 @@ import ODE from './model.v2.js'
  * A baseline, highly-performant small model.
  * @extends ODE
  */
-export default class OptionalDecisionExecution extends ODE {
+export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
             layers: 6,
