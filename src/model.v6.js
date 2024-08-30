@@ -1,29 +1,33 @@
 import ODE from './model.v2.js'
 
 /**
- * In development.
+ * A baseline, highly-performant small model.
  * @extends ODE
  */
-export default class OpenDoorExperiment extends ODE {
+export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
-            layers: 4,
-            units: 256,
-            numHeads: 8,
-            queriesPerHead: 1,
-            headDim: 128,
-            mlpDim: 1024,
+            layers: 6,
+            units: 180,
+            embeddings: 540,
+            numHeads: 4,
+            queriesPerHead: 2,
+            headDim: 45,
+            mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
             learningRate: 1e-4,
-            weightDecay: 1e-5
+            minLearningRate: 1e-6,
+            weightDecay: 1e-5,
+            cosineSteps: 4096,
+            warmupSteps: 128
         }
         super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
         return this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-8000-clean-v1'
+            model: 'englishcode-4096-consistent-v1'
         })
     }
 
@@ -32,24 +36,27 @@ export default class OpenDoorExperiment extends ODE {
             shape: [null]
         })
 
-        const embeddings = this.ode.layers.SharedEmbedding({
-            inputDim: this.tokenizer.getLength(),
-            outputDim: this.config.units,
-            embeddingsInitializer: 'glorotUniform'
-        })
+        let outputs = this.ode.layers
+            .embedding({
+                inputDim: this.tokenizer.getLength(),
+                outputDim: this.config.embeddings,
+                embeddingsInitializer: this.ode.initializers.glorotUniform()
+            })
+            .apply(inputs)
 
-        let outputs = embeddings.apply(inputs)
+        outputs = this.ode.layers
+            .ParabolicCompression({
+                units: this.config.units,
+                numSteps: 4
+            })
+            .apply(outputs)
+
+        const exportedStates = []
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
-                .MultiHeadAttention({
-                    numHeads: this.config.numHeads,
-                    headDim: this.config.headDim,
-                    queriesPerHead: this.config.queriesPerHead,
-                    ALiBiLength: this.config.ALiBiLength,
-                    useBias: this.config.useBias
-                })
-                .apply(outputs)
+            outputs = this.defineAttentionLayer().apply(outputs)
+
+            exportedStates.push(outputs)
 
             outputs = this.ode.layers
                 .GatedLinearMLP({
@@ -59,15 +66,47 @@ export default class OpenDoorExperiment extends ODE {
                     useBias: this.config.useBias
                 })
                 .apply(outputs)
+
+            exportedStates.push(outputs)
         }
 
-        outputs = embeddings.apply(outputs)
+        outputs = this.ode.layers
+            .dense({
+                units: this.tokenizer.getLength(),
+                kernelInitializer: this.ode.initializers.glorotUniform()
+            })
+            .apply(outputs)
 
-        return this.tf.model({ inputs, outputs })
+        return this.tf.model({ inputs, outputs: [outputs, ...exportedStates] })
+    }
+
+    defineAttentionLayer() {
+        return this.ode.layers.MultiHeadAttention({
+            numHeads: this.config.numHeads,
+            headDim: this.config.headDim,
+            queriesPerHead: this.config.queriesPerHead,
+            ALiBiLength: this.config.ALiBiLength,
+            useBias: this.config.useBias
+        })
+    }
+
+    defineLossFunction() {
+        return {
+            name: 'softmaxCrossEntropy',
+            smoothing: 0.0001,
+            reduction: this.tf.Reduction.MEAN
+        }
     }
 
     defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
+        return [
+            this.ode.schedulers.cosineWithRestartsScheduler(
+                this.config.minLearningRate,
+                this.config.learningRate,
+                this.config.cosineSteps,
+                this.config.warmupSteps
+            )
+        ]
     }
 
     defineOptimizers() {
@@ -75,7 +114,8 @@ export default class OpenDoorExperiment extends ODE {
             this.ode.optimizers.Lion({
                 learningRate: this.config.learningRate,
                 weightDecay: this.config.weightDecay,
-                useGc: true
+                useGc: true,
+                adaNorm: true
             })
         ]
     }

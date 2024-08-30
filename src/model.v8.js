@@ -1,14 +1,20 @@
-import ODE from './model.v7.js'
+import ODE from './model.v6.js'
 
 /**
  * A model used for active development and testing.
  * @extends ODE
  */
-export default class OptionalDecisionExecution extends ODE {
+export default class OpenDerivationExperiment extends ODE {
+    constructor(config) {
+        super(config)
+        this.config.headFeatures = 23
+    }
+
     defineAttentionLayer() {
-        return this.ode.layers.PrimerAttention({
+        return this.ode.layers.ProjectedFeatureAttention({
             numHeads: this.config.numHeads,
             headDim: this.config.headDim,
+            headFeatures: this.config.headFeatures,
             queriesPerHead: this.config.queriesPerHead,
             ALiBiLength: this.config.ALiBiLength,
             useBias: this.config.useBias

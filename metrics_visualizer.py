@@ -37,7 +37,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.xlabel("Steps", fontsize=12)
     plt.ylabel(formatted_name, fontsize=12)
 
-    plt.legend(title="Run Info", title_fontsize=12, loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fancybox=True, shadow=True)
+    plt.legend(title="ODE Runs", title_fontsize=12, loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fancybox=True, shadow=True)
 
     # Calculate reasonable y-axis limits with margins
     y_min, y_max = calculate_ylim(all_values)
