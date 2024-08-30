@@ -3,6 +3,7 @@ import {
     colors,
     elapsedTimeGenerator,
     emaGenerator,
+    deterministicRandomString,
     findMatches,
     preprocessData,
     randomBetween,
@@ -730,7 +731,10 @@ export class MetricsCollector {
         this.parent = parent
         this.filename = './metrics.json'
         this.tempFilename = './metrics.tmp.json'
-        this.runId = randomString(7)
+        this.runId = deterministicRandomString(
+            JSON.stringify(this.parent.config),
+            7
+        )
         this.buffer = []
         this.flushInterval = 5000 // 5 seconds
         this.maxBufferSize = 100

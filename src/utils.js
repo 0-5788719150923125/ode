@@ -14,6 +14,10 @@ export function shuffleArray(array) {
     }
 }
 
+export function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min)
+}
+
 export function randomString(
     len = 3,
     chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -25,8 +29,17 @@ export function randomString(
     return text
 }
 
-export function randomBetween(min, max) {
-    return Math.floor(Math.random() * (max - min + 1) + min)
+export function deterministicRandomString(
+    string,
+    len = 3,
+    chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+) {
+    const seed = seededPRNG(string)
+    let text = ''
+    for (let i = 0; i < len; i++) {
+        text += chars.charAt(Math.floor(seededPRNG(seed + i) * chars.length))
+    }
+    return text
 }
 
 export class LinearCongruentialGenerator {

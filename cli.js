@@ -66,18 +66,21 @@ for (let i = 0; i < args.length; i++) {
 
 // Load the model and do things with it
 async function orchestrate(options) {
+    const action = options.action
+    delete options.action // else changes pollute the config hash
+
     const net = await ODE({
         contextLength: options.sampleLength,
         ...options
     })
 
-    if (['infer', 'resume'].includes(options.action)) {
+    if (['infer', 'resume'].includes(action)) {
         await net.load()
     } else {
         await net.init()
     }
 
-    if (['train', 'resume'].includes(options.action)) {
+    if (['train', 'resume'].includes(action)) {
         let sampler
         const samplers = net.ode.samplers
         if (options.corpus.startsWith('http')) {
@@ -120,7 +123,7 @@ async function orchestrate(options) {
             ValidationHandler,
             ModelSaver
         ])
-    } else if (options.action === 'infer') {
+    } else if (action === 'infer') {
         const readline = (await import('readline')).default
         async function interactiveSession() {
             const rl = readline.createInterface({
