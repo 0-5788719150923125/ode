@@ -69,7 +69,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             this.tokenizer,
             trainArgs.batchSize,
             trainArgs.sampleLength,
-            trainArgs.labels
+            'train'
         )
 
         // Fetch data and compute gradients
@@ -565,7 +565,6 @@ export class ValidationHandler {
                 args.tokenizer,
                 args.batchSize,
                 args.sampleLength,
-                args.labels,
                 'validation'
             )
 
