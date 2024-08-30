@@ -46,15 +46,15 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         callbacks.push(new callback(this))
     }
 
-    process.on('SIGINT', async () => {
-        console.log('Received SIGINT. Gracefully stopping callbacks...')
-        for (const callback of callbacks) {
-            if (typeof callback.close !== 'undefined') {
-                await callback.close()
-            }
-        }
-        process.exit(0)
-    })
+    // process.on('SIGINT', async () => {
+    //     console.log('Received SIGINT. Gracefully stopping callbacks...')
+    //     for (const callback of callbacks) {
+    //         if (typeof callback.close !== 'undefined') {
+    //             await callback.close()
+    //         }
+    //     }
+    //     process.exit(0)
+    // })
 
     // a custom training loop
     while (true) {
@@ -254,29 +254,78 @@ function computeLoss(
 
 // https://arxiv.org/abs/2407.10188
 function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
-    let selfModelingLoss = 0
+    return tf.tidy(() => {
+        const concatenatedStates = tf.concat(hiddenStates, -1)
 
-    hiddenStates.forEach((hiddenState) => {
-        const loss = tf.tidy(() => {
-            // Flatten the tensors
-            const flat1 = prediction.reshape([-1])
-            const flat2 = hiddenState.reshape([-1])
+        // Flatten the tensors
+        const flatPrediction = prediction.reshape([-1])
+        const flatStates = concatenatedStates.reshape([-1])
 
-            // Determine the length to use (minimum of the two flattened tensors)
-            const minLength = Math.min(flat1.shape[0], flat2.shape[0])
+        // Determine the target length (maximum of the two flattened tensors)
+        const targetLength = Math.max(
+            flatPrediction.shape[0],
+            flatStates.shape[0]
+        )
 
-            // Slice the tensors to the common length
-            const slice1 = flat1.slice([0], [minLength])
-            const slice2 = flat2.slice([0], [minLength])
+        // Pad the tensors to the target length
+        const paddedPrediction = flatPrediction.pad(
+            [[0, targetLength - flatPrediction.shape[0]]],
+            0
+        )
+        const paddedStates = flatStates.pad(
+            [[0, targetLength - flatStates.shape[0]]],
+            0
+        )
 
-            return losses.meanSquaredError(slice1, slice2)
-        })
+        const loss = losses.meanSquaredError(paddedPrediction, paddedStates)
 
-        selfModelingLoss = tf.add(selfModelingLoss, loss)
+        return tf.mul(loss, auxiliaryWeight)
     })
-
-    return tf.mul(selfModelingLoss, auxiliaryWeight)
 }
+// function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
+//     return tf.tidy(() => {
+//         const concatenatedStates = tf.concat(hiddenStates, -1)
+
+//         // Flatten the tensors
+//         const flatPrediction = prediction.reshape([-1])
+//         const flatStates = concatenatedStates.reshape([-1])
+
+//         // Determine the length to use (minimum of the two flattened tensors)
+//         const minLength = Math.min(flatPrediction.shape[0], flatStates.shape[0])
+
+//         // Slice the tensors to the common length
+//         const slicedPrediction = flatPrediction.slice([0], [minLength])
+//         const slicedStates = flatStates.slice([0], [minLength])
+
+//         const loss = losses.meanSquaredError(slicedPrediction, slicedStates)
+
+//         return tf.mul(loss, auxiliaryWeight)
+//     })
+// }
+// function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
+//     let selfModelingLoss = 0
+
+//     hiddenStates.forEach((hiddenState) => {
+//         const loss = tf.tidy(() => {
+//             // Flatten the tensors
+//             const flat1 = prediction.reshape([-1])
+//             const flat2 = hiddenState.reshape([-1])
+
+//             // Determine the length to use (minimum of the two flattened tensors)
+//             const minLength = Math.min(flat1.shape[0], flat2.shape[0])
+
+//             // Slice the tensors to the common length
+//             const slice1 = flat1.slice([0], [minLength])
+//             const slice2 = flat2.slice([0], [minLength])
+
+//             return losses.meanSquaredError(slice1, slice2)
+//         })
+
+//         selfModelingLoss = tf.add(selfModelingLoss, loss)
+//     })
+
+//     return tf.mul(selfModelingLoss, auxiliaryWeight)
+// }
 
 function computeGradients(
     model,
