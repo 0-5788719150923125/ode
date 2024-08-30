@@ -39,28 +39,27 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
 
     plt.legend(title="Run Info", title_fontsize=12, loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fancybox=True, shadow=True)
 
-    # Remove extreme outliers for better scaling
-    filtered_values = remove_outliers(all_values)
+    # Calculate reasonable y-axis limits with margins
+    y_min, y_max = calculate_ylim(all_values)
 
-    if len(filtered_values) > 0:
-        vmin, vmax = np.min(filtered_values), np.max(filtered_values)
-        # plt.ylim(vmin, vmax)
+    # Use symlog scale
+    linthresh = max(abs(y_min), abs(y_max)) * 1e-3  # Adjust this value as needed
+    plt.yscale('symlog', linthresh=linthresh)
 
-        # Use symlog scale
-        linthresh = max(abs(vmin), abs(vmax)) * 1e-3  # Adjust this value as needed
-        plt.yscale('symlog', linthresh=linthresh)
+    # Set y-axis limits
+    plt.ylim(y_min, y_max)
 
-        # Set up y-axis ticks and labels
-        locator = AutoLocator()
-        ax = plt.gca()
-        ax.yaxis.set_major_locator(locator)
+    # Set up y-axis ticks and labels
+    locator = AutoLocator()
+    ax = plt.gca()
+    ax.yaxis.set_major_locator(locator)
 
-        formatter = ScalarFormatter()
-        formatter.set_scientific(False)
-        ax.yaxis.set_major_formatter(formatter)
+    formatter = ScalarFormatter()
+    formatter.set_scientific(False)
+    ax.yaxis.set_major_formatter(formatter)
 
-        # Ensure y-axis labels are visible
-        plt.tick_params(axis='y', which='both', labelsize=10)
+    # Ensure y-axis labels are visible
+    plt.tick_params(axis='y', which='both', labelsize=10)
 
     # Ensure x-axis (steps) are always positive
     plt.xlim(left=0)
@@ -68,7 +67,36 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.tight_layout()
     plt.savefig(f'metrics_{metric_key}.png', dpi=300, bbox_inches='tight')
     plt.close()
-    
+
+def calculate_ylim(data, percentile_range=(5, 95), expansion_factor=1.2, margin_factor=0.05):
+    """Calculate y-axis limits based on percentiles of the data with added margins."""
+    data = np.array(data)
+    data = data[~np.isnan(data)]
+    if len(data) == 0:
+        return 0, 1  # Default range if no valid data
+
+    lower, upper = np.percentile(data, percentile_range)
+    data_min, data_max = np.min(data), np.max(data)
+
+    # Calculate the range and add expansion
+    data_range = upper - lower
+    expanded_range = data_range * expansion_factor
+
+    # Calculate initial y_min and y_max
+    y_min = max(lower - (expanded_range - data_range) / 2, data_min)
+    y_max = min(upper + (expanded_range - data_range) / 2, data_max)
+
+    # Add margins
+    margin = (y_max - y_min) * margin_factor
+    y_min -= margin
+    y_max += margin
+
+    # Ensure positive values for log scale
+    if y_min <= 0:
+        y_min = min(data[data > 0]) / 10  # Use the smallest positive value / 10
+
+    return y_min, y_max
+
 def load_data(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
@@ -94,18 +122,6 @@ def get_nested_value(data, keys):
     if isinstance(keys, str):
         keys = keys.split('.')
     return reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else {}, keys, data)
-
-def remove_outliers(data, m=2.0):
-    """Remove outliers using the Interquartile Range method."""
-    data = np.array(data)
-    data = data[~np.isnan(data)]  # Remove NaN values
-    if len(data) == 0:
-        return np.array([])
-    q1, q3 = np.percentile(data, [25, 75])
-    iqr = q3 - q1
-    lower_bound = q1 - (m * iqr)
-    upper_bound = q3 + (m * iqr)
-    return data[(data >= lower_bound) & (data <= upper_bound)]
 
 def main():
     parser = argparse.ArgumentParser(description='Visualize metrics from JSON data.')
