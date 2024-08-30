@@ -5,9 +5,9 @@ import {
     emaGenerator,
     deterministicRandomString,
     findMatches,
+    formatDate,
     preprocessData,
-    randomBetween,
-    randomString
+    randomBetween
 } from './utils.js'
 
 let tf
@@ -25,8 +25,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         clipValue: 1.0,
         labels: this.labels || 'multiLabel',
         encoding: this.encoding || 'oneHot',
-        sourceFormat: this.sourceFormat || 'text',
-        imageSize: this.imageSize || 500,
         ...args
     }
 
@@ -73,9 +71,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             trainArgs.batchSize,
             trainArgs.sampleLength,
             trainArgs.labels,
-            trainArgs.encoding,
-            trainArgs.sourceFormat,
-            trainArgs.imageSize
+            trainArgs.encoding
         )
 
         // Fetch data and compute gradients
@@ -394,8 +390,6 @@ async function batchMaker(
     inputLength,
     labels = 'multiLabel',
     encoding = 'oneHot',
-    sourceFormat = 'text',
-    imageSize = 500,
     mode = 'train'
 ) {
     let xsArray = []
@@ -416,11 +410,7 @@ async function batchMaker(
         )
 
         // Input sequence (excluding the last token for prediction)
-        let xs = textIndices.slice(0, inputLength)
-
-        if (sourceFormat === 'image') {
-            xs = tokenizer.getPixelData(tokenizer.decode(xs))
-        }
+        const xs = textIndices.slice(0, inputLength)
 
         // Determine output sequence based on the mode
         let ys
@@ -438,16 +428,7 @@ async function batchMaker(
         ysArray.push(ys)
     }
 
-    let xsTensor
-    if (sourceFormat === 'image') {
-        xsTensor = tf.tensor4d(
-            xsArray.flat(),
-            [batchSize, imageSize, imageSize, 1],
-            'float32'
-        )
-    } else {
-        xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
-    }
+    const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
     const ysTensor = tf.tidy(() => {
         if (encoding === 'integer') {
@@ -592,8 +573,6 @@ export class ValidationHandler {
                 args.sampleLength,
                 args.labels,
                 args.encoding,
-                args.sourceFormat,
-                args.imageSize,
                 'validation'
             )
 
@@ -697,33 +676,6 @@ export class ConsoleLogger {
             ).toFixed(3)}h`
         )
     }
-}
-
-function formatDate(date) {
-    const months = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December'
-    ]
-    const month = months[date.getMonth()]
-    const day = date.getDate()
-    const year = date.getFullYear()
-    let hours = date.getHours()
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    const ampm = hours >= 12 ? 'PM' : 'AM'
-    hours = hours % 12
-    hours = hours ? hours : 12 // the hour '0' should be '12'
-
-    return `${month} ${day}, ${year} @ ${hours}:${minutes}${ampm}`
 }
 
 export class MetricsCollector {

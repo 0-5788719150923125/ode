@@ -321,19 +321,9 @@ async function generateText({
 
         let decodedText = prompt
         for (let step = 0; step < maxNewTokens; step++) {
-            let indices = inputs
-            if (this.sourceFormat === 'image') {
-                const imageSize = this.imageSize
-                indices = tf.tensor4d(
-                    this.tokenizer.getPixelData(decodedText),
-                    [1, imageSize, imageSize, 1],
-                    'float32'
-                )
-            }
-
             const idxNext = predictOnce.call(
                 this,
-                indices,
+                inputs,
                 doSample,
                 temperature,
                 topK,
