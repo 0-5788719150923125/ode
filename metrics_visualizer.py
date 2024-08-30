@@ -109,13 +109,18 @@ def process_run_data(run, metric_key):
     validate_every = run['configuration']['validateEvery']
     current_step = run['step']
     metric_values = run[metric_key][::-1]
-    
+
     # Clean the data: remove None values and convert to float
     metric_values = [float(v) if v is not None else np.nan for v in metric_values]
-    
+
     num_steps = len(metric_values)
-    steps = [current_step - (validate_every * i) for i in range(num_steps)][::-1]
     
+    # Calculate the last validation step
+    last_validation_step = current_step - (current_step % validate_every)
+    
+    # Generate steps backwards from the last validation step
+    steps = [last_validation_step - (validate_every * i) for i in range(num_steps)][::-1]
+
     return steps, metric_values
 
 def get_nested_value(data, keys):
