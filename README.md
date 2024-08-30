@@ -11,11 +11,11 @@ This library implements:
 -   custom optimizers, including AdamW, Lion, and Prodigy
 -   learning rate schedulers
 -   custom loss functions
--   a custom training loop, with gradient checkpointing (broken), L2-normalized gradient clipping
--   custom tokenizers, including support for all Huggingface Tokenizers models
+-   a custom training loop, with gradient accumulation, gradient checkpointing (broken), L2-normalized gradient clipping
+-   custom tokenizers, including TokenMonster and support for all Huggingface Tokenizers models
 -   dataset management via generator functions and iterable sampling strategies
 -   a number of text-decoding strategies, including greedy (argmax), temperature, top-k, top-p, and Mirostat sampling
--   object-oriented, extensible design
+-   object-oriented, extensible design - with functional architecture and operations composition
 -   tons more
 
 # usage

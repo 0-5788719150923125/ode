@@ -784,8 +784,8 @@ export class MetricsCollector {
                     layers: this.layerInfo,
                     totalParams: this.parent.totalParams,
                     configuration: this.parent.config,
-                    lossFunction: metrics.lossFunction,
                     tokenizer: metrics.tokenizer?.model,
+                    lossFunction: metrics.lossFunction,
                     optimizer: {
                         name: this.parent.model.optimizer.constructor.name,
                         learningRate: metrics.learningRate,
