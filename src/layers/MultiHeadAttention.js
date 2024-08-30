@@ -34,6 +34,12 @@ export default class MultiHeadAttention extends LayerBase {
             'float32',
             this.initializers.glorotUniform()
         )
+        this.outputKernel = this.addWeight(
+            'outputKernel',
+            [this.headDim * this.numHeads * this.queriesPerHead, units],
+            'float32',
+            this.initializers.glorotUniform()
+        )
 
         if (this.useBias) {
             this.queryBias = this.addWeight(
@@ -54,15 +60,6 @@ export default class MultiHeadAttention extends LayerBase {
                 'float32',
                 this.initializers.zeros()
             )
-        }
-
-        this.outputKernel = this.addWeight(
-            'outputKernel',
-            [this.headDim * this.numHeads * this.queriesPerHead, units],
-            'float32',
-            this.initializers.glorotUniform()
-        )
-        if (this.useBias) {
             this.outputBias = this.addWeight(
                 'outputBias',
                 [units],
