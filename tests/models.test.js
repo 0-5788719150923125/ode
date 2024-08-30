@@ -24,18 +24,8 @@ describe('Model tests', () => {
 
             beforeAll(async () => {
                 net = await ODE({
-                    mode: 'train',
                     backend: 'tensorflow',
-                    version,
-                    batchSize: 1,
-                    gradientAccumulationSteps: 128,
-                    generateEvery: 256,
-                    sampleLength: 256,
-                    predictLength: 128,
-                    saveEvery: 0,
-                    corpus: null,
-                    contextLength: 512,
-                    clipValue: 1.0
+                    version
                 })
             }, timeout)
 
