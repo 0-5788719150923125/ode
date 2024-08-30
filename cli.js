@@ -101,9 +101,13 @@ async function orchestrate(options) {
                 )
             ])
         } else if (options.corpus === 'balanced') {
-            const rates = [1.0, 0.2]
+            const rates = [1.0, 0.1, 0.5]
             sampler = samplers.WeightedSampler(
-                [samplers.CosmopediaSampler(), samplers.WikipediaSampler()],
+                [
+                    samplers.CosmopediaSampler(),
+                    samplers.WikipediaSampler(),
+                    samplers.PhiSampler()
+                ],
                 rates
             )
         } else {

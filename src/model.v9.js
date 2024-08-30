@@ -1,7 +1,7 @@
 import ODE from './model.v2.js'
 
 /**
- * In development.
+ * A model used for active development and testing.
  * @extends ODE
  */
 export default class OmnilateralDynamicEvaluator extends ODE {
