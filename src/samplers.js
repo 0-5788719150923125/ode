@@ -241,7 +241,7 @@ class PhiSampler {
     }
 }
 
-const samplers = {
+export default {
     RandomSampler: (sampler) => new RandomSampler(sampler),
     SequentialSampler: (sampler, stepSize) =>
         new SequentialSampler(sampler, stepSize),
@@ -258,4 +258,3 @@ const samplers = {
     MultiSampler: (samplers) => new MultiSampler(samplers),
     WeightedSampler: (samplers, rates) => new WeightedSampler(samplers, rates)
 }
-export default samplers

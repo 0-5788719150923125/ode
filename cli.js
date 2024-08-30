@@ -91,7 +91,7 @@ async function orchestrate(options) {
         } else if (options.corpus === 'wikipedia') {
             sampler = samplers.WikipediaSampler()
         } else if (options.corpus === 'phi') {
-            sampler = samplers.PhiSampler()
+            sampler = samplers.PhiSampler({ seed: options.seed })
         } else if (options.corpus === 'multi') {
             sampler = samplers.MultiSampler([
                 samplers.CosmopediaSampler(),

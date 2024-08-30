@@ -784,7 +784,15 @@ export class MetricsCollector {
                     layers: this.layerInfo,
                     totalParams: this.parent.totalParams,
                     configuration: this.parent.config,
+                    lossFunction: metrics.lossFunction,
+                    tokenizer: metrics.tokenizer?.model,
+                    optimizer: {
+                        name: this.parent.model.optimizer.constructor.name,
+                        learningRate: metrics.learningRate,
+                        weightDecay: this.parent.model.optimizer.weightDecay
+                    },
                     loss: metrics.loss,
+                    metricsInterval: this.maxBufferSize,
                     validationLoss:
                         metrics.valLoss != null &&
                         metrics.valLoss !== lastValidationLoss
@@ -802,15 +810,7 @@ export class MetricsCollector {
                                   metrics.valPerplexity,
                                   this.historyLength
                               )
-                            : existingEntry.validationPerplexity || [],
-                    metricsInterval: this.maxBufferSize,
-                    lossFunction: metrics.lossFunction,
-                    tokenizer: metrics.tokenizer?.model,
-                    optimizer: {
-                        name: this.parent.model.optimizer.constructor.name,
-                        learningRate: metrics.learningRate,
-                        weightDecay: this.parent.model.optimizer.weightDecay
-                    }
+                            : existingEntry.validationPerplexity || []
                 }
 
                 if (existingIndex !== -1) {

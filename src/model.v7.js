@@ -54,15 +54,7 @@ export default class OmniscientDeterministicEngine extends ODE {
         const exportedStates = []
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
-                .MultiHeadAttention({
-                    numHeads: this.config.numHeads,
-                    headDim: this.config.headDim,
-                    queriesPerHead: this.config.queriesPerHead,
-                    ALiBiLength: this.config.ALiBiLength,
-                    useBias: this.config.useBias
-                })
-                .apply(outputs)
+            outputs = this.defineAttentionLayer().apply(outputs)
 
             exportedStates.push(outputs)
 
@@ -86,6 +78,16 @@ export default class OmniscientDeterministicEngine extends ODE {
             .apply(outputs)
 
         return this.tf.model({ inputs, outputs: [outputs, ...exportedStates] })
+    }
+
+    defineAttentionLayer() {
+        return this.ode.layers.MultiHeadAttention({
+            numHeads: this.config.numHeads,
+            headDim: this.config.headDim,
+            queriesPerHead: this.config.queriesPerHead,
+            ALiBiLength: this.config.ALiBiLength,
+            useBias: this.config.useBias
+        })
     }
 
     defineLossFunction() {
