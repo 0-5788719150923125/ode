@@ -100,7 +100,7 @@ class DirectorySampler {
 
 class HTTPSampler {
     constructor(url) {
-        this.url = 'https://www.gutenberg.org/files/100/old/shaks12.txt'
+        this.url = url || 'https://www.gutenberg.org/files/100/old/shaks12.txt'
     }
 
     async read() {

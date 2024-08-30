@@ -17,9 +17,9 @@ export default class OpportunisticDialogueEngine extends ODE {
         super({ ...defaults, ...config })
     }
 
-    defineTokenizer() {
-        super.defineTokenizer({
-            model: 'OriginalDesign/frame'
+    defineTokenizer(config) {
+        return this.ode.tokenizers.XenovaTokenizer({
+            model: config?.model || 'OriginalDesign/frame'
         })
     }
 

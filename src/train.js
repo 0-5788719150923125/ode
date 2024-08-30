@@ -103,10 +103,19 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         }
         if (this.step >= trainArgs.trainSteps) {
             console.log(`Reached step ${this.step}. Halting.`)
-            this.save()
+            if (!isRunningInJest()) {
+                this.save()
+            }
             break
         }
     }
+}
+
+export const isRunningInJest = () => {
+    return (
+        process.env.JEST_WORKER_ID !== undefined ||
+        process.env.NODE_ENV === 'test'
+    )
 }
 
 class GradientAccumulator {

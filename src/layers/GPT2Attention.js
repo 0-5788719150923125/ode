@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './_base.js'
+import { randomString } from '../utils.js'
 
 export default class GPT2Attention extends LayerBase {
     constructor(config) {
