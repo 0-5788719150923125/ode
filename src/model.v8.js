@@ -1,7 +1,7 @@
 import ODE from './model.v6.js'
 
 /**
- * A model used for active development and testing.
+ * A model used for active research and development.
  * @extends ODE
  */
 export default class OpenDerivationExperiment extends ODE {
