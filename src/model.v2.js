@@ -15,7 +15,6 @@ export default class OriginalDecoderEncoder extends ODE {
             epsilon: 1e-5
         }
         super({ ...defaults, ...config })
-        this.labels = 'multiLabel'
     }
 
     defineTokenizer(config) {

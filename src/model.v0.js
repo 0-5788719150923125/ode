@@ -40,6 +40,7 @@ export default class ModelBase {
         this.config = { learningRate: 1e-3, weightDecay: 1e-5, ...config }
         this.model
         this.tokenizer
+        this.autoregressive = true
         this.contextLength = config.contextLength
         this.totalParams = 0
         this.wasResumed = false

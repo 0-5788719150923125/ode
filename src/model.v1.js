@@ -14,8 +14,6 @@ export default class OmnipresentDegenerateEntity extends ODE {
             weightDecay: 1e-5
         }
         super({ ...defaults, ...config })
-        this.labels = 'oneLabel'
-        this.autoregressive = true
     }
 
     defineBuild() {

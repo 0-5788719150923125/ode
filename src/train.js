@@ -24,7 +24,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         predictLength: 50,
         saveEvery: 0,
         clipValue: 1.0,
-        labels: this.labels || 'multiLabel',
         ...args
     }
 
@@ -214,6 +213,11 @@ function computeLoss(
 
     const prediction = logits[0]
 
+    // RNNs predict just a single label, so we slice the ys tensor here
+    if (prediction.shape.length < 3) {
+        labels = labels.squeeze().slice([labels.shape[1] - 1, 0], [1, -1])
+    }
+
     let lossValue = lossFunction(
         labels,
         prediction,
@@ -280,50 +284,6 @@ function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
         return tf.mul(loss, auxiliaryWeight)
     })
 }
-// function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
-//     return tf.tidy(() => {
-//         const concatenatedStates = tf.concat(hiddenStates, -1)
-
-//         // Flatten the tensors
-//         const flatPrediction = prediction.reshape([-1])
-//         const flatStates = concatenatedStates.reshape([-1])
-
-//         // Determine the length to use (minimum of the two flattened tensors)
-//         const minLength = Math.min(flatPrediction.shape[0], flatStates.shape[0])
-
-//         // Slice the tensors to the common length
-//         const slicedPrediction = flatPrediction.slice([0], [minLength])
-//         const slicedStates = flatStates.slice([0], [minLength])
-
-//         const loss = losses.meanSquaredError(slicedPrediction, slicedStates)
-
-//         return tf.mul(loss, auxiliaryWeight)
-//     })
-// }
-// function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
-//     let selfModelingLoss = 0
-
-//     hiddenStates.forEach((hiddenState) => {
-//         const loss = tf.tidy(() => {
-//             // Flatten the tensors
-//             const flat1 = prediction.reshape([-1])
-//             const flat2 = hiddenState.reshape([-1])
-
-//             // Determine the length to use (minimum of the two flattened tensors)
-//             const minLength = Math.min(flat1.shape[0], flat2.shape[0])
-
-//             // Slice the tensors to the common length
-//             const slice1 = flat1.slice([0], [minLength])
-//             const slice2 = flat2.slice([0], [minLength])
-
-//             return losses.meanSquaredError(slice1, slice2)
-//         })
-
-//         selfModelingLoss = tf.add(selfModelingLoss, loss)
-//     })
-
-//     return tf.mul(selfModelingLoss, auxiliaryWeight)
-// }
 
 function computeGradients(
     model,
@@ -441,7 +401,6 @@ async function batchMaker(
     tokenizer,
     batchSize,
     inputLength,
-    labels = 'multiLabel',
     mode = 'train'
 ) {
     let xsArray = []
@@ -464,17 +423,8 @@ async function batchMaker(
         // Input sequence (excluding the last token for prediction)
         const xs = textIndices.slice(0, inputLength)
 
-        // Determine output sequence based on the mode
-        let ys
-
-        // Output sequence for singleLabel (just the next token)
-        if (labels === 'oneLabel') {
-            ys = [textIndices[inputLength]]
-        }
-        // Output sequence for timeDistributed (the entire sequence shifted by one position to the right)
-        else {
-            ys = textIndices.slice(1)
-        }
+        // Shift right for labels, including last token
+        const ys = textIndices.slice(1)
 
         xsArray.push(xs)
         ysArray.push(ys)
@@ -482,20 +432,12 @@ async function batchMaker(
 
     const xsTensor = tf.tensor2d(xsArray, [batchSize, inputLength], 'int32')
 
-    const ysTensor = tf.tidy(() => {
-        // Output labels as one-hot encoded
-        if (labels === 'oneLabel') {
-            return tf.oneHot(
-                tf.tensor1d(ysArray.flat(), 'int32'),
-                tokenizer.getLength()
-            )
-        } else {
-            return tf
-                .tensor2d(ysArray, [batchSize, inputLength], 'int32')
-                .oneHot(tokenizer.getLength())
-                .reshape([batchSize, inputLength, tokenizer.getLength()])
-        }
-    })
+    const ysTensor = tf.tidy(() =>
+        tf
+            .tensor2d(ysArray, [batchSize, inputLength], 'int32')
+            .oneHot(tokenizer.getLength())
+            .reshape([batchSize, inputLength, tokenizer.getLength()])
+    )
 
     return { xs: xsTensor, ys: ysTensor }
 }
