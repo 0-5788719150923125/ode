@@ -5,9 +5,10 @@ import ODE from './model.v6.js'
  * @extends ODE
  */
 export default class OptionalDecisionExecution extends ODE {
-    constructor(config) {
-        super(config)
-        this.config.selfModel = true
-        this.config.auxiliaryWeight = 10.0
+    defineReductionLayer() {
+        return this.ode.layers.dense({
+            units: this.config.units,
+            kernelInitializer: this.ode.initializers.glorotUniform()
+        })
     }
 }

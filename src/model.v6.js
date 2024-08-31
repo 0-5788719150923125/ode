@@ -44,12 +44,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             })
             .apply(inputs)
 
-        outputs = this.ode.layers
-            .ParabolicCompression({
-                units: this.config.units,
-                numSteps: 4
-            })
-            .apply(outputs)
+        outputs = this.defineReductionLayer().apply(outputs)
 
         const exportedStates = []
 
@@ -67,7 +62,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 })
                 .apply(outputs)
 
-            exportedStates.push(outputs)
+            // exportedStates.push(outputs)
         }
 
         outputs = this.ode.layers
@@ -78,6 +73,13 @@ export default class OmniscientDeterministicEngine extends ODE {
             .apply(outputs)
 
         return this.tf.model({ inputs, outputs: [outputs, ...exportedStates] })
+    }
+
+    defineReductionLayer() {
+        return this.ode.layers.ParabolicCompression({
+            units: this.config.units,
+            numSteps: 4
+        })
     }
 
     defineAttentionLayer() {
