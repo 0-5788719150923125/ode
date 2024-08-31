@@ -1,18 +1,20 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './filters.js'
+import { shouldExcludeFromWeightDecay } from './_ops.js'
 
 export default class Signum extends tf.Optimizer {
     constructor({
         learningRate = 1e-3,
         momentum = 0.9,
         weightDecay = 0.0,
-        weightDecouple = true
+        weightDecouple = true,
+        step = 1
     } = {}) {
         super()
         this.learningRate = learningRate
         this.momentum = momentum
         this.weightDecay = weightDecay
         this.weightDecouple = weightDecouple
+        this.step = step
         this.ENGINE = tf.engine()
         this.STATE = {}
     }
@@ -70,6 +72,7 @@ export default class Signum extends tf.Optimizer {
         })
 
         this.incrementIterations()
+        this.step++
     }
 
     setWeights(weightValues) {
@@ -100,7 +103,8 @@ export default class Signum extends tf.Optimizer {
             learningRate: this.learningRate,
             momentum: this.momentum,
             weightDecay: this.weightDecay,
-            weightDecouple: this.weightDecouple
+            weightDecouple: this.weightDecouple,
+            step: this.step
         }
     }
 

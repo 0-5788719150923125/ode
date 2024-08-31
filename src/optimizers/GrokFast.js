@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './filters.js'
+import { shouldExcludeFromWeightDecay } from './_ops.js'
 
 // https://arxiv.org/abs/2405.20233v2
 export default class GrokFast extends tf.AdamOptimizer {
@@ -10,7 +10,8 @@ export default class GrokFast extends tf.AdamOptimizer {
         epsilon = 1e-7,
         weightDecay = 1e-4,
         alpha = 0.98,
-        lamb = 2.0
+        lamb = 2.0,
+        step = 1
     } = {}) {
         super(learningRate, beta1, beta2, epsilon)
         this.ENGINE = tf.engine()
@@ -18,6 +19,7 @@ export default class GrokFast extends tf.AdamOptimizer {
         this.weightDecay = weightDecay
         this.alpha = alpha
         this.lamb = lamb
+        this.step = step
         this.grads = {}
     }
 
@@ -59,6 +61,8 @@ export default class GrokFast extends tf.AdamOptimizer {
 
             super.applyGradients(variableGradients)
         })
+
+        this.step++
     }
 
     static get className() {
@@ -73,7 +77,8 @@ export default class GrokFast extends tf.AdamOptimizer {
             epsilon: this.epsilon,
             weightDecay: this.weightDecay,
             alpha: this.alpha,
-            lamb: this.lamb
+            lamb: this.lamb,
+            step: this.step
         }
     }
 }

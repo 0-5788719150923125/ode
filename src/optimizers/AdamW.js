@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './filters.js'
+import { shouldExcludeFromWeightDecay } from './_ops.js'
 
 export default class AdamW extends tf.AdamOptimizer {
     constructor({
@@ -7,12 +7,14 @@ export default class AdamW extends tf.AdamOptimizer {
         beta1 = 0.9,
         beta2 = 0.999,
         epsilon = 1e-7,
-        weightDecay = 1e-4
+        weightDecay = 1e-4,
+        step = 1
     } = {}) {
         super(learningRate, beta1, beta2, epsilon)
         this.ENGINE = tf.engine()
         this.learningRate = learningRate
         this.weightDecay = weightDecay
+        this.step = step
     }
 
     applyGradients(variableGradients) {
@@ -33,6 +35,8 @@ export default class AdamW extends tf.AdamOptimizer {
 
             super.applyGradients(variableGradients)
         })
+
+        this.step++
     }
 
     static get className() {
@@ -45,7 +49,8 @@ export default class AdamW extends tf.AdamOptimizer {
             beta1: this.beta1,
             beta2: this.beta2,
             epsilon: this.epsilon,
-            weightDecay: this.weightDecay
+            weightDecay: this.weightDecay,
+            step: this.step
         }
     }
 }

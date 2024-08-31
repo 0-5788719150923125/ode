@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './filters.js'
+import { shouldExcludeFromWeightDecay } from './_ops.js'
 
 export default class Lion extends tf.Optimizer {
     constructor({
@@ -11,7 +11,8 @@ export default class Lion extends tf.Optimizer {
         fixedDecay = false,
         useGc = false,
         r = 0.95,
-        adaNorm = false
+        adaNorm = false,
+        step = 1
     } = {}) {
         super()
         this.learningRate = learningRate
@@ -23,6 +24,7 @@ export default class Lion extends tf.Optimizer {
         this.useGc = useGc
         this.r = r
         this.adaNorm = adaNorm
+        this.step = step
         this.ENGINE = tf.engine()
         this.STATE = {}
     }
@@ -84,6 +86,7 @@ export default class Lion extends tf.Optimizer {
         })
 
         this.incrementIterations()
+        this.step++
     }
 
     getAdaNormGradient(gradient, name) {
@@ -138,7 +141,8 @@ export default class Lion extends tf.Optimizer {
             fixedDecay: this.fixedDecay,
             useGc: this.useGc,
             r: this.r,
-            adaNorm: this.adaNorm
+            adaNorm: this.adaNorm,
+            step: this.step
         }
     }
 

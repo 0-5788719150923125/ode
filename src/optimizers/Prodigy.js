@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './filters.js'
+import { shouldExcludeFromWeightDecay } from './_ops.js'
 
 export default class Prodigy extends tf.Optimizer {
     constructor({

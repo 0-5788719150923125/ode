@@ -13,7 +13,7 @@ export default class AdamG extends tf.Optimizer {
         epsilon = 1e-8,
         p = 0.2,
         q = 0.24,
-        step = 0
+        step = 1
     } = {}) {
         super()
         this.learningRate = learningRate
@@ -34,7 +34,7 @@ export default class AdamG extends tf.Optimizer {
         tf.tidy(() => {
             const learningRateScaled = Math.min(
                 this.learningRate,
-                1 / Math.sqrt(this.step + 1)
+                1 / Math.sqrt(this.step)
             )
 
             const variableNames = Array.isArray(variableGradients)
@@ -91,8 +91,9 @@ export default class AdamG extends tf.Optimizer {
 
         this.accBeta1 *= this.beta1
         this.accBeta2 *= this.beta2
-        this.step++
+
         this.incrementIterations()
+        this.step++
     }
 
     setWeights(weightValues) {
