@@ -11,7 +11,7 @@ export default class OriginalDecoderEncoder extends ODE {
             units: 128,
             numHeads: 8,
             mlpDim: 512,
-            dropout: 0.1,
+            dropout: 0,
             epsilon: 1e-5
         }
         super({ ...defaults, ...config })
