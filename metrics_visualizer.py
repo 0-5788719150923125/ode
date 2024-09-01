@@ -14,6 +14,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
     one_million_bytes = 1_000_000
     all_values = []
     labels = []  # Store label information for overlap detection
+    max_step = 0  # Keep track of the maximum step across all runs
 
     for run in data:
         steps, metric_values = process_run_data(run, metric_key)
@@ -33,40 +34,41 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
         line, = plt.plot(steps, metric_values, marker='o', label=label)
         all_values.extend([v for v in metric_values if not np.isnan(v)])
 
-        # Add annotation for the most recent (last) data point
-        last_step = steps[-1]
-        last_value = metric_values[-1]
-        if not np.isnan(last_value):
-            # Calculate the x-position for the label (shifted right)
-            x_range = max(steps) - min(steps)
-            x_shift = x_range * 0.01  # 5% of the x-axis range
-            label_x = last_step + x_shift
-            
-            labels.append((label_x, last_value, f'{last_value:.4f}'))
+        if len(steps) > 0:
+            max_step = max(max_step, max(steps))  # Update the maximum step
+
+            # Add annotation for the most recent (last) data point
+            last_step = steps[-1]
+            last_value = metric_values[-1]
+            if not np.isnan(last_value):
+                labels.append((last_step, last_value, f'{last_value:.4f}', label))
+
+    # Calculate the x-shift based on the maximum step
+    x_shift = 15.0
 
     # Sort labels by y-value (last_value) to handle overlaps from bottom to top
     labels.sort(key=lambda x: x[1])
 
     # Function to check if two labels overlap
     def labels_overlap(label1, label2, y_threshold=0.1):
-        _, y1, _ = label1
-        _, y2, _ = label2
+        _, y1, _, _ = label1
+        _, y2, _, _ = label2
         return abs(y1 - y2) < y_threshold
 
     # Adjust label positions to avoid overlaps
     adjusted_labels = []
     for label in labels:
-        x, y, text = label
+        x, y, text, run_label = label
         new_y = y
-        while any(labels_overlap((x, new_y, text), adj_label) for adj_label in adjusted_labels):
+        while any(labels_overlap((x, new_y, text, run_label), adj_label) for adj_label in adjusted_labels):
             new_y += 0.1  # Adjust this value to control vertical spacing
-        adjusted_labels.append((x, new_y, text))
+        adjusted_labels.append((x, new_y, text, run_label))
 
     # Plot adjusted labels
-    for label_x, label_y, label_text in adjusted_labels:
+    for label_x, label_y, label_text, run_label in adjusted_labels:
         plt.annotate(label_text, 
                      xy=(label_x, label_y),
-                     xytext=(5, 0), textcoords='offset points',
+                     xytext=(x_shift, 0), textcoords='offset points',
                      ha='left', va='center',
                      bbox=dict(boxstyle='round,pad=0.5', fc='white', ec='black', lw=1),
                      color='black',

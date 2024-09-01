@@ -8,6 +8,8 @@ import v6 from './model.v6.js'
 import v7 from './model.v7.js'
 import v8 from './model.v8.js'
 
+// We use static imports here, because build tools like
+// Parcel are unable to follow dynamic imports.
 const modules = [v0, v1, v2, v3, v4, v5, v6, v7, v8]
 
 export default async function loadModelVersion(args) {

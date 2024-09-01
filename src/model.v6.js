@@ -32,11 +32,11 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    defineReductionLayer() {
-        return this.ode.layers.dense({
-            prefix: 'op',
-            units: this.config.units,
-            kernelInitializer: this.ode.initializers.glorotUniform()
-        })
-    }
+    // defineReductionLayer() {
+    //     return this.ode.layers.dense({
+    //         prefix: 'op',
+    //         units: this.config.units,
+    //         kernelInitializer: this.ode.initializers.glorotUniform()
+    //     })
+    // }
 }

@@ -1,5 +1,5 @@
 import { jest, beforeAll, afterAll, describe, it, expect } from '@jest/globals'
-import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node'
 import ODE from '../src/index.js'
 
 // Suppress console output
