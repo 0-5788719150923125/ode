@@ -681,8 +681,8 @@ function extractLayerInfo(model) {
 export class MetricsCollector {
     constructor(parent) {
         this.parent = parent
-        this.layerInfo = extractLayerInfo(parent.model)
-        console.log('layer types', this.layerInfo)
+        this.parent.config.layers = extractLayerInfo(parent.model)
+        console.log('layer types', this.parent.config.layers)
         this.filename = './metrics.json'
         this.tempFilename = './metrics.tmp.json'
         this.runId = deterministicRandomString(
@@ -762,7 +762,6 @@ export class MetricsCollector {
                     step: metrics.step,
                     version: metrics.version,
                     class: this.parent.constructor.name,
-                    layers: this.layerInfo,
                     totalParams: this.parent.totalParams,
                     configuration: this.parent.config,
                     tokenizer: metrics.tokenizer?.model,

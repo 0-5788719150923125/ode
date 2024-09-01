@@ -53,6 +53,7 @@ export default class OmniscientDeterministicEngine extends ODE {
 
         outputs = this.ode.layers
             .dense({
+                prefix: 'head',
                 units: this.tokenizer.getLength(),
                 kernelInitializer: this.ode.initializers.glorotUniform()
             })

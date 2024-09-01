@@ -24,7 +24,12 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
+        return [
+            this.ode.schedulers.constantScheduler(
+                this.config.learningRate,
+                this.config.warmupSteps
+            )
+        ]
     }
 
     defineReductionLayer() {

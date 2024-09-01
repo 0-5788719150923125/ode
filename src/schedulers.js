@@ -11,8 +11,21 @@ function* constantScheduler(max, warmupSteps = 0) {
     }
 }
 
-function* cosineScheduler(start, end, totalIterations, modulation = 1) {
-    let i = 0
+function* cosineScheduler(
+    start,
+    end,
+    totalIterations,
+    warmupSteps = 0,
+    modulation = 1
+) {
+    // Warmup phase
+    for (let i = 0; i < warmupSteps; i++) {
+        const t = i / warmupSteps
+        const lr = max * t
+        yield lr
+    }
+
+    i = 0
     const range = end - start
     while (true) {
         // Adjust iteration for modulation
