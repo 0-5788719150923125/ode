@@ -38,6 +38,7 @@ export default class OmnipresentDegenerateEntity extends ODE {
 
         model.add(
             this.tf.layers.dense({
+                prefix: 'head',
                 units: this.tokenizer.getLength(),
                 activation: 'linear'
             })

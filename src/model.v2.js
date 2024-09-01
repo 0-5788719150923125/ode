@@ -90,7 +90,7 @@ export default class OriginalDecoderEncoder extends ODE {
 
         outputs = this.tf.layers
             .dense({
-                name: 'head',
+                prefix: 'head',
                 units: this.tokenizer.getLength()
             })
             .apply(outputs)
