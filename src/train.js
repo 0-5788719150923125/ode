@@ -530,6 +530,7 @@ export class ValidationHandler {
         }
 
         console.log('performing validation...')
+        args.dataGenerator.resetGenerator('validation')
 
         this.lastStep = args.step
 

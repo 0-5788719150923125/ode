@@ -121,6 +121,10 @@ class StridedSampler {
         this.tokens = []
     }
 
+    resetGenerator(mode = 'train') {
+        this.sampler.resetGenerator(mode)
+    }
+
     async take({ tokenizer, maxSeqLen, isValidating = false } = {}) {
         while (true) {
             if (this.tokens.length >= maxSeqLen) {
@@ -223,6 +227,10 @@ class PhiSampler {
         this.producer = new PhiDataset(this.config)
         await this.producer.init()
         this.initialized = true
+    }
+
+    resetGenerator(mode = 'train') {
+        this.producer.resetGenerator(mode)
     }
 
     async take(config) {

@@ -6,18 +6,24 @@ export default class PhiDataset extends ParquetReader {
         super(config)
         this.dataset = 'open-phi/textbooks'
         this.schemaTemplate = config?.schema || [{ markdown: '\n\n' }]
-        this.seed = config?.seed || null
-        if (this.seed !== null) {
-            console.log(`phi dataset had a seed, using it: (${this.seed})`)
-            this.lcg = new LinearCongruentialGenerator(this.seed)
-        }
-
         this.trainBatchIdx = 0
         this.validationBatchIdx = 1
         this.cachedText = {
             train: '',
             validation: ''
         }
+        this.seed = config?.seed || null
+        if (this.seed !== null) {
+            console.log(`phi dataset had a seed, using it: (${this.seed})`)
+            this.lcg = {}
+            this.resetGenerator('train')
+            this.resetGenerator('validation')
+        }
+    }
+
+    resetGenerator(mode = 'train') {
+        this.lcg[mode] = new LinearCongruentialGenerator(this.seed)
+        this.cachedText[mode] = ''
     }
 
     async fetchRandomShard() {
@@ -38,7 +44,7 @@ export default class PhiDataset extends ParquetReader {
         this.loaded = true
     }
 
-    async fillCache(mode, batchIdx = 0) {
+    async fillCache(mode = 'train', batchIdx = 0) {
         while (this.cachedText[mode].length < this.cacheSize) {
             const text = []
 
@@ -47,12 +53,12 @@ export default class PhiDataset extends ParquetReader {
                 let column = this.table.batches[batchIdx].getChildAt(field.idx)
                 if (rowIdx === null) {
                     if (this.seed) {
-                        rowIdx = this.lcg.pseudoRandomBetween(
+                        rowIdx = this.lcg[mode].pseudoRandomBetween(
                             0,
                             column.length - 1
                         )
                     } else {
-                        rowIdx = randomBetween()
+                        rowIdx = randomBetween(0, column.length - 1)
                     }
                 }
                 const prefix = field.value
