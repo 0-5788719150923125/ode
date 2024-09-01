@@ -1,25 +1,33 @@
 import ODE from './model.v2.js'
 
 /**
- * A small transformer with synthesizer attention, GLU-based feedforward
- * networks, and sinusoidal positional encoding.
+ * A baseline, highly-performant small model.
  * @extends ODE
  */
-export default class OpportunisticDialogueEngine extends ODE {
+export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
             layers: 6,
-            units: 512,
-            numHeads: 8,
-            mlpDim: 2048,
-            alpha: 0.22
+            units: 180,
+            embeddings: 540,
+            numHeads: 4,
+            queriesPerHead: 2,
+            headDim: 45,
+            mlpDim: 1080,
+            useBias: true,
+            ALiBiLength: 1024,
+            learningRate: 1e-4,
+            minLearningRate: 1e-6,
+            weightDecay: 1e-5,
+            cosineSteps: 4096,
+            warmupSteps: 128
         }
         super({ ...defaults, ...config })
     }
 
-    defineTokenizer(config) {
-        return this.ode.tokenizers.XenovaTokenizer({
-            model: config?.model || 'OriginalDesign/frame'
+    defineTokenizer() {
+        return this.ode.tokenizers.TokenMonster({
+            model: 'englishcode-4096-consistent-v1'
         })
     }
 
@@ -31,39 +39,81 @@ export default class OpportunisticDialogueEngine extends ODE {
         let outputs = this.ode.layers
             .embedding({
                 inputDim: this.tokenizer.getLength(),
-                outputDim: this.config.units,
-                embeddingsInitializer: 'glorotUniform'
+                outputDim: this.config.embeddings,
+                embeddingsInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(inputs)
 
-        outputs = this.ode.layers.SinusoidalPositionalEncoding().apply(outputs)
+        outputs = this.defineReductionLayer().apply(outputs)
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
-                .SynthesizerAttention({
-                    units: this.config.units,
-                    blockSize: this.contextLength,
-                    heads: this.config.numHeads,
-                    alpha: this.config.alpha
-                })
-                .apply(outputs)
-
-            outputs = this.ode.layers
-                .GatedLinearMLP({
-                    hiddenDim: this.config.mlpDim,
-                    activation: 'swish',
-                    gateActivation: 'sigmoid'
-                })
-                .apply(outputs)
+            outputs = this.defineAttentionLayer().apply(outputs)
+            outputs = this.defineFeedforwardLayer().apply(outputs)
         }
 
         outputs = this.ode.layers
             .dense({
                 units: this.tokenizer.getLength(),
-                activation: 'linear'
+                kernelInitializer: this.ode.initializers.glorotUniform()
             })
             .apply(outputs)
 
         return this.tf.model({ inputs, outputs })
+    }
+
+    defineReductionLayer() {
+        return this.ode.layers.ParabolicCompression({
+            units: this.config.units,
+            numSteps: 4
+        })
+    }
+
+    defineAttentionLayer() {
+        return this.ode.layers.MultiHeadAttention({
+            numHeads: this.config.numHeads,
+            headDim: this.config.headDim,
+            queriesPerHead: this.config.queriesPerHead,
+            ALiBiLength: this.config.ALiBiLength,
+            useBias: this.config.useBias
+        })
+    }
+
+    defineFeedforwardLayer() {
+        return this.ode.layers.GatedLinearMLP({
+            activation: 'mish',
+            gateActivation: 'swish',
+            hiddenDim: this.config.mlpDim,
+            useBias: this.config.useBias
+        })
+    }
+
+    defineLossFunction() {
+        return {
+            name: 'softmaxCrossEntropy',
+            smoothing: 0.0001,
+            reduction: this.tf.Reduction.MEAN
+        }
+    }
+
+    defineSchedulers() {
+        return [
+            this.ode.schedulers.cosineWithRestartsScheduler(
+                this.config.minLearningRate,
+                this.config.learningRate,
+                this.config.cosineSteps,
+                this.config.warmupSteps
+            )
+        ]
+    }
+
+    defineOptimizers() {
+        return [
+            this.ode.optimizers.Lion({
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay,
+                useGc: true,
+                adaNorm: true
+            })
+        ]
     }
 }

@@ -1,4 +1,11 @@
-function* constantScheduler(max) {
+function* constantScheduler(max, warmupSteps = 0) {
+    // Warmup phase
+    for (let i = 0; i < warmupSteps; i++) {
+        const t = i / warmupSteps
+        const lr = max * t
+        yield lr
+    }
+
     while (true) {
         yield max
     }
