@@ -252,11 +252,7 @@ function computeLoss(
 
     if (selfModel) {
         const hiddenStates = logits.slice(1)
-        const selfModelingLoss = modelSelf(
-            prediction,
-            hiddenStates,
-            auxiliaryWeight
-        )
+        const selfModelingLoss = modelSelf(hiddenStates, auxiliaryWeight)
         lossValue = tf.add(lossValue, selfModelingLoss)
     }
 
@@ -264,69 +260,20 @@ function computeLoss(
 }
 
 // https://arxiv.org/abs/2407.10188
-function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
+function modelSelf(hiddenStates, auxiliaryWeight = 0.1) {
     return tf.tidy(() => {
-        // Flatten the tensors
-        const flatPrediction = prediction.reshape([-1])
-
         const loss = tf.scalar(0)
 
-        hiddenStates.map((hiddenState) => {
-            // Determine the target length (maximum of the two flattened tensors)
-            const flatState = hiddenState.reshape([-1])
-            const targetLength = Math.max(
-                flatPrediction.shape[0],
-                flatState.shape[0]
-            )
-
-            // Pad the tensors to the target length
-            const paddedPrediction = flatPrediction.pad(
-                [[0, targetLength - flatPrediction.shape[0]]],
-                0
-            )
-            const paddedStates = flatState.pad(
-                [[0, targetLength - flatState.shape[0]]],
-                0
-            )
-
-            // loss.add(losses.meanSquaredError(paddedPrediction, paddedStates))
-            loss.add(
-                tf.losses.cosineDistance(paddedPrediction, paddedStates, 0)
-            )
+        hiddenStates.map((hiddenState, i) => {
+            if (i % 2 === 0) return
+            const actual = hiddenStates[i - 1]
+            const prediction = hiddenState
+            loss.add(tf.losses.cosineDistance(actual, prediction, 0))
         })
 
         return tf.mul(loss, auxiliaryWeight)
     })
 }
-// function modelSelf(prediction, hiddenStates, auxiliaryWeight = 0.1) {
-//     return tf.tidy(() => {
-//         const concatenatedStates = tf.concat(hiddenStates, -1)
-
-//         // Flatten the tensors
-//         const flatPrediction = prediction.reshape([-1])
-//         const flatStates = concatenatedStates.reshape([-1])
-
-//         // Determine the target length (maximum of the two flattened tensors)
-//         const targetLength = Math.max(
-//             flatPrediction.shape[0],
-//             flatStates.shape[0]
-//         )
-
-//         // Pad the tensors to the target length
-//         const paddedPrediction = flatPrediction.pad(
-//             [[0, targetLength - flatPrediction.shape[0]]],
-//             0
-//         )
-//         const paddedStates = flatStates.pad(
-//             [[0, targetLength - flatStates.shape[0]]],
-//             0
-//         )
-
-//         const loss = losses.meanSquaredError(paddedPrediction, paddedStates)
-
-//         return tf.mul(loss, auxiliaryWeight)
-//     })
-// }
 
 function computeGradients(
     model,

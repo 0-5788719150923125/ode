@@ -26,4 +26,12 @@ export default class OmniscientDeterministicEngine extends ODE {
     defineSchedulers() {
         return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
     }
+
+    defineReductionLayer() {
+        return this.ode.layers.dense({
+            prefix: 'op',
+            units: this.config.units,
+            kernelInitializer: this.ode.initializers.glorotUniform()
+        })
+    }
 }
