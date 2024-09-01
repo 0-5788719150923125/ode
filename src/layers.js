@@ -56,6 +56,7 @@ import Split from './layers/Split.js'
  */
 const createLayerFactory = (layerConstructor, namePrefix) => (config) => {
     const length = 3
+    if (config.prefix) namePrefix = config.prefix
     const name = `${namePrefix}-${randomString(length)}`
     if (typeof layerConstructor === 'function' && !layerConstructor.prototype) {
         // For TFJS layers which are created via functions

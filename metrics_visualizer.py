@@ -5,7 +5,7 @@ import argparse
 from functools import reduce
 import re
 import numpy as np
-from matplotlib.ticker import ScalarFormatter, LogLocator, AutoLocator
+from matplotlib.ticker import ScalarFormatter, AutoLocator
 
 def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.figure(figsize=(14, 8))
@@ -13,6 +13,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
 
     one_million_bytes = 1_000_000
     all_values = []
+    labels = []  # Store label information for overlap detection
 
     for run in data:
         steps, metric_values = process_run_data(run, metric_key)
@@ -29,8 +30,47 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
                     label_parts.append(f"{'.'.join(label_metric)}: {str(value)}")
 
         label = "\n".join(label_parts)
-        plt.plot(steps, metric_values, marker='o', label=label)
+        line, = plt.plot(steps, metric_values, marker='o', label=label)
         all_values.extend([v for v in metric_values if not np.isnan(v)])
+
+        # Add annotation for the most recent (last) data point
+        last_step = steps[-1]
+        last_value = metric_values[-1]
+        if not np.isnan(last_value):
+            # Calculate the x-position for the label (shifted right)
+            x_range = max(steps) - min(steps)
+            x_shift = x_range * 0.01  # 5% of the x-axis range
+            label_x = last_step + x_shift
+            
+            labels.append((label_x, last_value, f'{last_value:.4f}'))
+
+    # Sort labels by y-value (last_value) to handle overlaps from bottom to top
+    labels.sort(key=lambda x: x[1])
+
+    # Function to check if two labels overlap
+    def labels_overlap(label1, label2, y_threshold=0.1):
+        _, y1, _ = label1
+        _, y2, _ = label2
+        return abs(y1 - y2) < y_threshold
+
+    # Adjust label positions to avoid overlaps
+    adjusted_labels = []
+    for label in labels:
+        x, y, text = label
+        new_y = y
+        while any(labels_overlap((x, new_y, text), adj_label) for adj_label in adjusted_labels):
+            new_y += 0.1  # Adjust this value to control vertical spacing
+        adjusted_labels.append((x, new_y, text))
+
+    # Plot adjusted labels
+    for label_x, label_y, label_text in adjusted_labels:
+        plt.annotate(label_text, 
+                     xy=(label_x, label_y),
+                     xytext=(5, 0), textcoords='offset points',
+                     ha='left', va='center',
+                     bbox=dict(boxstyle='round,pad=0.5', fc='white', ec='black', lw=1),
+                     color='black',
+                     arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0', color='gray', lw=0.5))
 
     formatted_name = split_variable(metric_name)
     plt.title(f"{formatted_name} Over Time", fontsize=16)

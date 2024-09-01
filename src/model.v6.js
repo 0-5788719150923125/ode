@@ -61,8 +61,6 @@ export default class OmniscientDeterministicEngine extends ODE {
                     useBias: this.config.useBias
                 })
                 .apply(outputs)
-
-            // exportedStates.push(outputs)
         }
 
         outputs = this.ode.layers
