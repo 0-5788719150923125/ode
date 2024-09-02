@@ -8,7 +8,7 @@ export default class OptionalDecisionExecution extends ODE {
     constructor(config) {
         const defaults = {
             selfModel: true,
-            auxiliaryWeight: 10.0
+            auxiliaryWeight: 1.0
         }
         super({ ...defaults, ...config })
     }

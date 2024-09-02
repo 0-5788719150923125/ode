@@ -262,16 +262,16 @@ function computeLoss(
 // https://arxiv.org/abs/2407.10188
 function modelSelf(hiddenStates, auxiliaryWeight = 0.1) {
     return tf.tidy(() => {
-        const loss = tf.scalar(0)
+        let loss = tf.scalar(0)
 
         hiddenStates.map((hiddenState, i) => {
             if (i % 2 === 0) return
             const actual = hiddenStates[i - 1]
             const prediction = hiddenState
-            loss.add(tf.losses.cosineDistance(actual, prediction, 0))
+            const ls = tf.losses.cosineDistance(actual, prediction, 0)
+            loss = loss.add(tf.clipByValue(ls, 0, 2))
         })
-
-        return tf.mul(loss, auxiliaryWeight)
+        return tf.mul(loss, tf.scalar(auxiliaryWeight))
     })
 }
 
