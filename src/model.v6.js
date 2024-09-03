@@ -16,7 +16,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
-            learningRate: 1e-4,
+            learningRate: 1.0,
             weightDecay: 1e-5,
             warmupSteps: 128
         }
@@ -29,6 +29,17 @@ export default class OmniscientDeterministicEngine extends ODE {
                 this.config.learningRate,
                 this.config.warmupSteps
             )
+        ]
+    }
+
+    defineOptimizers() {
+        return [
+            this.ode.optimizers.Prodigy({
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay,
+                biasCorrection: true,
+                safeguardWarmup: true
+            })
         ]
     }
 

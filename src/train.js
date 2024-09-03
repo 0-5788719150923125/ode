@@ -472,7 +472,7 @@ export class InferenceGenerator {
         const startTime = performance.now()
         const maxLength = args.predictLength
 
-        const seedLength = randomBetween(16, maxLength - 16)
+        const seedLength = randomBetween(32, maxLength - 32)
         const sample = await args.dataGenerator.take({
             tokenizer: args.tokenizer,
             maxSeqLen: seedLength
