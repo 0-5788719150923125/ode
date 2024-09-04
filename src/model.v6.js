@@ -26,14 +26,23 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineSchedulers() {
         return [
-            this.ode.schedulers.cosineScheduler(
-                0,
+            this.ode.schedulers.constantScheduler(
                 this.config.learningRate,
-                this.config.trainSteps,
                 this.config.warmupSteps
             )
         ]
     }
+
+    // defineSchedulers() {
+    //     return [
+    //         this.ode.schedulers.cosineScheduler(
+    //             0,
+    //             this.config.learningRate,
+    //             this.config.trainSteps,
+    //             this.config.warmupSteps
+    //         )
+    //     ]
+    // }
 
     // defineLossFunction() {
     //     return {

@@ -679,16 +679,17 @@ function extractLayerInfo(model) {
 export class MetricsCollector {
     constructor(parent) {
         this.parent = parent
-        this.parent.config.layers = extractLayerInfo(parent.model)
-        console.log('layer types', this.parent.config.layers)
+        console.log(this.parent.schedulers)
         this.state = {
             configuration: this.parent.config,
-            tokenizer: this.parent.tokenizer?.model,
+            tokenizer: this.parent.tokenizer.getConfig(),
             lossFunction: this.parent.lossFunction,
             optimizer: {
                 name: this.parent.model.optimizer.constructor.name,
                 ...this.parent.model.optimizer.getConfig()
-            }
+            },
+            scheduler: this.parent.schedulers[0],
+            layers: extractLayerInfo(parent.model)
         }
         this.runId = deterministicRandomString(JSON.stringify(this.state), 7)
         this.filename = './metrics.json'
@@ -771,6 +772,8 @@ export class MetricsCollector {
                     tokenizer: this.state.tokenizer,
                     lossFunction: this.state.lossFunction,
                     optimizer: this.state.optimizer,
+                    scheduler: this.state.scheduler,
+                    layers: this.state.layers,
                     loss: metrics.loss,
                     metricsInterval: this.maxBufferSize,
                     validationLoss:

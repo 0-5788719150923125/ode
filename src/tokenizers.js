@@ -12,6 +12,12 @@ class TokenizerBase {
         return this.vocab.length
     }
 
+    getConfig() {
+        return {
+            class: this.name
+        }
+    }
+
     encode(string) {
         // not implemented
     }
@@ -40,6 +46,13 @@ class CharacterTokenizer extends TokenizerBase {
 
     getLength() {
         return this.tokens.length
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            length: this.getLength()
+        }
     }
 
     encode(string) {
@@ -75,6 +88,14 @@ class XenovaTokenizer extends TokenizerBase {
         return this.tokenizer.model.vocab.length
     }
 
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            model: this.model,
+            length: this.getLength()
+        }
+    }
+
     encode(string) {
         return this.tokenizer.encode(string)
     }
@@ -101,6 +122,14 @@ class TokenMonster extends TokenizerBase {
 
     getLength() {
         return this.tokenizer.vocab_size
+    }
+
+    getConfig() {
+        return {
+            ...super.getConfig(),
+            model: this.model,
+            length: this.getLength()
+        }
     }
 
     encode(string) {
