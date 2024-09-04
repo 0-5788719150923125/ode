@@ -16,7 +16,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
-            learningRate: 1.0,
+            learningRate: 0.0002,
             weightDecay: 1e-5,
             warmupSteps: 128
         }
@@ -32,16 +32,21 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.Prodigy({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay,
-                biasCorrection: true,
-                safeguardWarmup: true
-            })
-        ]
-    }
+    // defineLossFunction() {
+    //     return {
+    //         name: 'softmaxCrossEntropy',
+    //         reduction: this.tf.Reduction.MEAN
+    //     }
+    // }
+
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.AdamW({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay
+    //         })
+    //     ]
+    // }
 
     // defineReductionLayer() {
     //     return this.ode.layers.dense({
