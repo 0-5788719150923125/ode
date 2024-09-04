@@ -90,12 +90,12 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineSchedulers() {
         return [
-            this.ode.schedulers.cosineWithRestartsScheduler(
-                this.config.minLearningRate,
-                this.config.learningRate,
-                this.config.cosineSteps,
-                this.config.warmupSteps
-            )
+            this.ode.schedulers.CosineWithRestartsScheduler({
+                min: this.config.minLearningRate,
+                max: this.config.learningRate,
+                totalSteps: this.config.cosineSteps,
+                warmupSteps: this.config.warmupSteps
+            })
         ]
     }
 

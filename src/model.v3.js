@@ -55,8 +55,4 @@ export default class OptimalDecisionEngine extends ODE {
 
         return this.tf.model({ inputs, outputs })
     }
-
-    defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
-    }
 }

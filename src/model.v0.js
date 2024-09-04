@@ -184,7 +184,11 @@ export default class ModelBase {
     }
 
     defineSchedulers() {
-        return [this.ode.schedulers.constantScheduler(this.config.learningRate)]
+        return [
+            this.ode.schedulers.ConstantScheduler({
+                max: this.config.learningRate
+            })
+        ]
     }
 
     compile() {

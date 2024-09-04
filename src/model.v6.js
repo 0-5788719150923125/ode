@@ -26,10 +26,10 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineSchedulers() {
         return [
-            this.ode.schedulers.constantScheduler(
-                this.config.learningRate,
-                this.config.warmupSteps
-            )
+            this.ode.schedulers.ConstantScheduler({
+                max: this.config.learningRate,
+                warmupSteps: this.config.warmupSteps
+            })
         ]
     }
 

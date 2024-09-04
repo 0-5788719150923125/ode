@@ -14,7 +14,7 @@ class TokenizerBase {
 
     getConfig() {
         return {
-            class: this.name
+            class: this.constructor.name
         }
     }
 

@@ -1,4 +1,4 @@
-import ODE from './model.v2.js'
+import ODE from './model.v4.js'
 
 /**
  * A model used for active research and development.
@@ -104,17 +104,6 @@ export default class OmnilateralDynamicEvaluator extends ODE {
             .apply(outputs)
 
         return this.tf.model({ inputs, outputs })
-    }
-
-    defineSchedulers() {
-        return [
-            this.ode.schedulers.cosineWithRestartsScheduler(
-                this.config.minLearningRate,
-                this.config.learningRate,
-                this.config.cosineSteps,
-                this.config.warmupSteps
-            )
-        ]
     }
 
     defineOptimizers() {

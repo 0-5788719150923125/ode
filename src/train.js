@@ -197,7 +197,7 @@ class GradientAccumulator {
 // Set learning rate via schedule
 function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
     if (batch % gradientAccumulationSteps === 0) {
-        model.optimizer.learningRate = schedulers[0].next().value
+        model.optimizer.learningRate = schedulers[0].step()
     }
 }
 
@@ -679,7 +679,6 @@ function extractLayerInfo(model) {
 export class MetricsCollector {
     constructor(parent) {
         this.parent = parent
-        console.log(this.parent.schedulers)
         this.state = {
             configuration: this.parent.config,
             tokenizer: this.parent.tokenizer.getConfig(),
@@ -688,9 +687,10 @@ export class MetricsCollector {
                 name: this.parent.model.optimizer.constructor.name,
                 ...this.parent.model.optimizer.getConfig()
             },
-            scheduler: this.parent.schedulers[0],
+            scheduler: this.parent.schedulers[0].getConfig(),
             layers: extractLayerInfo(parent.model)
         }
+        delete this.state.optimizer?.step
         this.runId = deterministicRandomString(JSON.stringify(this.state), 7)
         this.filename = './metrics.json'
         this.tempFilename = './metrics.tmp.json'
@@ -774,8 +774,8 @@ export class MetricsCollector {
                     optimizer: this.state.optimizer,
                     scheduler: this.state.scheduler,
                     layers: this.state.layers,
-                    loss: metrics.loss,
                     metricsInterval: this.maxBufferSize,
+                    loss: metrics.loss,
                     validationLoss:
                         metrics.valLoss != null &&
                         metrics.valLoss !== lastValidationLoss
