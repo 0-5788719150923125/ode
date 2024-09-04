@@ -534,14 +534,13 @@ export class ValidationHandler {
 
         this.lastStep = args.step
 
-        let trueNLL = 0 // Negative Log Likelihood
-        let totalNLL = 0
+        let totalLoss = 0
         let totalTokens = 0
-        let totalSteps = 0
+        let totalBatches = 0
 
         let maxBatchSize = 0
 
-        for (let i = 0; i <= args.validationSteps; i += args.batchSize) {
+        for (let i = 0; i <= args.validationSteps; i++) {
             const valData = await batchMaker(
                 args.dataGenerator,
                 args.tokenizer,
@@ -576,21 +575,19 @@ export class ValidationHandler {
                 )
 
                 const numTokens = batchSize * seqLen
-                const batchNLL = lossValue.dataSync()[0]
+                const batchLoss = lossValue.dataSync()[0]
 
-                trueNLL += batchNLL
-                totalNLL += batchNLL * numTokens
+                totalLoss += batchLoss * numTokens
                 totalTokens += numTokens
             })
 
             tf.dispose([valData.xs, valData.ys])
 
-            totalSteps += batchSize
+            totalBatches++
         }
 
-        const valLoss = trueNLL / totalSteps
-        const averageNLL = totalNLL / totalTokens
-        const valPerplexity = Math.exp(averageNLL)
+        const valLoss = totalLoss / totalTokens
+        const valPerplexity = Math.exp(valLoss)
 
         return { valLoss, valPerplexity }
     }

@@ -106,14 +106,6 @@ export default class OmnilateralDynamicEvaluator extends ODE {
         return this.tf.model({ inputs, outputs })
     }
 
-    defineLossFunction() {
-        return {
-            name: 'softmaxCrossEntropy',
-            smoothing: 0.0001,
-            reduction: this.tf.Reduction.MEAN
-        }
-    }
-
     defineSchedulers() {
         return [
             this.ode.schedulers.cosineWithRestartsScheduler(

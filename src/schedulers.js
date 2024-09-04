@@ -12,8 +12,8 @@ function* constantScheduler(max, warmupSteps = 0) {
 }
 
 function* cosineScheduler(
-    start,
-    end,
+    min,
+    max,
     totalIterations,
     warmupSteps = 0,
     modulation = 1
@@ -25,8 +25,9 @@ function* cosineScheduler(
         yield lr
     }
 
-    i = 0
-    const range = end - start
+    let i = 0
+    const range = min - max
+    totalIterations += warmupSteps
     while (true) {
         // Adjust iteration for modulation
         let adjustedI = i / modulation
@@ -38,7 +39,7 @@ function* cosineScheduler(
         )
 
         // Adjust current value based on cosine, equally applied at both ends
-        let currentValue = start + (range * (1 + cosValue)) / 2
+        let currentValue = max + (range * (1 + cosValue)) / 2
 
         yield currentValue
 

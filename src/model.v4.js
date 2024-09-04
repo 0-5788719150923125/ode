@@ -88,14 +88,6 @@ export default class OmniscientDeterministicEngine extends ODE {
         })
     }
 
-    defineLossFunction() {
-        return {
-            name: 'softmaxCrossEntropy',
-            smoothing: 0.0001,
-            reduction: this.tf.Reduction.MEAN
-        }
-    }
-
     defineSchedulers() {
         return [
             this.ode.schedulers.cosineWithRestartsScheduler(

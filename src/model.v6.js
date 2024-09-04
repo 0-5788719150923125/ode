@@ -18,15 +18,18 @@ export default class OmniscientDeterministicEngine extends ODE {
             ALiBiLength: 1024,
             learningRate: 0.0002,
             weightDecay: 1e-5,
-            warmupSteps: 128
+            warmupSteps: 128,
+            trainSteps: config.trainSteps || 4096
         }
         super({ ...defaults, ...config })
     }
 
     defineSchedulers() {
         return [
-            this.ode.schedulers.constantScheduler(
+            this.ode.schedulers.cosineScheduler(
+                0,
                 this.config.learningRate,
+                this.config.trainSteps,
                 this.config.warmupSteps
             )
         ]
