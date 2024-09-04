@@ -684,20 +684,16 @@ export class MetricsCollector {
         this.parent = parent
         this.parent.config.layers = extractLayerInfo(parent.model)
         console.log('layer types', this.parent.config.layers)
-        this.parent.config = {
-            ...this.parent.config,
+        this.state = {
+            configuration: this.parent.config,
             tokenizer: this.parent.tokenizer?.model,
             lossFunction: this.parent.lossFunction,
             optimizer: {
                 name: this.parent.model.optimizer.constructor.name,
-                learningRate: this.parent.model.optimizer.learningRate,
-                weightDecay: this.parent.model.optimizer.weightDecay
+                ...this.parent.model.optimizer.getConfig()
             }
         }
-        this.runId = deterministicRandomString(
-            JSON.stringify(this.parent.config),
-            7
-        )
+        this.runId = deterministicRandomString(JSON.stringify(this.state), 7)
         this.filename = './metrics.json'
         this.tempFilename = './metrics.tmp.json'
         this.metricsData = null
@@ -774,7 +770,10 @@ export class MetricsCollector {
                     version: metrics.version,
                     class: this.parent.constructor.name,
                     totalParams: this.parent.totalParams,
-                    configuration: this.parent.config,
+                    configuration: this.state.configuration,
+                    tokenizer: this.state.tokenizer,
+                    lossFunction: this.state.lossFunction,
+                    optimizer: this.state.optimizer,
                     loss: metrics.loss,
                     metricsInterval: this.maxBufferSize,
                     validationLoss:
