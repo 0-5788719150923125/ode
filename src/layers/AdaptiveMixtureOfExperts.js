@@ -75,10 +75,9 @@ export default class AdaptiveMixtureOfExperts extends LayerBase {
                 this.switchingHidden.read(),
                 this.switchingHiddenBias.read()
             )
-            const switchingNormalized = this.ops.rmsNorm(switchingHidden)
             const switchingActivated = tf.layers
                 .activation({ activation: this.activation })
-                .apply(switchingNormalized)
+                .apply(switchingHidden)
             const switchingScores = this.ops.applyDense(
                 switchingActivated,
                 this.switchingKernel.read(),

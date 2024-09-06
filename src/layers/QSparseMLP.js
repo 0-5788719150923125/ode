@@ -53,8 +53,6 @@ export default class QSparseMLP extends LayerBase {
                 this.useBias ? this.inProjBias.read() : null
             )
 
-            outputs = this.ops.rmsNorm(outputs)
-
             // Apply squared ReLU activation
             const squaredReLU = tf.square(tf.relu(outputs))
 

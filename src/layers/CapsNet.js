@@ -80,8 +80,7 @@ export default class CapsNet extends LayerBase {
             outputs = tf.layers
                 .activation({ activation: this.activation })
                 .apply(outputs)
-            // Apply layer norm
-            outputs = this.ops.rmsNorm(outputs)
+
             // Apply primary capsules
             outputs = this.ops.applyDense(
                 outputs,

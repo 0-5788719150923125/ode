@@ -261,7 +261,7 @@ export default class ModelBase {
         repetitionPenalty = 1,
         mirostat = false,
         mirostatState = {
-            tau: 5.0, // target surprise
+            tau: 5.0, // target surprise; temperature scaling
             eta: 1.0, // learning rate
             maxRepetition: 512, // topk
             mu: 10.0 // Initialize mu to 2 * tau

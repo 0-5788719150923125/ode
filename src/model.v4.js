@@ -47,7 +47,13 @@ export default class OmniscientDeterministicEngine extends ODE {
         outputs = this.defineReductionLayer().apply(outputs)
 
         for (let i = 0; i < this.config.layers; i++) {
+            outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
+                .apply(outputs)
             outputs = this.defineAttentionLayer().apply(outputs)
+            outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
+                .apply(outputs)
             outputs = this.defineFeedforwardLayer().apply(outputs)
         }
 

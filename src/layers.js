@@ -47,6 +47,7 @@ import PrimerAttention from './layers/PrimerAttention.js'
 import Zip from './layers/Zip.js'
 import AttentionDimReduction from './layers/AttentionDimReduction.js'
 import Split from './layers/Split.js'
+import RMSNorm from './layers/RMSNorm.js'
 
 /**
  * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
@@ -173,6 +174,7 @@ const customLayersConfig = {
         constructor: ProjectedFeatureAttention,
         prefix: 'attn'
     },
+    RMSNorm: { constructor: RMSNorm, prefix: 'norm' },
     StaticMatrixReduction: {
         constructor: StaticMatrixReduction,
         prefix: 'op'

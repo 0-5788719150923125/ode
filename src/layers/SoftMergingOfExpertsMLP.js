@@ -113,10 +113,9 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 this.routerHiddenBias?.read()
             )
 
-            const normalizedState = this.ops.rmsNorm(gatingHidden)
             const activatedGate = tf.layers
                 .activation({ activation: this.routerActivation })
-                .apply(normalizedState)
+                .apply(gatingHidden)
 
             const expertWeights = this.ops.applyDense(
                 activatedGate,
@@ -162,8 +161,6 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 avgInProjKernel,
                 avgInProjBias
             )
-
-            proj = this.ops.rmsNorm(proj)
 
             proj = tf.layers
                 .activation({ activation: this.activation })

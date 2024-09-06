@@ -38,11 +38,16 @@ export default class OptimalDecisionEngine extends ODE {
 
         for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: false, useBias: false })
+                .apply(outputs)
+            outputs = this.ode.layers
                 .SelfAttention({
                     hiddenDim: this.config.units * 4
                 })
                 .apply(outputs)
-
+            outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: false, useBias: false })
+                .apply(outputs)
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
                     hiddenDim: this.config.units * 4,

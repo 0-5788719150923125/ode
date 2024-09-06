@@ -42,11 +42,16 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         for (let i = 0; i < this.config.layers; i++) {
             outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: false, useBias: false })
+                .apply(outputs)
+            outputs = this.ode.layers
                 .SelfAttention({
                     hiddenDim: this.config.headDim
                 })
                 .apply(outputs)
-
+            outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: false, useBias: false })
+                .apply(outputs)
             outputs = this.ode.layers
                 .SparseMixtureOfExpertsMLP({
                     topK: this.config.topK,

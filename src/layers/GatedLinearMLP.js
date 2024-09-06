@@ -36,8 +36,6 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 this.inProjBias?.read()
             )
 
-            proj = this.ops.rmsNorm(proj)
-
             proj = tf.layers
                 .activation({ activation: this.activation })
                 .apply(proj)

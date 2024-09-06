@@ -194,32 +194,32 @@ export default class MultiHeadAttention extends LayerBase {
                 : weights
 
             // Apply attention weights to values
-            let output = tf.matMul(weights, VHeadsTiledReshaped)
+            let outputs = tf.matMul(weights, VHeadsTiledReshaped)
 
             // Reshape and transpose back
-            output = tf.transpose(output, [0, 3, 1, 2, 4])
-            output = tf.reshape(output, [
+            outputs = tf.transpose(outputs, [0, 3, 1, 2, 4])
+            outputs = tf.reshape(outputs, [
                 batchSize,
                 seqLen,
                 this.headDim * this.numHeads * this.queriesPerHead
             ])
 
             // Final output projection
-            output = this.ops.applyDense(
-                output,
+            outputs = this.ops.applyDense(
+                outputs,
                 this.outputKernel.read(),
                 this.outputBias?.read()
             )
 
-            // Apply normalization and residual connection
-            output = tf.add(inputs, this.ops.rmsNorm(output))
+            // Apply residual connection
+            outputs = tf.add(inputs, outputs)
 
             // Apply dropout if in training mode
-            output = kwargs['training']
-                ? tf.dropout(output, this.dropout)
-                : output
+            outputs = kwargs['training']
+                ? tf.dropout(outputs, this.dropout)
+                : outputs
 
-            return output
+            return outputs
         })
     }
 

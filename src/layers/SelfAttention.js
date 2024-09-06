@@ -52,8 +52,6 @@ export default class SelfAttention extends LayerBase {
 
             let outputs = tf.matMul(weights, V)
 
-            outputs = this.ops.rmsNorm(outputs)
-
             return tf.add(inputs, outputs)
         })
     }

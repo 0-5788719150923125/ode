@@ -16,7 +16,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
-            learningRate: 1e-4,
+            learningRate: 1.0,
             weightDecay: 1e-5,
             warmupSteps: 128,
             trainSteps: config.trainSteps || 4096
@@ -29,6 +29,17 @@ export default class OmniscientDeterministicEngine extends ODE {
             this.ode.schedulers.ConstantScheduler({
                 max: this.config.learningRate,
                 warmupSteps: this.config.warmupSteps
+            })
+        ]
+    }
+
+    defineOptimizers() {
+        return [
+            this.ode.optimizers.Prodigy({
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay,
+                safeguardWarmup: true,
+                biasCorrection: true
             })
         ]
     }
@@ -49,15 +60,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     //         name: 'softmaxCrossEntropy',
     //         reduction: this.tf.Reduction.MEAN
     //     }
-    // }
-
-    // defineOptimizers() {
-    //     return [
-    //         this.ode.optimizers.AdamW({
-    //             learningRate: this.config.learningRate,
-    //             weightDecay: this.config.weightDecay
-    //         })
-    //     ]
     // }
 
     // defineReductionLayer() {

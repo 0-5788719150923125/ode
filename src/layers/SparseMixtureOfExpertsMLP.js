@@ -129,8 +129,6 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
 
         let outputs = this.ops.applyDense(inputs, expertIn)
 
-        outputs = this.ops.rmsNorm(outputs)
-
         outputs = tf.layers
             .activation({ activation: this.activation })
             .apply(outputs)

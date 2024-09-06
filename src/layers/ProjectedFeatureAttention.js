@@ -242,15 +242,13 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 this.numHeads * this.queriesPerHead * this.headFeatures
             ])
 
-            const output = this.ops.applyDense(
+            const outputs = this.ops.applyDense(
                 outputHeads,
                 this.outputKernel.read(),
                 this.outputBias?.read()
             )
 
-            const normalizedOutput = this.ops.rmsNorm(output)
-
-            return tf.add(projectedInputs, normalizedOutput)
+            return tf.add(projectedInputs, outputs)
         })
     }
 

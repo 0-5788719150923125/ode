@@ -146,12 +146,9 @@ export default class SparseMixtureOfExperts extends LayerBase {
                     // Sum over the k dimension
                     const summedGrads = grads.sum(2)
 
-                    // Apply RMSNorm
-                    const rms = this.ops.rmsNorm(summedGrads)
-
                     // Normalize the gradients
                     const normalizedGrads = summedGrads.div(
-                        rms.add(this.epsilon)
+                        summedGrads.add(this.epsilon)
                     )
 
                     // Squash and scale

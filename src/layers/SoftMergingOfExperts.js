@@ -57,10 +57,9 @@ export default class SoftMergingOfExperts extends LayerBase {
             )
 
             // Apply layer normalization before activating the logits of our router
-            const normalizedState = this.ops.rmsNorm(gatingHidden)
             const activatedGate = tf.layers
                 .activation({ activation: this.activation })
-                .apply(normalizedState)
+                .apply(gatingHidden)
 
             const expertWeights = this.ops.applyDense(
                 activatedGate,

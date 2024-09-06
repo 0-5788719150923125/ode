@@ -50,8 +50,6 @@ export default class MultiLayerPerceptron extends LayerBase {
                 this.inProjBias?.read()
             )
 
-            outputs = this.ops.rmsNorm(outputs)
-
             outputs = tf.layers
                 .activation({ activation: this.activation })
                 .apply(outputs)

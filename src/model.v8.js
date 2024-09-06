@@ -52,6 +52,9 @@ export default class OmnilateralDynamicEvaluator extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.config.layers; i++) {
+            outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: true })
+                .apply(outputs)
             if (i % 2 !== 0) {
                 const quarter = this.config.units / 4
                 let [updated, retained] = this.ode.layers
@@ -83,6 +86,10 @@ export default class OmnilateralDynamicEvaluator extends ODE {
                     ALiBiLength: this.config.ALiBiLength,
                     useBias: this.config.useBias
                 })
+                .apply(outputs)
+
+            outputs = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: true })
                 .apply(outputs)
 
             outputs = this.ode.layers

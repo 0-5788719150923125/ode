@@ -142,8 +142,6 @@ export default class StateSpace extends LayerBase {
                 ? tf.stack(outputs, 1)
                 : outputs[outputs.length - 1]
 
-            output = this.ops.rmsNorm(output)
-
             return tf.add(inputs, output)
         })
     }
