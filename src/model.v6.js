@@ -16,7 +16,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
-            learningRate: 0.0002,
+            learningRate: 1e-4,
             weightDecay: 1e-5,
             warmupSteps: 128,
             trainSteps: config.trainSteps || 4096

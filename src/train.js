@@ -518,6 +518,7 @@ export class ValidationHandler {
     constructor(parent) {
         this.parent = parent
         this.lastStep = 0
+        this.clipValue = 25.0
     }
 
     async step(args) {
@@ -538,8 +539,6 @@ export class ValidationHandler {
         let totalTokens = 0
         let totalBatches = 0
 
-        let maxBatchSize = 0
-
         for (let i = 0; i <= args.validationSteps; i++) {
             const valData = await batchMaker(
                 args.dataGenerator,
@@ -550,13 +549,6 @@ export class ValidationHandler {
             )
 
             const [batchSize, seqLen, numFeatures] = valData.ys.shape
-
-            maxBatchSize = Math.max(maxBatchSize, batchSize)
-
-            if (batchSize < maxBatchSize) {
-                console.log('batch size was wrong, returning')
-                break
-            }
 
             tf.tidy(() => {
                 const predictions = this.parent.model.call(valData.xs, {
@@ -575,9 +567,9 @@ export class ValidationHandler {
                 )
 
                 const numTokens = batchSize * seqLen
-                const batchLoss = lossValue.dataSync()[0]
+                const batchLoss = tf.clipByValue(lossValue, 0, this.clipValue)
 
-                totalLoss += batchLoss * numTokens
+                totalLoss += batchLoss.dataSync()[0] * numTokens
                 totalTokens += numTokens
             })
 
