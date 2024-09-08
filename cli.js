@@ -122,7 +122,7 @@ async function orchestrate(options) {
                 rates: rates
             })
         } else {
-            sampler = samplers.DirectorySampler(options.corpus, '\n\n')
+            sampler = samplers.DirectorySampler({ directories: options.corpus })
         }
 
         const {

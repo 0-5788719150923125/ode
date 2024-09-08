@@ -21,7 +21,7 @@ class RandomSampler {
 class SequentialSampler {
     constructor(config) {
         this.sampler = config.sampler
-        this.stepSize = config.stepSize || 1
+        this.stepSize = config?.stepSize || 1
     }
 
     async take(config) {
@@ -103,7 +103,7 @@ class DirectorySampler {
 class HTTPSampler {
     constructor(config) {
         this.url =
-            config.url || 'https://www.gutenberg.org/files/100/old/shaks12.txt'
+            config?.url || 'https://www.gutenberg.org/files/100/old/shaks12.txt'
     }
 
     async read() {
@@ -199,69 +199,69 @@ class WeightedSampler {
 class CosmopediaSampler {
     constructor(config) {
         this.config = config
-        this.producer = null
+        this.sampler = null
     }
 
     async init() {
         const CosmopediaDataset = (await import('./datasets/cosmopedia.js'))
             .default
-        this.producer = new CosmopediaDataset(this.config)
-        await this.producer.init()
+        this.sampler = new CosmopediaDataset(this.config)
+        await this.sampler.init()
         this.initialized = true
     }
 
     async take(config) {
         if (!this.initialized) await this.init()
-        return await this.producer.getSample({ size: config.maxSeqLen })
+        return await this.sampler.getSample({ size: config.maxSeqLen })
     }
 }
 
 class WikipediaSampler {
     constructor(config) {
         this.config = config
-        this.producer = null
+        this.sampler = null
     }
 
     async init() {
         const WikipediaDataset = (await import('./datasets/wikipedia.js'))
             .default
-        this.producer = new WikipediaDataset(this.config)
-        await this.producer.init()
+        this.sampler = new WikipediaDataset(this.config)
+        await this.sampler.init()
         this.initialized = true
     }
 
     async take(config) {
         if (!this.initialized) await this.init()
-        return await this.producer.getSample({ size: config.maxSeqLen })
+        return await this.sampler.getSample({ size: config.maxSeqLen })
     }
 }
 
 class PhiSampler {
     constructor(config) {
         this.config = config
-        this.producer = null
+        this.sampler = null
     }
 
     async init() {
         const PhiDataset = (await import('./datasets/phi.js')).default
-        this.producer = new PhiDataset(this.config)
-        await this.producer.init()
+        this.sampler = new PhiDataset(this.config)
+        await this.sampler.init()
         this.initialized = true
     }
 
     resetGenerator(mode = 'train') {
-        this.producer.resetGenerator(mode)
+        this.sampler.resetGenerator(mode)
     }
 
     async take(config) {
         if (!this.initialized) await this.init()
         if (config.isValidating) {
-            return await this.producer.getSample({
+            return await this.sampler.getSample({
                 mode: 'validation',
                 size: config.maxSeqLen
             })
         } else {
-            return await this.producer.getSample({
+            return await this.sampler.getSample({
                 mode: 'train',
                 size: config.maxSeqLen
             })

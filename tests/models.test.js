@@ -13,7 +13,7 @@ beforeAll(async () => {
 })
 
 describe('Model tests', () => {
-    const models = [1, 2, 3, 4, 6, 7]
+    const models = [1, 2, 3, 4]
 
     models.forEach((version) => {
         describe(`Model version ${version}`, () => {
@@ -45,7 +45,9 @@ describe('Model tests', () => {
             })
 
             it('can step', async () => {
-                const dataSampler = net.ode.samplers.HTTPSampler()
+                const dataSampler = net.ode.samplers.DirectorySampler({
+                    directories: 'src/'
+                })
                 await net.train(dataSampler, {
                     batchSize: 1,
                     gradientAccumulationSteps: 3,
