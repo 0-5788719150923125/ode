@@ -8,7 +8,8 @@
     "module": "src/index.js",
     "scripts": {
         "start:node": "node cli.js",
-        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests"
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests",
+        "test:samplers": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests/samplers.test.js"
     },
     "repository": {
         "type": "git",
@@ -37,6 +38,7 @@
     },
     "jest": {
         "testEnvironment": "node",
-        "bail": true
+        "bail": true,
+        "testTimeout": 360000
     }
 }

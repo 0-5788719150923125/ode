@@ -1,8 +1,8 @@
 import { LinearCongruentialGenerator } from './utils.js'
 
 class RandomSampler {
-    constructor(sampler) {
-        this.sampler = sampler
+    constructor(config) {
+        this.sampler = config.sampler
         this.tokens = []
     }
 
@@ -19,9 +19,9 @@ class RandomSampler {
 }
 
 class SequentialSampler {
-    constructor(sampler, stepSize) {
-        this.sampler = sampler
-        this.stepSize = stepSize || 1
+    constructor(config) {
+        this.sampler = config.sampler
+        this.stepSize = config.stepSize || 1
     }
 
     async take(config) {
@@ -43,8 +43,8 @@ class SequentialSampler {
 }
 
 class StringSampler {
-    constructor(string) {
-        this.string = string
+    constructor(config) {
+        this.string = config.string
     }
 
     async take() {
@@ -53,8 +53,8 @@ class StringSampler {
 }
 
 class DirectorySampler {
-    constructor(directories) {
-        this.directories = directories
+    constructor(config) {
+        this.directories = config.directories
     }
 
     async read({ delimiter = '\n\n' } = {}) {
@@ -101,8 +101,9 @@ class DirectorySampler {
 }
 
 class HTTPSampler {
-    constructor(url) {
-        this.url = url || 'https://www.gutenberg.org/files/100/old/shaks12.txt'
+    constructor(config) {
+        this.url =
+            config.url || 'https://www.gutenberg.org/files/100/old/shaks12.txt'
     }
 
     async read() {
@@ -117,9 +118,9 @@ class HTTPSampler {
 }
 
 class StridedSampler {
-    constructor(sampler, stride) {
-        this.sampler = sampler
-        this.stride = stride || 0
+    constructor(config) {
+        this.sampler = config.sampler
+        this.stride = config?.stride || 0
         this.tokens = []
     }
 
@@ -145,8 +146,8 @@ class StridedSampler {
 }
 
 class MultiSampler {
-    constructor(samplers) {
-        this.samplers = samplers
+    constructor(config) {
+        this.samplers = config.samplers
         this.currentIndex = 0
     }
 
@@ -269,19 +270,32 @@ class PhiSampler {
 }
 
 export default {
-    RandomSampler: (sampler) => new RandomSampler(sampler),
-    SequentialSampler: (sampler, stepSize) =>
-        new SequentialSampler(sampler, stepSize),
-    StringSampler: (string) => new RandomSampler(new StringSampler(string)),
-    DirectorySampler: (directories, delimiter) =>
-        new RandomSampler(new DirectorySampler(directories, delimiter)),
-    HTTPSampler: (url) => new RandomSampler(new HTTPSampler(url)),
-    StridedSampler: (sampler, stride) => new StridedSampler(sampler, stride),
+    RandomSampler: (config) => new RandomSampler(config),
+    SequentialSampler: (config) => new SequentialSampler(config),
+    StringSampler: (config) =>
+        new RandomSampler({ sampler: new StringSampler(config) }),
+    DirectorySampler: (config) =>
+        new RandomSampler({
+            sampler: new DirectorySampler(config)
+        }),
+    HTTPSampler: (config) =>
+        new RandomSampler({ sampler: new HTTPSampler(config) }),
+    StridedSampler: (config) => new StridedSampler(config),
     CosmopediaSampler: (config) =>
-        new StridedSampler(new CosmopediaSampler(config), 32),
+        new StridedSampler({
+            sampler: new CosmopediaSampler(config),
+            stride: config?.stride || 32
+        }),
     WikipediaSampler: (config) =>
-        new StridedSampler(new WikipediaSampler(config), 32),
-    PhiSampler: (config) => new StridedSampler(new PhiSampler(config), 32),
-    MultiSampler: (samplers) => new MultiSampler(samplers),
+        new StridedSampler({
+            sampler: new WikipediaSampler(config),
+            stride: config?.stride || 32
+        }),
+    PhiSampler: (config) =>
+        new StridedSampler({
+            sampler: new PhiSampler(config),
+            stride: config?.stride || 32
+        }),
+    MultiSampler: (config) => new MultiSampler(config),
     WeightedSampler: (config) => new WeightedSampler(config)
 }

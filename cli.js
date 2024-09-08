@@ -85,7 +85,7 @@ async function orchestrate(options) {
         let sampler
         const samplers = net.ode.samplers
         if (options.corpus.startsWith('http')) {
-            sampler = samplers.HTTPSampler(options.corpus)
+            sampler = samplers.HTTPSampler({ url: options.corpus })
         } else if (options.corpus === 'cosmopedia') {
             sampler = samplers.CosmopediaSampler({ seed: options.seed })
         } else if (options.corpus === 'wikipedia') {
@@ -93,13 +93,15 @@ async function orchestrate(options) {
         } else if (options.corpus === 'phi') {
             sampler = samplers.PhiSampler({ seed: options.seed })
         } else if (options.corpus === 'multi') {
-            sampler = samplers.MultiSampler([
-                samplers.CosmopediaSampler(),
-                samplers.DirectorySampler(
-                    '/home/crow/Repos/vtx/lab/phi/train',
-                    '\n\n'
-                )
-            ])
+            sampler = samplers.MultiSampler({
+                samplers: [
+                    samplers.CosmopediaSampler(),
+                    samplers.DirectorySampler(
+                        '/home/crow/Repos/vtx/lab/phi/train',
+                        '\n\n'
+                    )
+                ]
+            })
         } else if (options.corpus === 'balanced') {
             const rates = [1.0, 0.1, 0.5]
             sampler = samplers.WeightedSampler({
