@@ -388,12 +388,12 @@ function predictOnce(
         if (isSingleLabel) {
             logits = this.model.predict(idx).squeeze()
         } else {
-            const blockSize = this.model.inputs[0].shape[1]
-            const idxCond =
-                idx.shape[1] <= blockSize
-                    ? idx
-                    : idx.slice([0, -blockSize], [-1, -1])
-            logits = this.model.predict(idxCond)
+            // const blockSize = this.model.inputs[0].shape[1]
+            // const idxCond =
+            //     idx.shape[1] <= blockSize
+            //         ? idx
+            //         : idx.slice([0, -blockSize], [-1, -1])
+            logits = this.model.predict(idx)
         }
 
         // For models that export multiple output states, we only use the first

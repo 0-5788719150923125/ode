@@ -64,8 +64,12 @@ export class LinearCongruentialGenerator {
         return (this.nextInt() / this.m) * (max - min) + min
     }
 
-    pseudoRandomBetween(min, max) {
+    seededRandomBetween(min, max) {
         return Math.floor(this.randomFloat(min, max))
+    }
+
+    seededValueFromArray(array) {
+        return seededValueFromArray(array, this.randomFloat(0, 1))
     }
 }
 

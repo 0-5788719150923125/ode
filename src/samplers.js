@@ -1,3 +1,5 @@
+import { LinearCongruentialGenerator } from './utils.js'
+
 class RandomSampler {
     constructor(sampler) {
         this.sampler = sampler
@@ -157,22 +159,39 @@ class MultiSampler {
 }
 
 class WeightedSampler {
-    constructor(samplers, rates) {
-        this.samplers = samplers
-        this.rates = rates
+    constructor(config) {
+        this.samplers = config.samplers
+        this.rates = config.rates
         this.currentIndex = 0
+        if (config?.seed) {
+            const lcg = new LinearCongruentialGenerator(config.seed)
+            this.randomFloat = (...args) => lcg.randomFloat(...args)
+        } else {
+            this.randomFloat = Math.random
+        }
     }
 
     async take(config) {
+        if (config?.isValidating) {
+            // This is a super hack, but I'm tired
+            const i = 1 // The Phi dataset
+            return await this.samplers[i].take(config)
+        }
+
         const i = this.currentIndex
         if (i + 1 >= this.samplers.length) this.currentIndex = 0
         else this.currentIndex++
-        const roll = Math.random()
+        const roll = this.randomFloat(0, 1)
         if (roll < this.rates[i]) {
             return await this.samplers[i].take(config)
         } else {
             return await this.take(config)
         }
+    }
+
+    resetGenerator(mode = 'train') {
+        // This is part of the same super hack
+        this.samplers[1].resetGenerator(mode)
     }
 }
 
@@ -264,5 +283,5 @@ export default {
         new StridedSampler(new WikipediaSampler(config), 32),
     PhiSampler: (config) => new StridedSampler(new PhiSampler(config), 32),
     MultiSampler: (samplers) => new MultiSampler(samplers),
-    WeightedSampler: (samplers, rates) => new WeightedSampler(samplers, rates)
+    WeightedSampler: (config) => new WeightedSampler(config)
 }

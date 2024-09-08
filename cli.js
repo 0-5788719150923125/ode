@@ -21,7 +21,7 @@ const options = {
     temperature: 0.7,
     topK: 0,
     topP: 1.0,
-    repetitionPenalty: 1.2,
+    repetitionPenalty: 1.35,
     mirostat: false,
     mirostatState: {
         tau: 3.5, // target surprise
@@ -87,7 +87,7 @@ async function orchestrate(options) {
         if (options.corpus.startsWith('http')) {
             sampler = samplers.HTTPSampler(options.corpus)
         } else if (options.corpus === 'cosmopedia') {
-            sampler = samplers.CosmopediaSampler()
+            sampler = samplers.CosmopediaSampler({ seed: options.seed })
         } else if (options.corpus === 'wikipedia') {
             sampler = samplers.WikipediaSampler()
         } else if (options.corpus === 'phi') {
@@ -102,14 +102,23 @@ async function orchestrate(options) {
             ])
         } else if (options.corpus === 'balanced') {
             const rates = [1.0, 0.1, 0.5]
-            sampler = samplers.WeightedSampler(
-                [
+            sampler = samplers.WeightedSampler({
+                samplers: [
                     samplers.CosmopediaSampler(),
                     samplers.WikipediaSampler(),
                     samplers.PhiSampler()
                 ],
-                rates
-            )
+                rates: rates
+            })
+        } else if (options.corpus === 'devel') {
+            const rates = [1.0, 0.5]
+            sampler = samplers.WeightedSampler({
+                samplers: [
+                    samplers.CosmopediaSampler({ seed: options.seed }),
+                    samplers.PhiSampler({ seed: options.seed })
+                ],
+                rates: rates
+            })
         } else {
             sampler = samplers.DirectorySampler(options.corpus, '\n\n')
         }

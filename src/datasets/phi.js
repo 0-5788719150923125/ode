@@ -1,29 +1,11 @@
 import ParquetReader from './readers/parquet.js'
-import { LinearCongruentialGenerator, randomBetween } from '../utils.js'
+import { randomBetween } from '../utils.js'
 
 export default class PhiDataset extends ParquetReader {
     constructor(config) {
         super(config)
         this.dataset = 'open-phi/textbooks'
         this.schemaTemplate = config?.schema || [{ markdown: '\n\n' }]
-        this.trainBatchIdx = 0
-        this.validationBatchIdx = 1
-        this.cachedText = {
-            train: '',
-            validation: ''
-        }
-        this.seed = config?.seed || null
-        if (this.seed !== null) {
-            console.log(`phi dataset had a seed, using it: (${this.seed})`)
-            this.lcg = {}
-            this.resetGenerator('train')
-            this.resetGenerator('validation')
-        }
-    }
-
-    resetGenerator(mode = 'train') {
-        this.lcg[mode] = new LinearCongruentialGenerator(this.seed)
-        this.cachedText[mode] = ''
     }
 
     async fetchRandomShard() {
@@ -52,14 +34,7 @@ export default class PhiDataset extends ParquetReader {
             for (const field of this.schema) {
                 let column = this.table.batches[batchIdx].getChildAt(field.idx)
                 if (rowIdx === null) {
-                    if (this.seed) {
-                        rowIdx = this.lcg[mode].pseudoRandomBetween(
-                            0,
-                            column.length - 1
-                        )
-                    } else {
-                        rowIdx = randomBetween(0, column.length - 1)
-                    }
+                    rowIdx = this.rng[mode].randomBetween(0, column.length - 1)
                 }
                 const prefix = field.value
                 const data = column.get(rowIdx)
