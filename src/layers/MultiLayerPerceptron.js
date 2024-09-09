@@ -60,9 +60,6 @@ export default class MultiLayerPerceptron extends LayerBase {
                 this.outProjBias?.read()
             )
 
-            // Residual connection
-            outputs = tf.add(inputs, outputs)
-
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs

@@ -83,7 +83,7 @@ export default class AttentionFreeTransformer extends LayerBase {
                 this.project.read()
             )
 
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

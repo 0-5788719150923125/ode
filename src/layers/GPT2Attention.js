@@ -49,7 +49,6 @@ export default class GPT2Attention extends LayerBase {
             'float32',
             this.initializers.zeros()
         )
-        this.layerNorm = tf.layers.layerNormalization({ epsilon: this.epsilon })
     }
 
     computeOutputShape(inputShape) {
@@ -117,8 +116,7 @@ export default class GPT2Attention extends LayerBase {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
 
-            outputs = this.layerNorm.apply(outputs)
-            return tf.layers.add().apply([inputs, outputs])
+            return outputs
         })
     }
 }

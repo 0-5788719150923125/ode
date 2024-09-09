@@ -11,8 +11,7 @@ export default class OriginalDecoderEncoder extends ODE {
             units: 128,
             numHeads: 8,
             mlpDim: 512,
-            dropout: 0,
-            epsilon: 1e-5
+            dropout: 0
         }
         super({ ...defaults, ...config })
     }
@@ -71,10 +70,16 @@ export default class OriginalDecoderEncoder extends ODE {
                     units: this.config.units,
                     heads: this.config.numHeads,
                     dropout: this.config.dropout,
-                    epsilon: this.config.epsilon,
                     bias: false
                 })
                 .apply(outputs)
+
+            let normalized = tf.layers
+                .layerNormalization({ epsilon: 1e-5 })
+                .apply(outputs)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([normalized, outputs])
 
             outputs = this.ode.layers
                 .MultiLayerPerceptron({
@@ -82,10 +87,16 @@ export default class OriginalDecoderEncoder extends ODE {
                     hiddenDim: this.config.mlpDim,
                     heads: this.config.numHeads,
                     dropout: this.config.dropout,
-                    epsilon: this.config.epsilon,
                     activation: 'gelu'
                 })
                 .apply(outputs)
+
+            normalized = tf.layers
+                .layerNormalization({ epsilon: 1e-5 })
+                .apply(outputs)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([normalized, outputs])
         }
 
         outputs = this.tf.layers

@@ -79,8 +79,6 @@ export default class VariableDimensionMLP extends LayerBase {
                 slicedOutProjBias
             )
 
-            outputs = tf.add(inputs, outputs)
-
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs

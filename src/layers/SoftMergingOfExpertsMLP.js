@@ -184,8 +184,6 @@ export default class SoftMergingOfExpertsMLP extends LayerBase {
                 avgOutProjBias
             )
 
-            outputs = tf.add(inputs, outputs)
-
             return outputs
         })
     }

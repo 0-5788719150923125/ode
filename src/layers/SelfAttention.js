@@ -52,7 +52,7 @@ export default class SelfAttention extends LayerBase {
 
             let outputs = tf.matMul(weights, V)
 
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

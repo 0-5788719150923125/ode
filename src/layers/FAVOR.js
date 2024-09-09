@@ -94,8 +94,6 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 this.outputKernel.read()
             )
 
-            outputs = tf.add(inputs, outputs)
-
             return outputs
         })
     }

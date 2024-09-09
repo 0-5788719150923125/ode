@@ -248,7 +248,7 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 this.outputBias?.read()
             )
 
-            return tf.add(projectedInputs, outputs)
+            return outputs
         })
     }
 

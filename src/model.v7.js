@@ -38,17 +38,23 @@ export default class OptionalDecisionExecution extends ODE {
         const hiddenStates = []
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
+            let normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
-            const actualState = this.defineAttentionLayer().apply(outputs)
-            const predictedState = modeler.apply(outputs)
+            const actualState = this.defineAttentionLayer().apply(normalized)
+            const predictedState = modeler.apply(normalized)
             hiddenStates.push(actualState)
             hiddenStates.push(predictedState)
             outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([actualState, outputs])
+            normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
-            outputs = this.defineFeedforwardLayer().apply(actualState)
+            const ffdOutputs = this.defineFeedforwardLayer().apply(normalized)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutputs, outputs])
         }
 
         outputs = this.ode.layers

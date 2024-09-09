@@ -52,9 +52,6 @@ export default class OmnilateralDynamicEvaluator extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
-                .RMSNorm({ elementwiseAffine: true, useBias: true })
-                .apply(outputs)
             if (i % 2 !== 0) {
                 const quarter = this.config.units / 4
                 let [updated, retained] = this.ode.layers
@@ -78,7 +75,11 @@ export default class OmnilateralDynamicEvaluator extends ODE {
                     .apply([retained, updated])
             }
 
-            outputs = this.ode.layers
+            let normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: true })
+                .apply(outputs)
+
+            const attnOutputs = this.ode.layers
                 .PrimerAttention({
                     numHeads: this.config.numHeads,
                     headDim: this.config.headDim,
@@ -86,20 +87,28 @@ export default class OmnilateralDynamicEvaluator extends ODE {
                     ALiBiLength: this.config.ALiBiLength,
                     useBias: this.config.useBias
                 })
-                .apply(outputs)
+                .apply(normalized)
 
             outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([attnOutputs, outputs])
+
+            normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: true, useBias: true })
                 .apply(outputs)
 
-            outputs = this.ode.layers
+            const ffdOutputs = this.ode.layers
                 .GatedLinearMLP({
                     activation: 'mish',
                     gateActivation: 'swish',
                     hiddenDim: this.config.mlpDim,
                     useBias: this.config.useBias
                 })
-                .apply(outputs)
+                .apply(normalized)
+
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutputs, outputs])
         }
 
         outputs = this.ode.layers

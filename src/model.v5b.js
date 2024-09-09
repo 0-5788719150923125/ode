@@ -1,27 +1,34 @@
-import ODE from './model.v3.js'
+import ODE from './model.v2.js'
 
 /**
- * A better sparse mixture of experts.
+ * A Soft Merging of Experts with Adaptive Routing.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
         const defaults = {
-            layers: 3,
-            units: 256,
-            headDim: 1024,
-            mlpDim: 768,
+            layers: 5,
+            units: 128,
+            embeddings: 512,
+            rank: 96,
             numExperts: 3,
-            topK: 2,
-            switchingDim: 512,
-            temperature: 0.8
+            routerDim: 512,
+            numHeads: 8,
+            headDim: 256,
+            headFeatures: 64,
+            mlpDim: 512,
+            learningRate: 1e-4,
+            minLearningRate: 1e-6,
+            weightDecay: 1e-5,
+            cosineSteps: 2048,
+            ALiBiLength: 1024
         }
         super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
         return this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-consistent-v1'
+            model: 'englishcode-8000-consistent-v1'
         })
     }
 
@@ -32,47 +39,69 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
 
         const embeddings = this.ode.layers.SharedEmbedding({
             inputDim: this.tokenizer.getLength(),
-            outputDim: this.config.units,
+            outputDim: this.config.embeddings,
             embeddingsInitializer: 'glorotUniform'
         })
 
-        const encoding = this.ode.layers.SinusoidalPositionalEncoding()
+        let outputs = embeddings.apply(inputs)
 
-        let outputs = encoding.apply(embeddings.apply(inputs))
+        outputs = this.ode.layers
+            .LowRankFactorization({
+                outputDim: this.config.units,
+                rank: this.config.rank
+            })
+            .apply(outputs)
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
-                .SelfAttention({
-                    hiddenDim: this.config.headDim
-                })
+            let normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
+            const attnOutputs = this.ode.layers
+                .ProjectedFeatureAttention({
+                    numHeads: this.config.numHeads,
+                    headDim: this.config.headDim,
+                    headFeatures: this.config.headFeatures,
+                    ALiBiLength: this.config.ALiBiLength
+                })
+                .apply(normalized)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([attnOutputs, outputs])
 
-            outputs = this.ode.layers
-                .AdaptiveMixtureOfExperts({
-                    topK: this.config.topK,
-                    switchingDim: this.config.switchingDim,
-                    activation: 'swish',
-                    temperature: this.config.temperature,
-                    experts: this.createMLPExperts(outputs.shape)
-                })
+            normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
+            const ffdOutputs = this.ode.layers
+                .SoftMergingOfExpertsMLP({
+                    activation: 'mish',
+                    routerActivation: 'swish',
+                    routerDim: this.config.routerDim,
+                    numExperts: this.config.numExperts,
+                    expertDim: this.config.mlpDim
+                })
+                .apply(normalized)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutputs, outputs])
         }
+
+        outputs = this.ode.layers
+            .dense({
+                units: this.config.embeddings
+            })
+            .apply(outputs)
 
         outputs = embeddings.apply(outputs)
 
         return this.tf.model({ inputs, outputs })
     }
 
-    createMLPExperts(inputShape) {
-        return Array(this.config.numExperts)
-            .fill(0)
-            .map((_, i) => {
-                return this.ode.expert({
-                    type: 'MultiLayerPerceptron',
-                    inputShape,
-                    hiddenDim: this.config.mlpDim,
-                    activation: 'swish'
-                })
+    defineOptimizers() {
+        return [
+            this.ode.optimizers.Lion({
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
             })
+        ]
     }
 }

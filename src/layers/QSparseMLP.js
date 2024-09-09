@@ -74,9 +74,6 @@ export default class QSparseMLP extends LayerBase {
                 this.useBias ? this.outProjBias.read() : null
             )
 
-            // Residual connection
-            outputs = tf.add(inputs, outputs)
-
             return outputs
         })
     }

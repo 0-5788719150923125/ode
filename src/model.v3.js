@@ -37,23 +37,29 @@ export default class OptimalDecisionEngine extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
+            let normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: false, useBias: false })
                 .apply(outputs)
-            outputs = this.ode.layers
+            const attnOutputs = this.ode.layers
                 .SelfAttention({
                     hiddenDim: this.config.units * 4
                 })
                 .apply(outputs)
             outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([attnOutputs, outputs])
+            normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: false, useBias: false })
                 .apply(outputs)
-            outputs = this.ode.layers
+            const ffdOutputs = this.ode.layers
                 .MultiLayerPerceptron({
                     hiddenDim: this.config.units * 4,
                     activation: 'swish'
                 })
-                .apply(outputs)
+                .apply(normalized)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutputs, outputs])
         }
 
         outputs = embeddings.apply(outputs)

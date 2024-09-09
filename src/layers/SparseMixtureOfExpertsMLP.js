@@ -139,8 +139,7 @@ export default class SparseMixtureOfExpertsMLP extends LayerBase {
             .squeeze()
         outputs = this.ops.applyDense(outputs, expertOut)
 
-        // Residual connection
-        return tf.add(inputs, outputs)
+        return outputs
     }
 
     computeUtilization(expertIndices, kwargs) {

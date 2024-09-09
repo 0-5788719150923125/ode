@@ -187,6 +187,7 @@ const customLayersConfig = {
         constructor: Range,
         prefix: 'op'
     },
+    ResidualConnection: { constructor: tf.layers.add, prefix: 'op' },
     rnn: { constructor: tf.layers.gru, prefix: 'rnn' },
     RotaryPositionalEncoding: {
         constructor: RotaryPositionalEncoding,

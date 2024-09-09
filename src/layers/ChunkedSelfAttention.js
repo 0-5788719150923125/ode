@@ -83,7 +83,7 @@ export default class ChunkedSelfAttention extends LayerBase {
 
             const outputs = tf.concat(chunkOutputs, 1)
 
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

@@ -211,9 +211,6 @@ export default class MultiHeadAttention extends LayerBase {
                 this.outputBias?.read()
             )
 
-            // Apply residual connection
-            outputs = tf.add(inputs, outputs)
-
             // Apply dropout if in training mode
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)

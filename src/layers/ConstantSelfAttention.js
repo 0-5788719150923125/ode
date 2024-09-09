@@ -64,7 +64,7 @@ export default class ConstantSelfAttention extends LayerBase {
 
             const outputs = tf.matMul(weights, V)
 
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

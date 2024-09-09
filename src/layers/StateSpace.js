@@ -138,11 +138,9 @@ export default class StateSpace extends LayerBase {
                 state = newState
             }
 
-            let output = this.returnSequences
+            return this.returnSequences
                 ? tf.stack(outputs, 1)
                 : outputs[outputs.length - 1]
-
-            return tf.add(inputs, output)
         })
     }
 

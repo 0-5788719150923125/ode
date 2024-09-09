@@ -83,8 +83,6 @@ export default class ParabolicCompression extends LayerBase {
             const [batchSize, seqLength, inputDim] = inputs.shape
 
             let outputs = inputs
-
-            let currentSize = inputDim
             for (let i = 0; i < this.numSteps; i++) {
                 const newSize = inputDim - this.stepSize * (i + 1)
 
@@ -99,9 +97,6 @@ export default class ParabolicCompression extends LayerBase {
 
                 // Per-feature activation via Snake
                 outputs = this.activation.apply(outputs, alpha, beta, gamma)
-
-                // Reduce the size
-                currentSize = newSize
             }
 
             const inputReshaped = inputs.reshape([-1, inputDim])

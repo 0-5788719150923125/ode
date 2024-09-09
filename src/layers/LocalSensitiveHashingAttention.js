@@ -240,7 +240,7 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
                 this.outputBias?.read()
             )
 
-            return tf.add(inputs, finalOutput)
+            return finalOutput
         })
     }
 

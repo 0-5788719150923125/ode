@@ -12,7 +12,6 @@ export default class SynthesizerAttention extends LayerBase {
         this.attnPdrop = config.dropout || 0.0
         this.residPdrop = config.dropout || 0.0
         this.activation = tf.leakyRelu
-        this.epsilon = config.epsilon || false
         this.alpha = config.alpha || 1
         this.depth = this.units / this.heads
     }
@@ -48,12 +47,6 @@ export default class SynthesizerAttention extends LayerBase {
             'float32',
             this.initializers.glorotNormal()
         )
-
-        if (this.epsilon) {
-            this.layernorm = tf.layers.layerNormalization({
-                epsilon: this.epsilon
-            })
-        }
 
         this.attnDropout = tf.layers.dropout({ rate: this.attnPdrop })
         this.residDropout = tf.layers.dropout({ rate: this.residPdrop })
@@ -138,10 +131,7 @@ export default class SynthesizerAttention extends LayerBase {
 
             let output = this.synthesize(yReshaped, this.proj.read())
 
-            output = this.residDropout.apply(output)
-            if (this.layernorm) output = this.layernorm.apply(output)
-
-            return tf.add(inputs, output)
+            return output
         })
     }
 
@@ -162,7 +152,6 @@ export default class SynthesizerAttention extends LayerBase {
             blockSize: this.blockSize,
             attnPdrop: this.dropout,
             residPdrop: this.dropout,
-            epsilon: this.epsilon,
             alpha: this.alpha,
             depth: this.depth
         }

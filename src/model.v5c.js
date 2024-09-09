@@ -1,7 +1,7 @@
-import ODE from './model.v2.js'
+import ODE from './model.v3.js'
 
 /**
- * A maybe-sparse mixture of depths.
+ * A kinda-sparse mixture of experts.
  * @extends ODE
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
@@ -9,20 +9,19 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         const defaults = {
             layers: 3,
             units: 256,
-            routerDim: 1024,
-            headDim: 2048,
-            mlpDim: 1024,
-            capacity: 0.25,
-            learningRate: 2e-4,
-            minLearningRate: 1e-6,
-            cosineSteps: 2048
+            numExperts: 3,
+            topK: 2,
+            switchingDim: 256,
+            headDim: 1024,
+            mlpDim: 512,
+            temperature: 0.8
         }
         super({ ...defaults, ...config })
     }
 
     defineTokenizer() {
         return this.ode.tokenizers.TokenMonster({
-            model: 'englishcode-4096-consistent-v1'
+            model: 'englishcode-4096-clean-v1'
         })
     }
 
@@ -42,39 +41,39 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
-                .MixtureOfDepths({
-                    routerDim: this.config.routerDim,
-                    activation: 'gelu_new',
-                    capacity: this.config.capacity,
-                    experts: [
-                        this.ode.expert({
-                            type: 'SelfAttention',
-                            inputShape: outputs.shape,
-                            projection: this.config.headDim
-                        }),
-                        this.ode.expert({
-                            type: 'GatedLinearMLP',
-                            inputShape: outputs.shape,
-                            hiddenDim: this.config.mlpDim,
-                            activation: 'gelu_new'
-                        })
-                    ]
-                })
+            let normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
+            const attnOutputs = this.ode.layers
+                .SelfAttention({
+                    hiddenDim: this.config.headDim
+                })
+                .apply(normalized)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([attnOutputs, outputs])
+
+            normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
+                .apply(outputs)
+            const ffdOutputs = this.ode.layers
+                .SparseMixtureOfExpertsMLP({
+                    topK: this.config.topK,
+                    numExperts: this.config.numExperts,
+                    switchingDim: this.config.switchingDim,
+                    activation: 'mish',
+                    temperature: this.config.temperature,
+                    mlpDim: this.config.mlpDim
+                })
+                .apply(normalized)
+
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutputs, outputs])
         }
 
         outputs = embeddings.apply(outputs)
 
         return this.tf.model({ inputs, outputs })
-    }
-
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.Lion({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay
-            })
-        ]
     }
 }

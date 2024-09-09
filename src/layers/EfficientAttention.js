@@ -127,7 +127,7 @@ export default class EfficientAttention extends LayerBase {
                 'same'
             )
 
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

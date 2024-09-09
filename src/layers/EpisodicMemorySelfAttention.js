@@ -208,7 +208,7 @@ export default class EpisodicMemorySelfAttention extends LayerBase {
 
             let outputs = tf.matMul(weights, V)
 
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

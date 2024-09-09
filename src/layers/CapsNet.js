@@ -116,7 +116,7 @@ export default class CapsNet extends LayerBase {
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
             // Apply skip connection
-            return tf.add(inputs, outputs)
+            return outputs
         })
     }
 

@@ -41,16 +41,29 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
         let outputs = encoding.apply(embeddings.apply(inputs))
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
+            let normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: false, useBias: false })
+                .apply(outputs)
+            const attnOutputs = this.ode.layers
                 .SelfAttention({
                     hiddenDim: this.config.headDim
                 })
+                .apply(normalized)
+
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([attnOutputs, outputs])
+
+            normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: false, useBias: false })
                 .apply(outputs)
 
             const experts = this.createExperts()
-            const expertOutputs = experts.map((expert) => expert.apply(outputs))
+            const expertOutputs = experts.map((expert) =>
+                expert.apply(normalized)
+            )
 
-            outputs = this.ode.layers
+            const ffdOutputs = this.ode.layers
                 .SparseMixtureOfExperts({
                     topK: this.config.topK,
                     numExperts: experts.length,
@@ -58,7 +71,11 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
                     activation: 'swish',
                     temperature: this.config.temperature
                 })
-                .apply([outputs, ...expertOutputs])
+                .apply([normalized, ...expertOutputs])
+
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutputs, outputs])
         }
 
         outputs = embeddings.apply(outputs)

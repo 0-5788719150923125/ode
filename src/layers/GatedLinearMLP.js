@@ -58,8 +58,6 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
                 this.outProjBias?.read()
             )
 
-            outputs = tf.add(inputs, outputs)
-
             outputs = kwargs['training']
                 ? tf.dropout(outputs, this.dropout)
                 : outputs
