@@ -56,9 +56,8 @@ export default class OriginalDecoderEncoder extends ODE {
             })
             .apply(outputs)
 
-        outputs = this.tf.layers
+        outputs = this.ode.layers
             .layerNormalization({
-                name: 'emb/ln',
                 epsilon: this.config.epsilon
             })
             .apply(outputs)
@@ -74,7 +73,7 @@ export default class OriginalDecoderEncoder extends ODE {
                 })
                 .apply(outputs)
 
-            let normalized = tf.layers
+            let normalized = this.ode.layers
                 .layerNormalization({ epsilon: 1e-5 })
                 .apply(outputs)
             outputs = this.ode.layers
@@ -91,7 +90,7 @@ export default class OriginalDecoderEncoder extends ODE {
                 })
                 .apply(outputs)
 
-            normalized = tf.layers
+            normalized = this.ode.layers
                 .layerNormalization({ epsilon: 1e-5 })
                 .apply(outputs)
             outputs = this.ode.layers

@@ -141,6 +141,10 @@ const customLayersConfig = {
         constructor: LambdaLayer,
         prefix: 'op'
     },
+    layerNormalization: {
+        constructor: tf.layers.layerNormalization,
+        prefix: 'norm'
+    },
     LocalSensitiveHashingAttention: {
         constructor: LocalSensitiveHashingAttention,
         prefix: 'attn'
