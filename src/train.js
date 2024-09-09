@@ -642,7 +642,9 @@ export class ConsoleLogger {
 }
 
 function extractLayerInfo(model) {
-    const layerInfoObject = {}
+    const layerInfoArray = []
+    const classCountObject = {}
+    const prefixObject = {}
 
     model.layers.forEach((layer) => {
         const className = layer.constructor.name
@@ -651,21 +653,32 @@ function extractLayerInfo(model) {
         // Split the layer name on the dash and get the prefix
         const [prefix] = layerName.split('-')
 
-        // If this prefix hasn't been seen before, initialize it with a new Set
-        if (!layerInfoObject[prefix]) {
-            layerInfoObject[prefix] = new Set()
+        // Update the class count
+        if (!classCountObject[className]) {
+            classCountObject[className] = 0
         }
+        classCountObject[className]++
 
-        // Add the class name to the Set for this prefix
-        layerInfoObject[prefix].add(className)
+        // Update the prefix object
+        if (!prefixObject[className]) {
+            prefixObject[className] = new Set()
+        }
+        prefixObject[className].add(prefix)
     })
 
-    // Convert Sets to Arrays for easier handling if needed
-    for (const prefix in layerInfoObject) {
-        layerInfoObject[prefix] = Array.from(layerInfoObject[prefix])
+    // Create the combined array of objects
+    for (const className in classCountObject) {
+        const count = classCountObject[className]
+        const prefixes = Array.from(prefixObject[className])
+
+        layerInfoArray.push({
+            class: className,
+            count: count,
+            prefixes: prefixes
+        })
     }
 
-    return layerInfoObject
+    return layerInfoArray
 }
 
 export class MetricsCollector {

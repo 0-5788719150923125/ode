@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './_base.js'
 
-export default class LowRankFactorizationResidual extends LayerBase {
+export default class LowRankFactorization extends LayerBase {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -62,4 +62,4 @@ export default class LowRankFactorizationResidual extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(LowRankFactorizationResidual)
+tf.serialization.registerClass(LowRankFactorization)

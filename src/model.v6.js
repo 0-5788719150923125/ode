@@ -16,12 +16,18 @@ export default class OmniscientDeterministicEngine extends ODE {
             mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
-            learningRate: 1.0,
+            learningRate: 1e-4,
             weightDecay: 1e-5,
-            warmupSteps: 128,
-            trainSteps: config.trainSteps || 4096
+            warmupSteps: 128
         }
         super({ ...defaults, ...config })
+    }
+
+    defineReductionLayer() {
+        return this.ode.layers.LowRankFactorization({
+            units: this.config.units,
+            rank: 90
+        })
     }
 
     defineSchedulers() {
@@ -33,16 +39,16 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.Prodigy({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay,
-                safeguardWarmup: true,
-                biasCorrection: true
-            })
-        ]
-    }
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.Prodigy({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay,
+    //             safeguardWarmup: true,
+    //             biasCorrection: true
+    //         })
+    //     ]
+    // }
 
     // defineSchedulers() {
     //     return [

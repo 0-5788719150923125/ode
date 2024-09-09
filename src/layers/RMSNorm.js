@@ -4,7 +4,7 @@ import LayerBase from './_base.js'
 export default class RMSNorm extends LayerBase {
     constructor(config) {
         super(config)
-        this.epsilon = config.epsilon || 1e-6
+        this.epsilon = config.epsilon || 1e-7
         this.axis = config.axis || 2
         this.elementwiseAffine = config.elementwiseAffine || true
     }
@@ -14,7 +14,7 @@ export default class RMSNorm extends LayerBase {
 
         if (this.elementwiseAffine) {
             this.rmsWeight = this.addWeight(
-                'weight',
+                'rmsWeight',
                 [axisShape],
                 'float32',
                 tf.initializers.ones()
@@ -22,17 +22,13 @@ export default class RMSNorm extends LayerBase {
 
             if (this.useBias) {
                 this.rmsBias = this.addWeight(
-                    'bias',
+                    'rmsBias',
                     [axisShape],
                     'float32',
                     tf.initializers.zeros()
                 )
             }
         }
-    }
-
-    computeOutputShape(inputShape) {
-        return inputShape
     }
 
     call(inputs, kwargs) {
