@@ -198,7 +198,7 @@ class WeightedSampler {
 
 class HuggingFaceSampler {
     constructor(config) {
-        this.src = config.dataset
+        this.dataset = config.dataset
         this.config = config
         this.sampler = null
     }

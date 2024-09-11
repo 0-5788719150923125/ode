@@ -11,7 +11,6 @@ const url =
     const buffer = new Uint8Array(await resp.arrayBuffer())
     const arrowWasmTable = readParquet(buffer)
     const table = arrow.tableFromIPC(arrowWasmTable.intoIPCStream())
-    table.free()
 
     console.log('successfully loaded table via parquet-wasm')
 })()
@@ -27,7 +26,6 @@ const url =
         ffiTable.arrayAddrs(),
         ffiTable.schemaAddr()
     )
-    table.free()
 
     console.log('successfully loaded table via FFI')
 })()

@@ -30,12 +30,19 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    defineLossFunction() {
-        return {
-            name: 'MiLeCrossEntropy',
-            reduction: this.tf.Reduction.MEAN
-        }
+    defineReductionLayer() {
+        return this.ode.layers.LowRankFactorization({
+            units: this.config.units,
+            rank: 45
+        })
     }
+
+    // defineLossFunction() {
+    //     return {
+    //         name: 'MiLeCrossEntropy',
+    //         reduction: this.tf.Reduction.MEAN
+    //     }
+    // }
 
     // defineOptimizers() {
     //     return [
@@ -46,13 +53,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     //             biasCorrection: true
     //         })
     //     ]
-    // }
-
-    // defineReductionLayer() {
-    //     return this.ode.layers.LowRankFactorization({
-    //         units: this.config.units,
-    //         rank: 90
-    //     })
     // }
 
     // defineSchedulers() {

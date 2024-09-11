@@ -30,7 +30,7 @@
         "@tensorflow/tfjs-node": "^4.20.0",
         "@tensorflow/tfjs-node-gpu": "^4.20.0",
         "@xenova/transformers": "^2.16.1",
-        "apache-arrow": "^16.1.0",
+        "apache-arrow": "^17.0.0",
         "arrow-js-ffi": "^0.4.2",
         "parquet-wasm": "^0.6.1"
     },
