@@ -8,7 +8,7 @@ export default function smoothGeneralizedCrossEntropy(
     yPred,
     weights = null,
     labelSmoothing = 0,
-    reduction = null,
+    reduction = tf.Reduction.MEAN,
     fromLogits = false,
     alpha = null,
     gamma = null,
@@ -47,13 +47,15 @@ export default function smoothGeneralizedCrossEntropy(
         // Apply smoothing to the loss
         const smoothedLoss = tf.mul(smoothedLabels, loss)
 
-        // Apply sample weights if provided
-        let weightedLoss = smoothedLoss
-        if (weights !== null) {
-            weightedLoss = tf.mul(weightedLoss, weights.expandDims(-1))
-        }
+        return tf.losses.computeWeightedLoss(smoothedLoss, weights, reduction)
 
-        // Mean reduction to collapse the loss into a single number
-        return tf.mean(tf.sum(weightedLoss, -1))
+        // // Apply sample weights if provided
+        // let weightedLoss = smoothedLoss
+        // if (weights !== null) {
+        //     weightedLoss = tf.mul(weightedLoss, weights.expandDims(-1))
+        // }
+
+        // // Mean reduction to collapse the loss into a single number
+        // return tf.mean(tf.sum(weightedLoss, -1))
     })
 }

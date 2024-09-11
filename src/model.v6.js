@@ -7,7 +7,7 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
-            learningRate: 1.0
+            learningRate: 0.001
         }
         super({ ...defaults, ...config })
     }
@@ -23,14 +23,30 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         return [
-            this.ode.optimizers.Prodigy({
+            this.ode.optimizers.AdamW({
                 learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay,
-                safeguardWarmup: true,
-                biasCorrection: true
+                weightDecay: this.config.weightDecay
             })
         ]
     }
+
+    defineLossFunction() {
+        return {
+            name: 'MiLeCrossEntropy',
+            reduction: this.tf.Reduction.MEAN
+        }
+    }
+
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.Prodigy({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay,
+    //             safeguardWarmup: true,
+    //             biasCorrection: true
+    //         })
+    //     ]
+    // }
 
     // defineReductionLayer() {
     //     return this.ode.layers.LowRankFactorization({
@@ -48,13 +64,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     //             this.config.warmupSteps
     //         )
     //     ]
-    // }
-
-    // defineLossFunction() {
-    //     return {
-    //         name: 'softmaxCrossEntropy',
-    //         reduction: this.tf.Reduction.MEAN
-    //     }
     // }
 
     // defineReductionLayer() {

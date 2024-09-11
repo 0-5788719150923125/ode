@@ -113,7 +113,7 @@ async function orchestrate(options) {
                 rates: rates
             })
         } else if (options.corpus === 'devel') {
-            const rates = [0.5, 1.0]
+            const rates = [1.0, 0.5]
             sampler = samplers.WeightedSampler({
                 samplers: [
                     samplers.CosmopediaSampler({ seed: options.seed }),
