@@ -15,8 +15,6 @@ export default class ParquetReader {
         this.batchesBeforeRefresh = config?.batchesBeforeRefresh || 10000
         this.batches = 0
         this.cacheSize = 20000
-        this.cachedText = ''
-        this.catchedValidationText = ''
         this.table = {}
         this.schemaTemplate = config?.schema
         this.dataset = 'HuggingFaceTB/cosmopedia'
