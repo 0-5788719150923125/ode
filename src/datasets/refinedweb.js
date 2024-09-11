@@ -1,5 +1,5 @@
-import { parseTable } from 'arrow-js-ffi'
-import initWasm, { wasmMemory, readParquet } from 'parquet-wasm'
+import * as arrow from 'apache-arrow'
+import wasmInit, { readParquet } from 'parquet-wasm'
 import ParquetReader from './readers/parquet.js'
 
 // curl -X GET "https://huggingface.co/api/datasets/tiiuae/falcon-refinedweb/parquet/default/train"
@@ -9,12 +9,13 @@ export default class RefinedWebDataset extends ParquetReader {
     constructor(config) {
         super(config)
         this.dataset = 'tiiuae/falcon-refinedweb'
-        this.schemaTemplate = config?.schema || [{ markdown: '\n\n' }]
+        this.schemaTemplate = config?.schema || [{ content: '\n\n' }]
         this.parquetFiles = []
         this.cachedText = {
             train: '',
             validation: ''
         }
+        this.table = null
     }
 
     async fetchDataset() {
@@ -53,58 +54,25 @@ export default class RefinedWebDataset extends ParquetReader {
         this.loadSchema(this.schemaTemplate)
     }
 
+    // FFI fails on this dataset, so we use synchronous loading
     async streamDataIntoTable(url) {
-        const resp = await fetch(url)
-        console.log('1')
-        const buffer = new Uint8Array(await resp.arrayBuffer())
-        console.log('2')
-        const ffiTable = readParquet(buffer).intoFFI()
-        console.log('3')
-
-        this.table = parseTable(
-            wasmMemory().buffer,
-            ffiTable.arrayAddrs(),
-            ffiTable.schemaAddr()
-        )
-        console.log('4')
-
-        ffiTable.drop()
+        if (this.table) this.table.drop()
+        const response = await fetch(url)
+        this.buffer = new Uint8Array(await response.arrayBuffer())
+        // Read Parquet buffer to Arrow Table
+        const arrowWasmTable = readParquet(this.buffer)
+        // Convert to JS Arrow Table
+        this.table = arrow.tableFromIPC(arrowWasmTable.intoIPCStream())
     }
-
-    // async fillCache(mode = 'train', batchIdx = 0) {
-    //     while (this.cachedText[mode].length < this.cacheSize) {
-    //         const text = []
-
-    //         let rowIdx = null
-    //         for (const field of this.schema) {
-    //             let column = this.table.batches[batchIdx].getChildAt(field.idx)
-    //             if (rowIdx === null) {
-    //                 rowIdx = this.rng[mode].randomBetween(0, column.length - 1)
-    //             }
-    //             const prefix = field.value
-    //             const data = column.get(rowIdx)
-    //             text.push(prefix + data)
-    //         }
-    //         this.cachedText[mode] += text.join(this.delimiter) + this.eosToken
-    //     }
-    // }
-
-    // async getSample({ mode = 'train', size = 512 }) {
-    //     let batchIdx = this.trainBatchIdx
-    //     if (this.seed === null) batchIdx = randomBetween(0, 1)
-    //     if (mode === 'validation') batchIdx = this.validationBatchIdx
-    //     await this.fillCache(mode, batchIdx)
-    //     const sample = this.cachedText[mode].slice(0, size)
-    //     this.cachedText[mode] = this.cachedText[mode].slice(size)
-    //     return sample
-    // }
 }
 
 async function main() {
     const sampler = new RefinedWebDataset({
-        schema: [{ text: '' }]
+        schema: [{ content: '' }],
+        seed: 42
     })
     await sampler.init()
+    console.log(sampler.viewSchema())
     for (let i = 0; i < 10; i++) {
         console.log(await sampler.getSample({ mode: 'train', size: 512 }))
         console.log('---')
