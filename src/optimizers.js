@@ -6,6 +6,7 @@ import Lamb from './optimizers/Lamb.js'
 import Lion from './optimizers/Lion.js'
 import Prodigy from './optimizers/Prodigy.js'
 import Signum from './optimizers/Signum.js'
+import SophiaH from './optimizers/SophiaH.js'
 
 const wrappedOptimizers = Object.fromEntries(
     Object.entries(tf.train).map(([key, optimizer]) => [
@@ -22,5 +23,6 @@ export default {
     Lamb: (config) => new Lamb(config),
     Lion: (config) => new Lion(config),
     Prodigy: (config) => new Prodigy(config),
-    Signum: (config) => new Signum(config)
+    Signum: (config) => new Signum(config),
+    SophiaH: (config) => new SophiaH(config)
 }

@@ -281,26 +281,23 @@ export default {
     HTTPSampler: (config) =>
         new RandomSampler({ sampler: new HTTPSampler(config) }),
     StridedSampler: (config) => new StridedSampler(config),
+    MultiSampler: (config) => new MultiSampler(config),
+    WeightedSampler: (config) => new WeightedSampler(config),
     CosmopediaSampler: (config) =>
         new StridedSampler({
-            sampler: new CosmopediaSampler(config),
-            stride: config?.stride || 32
+            ...config,
+            sampler: new CosmopediaSampler(config)
         }),
     WikipediaSampler: (config) =>
         new StridedSampler({
-            sampler: new WikipediaSampler(config),
-            stride: config?.stride || 32
-        }),
-    PhiSampler: (config) =>
-        new StridedSampler({
-            sampler: new PhiSampler(config),
-            stride: config?.stride || 32
+            ...config,
+            sampler: new WikipediaSampler(config)
         }),
     RefinedWebSampler: (config) =>
         new StridedSampler({
-            sampler: new RefinedWebSampler(config),
-            stride: config?.stride || 32
+            ...config,
+            sampler: new RefinedWebSampler(config)
         }),
-    MultiSampler: (config) => new MultiSampler(config),
-    WeightedSampler: (config) => new WeightedSampler(config)
+    PhiSampler: (config) =>
+        new StridedSampler({ ...config, sampler: new PhiSampler(config) })
 }

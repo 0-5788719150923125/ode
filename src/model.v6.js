@@ -37,6 +37,15 @@ export default class OmniscientDeterministicEngine extends ODE {
         })
     }
 
+    defineOptimizers() {
+        return [
+            this.ode.optimizers.SophiaH({
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
+            })
+        ]
+    }
+
     // defineLossFunction() {
     //     return {
     //         name: 'MiLeCrossEntropy',

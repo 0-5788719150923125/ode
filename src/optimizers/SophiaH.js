@@ -1,20 +1,33 @@
 import * as tf from '@tensorflow/tfjs'
 
-class SophiaH extends tf.Optimizer {
-    constructor(config) {
+export default class SophiaH extends tf.Optimizer {
+    constructor({
+        learningRate = 6e-2,
+        betas = [0.96, 0.99],
+        weightDecay = 0.0,
+        weightDecouple = true,
+        fixedDecay = false,
+        p = 1e-2,
+        updatePeriod = 10,
+        numSamples = 1,
+        hessianDistribution = 'gaussian',
+        epsilon = 1e-12,
+        step = 1
+    } = {}) {
         super()
-        this.learningRate = config.learningRate || 6e-2
-        this.betas = config.betas || [0.96, 0.99]
-        this.weightDecay = config.weightDecay || 0.0
-        this.weightDecouple = config.weightDecouple ?? true
-        this.fixedDecay = config.fixedDecay ?? false
-        this.p = config.p || 1e-2
-        this.updatePeriod = config.updatePeriod || 10
-        this.numSamples = config.numSamples || 1
-        this.hessianDistribution = config.hessianDistribution || 'gaussian'
-        this.eps = config.eps || 1e-12
-        this.step = 0
-        this.state = {}
+        this.learningRate = learningRate
+        this.betas = betas
+        this.weightDecay = weightDecay
+        this.weightDecouple = weightDecouple
+        this.fixedDecay = fixedDecay
+        this.p = p
+        this.updatePeriod = updatePeriod
+        this.numSamples = numSamples
+        this.hessianDistribution = hessianDistribution
+        this.epsilon = epsilon
+        this.step = step
+        this.ENGINE = tf.engine()
+        this.STATE = {}
     }
 
     applyGradients(variableGradients) {
@@ -22,11 +35,11 @@ class SophiaH extends tf.Optimizer {
             const varNames = Object.keys(variableGradients)
 
             varNames.forEach((name) => {
-                const variable = this.getVariable(name)
+                const variable = this.ENGINE.registeredVariables[name]
                 const gradient = variableGradients[name]
-                const state = this.state[name] || {
-                    momentum: tf.zerosLike(variable),
-                    hessianMoment: tf.zerosLike(variable)
+                const state = this.STATE[name] || {
+                    momentum: tf.variable(tf.zerosLike(variable)),
+                    hessianMoment: tf.variable(tf.zerosLike(variable))
                 }
 
                 if (this.weightDecay !== 0) {
@@ -61,12 +74,17 @@ class SophiaH extends tf.Optimizer {
                 }
 
                 const update = momentum
-                    .div(tf.maximum(state.hessianMoment.mul(this.p), this.eps))
+                    .div(
+                        tf.maximum(
+                            state.hessianMoment.mul(this.p),
+                            this.epsilon
+                        )
+                    )
                     .clipByValue(-1, 1)
                 variable.assign(variable.sub(update.mul(this.learningRate)))
 
                 state.momentum.assign(momentum)
-                this.state[name] = state
+                this.STATE[name] = state
             })
 
             this.step++
@@ -75,84 +93,39 @@ class SophiaH extends tf.Optimizer {
     }
 
     computeHutchinsonEstimator(variable, gradient) {
-        const u = tf.variable(tf.zerosLike(variable))
-        u.assign(tf.initializers[this.hessianDistribution]()(u.shape))
+        const u = tf.randomNormal(variable.shape)
 
-        const gradDotU = tf.sum(gradient.mul(u))
-        const hessianVectorProduct = tf.grad((v) =>
-            tf.sum(
-                tf
-                    .grad(() => gradDotU)(v)
-                    .mul(u)
-            )
-        )(variable)
-        return u.mul(hessianVectorProduct)
+        // Compute Hessian-vector product
+        const hvp = tf
+            .grad((v) => {
+                return tf.sum(gradient.mul(v))
+            })(variable)
+            .mul(u)
+
+        return u.mul(hvp)
     }
 
-    getVariable(name) {
-        return (
-            this.iterations.map.get(name) ||
-            this.iterations.originalMap.get(name)
-        )
+    getWeights() {
+        const weights = []
+        Object.entries(this.STATE).map(([name, state]) => [
+            {
+                name: `${name}__momentum`,
+                tensor: state.momentum.read()
+            },
+            {
+                name: `${name}__hessianMoment`,
+                tensor: state.hessianMoment.read()
+            }
+        ])
+        return weights
     }
 
-    dispose() {
-        Object.values(this.state).forEach((state) => {
-            state.momentum.dispose()
-            state.hessianMoment.dispose()
+    setWeights(weightValues) {
+        weightValues.forEach((namedTensor) => {
+            const [name, tensorName] = namedTensor.name.split('__')
+            if (!this.STATE[name]) this.STATE[name] = {}
+            this.STATE[name][tensorName] = tf.variable(namedTensor.tensor)
         })
-        this.state = {}
-        super.dispose()
-    }
-
-    async saveIterations() {
-        const stateTensors = Object.entries(this.state)
-            .map(([name, state]) => [
-                { name: `${name}__momentum`, tensor: state.momentum },
-                { name: `${name}__hessianMoment`, tensor: state.hessianMoment }
-            ])
-            .flat()
-        return {
-            state: Object.fromEntries(
-                stateTensors.map((s) => [s.name, s.tensor.arraySync()])
-            ),
-            step: this.step
-        }
-    }
-
-    async getWeights() {
-        const stateEntries = await Promise.all(
-            Object.entries(this.state)
-                .map(async ([name, state]) => [
-                    {
-                        name: `${name}__momentum`,
-                        tensor: await state.momentum.data()
-                    },
-                    {
-                        name: `${name}__hessianMoment`,
-                        tensor: await state.hessianMoment.data()
-                    }
-                ])
-                .flat()
-        )
-        return {
-            state: Object.fromEntries(
-                stateEntries.map((s) => [s.name, s.tensor])
-            ),
-            step: this.step
-        }
-    }
-
-    async setWeights(weightValues) {
-        weightValues.state &&
-            Object.entries(weightValues.state).forEach(([name, tensor]) => {
-                const [varName, stateKey] = name.split('__')
-                if (!this.state[varName]) {
-                    this.state[varName] = {}
-                }
-                this.state[varName][stateKey] = tf.tensor(tensor)
-            })
-        this.step = weightValues.step
     }
 
     getConfig() {
@@ -166,7 +139,8 @@ class SophiaH extends tf.Optimizer {
             updatePeriod: this.updatePeriod,
             numSamples: this.numSamples,
             hessianDistribution: this.hessianDistribution,
-            eps: this.eps
+            epsilon: this.epsilon,
+            step: this.step
         }
     }
 
