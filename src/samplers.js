@@ -216,6 +216,13 @@ class HuggingFaceSampler {
     }
 }
 
+class RefinedWebSampler extends HuggingFaceSampler {
+    constructor(config) {
+        super(config)
+        this.dataset = 'refinedweb'
+    }
+}
+
 class CosmopediaSampler {
     constructor(config) {
         this.config = config
@@ -318,10 +325,7 @@ export default {
         }),
     RefinedWebSampler: (config) =>
         new StridedSampler({
-            sampler: new HuggingFaceSampler({
-                ...config,
-                dataset: 'refinedweb'
-            }),
+            sampler: new RefinedWebSampler(config),
             stride: config?.stride || 32
         }),
     MultiSampler: (config) => new MultiSampler(config),
