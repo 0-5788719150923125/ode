@@ -1,3 +1,7 @@
+import RefinedWebDataset from './datasets/refinedweb.js'
+import CosmopediaDataset from './datasets/cosmopedia.js'
+import WikipediaDataset from './datasets/wikipedia.js'
+import PhiDataset from './datasets/phi.js'
 import { LinearCongruentialGenerator } from './utils.js'
 
 class RandomSampler {
@@ -198,14 +202,13 @@ class WeightedSampler {
 
 class HuggingFaceSampler {
     constructor(config) {
-        this.dataset = config.dataset
+        this.Dataset = config.dataset
         this.config = config
         this.sampler = null
     }
 
     async init() {
-        const reader = (await import(`./datasets/${this.dataset}.js`)).default
-        this.sampler = new reader(this.config)
+        this.sampler = new this.Dataset(this.config)
         await this.sampler.init()
         this.initialized = true
     }
@@ -218,48 +221,19 @@ class HuggingFaceSampler {
 
 class RefinedWebSampler extends HuggingFaceSampler {
     constructor(config) {
-        super(config)
-        this.dataset = 'refinedweb'
+        super({ ...config, dataset: RefinedWebDataset })
     }
 }
 
-class CosmopediaSampler {
+class CosmopediaSampler extends HuggingFaceSampler {
     constructor(config) {
-        this.config = config
-        this.sampler = null
-    }
-
-    async init() {
-        const CosmopediaDataset = (await import('./datasets/cosmopedia.js'))
-            .default
-        this.sampler = new CosmopediaDataset(this.config)
-        await this.sampler.init()
-        this.initialized = true
-    }
-
-    async take(config) {
-        if (!this.initialized) await this.init()
-        return await this.sampler.getSample({ size: config.maxSeqLen })
+        super({ ...config, dataset: CosmopediaDataset })
     }
 }
 
-class WikipediaSampler {
+class WikipediaSampler extends HuggingFaceSampler {
     constructor(config) {
-        this.config = config
-        this.sampler = null
-    }
-
-    async init() {
-        const WikipediaDataset = (await import('./datasets/wikipedia.js'))
-            .default
-        this.sampler = new WikipediaDataset(this.config)
-        await this.sampler.init()
-        this.initialized = true
-    }
-
-    async take(config) {
-        if (!this.initialized) await this.init()
-        return await this.sampler.getSample({ size: config.maxSeqLen })
+        super({ ...config, dataset: WikipediaDataset })
     }
 }
 
@@ -270,7 +244,6 @@ class PhiSampler {
     }
 
     async init() {
-        const PhiDataset = (await import('./datasets/phi.js')).default
         this.sampler = new PhiDataset(this.config)
         await this.sampler.init()
         this.initialized = true
