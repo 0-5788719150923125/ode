@@ -196,6 +196,26 @@ class WeightedSampler {
     }
 }
 
+class HuggingFaceSampler {
+    constructor(config) {
+        this.src = config.dataset
+        this.config = config
+        this.sampler = null
+    }
+
+    async init() {
+        const reader = (await import(`./datasets/${this.dataset}.js`)).default
+        this.sampler = new reader(this.config)
+        await this.sampler.init()
+        this.initialized = true
+    }
+
+    async take(config) {
+        if (!this.initialized) await this.init()
+        return await this.sampler.getSample({ size: config.maxSeqLen })
+    }
+}
+
 class CosmopediaSampler {
     constructor(config) {
         this.config = config
@@ -294,6 +314,14 @@ export default {
     PhiSampler: (config) =>
         new StridedSampler({
             sampler: new PhiSampler(config),
+            stride: config?.stride || 32
+        }),
+    RefinedWebSampler: (config) =>
+        new StridedSampler({
+            sampler: new HuggingFaceSampler({
+                ...config,
+                dataset: 'refinedweb'
+            }),
             stride: config?.stride || 32
         }),
     MultiSampler: (config) => new MultiSampler(config),

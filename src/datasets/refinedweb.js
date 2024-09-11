@@ -1,9 +1,6 @@
 import * as arrow from 'apache-arrow'
-import wasmInit, { readParquet } from 'parquet-wasm'
+import { readParquet } from 'parquet-wasm'
 import ParquetReader from './readers/parquet.js'
-
-// curl -X GET "https://huggingface.co/api/datasets/tiiuae/falcon-refinedweb/parquet/default/train"
-// https://huggingface.co/datasets/tiiuae/falcon-refinedweb/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
 
 export default class RefinedWebDataset extends ParquetReader {
     constructor(config) {
@@ -33,8 +30,7 @@ export default class RefinedWebDataset extends ParquetReader {
             throw new Error(`HTTP error! status: ${response.status}`)
         }
 
-        const parquetFiles = await response.json()
-        return parquetFiles
+        return await response.json()
     }
 
     async fetchRandomShard(mode = 'train') {
@@ -54,7 +50,7 @@ export default class RefinedWebDataset extends ParquetReader {
         this.loadSchema(this.schemaTemplate)
     }
 
-    // FFI fails on this dataset, so we use synchronous loading
+    // FFI fails on this dataset, so we use the older, more stable method
     async streamDataIntoTable(url) {
         if (this.table) this.table.drop()
         const response = await fetch(url)
@@ -66,19 +62,19 @@ export default class RefinedWebDataset extends ParquetReader {
     }
 }
 
-async function main() {
-    const sampler = new RefinedWebDataset({
-        schema: [{ content: '' }],
-        seed: 42
-    })
-    await sampler.init()
-    console.log(sampler.viewSchema())
-    for (let i = 0; i < 10; i++) {
-        console.log(await sampler.getSample({ mode: 'train', size: 512 }))
-        console.log('---')
-        console.log('---')
-        console.log('---')
-    }
-}
+// async function main() {
+//     const sampler = new RefinedWebDataset({
+//         schema: [{ content: '' }],
+//         seed: 42
+//     })
+//     await sampler.init()
+//     console.log(sampler.viewSchema())
+//     for (let i = 0; i < 10; i++) {
+//         console.log(await sampler.getSample({ mode: 'train', size: 512 }))
+//         console.log('---')
+//         console.log('---')
+//         console.log('---')
+//     }
+// }
 
-main()
+// main()

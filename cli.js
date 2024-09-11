@@ -92,6 +92,8 @@ async function orchestrate(options) {
             sampler = samplers.WikipediaSampler()
         } else if (options.corpus === 'phi') {
             sampler = samplers.PhiSampler({ seed: options.seed })
+        } else if (options.corpus === 'refinedweb') {
+            sampler = samplers.RefinedWebSampler({ seed: options.seed })
         } else if (options.corpus === 'multi') {
             sampler = samplers.MultiSampler({
                 samplers: [
