@@ -605,8 +605,10 @@ function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
         const vocabularySize = logits.shape[0]
 
         // Create a tensor of shape [sequenceLength] representing the penalty factors
+        // The penalty factors increase linearly from 0 to 1 over the sequence length
+        let penaltyFactors = tf.linspace(0, 1, sequenceLength)
         // The penalty factors increase exponentially from 0 to 1 over the sequence length
-        const penaltyFactors = tf.pow(tf.linspace(0, 1, sequenceLength), 2)
+        // penaltyFactors = tf.pow(penaltyFactors), 2)
 
         // Create a one-hot tensor of shape [sequenceLength, vocabularySize] representing the output sequence
         const oneHot = tf.oneHot(outputSequence.flatten(), vocabularySize)

@@ -30,21 +30,28 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
+    // defineReductionLayer() {
+    //     return this.ode.layers.LowRankFactorization({
+    //         units: this.config.units,
+    //         rank: this.config.headDim
+    //     })
+    // }
+
     defineReductionLayer() {
-        return this.ode.layers.LowRankFactorization({
+        return this.ode.layers.AttentionBasedReduction({
             units: this.config.units,
-            rank: 45
+            hiddenDim: this.config.embeddings
         })
     }
 
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.SophiaH({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay
-            })
-        ]
-    }
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.SophiaH({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay
+    //         })
+    //     ]
+    // }
 
     // defineLossFunction() {
     //     return {

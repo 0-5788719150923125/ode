@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs'
 import LayerBase from './_base.js'
 
-export default class AttentionDimReduction extends LayerBase {
+export default class AttentionBasedReduction extends LayerBase {
     constructor(config) {
         super(config)
         this.units = config.units
@@ -31,6 +31,13 @@ export default class AttentionDimReduction extends LayerBase {
             'float32',
             this.initializers.glorotNormal()
         )
+
+        this.residualMatrix = this.addWeight(
+            'residualMatrix',
+            [inputDim, this.units],
+            'float32',
+            this.initializers.glorotNormal()
+        )
     }
 
     call(inputs) {
@@ -48,7 +55,11 @@ export default class AttentionDimReduction extends LayerBase {
 
         const attentionOutput = attentionWeights.matMul(valueMatrix)
 
-        return attentionOutput.reshape([batchSize, seqLength, this.units])
+        const residualOutput = inputReshaped.matMul(this.residualMatrix.read())
+
+        return attentionOutput
+            .add(residualOutput)
+            .reshape([batchSize, seqLength, this.units])
     }
 
     computeOutputShape(inputShape) {
@@ -64,4 +75,4 @@ export default class AttentionDimReduction extends LayerBase {
     }
 }
 
-tf.serialization.registerClass(AttentionDimReduction)
+tf.serialization.registerClass(AttentionBasedReduction)

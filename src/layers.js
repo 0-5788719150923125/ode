@@ -45,7 +45,7 @@ import SparseMixtureOfExpertsMLP from './layers/SparseMixtureOfExpertsMLP.js'
 import LocalSensitiveHashingAttention from './layers/LocalSensitiveHashingAttention.js'
 import PrimerAttention from './layers/PrimerAttention.js'
 import Zip from './layers/Zip.js'
-import AttentionDimReduction from './layers/AttentionDimReduction.js'
+import AttentionBasedReduction from './layers/AttentionBasedReduction.js'
 import Split from './layers/Split.js'
 import RMSNorm from './layers/RMSNorm.js'
 
@@ -79,8 +79,8 @@ const customLayersConfig = {
         constructor: Antirectifier,
         prefix: 'op'
     },
-    AttentionDimReduction: {
-        constructor: AttentionDimReduction,
+    AttentionBasedReduction: {
+        constructor: AttentionBasedReduction,
         prefix: 'attn'
     },
     AttentionFreeTransformer: {
