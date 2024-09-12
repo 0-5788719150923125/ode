@@ -40,7 +40,7 @@ export default class OmniscientDeterministicEngine extends ODE {
     defineReductionLayer() {
         return this.ode.layers.AttentionBasedReduction({
             units: this.config.units,
-            hiddenDim: this.config.embeddings
+            hiddenDim: this.config.headDim
         })
     }
 

@@ -81,7 +81,7 @@ const customLayersConfig = {
     },
     AttentionBasedReduction: {
         constructor: AttentionBasedReduction,
-        prefix: 'attn'
+        prefix: 'red'
     },
     AttentionFreeTransformer: {
         constructor: AttentionFreeTransformer,
@@ -151,7 +151,7 @@ const customLayersConfig = {
     },
     LowRankFactorization: {
         constructor: LowRankFactorization,
-        prefix: 'op'
+        prefix: 'red'
     },
     lstm: { constructor: tf.layers.lstm, prefix: 'lstm' },
     MixtureOfDepths: {
@@ -168,7 +168,7 @@ const customLayersConfig = {
     },
     MultiLayerPerceptron: { constructor: MultiLayerPerceptron, prefix: 'mlp' },
     multiply: { constructor: tf.layers.multiply, prefix: 'mul' },
-    ParabolicCompression: { constructor: ParabolicCompression, prefix: 'op' },
+    ParabolicCompression: { constructor: ParabolicCompression, prefix: 'red' },
     ParameterEfficientExpertRetrieval: {
         constructor: ParameterEfficientExpertRetrieval,
         prefix: 'moe'

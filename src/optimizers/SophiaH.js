@@ -1,13 +1,15 @@
 import * as tf from '@tensorflow/tfjs'
+import { shouldExcludeFromWeightDecay } from './_ops.js'
 
 export default class SophiaH extends tf.Optimizer {
     constructor({
         learningRate = 6e-2,
-        betas = [0.96, 0.99],
+        beta1 = 0.96,
+        beta2 = 0.99,
         weightDecay = 0.0,
         weightDecouple = true,
         fixedDecay = false,
-        p = 1e-2,
+        gamma = 1e-2,
         updatePeriod = 10,
         numSamples = 1,
         hessianDistribution = 'gaussian',
@@ -16,11 +18,12 @@ export default class SophiaH extends tf.Optimizer {
     } = {}) {
         super()
         this.learningRate = learningRate
-        this.betas = betas
+        this.beta1 = beta1
+        this.beta2 = beta2
         this.weightDecay = weightDecay
         this.weightDecouple = weightDecouple
         this.fixedDecay = fixedDecay
-        this.p = p
+        this.gamma = gamma
         this.updatePeriod = updatePeriod
         this.numSamples = numSamples
         this.hessianDistribution = hessianDistribution
@@ -42,7 +45,10 @@ export default class SophiaH extends tf.Optimizer {
                     hessianMoment: tf.variable(tf.zerosLike(variable))
                 }
 
-                if (this.weightDecay !== 0) {
+                if (
+                    this.weightDecay !== 0 &&
+                    !shouldExcludeFromWeightDecay(name)
+                ) {
                     if (this.weightDecouple) {
                         variable.assign(
                             variable.sub(
@@ -59,8 +65,8 @@ export default class SophiaH extends tf.Optimizer {
                 }
 
                 const momentum = state.momentum
-                    .mul(this.betas[0])
-                    .add(gradient.mul(1 - this.betas[0]))
+                    .mul(this.beta1)
+                    .add(gradient.mul(1 - this.beta1))
 
                 if (this.step % this.updatePeriod === 0) {
                     const hessianEstimate = this.computeHutchinsonEstimator(
@@ -68,19 +74,18 @@ export default class SophiaH extends tf.Optimizer {
                         gradient
                     )
                     const hessianMoment = state.hessianMoment
-                        .mul(this.betas[1])
-                        .add(hessianEstimate.mul(1 - this.betas[1]))
+                        .mul(this.beta2)
+                        .add(hessianEstimate.mul(1 - this.beta2))
                     state.hessianMoment.assign(hessianMoment)
                 }
 
+                const effectiveHessian = tf.maximum(
+                    state.hessianMoment,
+                    this.epsilon
+                )
                 const update = momentum
-                    .div(
-                        tf.maximum(
-                            state.hessianMoment.mul(this.p),
-                            this.epsilon
-                        )
-                    )
-                    .clipByValue(-1, 1)
+                    .div(effectiveHessian)
+                    .clipByValue(-this.gamma, this.gamma)
                 variable.assign(variable.sub(update.mul(this.learningRate)))
 
                 state.momentum.assign(momentum)
@@ -131,11 +136,12 @@ export default class SophiaH extends tf.Optimizer {
     getConfig() {
         return {
             learningRate: this.learningRate,
-            betas: this.betas,
+            beta1: this.beta1,
+            beta2: this.beta2,
             weightDecay: this.weightDecay,
             weightDecouple: this.weightDecouple,
             fixedDecay: this.fixedDecay,
-            p: this.p,
+            gamma: this.gamma,
             updatePeriod: this.updatePeriod,
             numSamples: this.numSamples,
             hessianDistribution: this.hessianDistribution,
