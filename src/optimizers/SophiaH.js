@@ -71,7 +71,8 @@ export default class SophiaH extends tf.Optimizer {
                 if (this.step % this.updatePeriod === 0) {
                     const hessianEstimate = this.computeHutchinsonEstimator(
                         variable,
-                        gradient
+                        gradient,
+                        loss
                     )
                     const hessianMoment = state.hessianMoment
                         .mul(this.beta2)
@@ -104,12 +105,18 @@ export default class SophiaH extends tf.Optimizer {
             const u =
                 this.hessianDistribution === 'gaussian'
                     ? tf.randomNormal(variable.shape)
-                    : tf.randomUniform(variable.shape, -1, 1).sign()
+                    : // Rademacher distribution
+                      tf
+                          .randomUniform(variable.shape, 0, 1)
+                          .round()
+                          .mul(2)
+                          .sub(1)
 
             // Compute Hessian-vector product
-            const hvp = tf
-                .grad((v) => tf.sum(gradient.mul(v)))(variable)
-                .mul(u)
+            const hvp = tf.grad((v) => {
+                const gradientDotU = gradient.mul(u).sum()
+                return v.mul(gradientDotU).sum()
+            })(variable, u)
 
             hessianEstimate = hessianEstimate.add(u.mul(hvp))
         }
@@ -122,11 +129,11 @@ export default class SophiaH extends tf.Optimizer {
         Object.entries(this.STATE).map(([name, state]) => [
             {
                 name: `${name}__momentum`,
-                tensor: state.momentum.read()
+                tensor: state.momentum
             },
             {
                 name: `${name}__hessianMoment`,
-                tensor: state.hessianMoment.read()
+                tensor: state.hessianMoment
             }
         ])
         return weights
