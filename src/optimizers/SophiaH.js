@@ -71,8 +71,7 @@ export default class SophiaH extends tf.Optimizer {
                 if (this.step % this.updatePeriod === 0) {
                     const hessianEstimate = this.computeHutchinsonEstimator(
                         variable,
-                        gradient,
-                        loss
+                        gradient
                     )
                     const hessianMoment = state.hessianMoment
                         .mul(this.beta2)
@@ -115,7 +114,7 @@ export default class SophiaH extends tf.Optimizer {
             // Compute Hessian-vector product
             const hvp = tf.grad((v) => {
                 const gradientDotU = gradient.mul(u).sum()
-                return v.mul(gradientDotU).sum()
+                return v.mul(gradientDotU)
             })(variable, u)
 
             hessianEstimate = hessianEstimate.add(u.mul(hvp))
