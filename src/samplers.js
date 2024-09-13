@@ -218,7 +218,7 @@ class HuggingFaceSampler {
         this.sampler = new StridedSampler({
             ...config,
             sampler: new Dataset(this.config),
-            stride: 64
+            stride: config?.stride || 64
         })
     }
 

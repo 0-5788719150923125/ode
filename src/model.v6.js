@@ -7,7 +7,8 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
-            learningRate: 0.0008
+            learningRate: 0.0008,
+            weightDecay: 0.0001
         }
         super({ ...defaults, ...config })
     }
@@ -17,15 +18,6 @@ export default class OmniscientDeterministicEngine extends ODE {
             this.ode.schedulers.ConstantScheduler({
                 max: this.config.learningRate,
                 warmupSteps: this.config.warmupSteps
-            })
-        ]
-    }
-
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.AdamW({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay
             })
         ]
     }
@@ -45,6 +37,15 @@ export default class OmniscientDeterministicEngine extends ODE {
             })
         ]
     }
+
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.AdamW({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay
+    //         })
+    //     ]
+    // }
 
     // defineReductionLayer() {
     //     return this.ode.layers.AttentionBasedReduction({
