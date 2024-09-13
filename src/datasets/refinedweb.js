@@ -52,13 +52,14 @@ export default class RefinedWebDataset extends ParquetReader {
 
     // FFI fails on this dataset, so we use the older, more stable method
     async streamDataIntoTable(url) {
-        if (this.table) this.table.free()
+        if (this.arrowWasmTable) this.arrowWasmTable.free()
         const response = await fetch(url)
         this.buffer = new Uint8Array(await response.arrayBuffer())
         // Read Parquet buffer to Arrow Table
         const arrowWasmTable = readParquet(this.buffer)
         // Convert to JS Arrow Table
-        this.table = arrow.tableFromIPC(arrowWasmTable.intoIPCStream())
+        this.arrowWasmTable = arrowWasmTable
+        this.table = arrow.tableFromIPC(this.arrowWasmTable.intoIPCStream())
     }
 }
 

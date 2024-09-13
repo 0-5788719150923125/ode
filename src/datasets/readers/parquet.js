@@ -28,7 +28,9 @@ export default class ParquetReader {
         this.rng = {}
         this.seed = config?.seed || null
         if (this.seed !== null) {
-            console.log(`dataset had a seed, using it: (${this.seed})`)
+            console.log(
+                `${this.constructor.name} had a seed, using it: (${this.seed})`
+            )
             this.lcg = {}
             this.resetGenerator('train')
             this.resetGenerator('validation')
