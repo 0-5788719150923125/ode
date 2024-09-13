@@ -21,7 +21,7 @@ const options = {
     temperature: 0.7,
     topK: 0,
     topP: 1.0,
-    repetitionPenalty: 1.35,
+    repetitionPenalty: 1.5,
     mirostat: false,
     mirostatState: {
         tau: 3.5, // target surprise

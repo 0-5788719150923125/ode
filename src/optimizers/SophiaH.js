@@ -98,16 +98,23 @@ export default class SophiaH extends tf.Optimizer {
     }
 
     computeHutchinsonEstimator(variable, gradient) {
-        const u = tf.randomNormal(variable.shape)
+        let hessianEstimate = tf.zerosLike(variable)
 
-        // Compute Hessian-vector product
-        const hvp = tf
-            .grad((v) => {
-                return tf.sum(gradient.mul(v))
-            })(variable)
-            .mul(u)
+        for (let i = 0; i < this.numSamples; i++) {
+            const u =
+                this.hessianDistribution === 'gaussian'
+                    ? tf.randomNormal(variable.shape)
+                    : tf.randomUniform(variable.shape, -1, 1).sign()
 
-        return u.mul(hvp)
+            // Compute Hessian-vector product
+            const hvp = tf
+                .grad((v) => tf.sum(gradient.mul(v)))(variable)
+                .mul(u)
+
+            hessianEstimate = hessianEstimate.add(u.mul(hvp))
+        }
+
+        return hessianEstimate.div(this.numSamples)
     }
 
     getWeights() {
