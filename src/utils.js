@@ -60,7 +60,7 @@ export class LinearCongruentialGenerator {
         return Math.floor(this.nextInt() / (this.m / range)) + min
     }
 
-    randomFloat(min, max) {
+    randomFloat(min = 0, max = 1) {
         return (this.nextInt() / this.m) * (max - min) + min
     }
 

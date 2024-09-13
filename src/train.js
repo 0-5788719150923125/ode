@@ -1,5 +1,6 @@
 import losses from './losses.js'
 import {
+    LinearCongruentialGenerator,
     colors,
     elapsedTimeGenerator,
     emaGenerator,
@@ -19,6 +20,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         gradientAccumulationSteps: 1,
         trainSteps: Infinity,
         sampleLength: 64,
+        oversampleChance: 0.0,
         generateEvery: 64,
         validateEvery: 0,
         predictLength: 50,
@@ -33,6 +35,16 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
     this.validationLoss = null
     this.validationPerplexity = null
 
+    this.seed = trainArgs?.seed || null
+    this.rng = {
+        randomFloat: Math.random
+    }
+    if (this.seed !== null) {
+        console.log(`trainer had a seed, using it: (${this.seed})`)
+        const lcg = new LinearCongruentialGenerator(this.seed)
+        this.rng = { randomFloat: (...args) => lcg.randomFloat(...args) }
+    }
+
     const accumulator = new GradientAccumulator(
         this,
         trainArgs.gradientAccumulationSteps,
@@ -44,16 +56,6 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         callbacks.push(new callback(this))
     }
 
-    // process.on('SIGINT', async () => {
-    //     console.log('Received SIGINT. Gracefully stopping callbacks...')
-    //     for (const callback of callbacks) {
-    //         if (typeof callback.close !== 'undefined') {
-    //             await callback.close()
-    //         }
-    //     }
-    //     process.exit(0)
-    // })
-
     // a custom training loop
     while (true) {
         await tf.nextFrame()
@@ -64,11 +66,18 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
             this.schedulers
         )
 
+        let sampleLength = trainArgs.sampleLength
+        let batchSize = trainArgs.batchSize
+        if (this.rng.randomFloat() < trainArgs.oversampleChance) {
+            sampleLength = trainArgs.sampleLength * 2
+            batchSize = Math.ceil(trainArgs.batchSize / 2)
+        }
+
         const data = await batchMaker(
             dataGenerator,
             this.tokenizer,
-            trainArgs.batchSize,
-            trainArgs.sampleLength,
+            batchSize,
+            sampleLength,
             'train'
         )
 
