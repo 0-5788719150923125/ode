@@ -8,10 +8,8 @@
     "module": "src/index.js",
     "scripts": {
         "start:node": "node cli.js",
-        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests",
-        "test:models": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests/models.test.js",
-        "test:samplers": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests/samplers.test.js",
-        "test:tokenizers": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage --testPathPattern=./tests/tokenizers.test.js"
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage",
+        "test:file": "npm run test -- --testPathPattern=./tests/$npm_config_file.test.js"
     },
     "repository": {
         "type": "git",

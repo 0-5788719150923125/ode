@@ -67,6 +67,13 @@ const output = await net.generate({
 console.log(output)
 ```
 
+## Run tests:
+
+```sh
+npm run test
+npm run test:file --file=models
+```
+
 ## Produce Metrics:
 
 ```sh
