@@ -125,6 +125,7 @@ class StridedSampler {
     constructor(config) {
         this.sampler = config.sampler
         this.stride = config?.stride || 0
+        this.canValidate = config?.canValidate || false
         this.tokens = []
     }
 
@@ -137,7 +138,7 @@ class StridedSampler {
         this.sampler.resetGenerator(mode)
     }
 
-    async take({ tokenizer, maxSeqLen, isValidating = false } = {}) {
+    async take({ tokenizer, maxSeqLen, mode = 'train' } = {}) {
         while (true) {
             if (this.tokens.length >= maxSeqLen) {
                 const returnTokens = this.tokens.slice(0, maxSeqLen)
@@ -147,7 +148,7 @@ class StridedSampler {
             const sample = await this.sampler.take({
                 tokenizer,
                 maxSeqLen,
-                isValidating
+                mode
             })
             this.tokens.push(...tokenizer.encode(sample))
         }
@@ -183,9 +184,11 @@ class WeightedSampler {
 
     async take(config) {
         if (config?.isValidating) {
-            // This is a super hack, but I'm tired
-            const i = 1 // The Phi dataset
-            return await this.samplers[i].take(config)
+            for (let i = 0; i < this.samplers.length; i++) {
+                if (this.samplers[i]?.canValidate) {
+                    return await this.samplers[i].take(config)
+                }
+            }
         }
 
         const i = this.currentIndex
@@ -200,8 +203,11 @@ class WeightedSampler {
     }
 
     resetGenerator(mode = 'train') {
-        // This is part of the same super hack
-        this.samplers[1].resetGenerator(mode)
+        for (let i = 0; i < this.samplers.length; i++) {
+            if (this.samplers[i]?.canValidate) {
+                this.samplers[i].resetGenerator(mode)
+            }
+        }
     }
 }
 
@@ -228,6 +234,10 @@ class HuggingFaceSampler {
             mode: config.isValidating ? 'validation' : 'train'
         })
     }
+
+    resetGenerator(mode = 'train') {
+        this.sampler.resetGenerator(mode)
+    }
 }
 
 class RefinedWebSampler extends HuggingFaceSampler {
@@ -251,6 +261,7 @@ class WikipediaSampler extends HuggingFaceSampler {
 class PhiSampler extends HuggingFaceSampler {
     constructor(config) {
         super({ ...config, dataset: PhiDataset })
+        this.canValidate = true
     }
 }
 
