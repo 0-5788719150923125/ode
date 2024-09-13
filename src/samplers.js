@@ -215,7 +215,10 @@ class HuggingFaceSampler {
 
     async take(config) {
         if (!this.initialized) await this.init()
-        return await this.sampler.getSample({ size: config.maxSeqLen })
+        return await this.sampler.getSample({
+            mode: config.isValidating ? 'validation' : 'train',
+            size: config.maxSeqLen
+        })
     }
 }
 
@@ -237,35 +240,9 @@ class WikipediaSampler extends HuggingFaceSampler {
     }
 }
 
-class PhiSampler {
+class PhiSampler extends HuggingFaceSampler {
     constructor(config) {
-        this.config = config
-        this.sampler = null
-    }
-
-    async init() {
-        this.sampler = new PhiDataset(this.config)
-        await this.sampler.init()
-        this.initialized = true
-    }
-
-    resetGenerator(mode = 'train') {
-        this.sampler.resetGenerator(mode)
-    }
-
-    async take(config) {
-        if (!this.initialized) await this.init()
-        if (config.isValidating) {
-            return await this.sampler.getSample({
-                mode: 'validation',
-                size: config.maxSeqLen
-            })
-        } else {
-            return await this.sampler.getSample({
-                mode: 'train',
-                size: config.maxSeqLen
-            })
-        }
+        super({ ...config, dataset: PhiDataset })
     }
 }
 
