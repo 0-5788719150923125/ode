@@ -87,13 +87,13 @@ async function orchestrate(options) {
         if (options.corpus.startsWith('http')) {
             sampler = samplers.HTTPSampler({ url: options.corpus })
         } else if (options.corpus === 'cosmopedia') {
-            sampler = samplers.CosmopediaSampler({ seed: options.seed })
+            sampler = samplers.CosmopediaSampler(options)
         } else if (options.corpus === 'wikipedia') {
-            sampler = samplers.WikipediaSampler()
+            sampler = samplers.WikipediaSampler(options)
         } else if (options.corpus === 'phi') {
-            sampler = samplers.PhiSampler({ seed: options.seed })
+            sampler = samplers.PhiSampler(options)
         } else if (options.corpus === 'refinedweb') {
-            sampler = samplers.RefinedWebSampler({ seed: options.seed })
+            sampler = samplers.RefinedWebSampler(options)
         } else if (options.corpus === 'multi') {
             sampler = samplers.MultiSampler({
                 samplers: [
@@ -108,20 +108,22 @@ async function orchestrate(options) {
             const rates = [1.0, 0.1, 0.5]
             sampler = samplers.WeightedSampler({
                 samplers: [
-                    samplers.CosmopediaSampler(),
-                    samplers.WikipediaSampler(),
-                    samplers.PhiSampler()
+                    samplers.CosmopediaSampler(options),
+                    samplers.WikipediaSampler(options),
+                    samplers.PhiSampler(options)
                 ],
                 rates: rates
             })
         } else if (options.corpus === 'devel') {
-            const rates = [1.0, 0.5]
+            const rates = [1.0, 0.25, 0.5]
             sampler = samplers.WeightedSampler({
                 samplers: [
-                    samplers.CosmopediaSampler({ seed: options.seed }),
-                    samplers.PhiSampler({ seed: options.seed })
+                    samplers.RefinedWebSampler(options),
+                    samplers.CosmopediaSampler(options),
+                    samplers.PhiSampler(options)
                 ],
-                rates: rates
+                rates: rates,
+                seed: options.seed
             })
         } else {
             sampler = samplers.DirectorySampler({ directories: options.corpus })

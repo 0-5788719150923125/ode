@@ -7,7 +7,7 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
-            learningRate: 0.001
+            learningRate: 0.0008
         }
         super({ ...defaults, ...config })
     }
@@ -30,27 +30,27 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    // defineReductionLayer() {
-    //     return this.ode.layers.LowRankFactorization({
-    //         units: this.config.units,
-    //         rank: this.config.headDim
-    //     })
-    // }
-
     defineReductionLayer() {
-        return this.ode.layers.AttentionBasedReduction({
+        return this.ode.layers.LowRankFactorization({
             units: this.config.units,
-            hiddenDim: this.config.headDim
+            rank: this.config.headDim
         })
     }
 
-    // defineOptimizers() {
-    //     return [
-    //         this.ode.optimizers.SophiaH({
-    //             learningRate: this.config.learningRate,
-    //             weightDecay: this.config.weightDecay
-    //         })
-    //     ]
+    defineOptimizers() {
+        return [
+            this.ode.optimizers.SophiaH({
+                learningRate: this.config.learningRate,
+                weightDecay: this.config.weightDecay
+            })
+        ]
+    }
+
+    // defineReductionLayer() {
+    //     return this.ode.layers.AttentionBasedReduction({
+    //         units: this.config.units,
+    //         hiddenDim: this.config.headDim
+    //     })
     // }
 
     // defineLossFunction() {

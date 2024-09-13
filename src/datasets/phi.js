@@ -44,7 +44,7 @@ export default class PhiDataset extends ParquetReader {
         }
     }
 
-    async getSample({ mode = 'train', size = 512 }) {
+    async take({ mode = 'train', size = 512 }) {
         let batchIdx = this.trainBatchIdx
         if (this.seed === null) batchIdx = randomBetween(0, 1)
         if (mode === 'validation') batchIdx = this.validationBatchIdx

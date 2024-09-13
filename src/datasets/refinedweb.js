@@ -70,7 +70,7 @@ export default class RefinedWebDataset extends ParquetReader {
 //     await sampler.init()
 //     console.log(sampler.viewSchema())
 //     for (let i = 0; i < 10; i++) {
-//         console.log(await sampler.getSample({ mode: 'train', size: 512 }))
+//         console.log(await sampler.take({ mode: 'train', size: 512 }))
 //         console.log('---')
 //         console.log('---')
 //         console.log('---')

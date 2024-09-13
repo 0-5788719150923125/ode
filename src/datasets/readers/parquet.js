@@ -173,7 +173,7 @@ export default class ParquetReader {
         }
     }
 
-    async getSample({ mode = 'train', size = 512 }) {
+    async take({ mode = 'train', size = 512 }) {
         this.batches++
         try {
             if (this.batches % this.batchesBeforeRefresh === 0) {
@@ -185,7 +185,7 @@ export default class ParquetReader {
             return sample
         } catch (err) {
             console.error(err)
-            return await this.getSample({ mode, size })
+            return await this.take({ mode, size })
         }
     }
 }
@@ -194,7 +194,7 @@ export default class ParquetReader {
 // const sampler = new CosmopediaDataset({schema: [{ prompt: 'PROMPT: ' }, { text: 'ASSISTANT: ' }]})
 //     await sampler.init()
 //     for (let i = 0; i < 10; i++) {
-//         console.log(await sampler.getSample())
+//         console.log(await sampler.take())
 //         console.log('---')
 //         console.log('---')
 //         console.log('---')

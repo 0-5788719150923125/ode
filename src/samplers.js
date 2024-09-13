@@ -128,6 +128,11 @@ class StridedSampler {
         this.tokens = []
     }
 
+    async init() {
+        await this.sampler.init()
+        this.initialized = true
+    }
+
     resetGenerator(mode = 'train') {
         this.sampler.resetGenerator(mode)
     }
@@ -202,22 +207,25 @@ class WeightedSampler {
 
 class HuggingFaceSampler {
     constructor(config) {
-        this.Dataset = config.dataset
         this.config = config
-        this.sampler = null
+        const Dataset = config.dataset
+        this.sampler = new StridedSampler({
+            ...config,
+            sampler: new Dataset(this.config),
+            stride: 64
+        })
     }
 
     async init() {
-        this.sampler = new this.Dataset(this.config)
         await this.sampler.init()
         this.initialized = true
     }
 
     async take(config) {
         if (!this.initialized) await this.init()
-        return await this.sampler.getSample({
-            mode: config.isValidating ? 'validation' : 'train',
-            size: config.maxSeqLen
+        return await this.sampler.take({
+            ...config,
+            mode: config.isValidating ? 'validation' : 'train'
         })
     }
 }
@@ -260,21 +268,8 @@ export default {
     StridedSampler: (config) => new StridedSampler(config),
     MultiSampler: (config) => new MultiSampler(config),
     WeightedSampler: (config) => new WeightedSampler(config),
-    CosmopediaSampler: (config) =>
-        new StridedSampler({
-            ...config,
-            sampler: new CosmopediaSampler(config)
-        }),
-    WikipediaSampler: (config) =>
-        new StridedSampler({
-            ...config,
-            sampler: new WikipediaSampler(config)
-        }),
-    RefinedWebSampler: (config) =>
-        new StridedSampler({
-            ...config,
-            sampler: new RefinedWebSampler(config)
-        }),
-    PhiSampler: (config) =>
-        new StridedSampler({ ...config, sampler: new PhiSampler(config) })
+    CosmopediaSampler: (config) => new CosmopediaSampler(config),
+    WikipediaSampler: (config) => new WikipediaSampler(config),
+    RefinedWebSampler: (config) => new RefinedWebSampler(config),
+    PhiSampler: (config) => new PhiSampler(config)
 }
