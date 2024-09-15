@@ -7,8 +7,8 @@ import ODE from './model.v4.js'
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
         const defaults = {
-            learningRate: 0.0008,
-            weightDecay: 0.0001
+            learningRate: 0.0006,
+            weightDecay: 0.00001
         }
         super({ ...defaults, ...config })
     }
@@ -29,11 +29,24 @@ export default class OmniscientDeterministicEngine extends ODE {
         })
     }
 
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.SophiaH({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay
+    //         })
+    //     ]
+    // }
+
     defineOptimizers() {
         return [
-            this.ode.optimizers.SophiaH({
+            this.ode.optimizers.Lion({
                 learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay
+                weightDecay: this.config.weightDecay,
+                beta1: 0.95,
+                beta2: 0.98,
+                useGc: true,
+                adaNorm: true
             })
         ]
     }

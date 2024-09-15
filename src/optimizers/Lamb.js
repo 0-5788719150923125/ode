@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './_ops.js'
+import { applyWeightDecay } from './_ops.js'
 
 export default class Lamb extends tf.Optimizer {
     constructor({
@@ -68,18 +68,15 @@ export default class Lamb extends tf.Optimizer {
                     gradient = gradient.div(globalGradNorm)
                 }
 
-                if (
-                    this.weightDecay !== 0 &&
-                    !shouldExcludeFromWeightDecay(name)
-                ) {
-                    if (this.weightDecouple) {
-                        variable.assign(
-                            variable.sub(variable.mul(this.weightDecay).mul(lr))
-                        )
-                    } else if (!this.fixedDecay) {
-                        gradient = gradient.add(variable.mul(this.weightDecay))
-                    }
-                }
+                gradient = applyWeightDecay(
+                    variable,
+                    gradient,
+                    name,
+                    this.learningRate,
+                    this.weightDecay,
+                    this.weightDecouple,
+                    this.fixedDecay
+                )
 
                 const sGrad = this.getAdaNormGradient(gradient, name)
 

@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './_ops.js'
+import { applyWeightDecay } from './_ops.js'
 
 // https://arxiv.org/abs/2405.20233v2
 export default class GrokFast extends tf.AdamOptimizer {
@@ -31,12 +31,17 @@ export default class GrokFast extends tf.AdamOptimizer {
 
             varNames.forEach((name, i) => {
                 if (shouldExcludeFromWeightDecay(name)) return
-                const value = this.ENGINE.registeredVariables[name]
-                const newValue = tf.sub(
-                    value,
-                    tf.mul(this.learningRate, tf.mul(value, this.weightDecay))
+                const variable = this.ENGINE.registeredVariables[name]
+                let gradient = variableGradients[name]
+                gradient = applyWeightDecay(
+                    variable,
+                    gradient,
+                    name,
+                    this.learningRate,
+                    this.weightDecay,
+                    this.weightDecouple,
+                    this.fixedDecay
                 )
-                value.assign(newValue)
 
                 // Apply GrokFast EMA gradient filter
                 const grad = variableGradients[name]

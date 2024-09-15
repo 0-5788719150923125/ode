@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './_ops.js'
+import { applyWeightDecay } from './_ops.js'
 
 export default class Prodigy extends tf.Optimizer {
     constructor({
@@ -116,20 +116,15 @@ export default class Prodigy extends tf.Optimizer {
 
                 const denom = expAvgSq.sqrt().add(this.d * this.epsilon)
 
-                if (
-                    this.weightDecay !== 0 &&
-                    !shouldExcludeFromWeightDecay(name)
-                ) {
-                    if (this.weightDecouple) {
-                        variable.assign(
-                            variable.sub(variable.mul(this.weightDecay * dLr))
-                        )
-                    } else if (!this.fixedDecay) {
-                        gradient.assign(
-                            gradient.add(variable.mul(this.weightDecay))
-                        )
-                    }
-                }
+                gradient = applyWeightDecay(
+                    variable,
+                    gradient,
+                    name,
+                    this.learningRate,
+                    this.weightDecay,
+                    this.weightDecouple,
+                    this.fixedDecay
+                )
 
                 variable.assign(variable.sub(expAvg.div(denom).mul(dLr)))
             })

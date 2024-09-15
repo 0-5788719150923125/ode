@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './_ops.js'
+import { applyWeightDecay } from './_ops.js'
 
 export default class Signum extends tf.Optimizer {
     constructor({
@@ -7,6 +7,7 @@ export default class Signum extends tf.Optimizer {
         momentum = 0.9,
         weightDecay = 0.0,
         weightDecouple = true,
+        fixedDecay = false,
         step = 1
     } = {}) {
         super()
@@ -14,6 +15,7 @@ export default class Signum extends tf.Optimizer {
         this.momentum = momentum
         this.weightDecay = weightDecay
         this.weightDecouple = weightDecouple
+        this.fixedDecay = fixedDecay
         this.step = step
         this.ENGINE = tf.engine()
         this.STATE = {}
@@ -25,22 +27,15 @@ export default class Signum extends tf.Optimizer {
             let gradient = variableGradients[name]
 
             tf.tidy(() => {
-                if (
-                    this.weightDecay !== 0 &&
-                    !shouldExcludeFromWeightDecay(name)
-                ) {
-                    if (this.weightDecouple) {
-                        variable.assign(
-                            variable.sub(
-                                variable.mul(
-                                    this.weightDecay * this.learningRate
-                                )
-                            )
-                        )
-                    } else {
-                        gradient = gradient.add(variable.mul(this.weightDecay))
-                    }
-                }
+                gradient = applyWeightDecay(
+                    variable,
+                    gradient,
+                    name,
+                    this.learningRate,
+                    this.weightDecay,
+                    this.weightDecouple,
+                    this.fixedDecay
+                )
 
                 if (this.momentum > 0) {
                     if (!this.STATE[name]) {
@@ -104,6 +99,7 @@ export default class Signum extends tf.Optimizer {
             momentum: this.momentum,
             weightDecay: this.weightDecay,
             weightDecouple: this.weightDecouple,
+            fixedDecay: this.fixedDecay,
             step: this.step
         }
     }

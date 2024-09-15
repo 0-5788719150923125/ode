@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import { shouldExcludeFromWeightDecay } from './_ops.js'
+import { applyWeightDecay } from './_ops.js'
 
 export default class SophiaH extends tf.Optimizer {
     constructor({
@@ -39,30 +39,21 @@ export default class SophiaH extends tf.Optimizer {
 
             varNames.forEach((name) => {
                 const variable = this.ENGINE.registeredVariables[name]
-                const gradient = variableGradients[name]
+                let gradient = variableGradients[name]
                 const state = this.STATE[name] || {
                     momentum: tf.variable(tf.zerosLike(variable)),
                     hessianMoment: tf.variable(tf.zerosLike(variable))
                 }
 
-                if (
-                    this.weightDecay !== 0 &&
-                    !shouldExcludeFromWeightDecay(name)
-                ) {
-                    if (this.weightDecouple) {
-                        variable.assign(
-                            variable.sub(
-                                variable.mul(
-                                    this.weightDecay * this.learningRate
-                                )
-                            )
-                        )
-                    } else if (!this.fixedDecay) {
-                        gradient.assign(
-                            gradient.add(variable.mul(this.weightDecay))
-                        )
-                    }
-                }
+                gradient = applyWeightDecay(
+                    variable,
+                    gradient,
+                    name,
+                    this.learningRate,
+                    this.weightDecay,
+                    this.weightDecouple,
+                    this.fixedDecay
+                )
 
                 const momentum = state.momentum
                     .mul(this.beta1)
