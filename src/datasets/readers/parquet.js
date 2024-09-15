@@ -70,28 +70,36 @@ export default class ParquetReader {
         console.log(this.table.schema.toString())
     }
 
-    async fetchRandomShard(mode = 'train') {
-        const { slice, shards } = this.getWeightedRandomSlice(this.slices)
-        const shardIndices = generatePaddedNumbers(0, shards, 5)
-        const numShards = shardIndices.slice(-1)
-        const allShards = shardIndices.slice(0, -1)
-        const shard = this.rng[mode].randomValueFromArray(allShards)
-        const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
-        const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
-        console.log(
-            'fetching dataset:',
-            this.dataset,
-            'shard:',
-            `${shard}/${numShards}`,
-            'slice:',
-            slice
+    async fetchDataset() {
+        const response = await fetch(
+            `https://huggingface.co/api/datasets/${this.dataset}/parquet/default/train`,
+            {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json'
+                }
+            }
         )
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        return await response.json()
+    }
+
+    async fetchRandomShard(mode = 'train') {
+        if (this.parquetFiles.length === 0) {
+            this.parquetFiles = await this.fetchDataset()
+        }
+        const url = this.rng[mode].randomValueFromArray(this.parquetFiles)
+        console.log('fetching dataset:', url)
         try {
             await this.streamDataIntoTable(url)
         } catch (err) {
             console.error(err)
             console.warn(
-                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old one for now...`
+                `Failed to fetch shard (${this.dataset}) from HuggingFace! We will continue using the old one for now...`
             )
         }
         this.loadSchema(this.schemaTemplate)

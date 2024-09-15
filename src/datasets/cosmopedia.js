@@ -19,4 +19,31 @@ export default class CosmopediaDataset extends ParquetReader {
             { text: '\nOUTPUT: ' }
         ]
     }
+
+    async fetchRandomShard(mode = 'train') {
+        const { slice, shards } = this.getWeightedRandomSlice(this.slices)
+        const shardIndices = generatePaddedNumbers(0, shards, 5)
+        const numShards = shardIndices.slice(-1)
+        const allShards = shardIndices.slice(0, -1)
+        const shard = this.rng[mode].randomValueFromArray(allShards)
+        const path = `data/${slice}/${this.split}-${shard}-of-${numShards}.parquet`
+        const url = `https://huggingface.co/datasets/${this.dataset}/resolve/main/${path}`
+        console.log(
+            'fetching dataset:',
+            this.dataset,
+            'shard:',
+            `${shard}/${numShards}`,
+            'slice:',
+            slice
+        )
+        try {
+            await this.streamDataIntoTable(url)
+        } catch (err) {
+            console.error(err)
+            console.warn(
+                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old one for now...`
+            )
+        }
+        this.loadSchema(this.schemaTemplate)
+    }
 }
