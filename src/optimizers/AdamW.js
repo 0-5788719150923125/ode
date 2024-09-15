@@ -8,12 +8,16 @@ export default class AdamW extends tf.AdamOptimizer {
         beta2 = 0.999,
         epsilon = 1e-7,
         weightDecay = 1e-4,
+        weightDecouple = true,
+        fixedDecay = false,
         step = 1
     } = {}) {
         super(learningRate, beta1, beta2, epsilon)
         this.ENGINE = tf.engine()
         this.learningRate = learningRate
         this.weightDecay = weightDecay
+        this.weightDecouple = weightDecouple
+        this.fixedDecay = fixedDecay
         this.step = step
     }
 
@@ -24,7 +28,6 @@ export default class AdamW extends tf.AdamOptimizer {
                 : Object.keys(variableGradients)
 
             varNames.forEach((name, i) => {
-                if (shouldExcludeFromWeightDecay(name)) return
                 const variable = this.ENGINE.registeredVariables[name]
                 let gradient = variableGradients[name]
                 gradient = applyWeightDecay(
@@ -54,6 +57,8 @@ export default class AdamW extends tf.AdamOptimizer {
             beta2: this.beta2,
             epsilon: this.epsilon,
             weightDecay: this.weightDecay,
+            weightDecouple: this.weightDecouple,
+            fixedDecay: this.fixedDecay,
             step: this.step
         }
     }

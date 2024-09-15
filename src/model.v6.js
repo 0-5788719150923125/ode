@@ -6,7 +6,7 @@ import ODE from './model.v4.js'
  */
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
-        super({ ...config, learningRate: 5e-4, weightDecay: 5e-5 })
+        super({ ...config, learningRate: 1e-3, weightDecay: 1e-4 })
     }
 
     defineSchedulers() {
@@ -20,29 +20,29 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         return [
-            this.ode.optimizers.Lion({
+            this.ode.optimizers.AdamW({
                 learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay,
-                beta1: 0.95,
-                beta2: 0.98,
-                useGc: true,
-                adaNorm: true
+                weightDecay: this.config.weightDecay
             })
         ]
     }
 
     // defineOptimizers() {
     //     return [
-    //         this.ode.optimizers.SophiaH({
+    //         this.ode.optimizers.Lion({
     //             learningRate: this.config.learningRate,
-    //             weightDecay: this.config.weightDecay
+    //             weightDecay: this.config.weightDecay,
+    //             beta1: 0.95,
+    //             beta2: 0.98,
+    //             useGc: true,
+    //             adaNorm: true
     //         })
     //     ]
     // }
 
     // defineOptimizers() {
     //     return [
-    //         this.ode.optimizers.AdamW({
+    //         this.ode.optimizers.SophiaH({
     //             learningRate: this.config.learningRate,
     //             weightDecay: this.config.weightDecay
     //         })

@@ -1,4 +1,5 @@
 import ParquetReader from './readers/parquet.js'
+import { generatePaddedNumbers } from '../utils.js'
 
 export default class CosmopediaDataset extends ParquetReader {
     constructor(config) {

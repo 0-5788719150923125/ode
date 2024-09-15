@@ -2,7 +2,6 @@ import { parseTable } from 'arrow-js-ffi'
 import initWasm, { wasmMemory, readParquet } from 'parquet-wasm'
 import {
     LinearCongruentialGenerator,
-    generatePaddedNumbers,
     randomBetween,
     randomValueFromArray
 } from '../../utils.js'
