@@ -16,7 +16,7 @@ export default class SharedEmbedding extends LayerBase {
             'embeddings',
             [this.inputDim, this.outputDim],
             'float32',
-            tf.initializers[this.embeddingsInitializer]()
+            this.initializers[this.embeddingsInitializer]()
         )
     }
 

@@ -17,7 +17,7 @@ export default class RMSNorm extends LayerBase {
                 'rmsWeight',
                 [axisShape],
                 'float32',
-                tf.initializers.ones()
+                this.initializers.ones()
             )
 
             if (this.useBias) {
@@ -25,7 +25,7 @@ export default class RMSNorm extends LayerBase {
                     'rmsBias',
                     [axisShape],
                     'float32',
-                    tf.initializers.zeros()
+                    this.initializers.zeros()
                 )
             }
         }
