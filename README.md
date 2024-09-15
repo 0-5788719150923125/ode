@@ -71,7 +71,7 @@ console.log(output)
 
 ```sh
 npm run test
-npm run test:file --file=models
+npm run test:suite --suite=models
 ```
 
 ## Produce Metrics:

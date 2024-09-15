@@ -9,7 +9,7 @@
     "scripts": {
         "start:node": "node cli.js",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage",
-        "test:file": "npm run test -- --testPathPattern=./tests/$npm_config_file.test.js"
+        "test:suite": "npm run test -- --testPathPattern=./tests/$npm_config_suite.test.js"
     },
     "repository": {
         "type": "git",

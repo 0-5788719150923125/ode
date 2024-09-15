@@ -337,8 +337,7 @@ async function generateText({
                 topP,
                 repetitionPenalty,
                 mirostat,
-                mirostatState,
-                isSingleLabel
+                mirostatState
             )
             // Append the predicted token index to the list of token indices
             tokenIndices.push(idxNext.dataSync()[0])
@@ -380,42 +379,28 @@ function predictOnce(
     topP,
     repetitionPenalty,
     mirostat,
-    mirostatState,
-    isSingleLabel
+    mirostatState
 ) {
     return tf.tidy(() => {
-        let logits
-        if (isSingleLabel) {
-            logits = this.model.predict(idx).squeeze()
-        } else {
-            // const blockSize = this.model.inputs[0].shape[1]
-            // const idxCond =
-            //     idx.shape[1] <= blockSize
-            //         ? idx
-            //         : idx.slice([0, -blockSize], [-1, -1])
-            logits = this.model.predict(idx)
-        }
-
+        let logits = this.model.predict(idx)
         // For models that export multiple output states, we only use the first
         if (Array.isArray(logits)) {
             logits = logits[0]
         }
-
+        // RNNs output a different shape than transformers
+        if (logits.shape.length === 2) logits = logits.squeeze()
+        // Transformer outputs
         if (logits.shape.length === 3) {
             const logitsTimesteps = logits.shape[1]
             const idxTimesteps = idx.shape[1]
+            const predictedIdx =
+                logitsTimesteps === idxTimesteps
+                    ? idxTimesteps - 1 // If logits and idx have matching timestep lengths
+                    : logitsTimesteps - 1 // If logits and idx have disparate timestep lengths
 
-            if (logitsTimesteps === idxTimesteps) {
-                // If logits and idx have matching timestep lengths
-                logits = logits
-                    .slice([0, idxTimesteps - 1, 0], [1, 1, logits.shape[2]])
-                    .reshape([logits.shape[2]])
-            } else {
-                // If logits and idx have disparate timestep lengths
-                logits = logits
-                    .slice([0, logitsTimesteps - 1, 0], [1, 1, logits.shape[2]])
-                    .reshape([logits.shape[2]])
-            }
+            logits = logits
+                .slice([0, predictedIdx, 0], [1, 1, logits.shape[2]])
+                .reshape([logits.shape[2]])
         }
 
         const idxNext = processLogits(logits, idx, {
