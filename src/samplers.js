@@ -1,8 +1,8 @@
+import { LinearCongruentialGenerator } from './utils.js'
 import RefinedWebDataset from './datasets/refinedweb.js'
 import CosmopediaDataset from './datasets/cosmopedia.js'
 import WikipediaDataset from './datasets/wikipedia.js'
 import PhiDataset from './datasets/phi.js'
-import { LinearCongruentialGenerator } from './utils.js'
 
 class RandomSampler {
     constructor(config) {

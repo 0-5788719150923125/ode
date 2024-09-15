@@ -20,7 +20,8 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         gradientAccumulationSteps: 1,
         trainSteps: Infinity,
         sampleLength: 64,
-        oversampleChance: 0.0,
+        oversample2x: 0.0,
+        oversample4x: 0.0,
         generateEvery: 64,
         validateEvery: 0,
         predictLength: 50,
@@ -68,7 +69,10 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
 
         let sampleLength = trainArgs.sampleLength
         let batchSize = trainArgs.batchSize
-        if (this.rng.randomFloat() < trainArgs.oversampleChance) {
+        if (this.rng.randomFloat() < trainArgs.oversample4x) {
+            sampleLength = trainArgs.sampleLength * 4
+            batchSize = Math.ceil(trainArgs.batchSize / 4)
+        } else if (this.rng.randomFloat() < trainArgs.oversample2x) {
             sampleLength = trainArgs.sampleLength * 2
             batchSize = Math.ceil(trainArgs.batchSize / 2)
         }

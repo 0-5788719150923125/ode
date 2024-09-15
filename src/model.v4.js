@@ -75,9 +75,9 @@ export default class OmniscientDeterministicEngine extends ODE {
     }
 
     defineReductionLayer() {
-        return this.ode.layers.ParabolicCompression({
+        return this.ode.layers.LowRankFactorization({
             units: this.config.units,
-            numSteps: 4
+            rank: this.config.headDim
         })
     }
 
