@@ -6,7 +6,7 @@ import ODE from './model.v4.js'
  */
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
-        super({ ...config, learningRate: 1e-3, weightDecay: 1e-4 })
+        super({ ...config, learningRate: 1e-3, weightDecay: 1e-5 })
     }
 
     defineSchedulers() {

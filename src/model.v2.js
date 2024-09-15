@@ -63,7 +63,7 @@ export default class OriginalDecoderEncoder extends ODE {
             .apply(outputs)
 
         for (let i = 0; i < this.config.layers; i++) {
-            outputs = this.ode.layers
+            const attnOutputs = this.ode.layers
                 .GPT2Attention({
                     blockSize: this.contextLength,
                     units: this.config.units,
@@ -75,12 +75,12 @@ export default class OriginalDecoderEncoder extends ODE {
 
             let normalized = this.ode.layers
                 .layerNormalization({ epsilon: 1e-5 })
-                .apply(outputs)
+                .apply(attnOutputs)
             outputs = this.ode.layers
                 .ResidualConnection()
-                .apply([normalized, outputs])
+                .apply([outputs, normalized])
 
-            outputs = this.ode.layers
+            const ffdOutputs = this.ode.layers
                 .MultiLayerPerceptron({
                     units: this.config.units,
                     hiddenDim: this.config.mlpDim,
@@ -92,10 +92,10 @@ export default class OriginalDecoderEncoder extends ODE {
 
             normalized = this.ode.layers
                 .layerNormalization({ epsilon: 1e-5 })
-                .apply(outputs)
+                .apply(ffdOutputs)
             outputs = this.ode.layers
                 .ResidualConnection()
-                .apply([normalized, outputs])
+                .apply([outputs, normalized])
         }
 
         outputs = this.tf.layers
