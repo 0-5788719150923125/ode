@@ -26,7 +26,6 @@ export default class GrokFast extends tf.AdamOptimizer {
     applyGradients(variableGradients) {
         tf.tidy(() => {
             Object.entries(variableGradients).forEach(([name, gradient]) => {
-                if (shouldExcludeFromWeightDecay(name)) return
                 const variable = this.ENGINE.registeredVariables[name]
 
                 gradient = applyWeightDecay(

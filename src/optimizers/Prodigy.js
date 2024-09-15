@@ -70,10 +70,10 @@ export default class Prodigy extends tf.Optimizer {
                     }
                 }
 
-                const p0 = this.STATE[name].p0.clone()
-                const expAvg = this.STATE[name].expAvg.clone()
-                const expAvgSq = this.STATE[name].expAvgSq.clone()
-                const s = this.STATE[name].s.clone()
+                const p0 = this.STATE[name].p0
+                const expAvg = this.STATE[name].expAvg
+                const expAvgSq = this.STATE[name].expAvgSq
+                const s = this.STATE[name].s
 
                 dNumerator = dNumerator.add(
                     tf
@@ -81,12 +81,12 @@ export default class Prodigy extends tf.Optimizer {
                         .mul((this.d / this.d0) * dLr)
                 )
 
-                this.STATE[name].expAvg.assign(
+                expAvg.assign(
                     expAvg
                         .mul(this.beta1)
                         .add(gradient.mul(this.d * (1.0 - this.beta1)))
                 )
-                this.STATE[name].expAvgSq.assign(
+                expAvgSq.assign(
                     expAvgSq
                         .mul(this.beta2)
                         .add(
@@ -96,7 +96,7 @@ export default class Prodigy extends tf.Optimizer {
                         )
                 )
 
-                this.STATE[name].s.assign(
+                s.assign(
                     s
                         .mul(this.beta3)
                         .add(
@@ -107,12 +107,7 @@ export default class Prodigy extends tf.Optimizer {
                         )
                 )
 
-                dDenom = dDenom.add(this.STATE[name].s.abs().sum())
-            })
-
-            Object.entries(variableGradients).forEach(([name, gradient]) => {
-                const variable = this.ENGINE.registeredVariables[name]
-                const { expAvg, expAvgSq } = this.STATE[name]
+                dDenom = dDenom.add(s.abs().sum())
 
                 const denom = expAvgSq.sqrt().add(this.d * this.epsilon)
 

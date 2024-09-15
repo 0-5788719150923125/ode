@@ -44,8 +44,7 @@ export default class Lion extends tf.Optimizer {
 
             tf.tidy(() => {
                 if (this.useGc) {
-                    const mean = gradient.mean()
-                    gradient = gradient.sub(mean)
+                    gradient = gradient.sub(gradient.mean())
                 }
 
                 gradient = applyWeightDecay(
@@ -62,7 +61,6 @@ export default class Lion extends tf.Optimizer {
                 const expAvg = this.STATE[name].expAvg
 
                 const update = expAvg
-                    .clone()
                     .mul(this.beta1)
                     .add(gradient.mul(1 - this.beta1))
                     .sign()
@@ -95,9 +93,7 @@ export default class Lion extends tf.Optimizer {
 
         this.STATE[name].expGradNorm.assign(expGradNorm)
 
-        const sGrad = gradient.div(expGradNorm.maximum(1e-10))
-
-        return sGrad
+        return gradient.div(expGradNorm.maximum(1e-10))
     }
 
     setWeights(weightValues) {
