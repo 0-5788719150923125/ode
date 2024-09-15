@@ -22,9 +22,8 @@ export default class Signum extends tf.Optimizer {
     }
 
     applyGradients(variableGradients) {
-        Object.keys(variableGradients).forEach((name) => {
+        Object.entries(variableGradients).forEach(([name, gradient]) => {
             const variable = this.ENGINE.registeredVariables[name]
-            let gradient = variableGradients[name]
 
             tf.tidy(() => {
                 gradient = applyWeightDecay(

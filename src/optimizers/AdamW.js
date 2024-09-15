@@ -23,13 +23,8 @@ export default class AdamW extends tf.AdamOptimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
-            const varNames = Array.isArray(variableGradients)
-                ? variableGradients.map((v) => v.name)
-                : Object.keys(variableGradients)
-
-            varNames.forEach((name, i) => {
+            Object.entries(variableGradients).forEach(([name, gradient]) => {
                 const variable = this.ENGINE.registeredVariables[name]
-                let gradient = variableGradients[name]
                 gradient = applyWeightDecay(
                     variable,
                     gradient,

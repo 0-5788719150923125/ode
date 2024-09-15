@@ -44,13 +44,8 @@ export default class AdamG extends tf.Optimizer {
                 1 / Math.sqrt(this.step)
             )
 
-            const variableNames = Array.isArray(variableGradients)
-                ? variableGradients.map((v) => v.name)
-                : Object.keys(variableGradients)
-
-            variableNames.forEach((name) => {
+            Object.entries(variableGradients).forEach(([name, gradient]) => {
                 const variable = this.ENGINE.registeredVariables[name]
-                let gradient = variableGradients[name]
 
                 if (!this.STATE[name]) {
                     this.STATE[name] = {

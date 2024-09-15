@@ -25,14 +25,10 @@ export default class GrokFast extends tf.AdamOptimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
-            const varNames = Array.isArray(variableGradients)
-                ? variableGradients.map((v) => v.name)
-                : Object.keys(variableGradients)
-
-            varNames.forEach((name, i) => {
+            Object.entries(variableGradients).forEach(([name, gradient]) => {
                 if (shouldExcludeFromWeightDecay(name)) return
                 const variable = this.ENGINE.registeredVariables[name]
-                let gradient = variableGradients[name]
+
                 gradient = applyWeightDecay(
                     variable,
                     gradient,
@@ -44,24 +40,16 @@ export default class GrokFast extends tf.AdamOptimizer {
                 )
 
                 // Apply GrokFast EMA gradient filter
-                const grad = variableGradients[name]
                 if (this.grads[name] == null) {
-                    this.grads[name] = tf.variable(tf.zerosLike(grad))
+                    this.grads[name] = tf.variable(tf.zerosLike(gradient))
                 }
                 this.grads[name].assign(
                     tf.add(
                         tf.mul(this.grads[name], this.alpha),
-                        tf.mul(grad, 1 - this.alpha)
+                        tf.mul(gradient, 1 - this.alpha)
                     )
                 )
-                const filteredGrad = tf.add(
-                    grad,
-                    tf.mul(this.grads[name], this.lamb)
-                )
-
-                tf.dispose([variableGradients[name]])
-
-                variableGradients[name] = filteredGrad
+                gradient = tf.add(gradient, tf.mul(this.grads[name], this.lamb))
             })
 
             super.applyGradients(variableGradients)

@@ -30,9 +30,8 @@ export default class Lion extends tf.Optimizer {
     }
 
     applyGradients(variableGradients) {
-        Object.keys(variableGradients).forEach((name) => {
+        Object.entries(variableGradients).forEach(([name, gradient]) => {
             const variable = this.ENGINE.registeredVariables[name]
-            let gradient = variableGradients[name]
 
             if (!this.STATE[name]) {
                 this.STATE[name] = {

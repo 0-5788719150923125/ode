@@ -7,7 +7,7 @@ export function applyWeightDecay(
     weightDecouple = true,
     fixedDecay = false
 ) {
-    if (weightDecay === 0 && shouldExcludeFromWeightDecay(name)) {
+    if (weightDecay === 0 || shouldExcludeFromWeightDecay(name)) {
         return gradient
     }
 

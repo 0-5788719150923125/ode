@@ -35,11 +35,9 @@ export default class SophiaH extends tf.Optimizer {
 
     applyGradients(variableGradients) {
         tf.tidy(() => {
-            const varNames = Object.keys(variableGradients)
-
-            varNames.forEach((name) => {
+            Object.entries(variableGradients).forEach(([name, gradient]) => {
                 const variable = this.ENGINE.registeredVariables[name]
-                let gradient = variableGradients[name]
+
                 const state = this.STATE[name] || {
                     momentum: tf.variable(tf.zerosLike(variable)),
                     hessianMoment: tf.variable(tf.zerosLike(variable))
