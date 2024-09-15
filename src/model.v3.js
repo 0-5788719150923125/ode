@@ -6,13 +6,13 @@ import ODE from './model.v2.js'
  */
 export default class OptimalDecisionEngine extends ODE {
     constructor(config) {
-        const defaults = {
+        super({
             layers: 3,
             units: 256,
             learningRate: 1e-4,
-            weightDecay: 1e-5
-        }
-        super({ ...defaults, ...config })
+            weightDecay: 1e-5,
+            ...config
+        })
     }
 
     defineTokenizer() {

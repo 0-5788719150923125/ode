@@ -6,7 +6,7 @@ import ODE from './model.v3.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        const defaults = {
+        super({
             layers: 3,
             units: 256,
             headDim: 1024,
@@ -14,9 +14,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             numExperts: 3,
             topK: 2,
             switchingDim: 512,
-            temperature: 0.8
-        }
-        super({ ...defaults, ...config })
+            temperature: 0.8,
+            ...config
+        })
     }
 
     defineTokenizer() {

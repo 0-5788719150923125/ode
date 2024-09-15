@@ -6,14 +6,14 @@ import ODE from './model.v1.js'
  */
 export default class OriginalDecoderEncoder extends ODE {
     constructor(config) {
-        const defaults = {
+        super({
             layers: 4,
             units: 128,
             numHeads: 8,
             mlpDim: 512,
-            dropout: 0
-        }
-        super({ ...defaults, ...config })
+            dropout: 0,
+            ...config
+        })
     }
 
     defineTokenizer(config) {

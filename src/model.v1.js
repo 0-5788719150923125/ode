@@ -7,13 +7,13 @@ import ODE from './model.v0.js'
  */
 export default class OmnipresentDegenerateEntity extends ODE {
     constructor(config) {
-        const defaults = {
+        super({
             layers: 3,
             units: 128,
             learningRate: 1e-4,
-            weightDecay: 1e-5
-        }
-        super({ ...defaults, ...config })
+            weightDecay: 1e-5,
+            ...config
+        })
     }
 
     defineBuild() {

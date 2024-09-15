@@ -6,7 +6,7 @@ import ODE from './model.v2.js'
  */
 export default class OmnipotentDeterministicEnsemble extends ODE {
     constructor(config) {
-        const defaults = {
+        super({
             layers: 5,
             units: 128,
             embeddings: 512,
@@ -21,9 +21,9 @@ export default class OmnipotentDeterministicEnsemble extends ODE {
             minLearningRate: 1e-6,
             weightDecay: 1e-5,
             cosineSteps: 2048,
-            ALiBiLength: 1024
-        }
-        super({ ...defaults, ...config })
+            ALiBiLength: 1024,
+            ...config
+        })
     }
 
     defineTokenizer() {

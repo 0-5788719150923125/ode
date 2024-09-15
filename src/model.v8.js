@@ -6,23 +6,7 @@ import ODE from './model.v4.js'
  */
 export default class OmnilateralDynamicEvaluator extends ODE {
     constructor(config) {
-        const defaults = {
-            layers: 6,
-            units: 180,
-            embeddings: 540,
-            numHeads: 4,
-            queriesPerHead: 2,
-            headDim: 45,
-            mlpDim: 1080,
-            useBias: true,
-            ALiBiLength: 1024,
-            learningRate: 1e-4,
-            minLearningRate: 1e-6,
-            weightDecay: 1e-5,
-            cosineSteps: 4096,
-            warmupSteps: 128
-        }
-        super({ ...defaults, ...config })
+        super(config)
     }
 
     defineTokenizer() {
@@ -45,9 +29,9 @@ export default class OmnilateralDynamicEvaluator extends ODE {
             .apply(inputs)
 
         outputs = this.ode.layers
-            .ParabolicCompression({
+            .LowRankFactorization({
                 units: this.config.units,
-                numSteps: 4
+                rank: this.config.headDim
             })
             .apply(outputs)
 

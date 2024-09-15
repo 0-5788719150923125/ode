@@ -6,7 +6,7 @@ import ODE from './model.v2.js'
  */
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
-        const defaults = {
+        super({
             layers: 6,
             units: 180,
             embeddings: 540,
@@ -16,13 +16,13 @@ export default class OmniscientDeterministicEngine extends ODE {
             mlpDim: 1080,
             useBias: true,
             ALiBiLength: 1024,
-            learningRate: 1e-4,
-            minLearningRate: 1e-6,
+            learningRate: 1e-3,
+            minLearningRate: 1e-5,
             weightDecay: 1e-5,
             cosineSteps: 4096,
-            warmupSteps: 128
-        }
-        super({ ...defaults, ...config })
+            warmupSteps: 128,
+            ...config
+        })
     }
 
     defineTokenizer() {
@@ -113,11 +113,9 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         return [
-            this.ode.optimizers.Lion({
+            this.ode.optimizers.AdamW({
                 learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay,
-                useGc: true,
-                adaNorm: true
+                weightDecay: this.config.weightDecay
             })
         ]
     }

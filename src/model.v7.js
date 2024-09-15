@@ -6,11 +6,7 @@ import ODE from './model.v6.js'
  */
 export default class OptionalDecisionExecution extends ODE {
     constructor(config) {
-        const defaults = {
-            selfModel: true,
-            auxiliaryWeight: 1.0
-        }
-        super({ ...defaults, ...config })
+        super({ selfModel: true, auxiliaryWeight: 1.0, ...config })
     }
 
     defineBuild() {

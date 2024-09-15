@@ -6,7 +6,7 @@ import ODE from './model.v4.js'
  */
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
-        super({ ...config, learningRate: 1e-3, weightDecay: 1e-5 })
+        super({ learningRate: 1e-3, weightDecay: 1e-5, ...config })
     }
 
     defineSchedulers() {
@@ -14,15 +14,6 @@ export default class OmniscientDeterministicEngine extends ODE {
             this.ode.schedulers.ConstantScheduler({
                 max: this.config.learningRate,
                 warmupSteps: this.config.warmupSteps
-            })
-        ]
-    }
-
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.AdamW({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay
             })
         ]
     }
