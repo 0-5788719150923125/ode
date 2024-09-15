@@ -1,4 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
+import { applyWeightDecay } from './_ops.js'
 
 // AdamG: a parameter-free optimizer
 // https://arxiv.org/abs/2405.04376
@@ -13,6 +14,9 @@ export default class AdamG extends tf.Optimizer {
         epsilon = 1e-8,
         p = 0.2,
         q = 0.24,
+        weightDecay = 0.0,
+        weightDecouple = true,
+        fixedDecay = false,
         step = 1
     } = {}) {
         super()
@@ -25,6 +29,9 @@ export default class AdamG extends tf.Optimizer {
         this.q = q
         this.accBeta1 = accBeta1
         this.accBeta2 = accBeta2
+        this.weightDecay = weightDecay
+        this.weightDecouple = weightDecouple
+        this.fixedDecay = fixedDecay
         this.step = step
         this.ENGINE = tf.engine()
         this.STATE = {}
@@ -42,16 +49,26 @@ export default class AdamG extends tf.Optimizer {
                 : Object.keys(variableGradients)
 
             variableNames.forEach((name) => {
-                const value = this.ENGINE.registeredVariables[name]
-                const grad = variableGradients[name]
+                const variable = this.ENGINE.registeredVariables[name]
+                let gradient = variableGradients[name]
 
                 if (!this.STATE[name]) {
                     this.STATE[name] = {
-                        firstMoment: tf.variable(tf.zerosLike(value)),
-                        secondMoment: tf.variable(tf.zerosLike(value)),
-                        goldenStep: tf.variable(tf.zerosLike(value))
+                        firstMoment: tf.variable(tf.zerosLike(variable)),
+                        secondMoment: tf.variable(tf.zerosLike(variable)),
+                        goldenStep: tf.variable(tf.zerosLike(variable))
                     }
                 }
+
+                gradient = applyWeightDecay(
+                    variable,
+                    gradient,
+                    name,
+                    this.learningRate,
+                    this.weightDecay,
+                    this.weightDecouple,
+                    this.fixedDecay
+                )
 
                 const { firstMoment, secondMoment, goldenStep } =
                     this.STATE[name]
@@ -65,10 +82,10 @@ export default class AdamG extends tf.Optimizer {
 
                 const newFirstMoment = firstMoment
                     .mul(this.beta1)
-                    .add(grad.mul(newGoldenStep).mul(1 - this.beta1))
+                    .add(gradient.mul(newGoldenStep).mul(1 - this.beta1))
                 const newSecondMoment = secondMoment
                     .mul(this.beta2)
-                    .add(grad.square().mul(1 - this.beta2))
+                    .add(gradient.square().mul(1 - this.beta2))
 
                 const biasCorrectedFirstMoment = newFirstMoment.div(
                     tf.scalar(1).sub(this.accBeta1).add(this.epsilon)
@@ -81,7 +98,7 @@ export default class AdamG extends tf.Optimizer {
                     .div(biasCorrectedSecondMoment.sqrt().add(this.epsilon))
                     .mul(tf.scalar(learningRateScaled))
 
-                value.assign(value.sub(update))
+                variable.assign(variable.sub(update))
 
                 this.STATE[name].firstMoment.assign(newFirstMoment)
                 this.STATE[name].secondMoment.assign(newSecondMoment)
@@ -134,6 +151,9 @@ export default class AdamG extends tf.Optimizer {
             epsilon: this.epsilon,
             p: this.p,
             q: this.q,
+            weightDecay: this.weightDecay,
+            weightDecouple: this.weightDecouple,
+            fixedDecay: this.fixedDecay,
             step: this.step
         }
     }
