@@ -17,6 +17,7 @@ const options = {
     validateEvery: 0,
     validationSteps: 512,
     sampleLength: 256,
+    'oversample1.5x': 0.0,
     oversample2x: 0.0,
     oversample4x: 0.0,
     predictLength: 128,
