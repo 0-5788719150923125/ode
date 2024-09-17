@@ -178,12 +178,10 @@ class GradientAccumulator {
                 averageGradients(this.accumulatedGrads, this.accumulationSteps)
 
                 // Clip gradients to prevent explosion
-                const clippedGrads = tf.tidy(() => {
-                    return clipByGlobalNorm(
-                        this.accumulatedGrads,
-                        this.clipValue
-                    )
-                })
+                const clippedGrads = clipByGlobalNorm(
+                    this.accumulatedGrads,
+                    this.clipValue
+                )
 
                 // Reset for the next accumulation cycle
                 this.accumulationCounter = 0
