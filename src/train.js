@@ -167,9 +167,21 @@ class GradientAccumulator {
         tf.tidy(() => {
             this.currentStep = step
             this.currentBatch = batch
-            this.accumulationCounter++
 
             const newGrads = this.compute(data.xs, data.ys)
+
+            if (this.accumulationCounter === 0) {
+                Object.keys(newGrads).forEach((key) => {
+                    const zeroTensor = tf.zerosLike(newGrads[key])
+                    if (this.accumulatedGrads[key]) {
+                        this.accumulatedGrads[key].assign(zeroTensor)
+                    } else {
+                        this.accumulatedGrads[key] = tf.variable(zeroTensor)
+                    }
+                })
+            }
+
+            this.accumulationCounter++
 
             accumulateGradients(this.accumulatedGrads, newGrads)
 
@@ -185,11 +197,6 @@ class GradientAccumulator {
 
                 // Reset for the next accumulation cycle
                 this.accumulationCounter = 0
-                Object.keys(this.accumulatedGrads).forEach((key) =>
-                    this.accumulatedGrads[key].assign(
-                        tf.zerosLike(this.accumulatedGrads[key])
-                    )
-                )
 
                 // Update gradients, step the optimizer, changing weights
                 this.model.optimizer.applyGradients(clippedGrads)
@@ -375,9 +382,6 @@ function averageGradients(grads, divisor) {
 
 function accumulateGradients(accumulatedGrads, grads) {
     Object.keys(grads).forEach((key) => {
-        if (!accumulatedGrads[key]) {
-            accumulatedGrads[key] = tf.variable(tf.zerosLike(grads[key]))
-        }
         const accGrad = tf.add(accumulatedGrads[key], grads[key])
         accumulatedGrads[key].assign(accGrad)
     })
