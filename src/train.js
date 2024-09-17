@@ -90,10 +90,7 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
         )
 
         // Fetch data and compute gradients
-        await accumulator.compute(data.xs, data.ys)
-        await accumulator.step(this.step, this.batch)
-
-        this.loss = accumulator.getLoss()
+        this.loss = await accumulator.step(this.step, this.batch, data)
 
         for (const callback of callbacks) {
             const r = await callback.step({
@@ -148,7 +145,7 @@ class GradientAccumulator {
         this.currentBatch = 0
     }
 
-    async compute(currentXs, currentYs) {
+    compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
             this.model,
             this.lossFunction,
@@ -162,52 +159,46 @@ class GradientAccumulator {
                 batch: this.currentBatch
             }
         )
-        this.gradients = grads
         this.loss = loss
+        return grads
     }
 
-    getLoss() {
+    async step(step, batch, data) {
+        tf.tidy(() => {
+            this.currentStep = step
+            this.currentBatch = batch
+            this.accumulationCounter++
+
+            const newGrads = this.compute(data.xs, data.ys)
+
+            accumulateGradients(this.accumulatedGrads, newGrads)
+
+            if (this.accumulationCounter === this.accumulationSteps) {
+                // Average the gradients after accumulation
+                averageGradients(this.accumulatedGrads, this.accumulationSteps)
+
+                // Clip gradients to prevent explosion
+                const clippedGrads = tf.tidy(() => {
+                    return clipByGlobalNorm(
+                        this.accumulatedGrads,
+                        this.clipValue
+                    )
+                })
+
+                // Reset for the next accumulation cycle
+                this.accumulationCounter = 0
+                Object.keys(this.accumulatedGrads).forEach((key) =>
+                    this.accumulatedGrads[key].assign(
+                        tf.zerosLike(this.accumulatedGrads[key])
+                    )
+                )
+
+                // Update gradients, step the optimizer, changing weights
+                this.model.optimizer.applyGradients(clippedGrads)
+            }
+        })
+
         return this.loss
-    }
-
-    async step(step, batch) {
-        this.currentStep = step
-        this.currentBatch = batch
-        this.accumulationCounter++
-
-        this.accumulatedGrads = accumulateGradients(
-            this.gradients,
-            this.accumulatedGrads
-        )
-
-        if (this.accumulationCounter === this.accumulationSteps) {
-            // Average the gradients after accumulation
-            this.accumulatedGrads = averageGradients(
-                this.accumulatedGrads,
-                this.accumulationSteps
-            )
-
-            // Clip gradients to prevent explosion
-            const clippedGrads = tf.tidy(() => {
-                return clipByGlobalNorm(this.accumulatedGrads, this.clipValue)
-            })
-
-            // Reset for the next accumulation cycle
-            this.accumulationCounter = 0
-            Object.values(this.accumulatedGrads).forEach((tensor) =>
-                tensor.dispose()
-            )
-
-            this.accumulatedGrads = {}
-
-            // Update gradients, step the optimizer, changing weights
-            this.model.optimizer.applyGradients(clippedGrads)
-
-            Object.values(clippedGrads).forEach((tensor) => tensor.dispose())
-        }
-
-        // Dispose of grads after accumulation
-        Object.values(this.gradients).forEach((grad) => grad.dispose())
     }
 }
 
@@ -378,29 +369,20 @@ function clipByGlobalNorm(tensors, clipNorm) {
     return tensorsObjClipped
 }
 
-function averageGradients(grads, accumulationSteps) {
-    const divisor = tf.scalar(accumulationSteps)
+function averageGradients(grads, divisor) {
     Object.keys(grads).forEach((key) => {
-        const gradTensor = grads[key]
-        const avgGrad = gradTensor.div(divisor)
-        grads[key].dispose()
-        grads[key] = avgGrad
+        grads[key].assign(grads[key].div(divisor))
     })
-    divisor.dispose()
-
-    return grads
 }
 
-function accumulateGradients(gradients, accumulatedGrads) {
-    Object.keys(gradients).forEach((key) => {
+function accumulateGradients(accumulatedGrads, grads) {
+    Object.keys(grads).forEach((key) => {
         if (!accumulatedGrads[key]) {
-            accumulatedGrads[key] = tf.zerosLike(gradients[key])
+            accumulatedGrads[key] = tf.variable(tf.zerosLike(grads[key]))
         }
-        const tempGrad = tf.add(accumulatedGrads[key], gradients[key])
-        accumulatedGrads[key].dispose()
-        accumulatedGrads[key] = tf.keep(tempGrad)
+        const accGrad = tf.add(accumulatedGrads[key], grads[key])
+        accumulatedGrads[key].assign(accGrad)
     })
-    return accumulatedGrads
 }
 
 async function batchMaker(
