@@ -13,6 +13,7 @@ const options = {
     gradientAccumulationSteps: 1,
     trainSteps: Infinity,
     seed: null,
+    saveEvery: 0,
     generateEvery: 32,
     validateEvery: 0,
     validationSteps: 512,
@@ -21,10 +22,11 @@ const options = {
     oversample2x: 0.0,
     oversample4x: 0.0,
     predictLength: 128,
-    temperature: 0.7,
+    doSample: true,
+    temperature: 0.3,
     topK: 0,
     topP: 1.0,
-    repetitionPenalty: 1.5,
+    repetitionPenalty: 1.35,
     mirostat: false,
     mirostatState: {
         tau: 3.5, // target surprise
@@ -32,7 +34,6 @@ const options = {
         maxRepetition: 256, // max tokens to consider
         mu: 7.0 // initial mu (2 * tau)
     },
-    saveEvery: 0,
     corpus: 'https://www.gutenberg.org/files/100/old/shaks12.txt'
 }
 
@@ -156,11 +157,9 @@ async function orchestrate(options) {
 
             rl.question('PROMPT: ', async (text) => {
                 const output = await net.generate({
+                    ...options,
                     prompt: text,
-                    doSample: true,
-                    temperature: options.temperature,
-                    maxNewTokens: 256,
-                    repetitionPenalty: options.repetitionPenalty
+                    maxNewTokens: 256
                 })
                 console.log(`OUTPUT: ${output}`)
                 rl.close()

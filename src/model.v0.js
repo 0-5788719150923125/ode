@@ -446,6 +446,10 @@ function processLogits(
             )
         }
 
+        if (!doSample) {
+            return greedySampling(processedLogits)
+        }
+
         // Apply temperature scaling
         if (temperature !== 1) {
             processedLogits = applyTemperature(processedLogits, temperature)
@@ -461,14 +465,7 @@ function processLogits(
             processedLogits = applyTopP(processedLogits, topP)
         }
 
-        // Apply softmax to convert logits to probabilities
-        // const probabilities = tf.softmax(processedLogits)
-
-        if (doSample) {
-            return multinomialSampling(processedLogits)
-        } else {
-            return greedySampling(processedLogits)
-        }
+        return multinomialSampling(processedLogits)
     })
 }
 
@@ -553,8 +550,8 @@ function applyTopP(logits, p) {
 
 function multinomialSampling(logits) {
     return tf.tidy(() => {
-        const sampledIndex = tf.multinomial(logits, 1).reshape([-1])
-        return sampledIndex
+        const logProbabilities = tf.logSoftmax(logits)
+        return tf.multinomial(logProbabilities, 1).reshape([-1])
     })
 }
 
@@ -584,26 +581,48 @@ function prepareInputs(inputs) {
     })
 }
 
-function applyRepetitionPenalty(logits, outputSequence, repetitionPenalty) {
+function applyRepetitionPenalty(
+    logits,
+    outputSequence,
+    repetitionPenalty,
+    decayRate = 0.9
+) {
     return tf.tidy(() => {
         const sequenceLength = outputSequence.shape[1]
         const vocabularySize = logits.shape[0]
 
-        // Create a tensor of shape [sequenceLength] representing the penalty factors
-        // The penalty factors increase linearly from 0 to 1 over the sequence length
-        let penaltyFactors = tf.linspace(0, 1, sequenceLength)
-        // The penalty factors increase exponentially from 0 to 1 over the sequence length
-        // penaltyFactors = tf.pow(penaltyFactors), 2)
-
         // Create a one-hot tensor of shape [sequenceLength, vocabularySize] representing the output sequence
         const oneHot = tf.oneHot(outputSequence.flatten(), vocabularySize)
 
-        // Multiply the one-hot tensor with the penalty factors along the sequence dimension
-        const penaltyMask = tf.mul(oneHot, penaltyFactors.expandDims(1))
+        // Create decay factors
+        const positions = tf.range(0, sequenceLength, 1, 'float32')
+        const decayFactors = tf.exp(positions.mul(-decayRate)).expandDims(1)
 
-        // Subtract the penalty mask from the logits
-        const penalizedLogits = logits.sub(
-            penaltyMask.sum(0).mul(repetitionPenalty - 1)
+        // Apply decay to the one-hot tensor
+        const decayedOneHot = oneHot.mul(decayFactors)
+
+        // Sum along the sequence dimension to get a decayed count of each token's occurrences
+        const tokenCounts = decayedOneHot.sum(0)
+
+        // Create a mask for tokens that have appeared (count > 0)
+        const appearedMask = tokenCounts.greater(0)
+
+        // Apply the penalty
+        const penaltyFactors = appearedMask.mul(repetitionPenalty - 1).add(1)
+
+        // Where logits > 0, divide by penalty; where logits < 0, multiply by penalty
+        const positiveLogitsMask = logits.greater(0)
+        const negativeLogitsMask = logits.less(0)
+
+        const penalizedPositiveLogits = logits
+            .mul(positiveLogitsMask)
+            .div(penaltyFactors)
+        const penalizedNegativeLogits = logits
+            .mul(negativeLogitsMask)
+            .mul(penaltyFactors)
+
+        const penalizedLogits = penalizedPositiveLogits.add(
+            penalizedNegativeLogits
         )
 
         return penalizedLogits

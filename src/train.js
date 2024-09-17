@@ -500,20 +500,10 @@ export class InferenceGenerator {
             prompt = args.tokenizer.decode(sample)
         }
 
-        const params = {
-            doSample: false,
-            temperature: args.temperature,
-            repetitionPenalty: args.repetitionPenalty,
-            topK: args.topK,
-            topP: args.topP,
-            mirostat: args.mirostat,
-            mirostatState: args.mirostatState,
-            maxNewTokens: maxLength
-        }
-
         const output = await this.parent.generate({
+            ...args,
             prompt,
-            ...params
+            maxNewTokens: maxLength
         })
         const endTime = performance.now()
         console.log(
