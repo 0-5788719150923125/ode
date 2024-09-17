@@ -465,7 +465,10 @@ function processLogits(
             processedLogits = applyTopP(processedLogits, topP)
         }
 
-        return multinomialSampling(processedLogits)
+        // Apply logSoftmax to convert logits to log probabilities
+        const logProbabilities = tf.logSoftmax(logits)
+
+        return multinomialSampling(logProbabilities)
     })
 }
 
@@ -548,9 +551,8 @@ function applyTopP(logits, p) {
     })
 }
 
-function multinomialSampling(logits) {
+function multinomialSampling(logProbabilities) {
     return tf.tidy(() => {
-        const logProbabilities = tf.logSoftmax(logits)
         return tf.multinomial(logProbabilities, 1).reshape([-1])
     })
 }
