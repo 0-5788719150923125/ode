@@ -6,7 +6,7 @@ export default class AdamW extends tf.AdamOptimizer {
         learningRate = 0.1,
         beta1 = 0.9,
         beta2 = 0.999,
-        epsilon = 1e-7,
+        epsilon = 1e-8,
         weightDecay = 1e-4,
         weightDecouple = true,
         fixedDecay = false,

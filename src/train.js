@@ -486,10 +486,7 @@ export class InferenceGenerator {
 
         this.lastStep = args.step
 
-        const startTime = performance.now()
-        const maxLength = args.predictLength
-
-        const seedLength = randomBetween(32, maxLength - 32)
+        const seedLength = randomBetween(32, args.predictLength - 32)
         const sample = await args.dataGenerator.take({
             tokenizer: args.tokenizer,
             maxSeqLen: seedLength
@@ -503,14 +500,8 @@ export class InferenceGenerator {
         const output = await this.parent.generate({
             ...args,
             prompt,
-            maxNewTokens: maxLength
+            maxNewTokens: args.predictLength
         })
-        const endTime = performance.now()
-        console.log(
-            `RATE: ${((endTime - startTime) / (maxLength - seedLength)).toFixed(
-                2
-            )} ms/token`
-        )
         console.log(
             colors.BLUE +
                 prompt +
