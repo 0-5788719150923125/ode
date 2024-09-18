@@ -466,9 +466,9 @@ function processLogits(
         }
 
         // Apply logSoftmax to convert logits to log probabilities
-        const logProbabilities = tf.logSoftmax(logits)
+        processedLogits = tf.logSoftmax(processedLogits)
 
-        return multinomialSampling(logProbabilities)
+        return multinomialSampling(processedLogits)
     })
 }
 
