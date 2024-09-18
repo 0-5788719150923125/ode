@@ -525,28 +525,41 @@ function applyTopP(logits, p) {
     return tf.tidy(() => {
         const logitsShape = logits.shape
         const logitsFlat = logits.reshape([-1])
-        const topKIndices = tf.topk(logitsFlat, logitsFlat.shape[0]).indices
-        const topKLogits = tf.gather(logitsFlat, topKIndices)
-        const cumulativeLogits = topKLogits.cumsum()
-        const cutoffIndex = cumulativeLogits
+
+        // 1. Convert logits to probabilities
+        const probabilities = tf.softmax(logitsFlat)
+
+        // 2. Sort the probabilities and get the sorted indices
+        const sorted = tf.topk(probabilities, logitsFlat.shape[0], true)
+        const sortedProbs = sorted.values
+        const sortedIndices = sorted.indices
+
+        // 3. Compute cumulative probabilities
+        const cumulativeProbs = sortedProbs.cumsum()
+
+        // 4. Find the cutoff index where cumulative probability exceeds p
+        const cutoffIndex = cumulativeProbs
             .greater(tf.scalar(p))
+            .toInt() // Convert boolean to int
             .argMax()
-            .flatten()
-        const topPIndices = topKIndices.slice(
-            [0],
-            [cutoffIndex.dataSync()[0] + 1]
+
+        // 5. Get the indices to keep
+        const indicesToKeep = sortedIndices.slice([0], [cutoffIndex.add(1)])
+
+        // 6. Create a mask to keep only the top-p tokens
+        const mask = tf.scatterND(
+            indicesToKeep.reshape([-1, 1]),
+            tf.onesLike(indicesToKeep),
+            [logitsFlat.shape[0]]
         )
-        const topPMask = tf.zerosLike(logitsFlat)
-        const scatterIndices = tf
-            .range(0, topPIndices.shape[0], 1, 'int32')
-            .reshape([-1, 1])
-        const updateValues = tf.gather(logitsFlat, topPIndices) // Fix: Use the original logits values
-        const updatedMask = tf.scatterND(
-            scatterIndices,
-            updateValues,
-            topPMask.shape
-        )
-        const maskedLogits = updatedMask.reshape(logitsShape)
+
+        // 7. Set logits of tokens not in top-p to -Infinity
+        const negInf = tf.fill([logitsFlat.shape[0]], Number.NEGATIVE_INFINITY)
+        const maskedLogitsFlat = tf.where(mask.cast('bool'), logitsFlat, negInf)
+
+        // 8. Reshape back to original logits shape
+        const maskedLogits = maskedLogitsFlat.reshape(logitsShape)
+
         return maskedLogits
     })
 }
