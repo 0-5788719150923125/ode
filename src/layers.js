@@ -49,25 +49,6 @@ import AttentionBasedReduction from './layers/AttentionBasedReduction.js'
 import Split from './layers/Split.js'
 import RMSNorm from './layers/RMSNorm.js'
 
-/**
- * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
- * @param {T | ((config: any) => import('@tensorflow/tfjs').layers.Layer)} layerConstructor
- * @param {string} namePrefix
- * @returns {(config: any) => import('@tensorflow/tfjs').layers.Layer}
- */
-const createLayerFactory = (layerConstructor, namePrefix) => (config) => {
-    const length = 3
-    if (config?.prefix) namePrefix = config.prefix
-    const name = `${namePrefix}-${randomString(length)}`
-    if (typeof layerConstructor === 'function' && !layerConstructor.prototype) {
-        // For TFJS layers which are created via functions
-        return layerConstructor({ name, ...config })
-    } else {
-        // For custom layers which need 'new' keyword
-        return new layerConstructor({ name, ...config })
-    }
-}
-
 const customLayersConfig = {
     activation: { constructor: tf.layers.activation, prefix: 'act' },
     add: { constructor: tf.layers.add, prefix: 'add' },
@@ -248,6 +229,25 @@ const customLayersConfig = {
     Zip: {
         constructor: Zip,
         prefix: 'op'
+    }
+}
+
+/**
+ * @template {new (config: any) => import('@tensorflow/tfjs').layers.Layer} T
+ * @param {T | ((config: any) => import('@tensorflow/tfjs').layers.Layer)} layerConstructor
+ * @param {string} namePrefix
+ * @returns {(config: any) => import('@tensorflow/tfjs').layers.Layer}
+ */
+const createLayerFactory = (layerConstructor, namePrefix) => (config) => {
+    const length = 3
+    if (config?.prefix) namePrefix = config.prefix
+    const name = `${namePrefix}-${randomString(length)}`
+    if (typeof layerConstructor === 'function' && !layerConstructor.prototype) {
+        // For TFJS layers which are created via functions
+        return layerConstructor({ name, ...config })
+    } else {
+        // For custom layers which need 'new' keyword
+        return new layerConstructor({ name, ...config })
     }
 }
 
