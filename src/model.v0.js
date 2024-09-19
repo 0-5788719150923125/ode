@@ -600,45 +600,39 @@ function applyRepetitionPenalty(
     logits,
     outputSequence,
     repetitionPenalty,
-    decayRate = 0.9
+    decayRate = 0.99
 ) {
     return tf.tidy(() => {
-        const sequenceLength = outputSequence.shape[1]
         const vocabularySize = logits.shape[0]
 
-        // Create a one-hot tensor of shape [sequenceLength, vocabularySize] representing the output sequence
-        const oneHot = tf.oneHot(outputSequence.flatten(), vocabularySize)
+        // Flatten the output sequence to a 1D tensor of shape [sequenceLength]
+        const flatSequence = outputSequence.flatten().toInt()
 
-        // Create decay factors
+        // Get the sequence length
+        const sequenceLength = flatSequence.shape[0]
+
+        // Create decay factors: higher for recent tokens
         const positions = tf.range(0, sequenceLength, 1, 'float32')
-        const decayFactors = tf.exp(positions.mul(-decayRate)).expandDims(1)
+        // Decay factors: decayRate^(sequenceLength - 1 - positions)
+        const decayFactors = tf.pow(
+            tf.scalar(decayRate),
+            tf.scalar(sequenceLength - 1).sub(positions)
+        )
 
-        // Apply decay to the one-hot tensor
-        const decayedOneHot = oneHot.mul(decayFactors)
+        // One-hot encode the flatSequence: shape [sequenceLength, vocabularySize]
+        const oneHot = tf.oneHot(flatSequence, vocabularySize).toFloat()
 
-        // Sum along the sequence dimension to get a decayed count of each token's occurrences
+        // Multiply oneHot by decayFactors to apply decay to each token occurrence
+        const decayedOneHot = oneHot.mul(decayFactors.expandDims(1))
+
+        // Sum over the sequence length to get decayed counts per token: shape [vocabularySize]
         const tokenCounts = decayedOneHot.sum(0)
 
-        // Create a mask for tokens that have appeared (count > 0)
-        const appearedMask = tokenCounts.greater(0)
+        // Compute penalty factors: repetitionPenalty^tokenCounts
+        const penaltyFactors = tf.pow(tf.scalar(repetitionPenalty), tokenCounts)
 
-        // Apply the penalty
-        const penaltyFactors = appearedMask.mul(repetitionPenalty - 1).add(1)
-
-        // Where logits > 0, divide by penalty; where logits < 0, multiply by penalty
-        const positiveLogitsMask = logits.greater(0)
-        const negativeLogitsMask = logits.less(0)
-
-        const penalizedPositiveLogits = logits
-            .mul(positiveLogitsMask)
-            .div(penaltyFactors)
-        const penalizedNegativeLogits = logits
-            .mul(negativeLogitsMask)
-            .mul(penaltyFactors)
-
-        const penalizedLogits = penalizedPositiveLogits.add(
-            penalizedNegativeLogits
-        )
+        // Adjust the logits by dividing by the penalty factors
+        const penalizedLogits = logits.div(penaltyFactors)
 
         return penalizedLogits
     })

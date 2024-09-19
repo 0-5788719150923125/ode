@@ -2,6 +2,7 @@ import { parseTable } from 'arrow-js-ffi'
 import initWasm, { wasmMemory, readParquet } from 'parquet-wasm'
 import {
     LinearCongruentialGenerator,
+    delay,
     randomBetween,
     randomValueFromArray
 } from '../../utils.js'
@@ -93,14 +94,7 @@ export default class ParquetReader {
         }
         const url = this.rng[mode].randomValueFromArray(this.parquetFiles)
         console.log('fetching dataset:', url)
-        try {
-            await this.streamDataIntoTable(url)
-        } catch (err) {
-            console.error(err)
-            console.warn(
-                `Failed to fetch shard (${this.dataset}) from HuggingFace! We will continue using the old one for now...`
-            )
-        }
+        await this.streamDataIntoTable(url)
         this.loadSchema(this.schemaTemplate)
     }
 
@@ -186,7 +180,31 @@ export default class ParquetReader {
         this.batches++
         try {
             if (this.batches % this.batchesBeforeRefresh === 0) {
-                await this.fetchRandomShard(mode)
+                let delayTime = 5000
+                let shouldReturn = false
+                while (!shouldReturn) {
+                    try {
+                        await this.fetchRandomShard(mode)
+                        shouldReturn = true
+                    } catch (err) {
+                        if (this.seed === null) {
+                            console.error(
+                                `Failed to load a shard from ${this.dataset}; we will continue using the old one`
+                            )
+                            shouldReturn = true
+                        } else {
+                            console.error(
+                                `Failed to load a shard from ${
+                                    this.dataset
+                                }; we will pause for ${
+                                    delayTime / 1000
+                                } seconds before trying again`
+                            )
+                            await delay(delayTime)
+                            delayTime *= 2
+                        }
+                    }
+                }
             }
             await this.fillCache(mode)
             const sample = this.cachedText[mode].slice(0, size)

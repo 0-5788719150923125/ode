@@ -37,14 +37,7 @@ export default class CosmopediaDataset extends ParquetReader {
             'slice:',
             slice
         )
-        try {
-            await this.streamDataIntoTable(url)
-        } catch (err) {
-            console.error(err)
-            console.warn(
-                `Failed to fetch shard (${shard}) from HuggingFace! We will continue using the old one for now...`
-            )
-        }
+        await this.streamDataIntoTable(url)
         this.loadSchema(this.schemaTemplate)
     }
 }
