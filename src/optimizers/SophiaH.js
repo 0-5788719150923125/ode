@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs'
 import { applyWeightDecay } from './_ops.js'
+import { seededPRNG } from '../utils.js'
 
 export default class SophiaH extends tf.Optimizer {
     constructor({
@@ -14,6 +15,7 @@ export default class SophiaH extends tf.Optimizer {
         numSamples = 1,
         hessianDistribution = 'gaussian',
         epsilon = 1e-12,
+        seed = null,
         step = 1
     } = {}) {
         super()
@@ -28,6 +30,11 @@ export default class SophiaH extends tf.Optimizer {
         this.numSamples = numSamples
         this.hessianDistribution = hessianDistribution
         this.epsilon = epsilon
+        this.seed = seed
+        this.useSeed = false
+        if (this.seed !== null) {
+            this.useSeed = true
+        }
         this.step = step
         this.ENGINE = tf.engine()
         this.STATE = {}
@@ -90,12 +97,29 @@ export default class SophiaH extends tf.Optimizer {
         let hessianEstimate = tf.zerosLike(variable)
 
         for (let i = 0; i < this.numSamples; i++) {
+            const mean = 0
+            const stddv = 1
+            if (this.useSeed) {
+                this.seed = seededPRNG(this.seed)
+            }
             const u =
                 this.hessianDistribution === 'gaussian'
-                    ? tf.randomNormal(variable.shape)
+                    ? tf.randomNormal(
+                          variable.shape,
+                          mean,
+                          stddv,
+                          'float32',
+                          this.seed
+                      )
                     : // Rademacher distribution
                       tf
-                          .randomUniform(variable.shape, 0, 1)
+                          .randomUniform(
+                              variable.shape,
+                              mean,
+                              stddv,
+                              'float32',
+                              this.seed
+                          )
                           .round()
                           .mul(2)
                           .sub(1)
@@ -148,6 +172,7 @@ export default class SophiaH extends tf.Optimizer {
             numSamples: this.numSamples,
             hessianDistribution: this.hessianDistribution,
             epsilon: this.epsilon,
+            seed: this.seed,
             step: this.step
         }
     }
