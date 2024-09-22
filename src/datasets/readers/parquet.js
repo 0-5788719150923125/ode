@@ -58,10 +58,9 @@ export default class ParquetReader {
         this.lcg[mode] = new LinearCongruentialGenerator(this.seed)
         this.rng[mode] = {
             randomFloat: (...args) => this.lcg[mode].randomFloat(...args),
-            randomBetween: (...args) =>
-                this.lcg[mode].seededRandomBetween(...args),
+            randomBetween: (...args) => this.lcg[mode].randomBetween(...args),
             randomValueFromArray: (...args) =>
-                this.lcg[mode].seededValueFromArray(...args)
+                this.lcg[mode].randomValueFromArray(...args)
         }
         this.cachedText[mode] = ''
     }

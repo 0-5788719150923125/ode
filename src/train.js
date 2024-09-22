@@ -39,12 +39,16 @@ export async function trainModel(dataGenerator, args, extraCallbacks) {
 
     this.seed = trainArgs?.seed || null
     this.rng = {
-        randomFloat: Math.random
+        randomFloat: Math.random,
+        randomBetween: randomBetween
     }
     if (this.seed !== null) {
         console.log(`trainer had a seed, using it: (${this.seed})`)
         const lcg = new LinearCongruentialGenerator(this.seed)
-        this.rng = { randomFloat: (...args) => lcg.randomFloat(...args) }
+        this.rng = {
+            randomFloat: (...args) => lcg.randomFloat(...args),
+            randomBetween: (...args) => lcg.randomBetween(...args)
+        }
     }
 
     const accumulator = new GradientAccumulator(
@@ -470,7 +474,10 @@ export class InferenceGenerator {
 
         this.lastStep = args.step
 
-        const seedLength = randomBetween(32, args.predictLength - 32)
+        const seedLength = this.parent.rng.randomBetween(
+            32,
+            args.predictLength - 64
+        )
         const sample = await args.dataGenerator.take({
             tokenizer: args.tokenizer,
             maxSeqLen: seedLength
