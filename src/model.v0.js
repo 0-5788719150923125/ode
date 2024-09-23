@@ -613,6 +613,7 @@ function applyRepetitionPenalty(
 
         // Create decay factors: higher for recent tokens
         const positions = tf.range(0, sequenceLength, 1, 'float32')
+
         // Decay factors: decayRate^(sequenceLength - 1 - positions)
         const decayFactors = tf.pow(
             tf.scalar(decayRate),
