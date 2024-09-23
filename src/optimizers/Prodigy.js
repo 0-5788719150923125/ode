@@ -115,7 +115,7 @@ export default class Prodigy extends tf.Optimizer {
                     variable,
                     gradient,
                     name,
-                    this.learningRate,
+                    dLr,
                     this.weightDecay,
                     this.weightDecouple,
                     this.fixedDecay

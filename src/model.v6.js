@@ -6,7 +6,7 @@ import ODE from './model.v4.js'
  */
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
-        super({ learningRate: 1e-4, weightDecay: 1e-2, ...config })
+        super({ learningRate: 1.0, weightDecay: 1e-2, ...config })
     }
 
     defineSchedulers() {
@@ -20,14 +20,25 @@ export default class OmniscientDeterministicEngine extends ODE {
 
     defineOptimizers() {
         return [
-            this.ode.optimizers.Lion({
+            this.ode.optimizers.Prodigy({
                 learningRate: this.config.learningRate,
                 weightDecay: this.config.weightDecay,
-                useGc: true,
-                adaNorm: true
+                safeguardWarmup: true,
+                biasCorrection: true
             })
         ]
     }
+
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.Lion({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay,
+    //             useGc: true,
+    //             adaNorm: true
+    //         })
+    //     ]
+    // }
 
     // defineOptimizers() {
     //     return [
@@ -50,17 +61,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     //         name: 'MiLeCrossEntropy',
     //         reduction: this.tf.Reduction.MEAN
     //     }
-    // }
-
-    // defineOptimizers() {
-    //     return [
-    //         this.ode.optimizers.Prodigy({
-    //             learningRate: this.config.learningRate,
-    //             weightDecay: this.config.weightDecay,
-    //             safeguardWarmup: true,
-    //             biasCorrection: true
-    //         })
-    //     ]
     // }
 
     // defineSchedulers() {

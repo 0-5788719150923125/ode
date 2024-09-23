@@ -78,19 +78,14 @@ export default class AdamG extends tf.Optimizer {
                 const newFirstMoment = firstMoment
                     .mul(this.beta1)
                     .add(gradient.mul(newGoldenStep).mul(1 - this.beta1))
+                    .div(tf.scalar(1).sub(this.accBeta1).add(this.epsilon))
                 const newSecondMoment = secondMoment
                     .mul(this.beta2)
                     .add(gradient.square().mul(1 - this.beta2))
+                    .div(tf.scalar(1).sub(this.accBeta2).add(this.epsilon))
 
-                const biasCorrectedFirstMoment = newFirstMoment.div(
-                    tf.scalar(1).sub(this.accBeta1).add(this.epsilon)
-                )
-                const biasCorrectedSecondMoment = newSecondMoment.div(
-                    tf.scalar(1).sub(this.accBeta2).add(this.epsilon)
-                )
-
-                const update = biasCorrectedFirstMoment
-                    .div(biasCorrectedSecondMoment.sqrt().add(this.epsilon))
+                const update = newFirstMoment
+                    .div(newSecondMoment.sqrt().add(this.epsilon))
                     .mul(tf.scalar(learningRateScaled))
 
                 variable.assign(variable.sub(update))
