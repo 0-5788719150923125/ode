@@ -17,6 +17,7 @@ export default class AdamG extends tf.Optimizer {
         weightDecay = 0.0,
         weightDecouple = true,
         fixedDecay = false,
+        safeguardWarmup = false,
         step = 1
     } = {}) {
         super()
@@ -32,6 +33,7 @@ export default class AdamG extends tf.Optimizer {
         this.weightDecay = weightDecay
         this.weightDecouple = weightDecouple
         this.fixedDecay = fixedDecay
+        this.safeguardWarmup = safeguardWarmup
         this.step = step
         this.ENGINE = tf.engine()
         this.STATE = {}
@@ -59,7 +61,7 @@ export default class AdamG extends tf.Optimizer {
                     variable,
                     gradient,
                     name,
-                    this.learningRate,
+                    learningRateScaled,
                     this.weightDecay,
                     this.weightDecouple,
                     this.fixedDecay
@@ -69,9 +71,9 @@ export default class AdamG extends tf.Optimizer {
                     this.STATE[name]
 
                 const newGoldenStep = goldenStep.mul(this.beta3).add(
-                    tf
-                        .scalar(this.p)
-                        .mul(secondMoment.pow(this.q))
+                    secondMoment
+                        .pow(this.q)
+                        .mul(this.p)
                         .mul(1 - this.beta3)
                 )
 
@@ -144,6 +146,7 @@ export default class AdamG extends tf.Optimizer {
             weightDecay: this.weightDecay,
             weightDecouple: this.weightDecouple,
             fixedDecay: this.fixedDecay,
+            safeguardWarmup: this.safeguardWarmup,
             step: this.step
         }
     }
