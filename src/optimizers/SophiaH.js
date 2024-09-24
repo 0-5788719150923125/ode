@@ -13,7 +13,6 @@ export default class SophiaH extends tf.Optimizer {
         gamma = 1e-2,
         updatePeriod = 10,
         numSamples = 1,
-        hessianDistribution = 'gaussian',
         epsilon = 1e-12,
         seed = null,
         step = 1
@@ -28,7 +27,6 @@ export default class SophiaH extends tf.Optimizer {
         this.gamma = gamma
         this.updatePeriod = updatePeriod
         this.numSamples = numSamples
-        this.hessianDistribution = hessianDistribution
         this.epsilon = epsilon
         this.seed = seed
         this.useSeed = false
@@ -96,33 +94,37 @@ export default class SophiaH extends tf.Optimizer {
     computeHutchinsonEstimator(variable, gradient) {
         let hessianEstimate = tf.zerosLike(variable)
 
+        if (this.useSeed) this.seed++
+
         for (let i = 0; i < this.numSamples; i++) {
             const mean = 0
+            // const center = 0.23
             const stddv = 1
-            if (this.useSeed) {
-                this.seed = seededPRNG(this.seed)
+            let u
+            if (i % 2 === 0) {
+                // Gaussian distribution
+                u = tf.randomNormal(
+                    variable.shape,
+                    mean,
+                    stddv,
+                    'float32',
+                    seededPRNG(this.seed) ? this.seed : undefined
+                )
+            } else {
+                // Rademacher distribution
+                u = tf
+                    .randomUniform(
+                        variable.shape,
+                        mean,
+                        // center,
+                        stddv,
+                        'float32',
+                        seededPRNG(this.seed + 1) ? this.seed : undefined // foresight
+                    )
+                    .round()
+                    .mul(2)
+                    .sub(1)
             }
-            const u =
-                this.hessianDistribution === 'gaussian'
-                    ? tf.randomNormal(
-                          variable.shape,
-                          mean,
-                          stddv,
-                          'float32',
-                          this.seed
-                      )
-                    : // Rademacher distribution
-                      tf
-                          .randomUniform(
-                              variable.shape,
-                              mean,
-                              stddv,
-                              'float32',
-                              this.seed
-                          )
-                          .round()
-                          .mul(2)
-                          .sub(1)
 
             // Compute Hessian-vector product
             const hvp = tf.grad((v) => {
@@ -170,7 +172,6 @@ export default class SophiaH extends tf.Optimizer {
             gamma: this.gamma,
             updatePeriod: this.updatePeriod,
             numSamples: this.numSamples,
-            hessianDistribution: this.hessianDistribution,
             epsilon: this.epsilon,
             seed: this.seed,
             step: this.step

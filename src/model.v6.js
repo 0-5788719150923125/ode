@@ -24,6 +24,7 @@ export default class OmniscientDeterministicEngine extends ODE {
                 learningRate: this.config.learningRate,
                 weightDecay: this.config.weightDecay,
                 updatePeriod: 3,
+                numSamples: 2,
                 seed: this.config.seed
             })
         ]
