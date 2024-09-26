@@ -285,7 +285,10 @@ function modelSelf(hiddenStates, auxiliaryWeight = 0.1) {
             if (i % 2 === 0) return
             const actual = hiddenStates[i - 1]
             const prediction = hiddenState
-            const ls = tf.losses.cosineDistance(actual, prediction, 0)
+            // const ls = tf.losses.cosineDistance(actual, prediction, 0)
+            // loss = loss.add(tf.clipByValue(ls, 0, 2))
+            const ls = tf.losses.hingeLoss(actual, prediction)
+            // console.log(ls.dataSync())
             loss = loss.add(tf.clipByValue(ls, 0, 2))
         })
         return tf.mul(loss, tf.scalar(auxiliaryWeight))

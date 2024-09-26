@@ -6,7 +6,7 @@ import ODE from './model.v4.js'
  */
 export default class OmniscientDeterministicEngine extends ODE {
     constructor(config) {
-        super({ learningRate: 1e-2, weightDecay: 1e-2, ...config })
+        super({ learningRate: 0.0008, weightDecay: 1e-2, ...config })
     }
 
     defineSchedulers() {
@@ -23,8 +23,8 @@ export default class OmniscientDeterministicEngine extends ODE {
             this.ode.optimizers.SophiaH({
                 learningRate: this.config.learningRate,
                 weightDecay: this.config.weightDecay,
-                updatePeriod: 3,
-                numSamples: 2,
+                updatePeriod: 9,
+                numSamples: 1,
                 seed: this.config.seed
             })
         ]

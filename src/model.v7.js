@@ -9,6 +9,15 @@ export default class OptionalDecisionExecution extends ODE {
         super({ selfModel: true, auxiliaryWeight: 1.0, ...config })
     }
 
+    defineSchedulers() {
+        return [
+            this.ode.schedulers.ConstantScheduler({
+                max: this.config.learningRate,
+                warmupSteps: this.config.warmupSteps
+            })
+        ]
+    }
+
     defineBuild() {
         const inputs = this.ode.layers.input({
             shape: [null]

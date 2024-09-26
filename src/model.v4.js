@@ -18,7 +18,7 @@ export default class OmniscientDeterministicEngine extends ODE {
             ALiBiLength: 1024,
             learningRate: 1e-3,
             minLearningRate: 1e-5,
-            weightDecay: 1e-5,
+            weightDecay: 1e-2,
             cosineSteps: 4096,
             warmupSteps: 128,
             ...config

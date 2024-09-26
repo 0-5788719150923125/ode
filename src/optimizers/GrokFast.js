@@ -58,7 +58,7 @@ export default class GrokFast extends tf.AdamOptimizer {
     }
 
     static get className() {
-        return 'AdamWGrokfast'
+        return 'GrokFast'
     }
 
     getConfig() {

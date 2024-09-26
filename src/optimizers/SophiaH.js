@@ -108,7 +108,7 @@ export default class SophiaH extends tf.Optimizer {
                     mean,
                     stddv,
                     'float32',
-                    seededPRNG(this.seed) ? this.seed : undefined
+                    seededPRNG(this.seed + i) ? this.seed : undefined
                 )
             } else {
                 // Rademacher distribution
@@ -119,7 +119,7 @@ export default class SophiaH extends tf.Optimizer {
                         // center,
                         stddv,
                         'float32',
-                        seededPRNG(this.seed + 1) ? this.seed : undefined // foresight
+                        seededPRNG(this.seed + i + 1) ? this.seed : undefined // foresight
                     )
                     .round()
                     .mul(2)
