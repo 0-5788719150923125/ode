@@ -229,7 +229,7 @@ function computeLoss(model, lossFunctionArgs, labels, logits) {
     const epsilon = lossFunctionArgs.epsilon || undefined
     const q = lossFunctionArgs.q || undefined
 
-    const prediction = logits[0]
+    const prediction = logits
 
     // RNNs predict just a single label, so we slice the ys tensor here
     if (prediction.shape.length < 3) {
@@ -279,7 +279,7 @@ function computeGradients(
                 model,
                 lossFunction,
                 currentYs,
-                predictions
+                predictions[0]
             )
 
             if (hasMethod(parent, 'postProcessing')) {
@@ -525,7 +525,7 @@ export class ValidationHandler {
                     this.parent.model,
                     args.lossFunction,
                     valData.ys,
-                    predictions
+                    predictions[0]
                 )
 
                 const numTokens = batchSize * seqLen

@@ -11,14 +11,13 @@ export default class ParquetReader {
     constructor(config) {
         this.split = 'train'
         this.delimiter = '\n\n'
-        this.eosToken = config?.eosToken || '֍'
+        this.eosToken = config?.eosToken || '☂'
         this.batchesBeforeRefresh = config?.batchesBeforeRefresh || 10000
         this.batches = 0
         this.cacheSize = 20000
         this.table = {}
-        this.schemaTemplate = config?.schema
-        this.dataset = 'HuggingFaceTB/cosmopedia'
-        this.slices = [{ slice: 'stories', shards: 43 }]
+        this.dataset = 'tiiuae/falcon-refinedweb'
+        this.schemaTemplate = config?.schema || [{ content: '\n\n' }]
         this.trainBatchIdx = 0
         this.validationBatchIdx = 1
         this.cachedText = {

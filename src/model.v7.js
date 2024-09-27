@@ -10,7 +10,7 @@ export default class OptionalDecisionExecution extends ODE {
             learningRate: 1e-3,
             weightDecay: 0.01,
             selfModel: true,
-            auxLossFunction: 'hingeLoss',
+            auxLossFunction: 'meanAbsoluteError',
             auxiliaryWeight: 1.0,
             ...config
         })
@@ -47,7 +47,7 @@ export default class OptionalDecisionExecution extends ODE {
             kernelInitializer: this.ode.initializers.glorotUniform()
         })
 
-        this.hiddenStates = []
+        const hiddenStates = []
 
         for (let i = 0; i < this.config.layers; i++) {
             let normalized = this.ode.layers
@@ -55,8 +55,7 @@ export default class OptionalDecisionExecution extends ODE {
                 .apply(outputs)
             const attnOutput = this.defineAttentionLayer().apply(normalized)
             const predictedOutput = modeler.apply(normalized)
-            this.hiddenStates.push(actualOutput)
-            this.hiddenStates.push(predictedOutput)
+            hiddenStates.push(...[attnOutput, predictedOutput])
             outputs = this.ode.layers
                 .ResidualConnection()
                 .apply([attnOutput, outputs])
@@ -79,14 +78,13 @@ export default class OptionalDecisionExecution extends ODE {
 
         return this.tf.model({
             inputs,
-            outputs: [outputs, ...this.hiddenStates]
+            outputs: [outputs, ...hiddenStates]
         })
     }
 
-    postProcessing(logits) {
-        const hiddenStates = logits.slice(1)
+    postProcessing(outputs) {
         const selfModelingLoss = this.modelSelf(
-            hiddenStates,
+            outputs.slice(1),
             this.config.auxLossFunction,
             this.config.auxiliaryWeight
         )
@@ -96,23 +94,18 @@ export default class OptionalDecisionExecution extends ODE {
     // https://arxiv.org/abs/2407.10188
     modelSelf(
         hiddenStates,
-        auxLossFunction = 'hingeLoss',
+        auxLossFunction = 'meanSquaredError',
         auxiliaryWeight = 1.0
     ) {
-        return this.tf.tidy(() => {
-            let loss = this.tf.scalar(0)
+        let loss = this.tf.scalar(0)
 
-            hiddenStates.map((hiddenState, i) => {
-                if (i % 2 === 0) return
-                const actual = hiddenStates[i - 1]
-                const prediction = hiddenState
-                // const ls = this.tf.losses.cosineDistance(actual, prediction, 0)
-                // loss = loss.add(this.tf.clipByValue(ls, 0, 2))
-                const ls = this.tf.losses[auxLossFunction](actual, prediction)
-                // console.log(ls.dataSync())
-                loss = loss.add(this.tf.clipByValue(ls, 0, 2))
-            })
-            return this.tf.mul(loss, this.tf.scalar(auxiliaryWeight))
+        hiddenStates.map((hiddenState, i) => {
+            if (i % 2 === 0) return
+            const actual = hiddenStates[i - 1]
+            const prediction = hiddenState
+            const ls = this.ode.losses[auxLossFunction](actual, prediction)
+            loss = loss.add(ls)
         })
+        return this.tf.mul(loss, this.tf.scalar(auxiliaryWeight))
     }
 }
