@@ -151,12 +151,11 @@ class GradientAccumulator {
 
     compute(currentXs, currentYs) {
         const { grads, loss } = computeGradients(
+            this.parent,
             this.model,
             this.lossFunction,
             currentXs,
             currentYs,
-            this.parent.config.selfModel,
-            this.parent.config.auxiliaryWeight,
             {
                 training: true,
                 step: this.currentStep,
@@ -218,14 +217,7 @@ function setLearningRate(batch, gradientAccumulationSteps, model, schedulers) {
     }
 }
 
-function computeLoss(
-    model,
-    lossFunctionArgs,
-    labels,
-    logits,
-    selfModel = false,
-    auxiliaryWeight = 0.1
-) {
+function computeLoss(model, lossFunctionArgs, labels, logits) {
     const lossFunction = losses[lossFunctionArgs.name]
     const weights = lossFunctionArgs.weights || null
     const smoothing = lossFunctionArgs.smoothing || null
@@ -267,41 +259,15 @@ function computeLoss(
         }
     })
 
-    if (selfModel) {
-        const hiddenStates = logits.slice(1)
-        const selfModelingLoss = modelSelf(hiddenStates, auxiliaryWeight)
-        lossValue = tf.add(lossValue, selfModelingLoss)
-    }
-
     return lossValue
 }
 
-// https://arxiv.org/abs/2407.10188
-function modelSelf(hiddenStates, auxiliaryWeight = 0.1) {
-    return tf.tidy(() => {
-        let loss = tf.scalar(0)
-
-        hiddenStates.map((hiddenState, i) => {
-            if (i % 2 === 0) return
-            const actual = hiddenStates[i - 1]
-            const prediction = hiddenState
-            // const ls = tf.losses.cosineDistance(actual, prediction, 0)
-            // loss = loss.add(tf.clipByValue(ls, 0, 2))
-            const ls = tf.losses.hingeLoss(actual, prediction)
-            // console.log(ls.dataSync())
-            loss = loss.add(tf.clipByValue(ls, 0, 2))
-        })
-        return tf.mul(loss, tf.scalar(auxiliaryWeight))
-    })
-}
-
 function computeGradients(
+    parent,
     model,
     lossFunction,
     currentXs,
     currentYs,
-    selfModel = false,
-    auxiliaryWeight = 0.1,
     meta = { training: true }
 ) {
     let loss
@@ -313,10 +279,13 @@ function computeGradients(
                 model,
                 lossFunction,
                 currentYs,
-                predictions,
-                selfModel,
-                auxiliaryWeight
+                predictions
             )
+
+            if (hasMethod(parent, 'postProcessing')) {
+                const auxLoss = parent.postProcessing(predictions)
+                lossValue = tf.add(lossValue, auxLoss)
+            }
 
             loss = lossValue.dataSync()[0]
 
@@ -331,6 +300,10 @@ function computeGradients(
     tf.dispose([currentXs, currentYs, value])
 
     return { grads, loss }
+}
+
+function hasMethod(instance, methodName) {
+    return methodName in instance && typeof instance[methodName] === 'function'
 }
 
 function l2Loss(tensor) {
@@ -552,9 +525,7 @@ export class ValidationHandler {
                     this.parent.model,
                     args.lossFunction,
                     valData.ys,
-                    predictions,
-                    this.parent.config.selfModel,
-                    this.parent.config.auxiliaryWeight
+                    predictions
                 )
 
                 const numTokens = batchSize * seqLen

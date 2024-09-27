@@ -18,17 +18,17 @@ export default class OmniscientDeterministicEngine extends ODE {
         ]
     }
 
-    defineOptimizers() {
-        return [
-            this.ode.optimizers.SophiaH({
-                learningRate: this.config.learningRate,
-                weightDecay: this.config.weightDecay,
-                updatePeriod: 9,
-                numSamples: 1,
-                seed: this.config.seed
-            })
-        ]
-    }
+    // defineOptimizers() {
+    //     return [
+    //         this.ode.optimizers.SophiaH({
+    //             learningRate: this.config.learningRate,
+    //             weightDecay: this.config.weightDecay,
+    //             updatePeriod: 9,
+    //             numSamples: 1,
+    //             seed: this.config.seed
+    //         })
+    //     ]
+    // }
 
     // defineOptimizers() {
     //     return [

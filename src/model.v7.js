@@ -6,7 +6,14 @@ import ODE from './model.v6.js'
  */
 export default class OptionalDecisionExecution extends ODE {
     constructor(config) {
-        super({ selfModel: true, auxiliaryWeight: 1.0, ...config })
+        super({
+            learningRate: 1e-3,
+            weightDecay: 0.01,
+            selfModel: true,
+            auxLossFunction: 'hingeLoss',
+            auxiliaryWeight: 1.0,
+            ...config
+        })
     }
 
     defineSchedulers() {
@@ -40,26 +47,26 @@ export default class OptionalDecisionExecution extends ODE {
             kernelInitializer: this.ode.initializers.glorotUniform()
         })
 
-        const hiddenStates = []
+        this.hiddenStates = []
 
         for (let i = 0; i < this.config.layers; i++) {
             let normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
-            const actualState = this.defineAttentionLayer().apply(normalized)
-            const predictedState = modeler.apply(normalized)
-            hiddenStates.push(actualState)
-            hiddenStates.push(predictedState)
+            const attnOutputs = this.defineAttentionLayer().apply(normalized)
             outputs = this.ode.layers
                 .ResidualConnection()
-                .apply([actualState, outputs])
+                .apply([attnOutputs, outputs])
             normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
-            const ffdOutputs = this.defineFeedforwardLayer().apply(normalized)
+            const actualOutput = this.defineFeedforwardLayer().apply(normalized)
+            const predictedOutput = modeler.apply(normalized)
+            this.hiddenStates.push(actualOutput)
+            this.hiddenStates.push(predictedOutput)
             outputs = this.ode.layers
                 .ResidualConnection()
-                .apply([ffdOutputs, outputs])
+                .apply([actualOutput, outputs])
         }
 
         outputs = this.ode.layers
@@ -70,6 +77,42 @@ export default class OptionalDecisionExecution extends ODE {
             })
             .apply(outputs)
 
-        return this.tf.model({ inputs, outputs: [outputs, ...hiddenStates] })
+        return this.tf.model({
+            inputs,
+            outputs: [outputs, ...this.hiddenStates]
+        })
+    }
+
+    postProcessing(logits) {
+        const hiddenStates = logits.slice(1)
+        const selfModelingLoss = this.modelSelf(
+            hiddenStates,
+            this.config.auxLossFunction,
+            this.config.auxiliaryWeight
+        )
+        return selfModelingLoss
+    }
+
+    // https://arxiv.org/abs/2407.10188
+    modelSelf(
+        hiddenStates,
+        auxLossFunction = 'hingeLoss',
+        auxiliaryWeight = 0.1
+    ) {
+        return this.tf.tidy(() => {
+            let loss = this.tf.scalar(0)
+
+            hiddenStates.map((hiddenState, i) => {
+                if (i % 2 === 0) return
+                const actual = hiddenStates[i - 1]
+                const prediction = hiddenState
+                // const ls = this.tf.losses.cosineDistance(actual, prediction, 0)
+                // loss = loss.add(this.tf.clipByValue(ls, 0, 2))
+                const ls = this.tf.losses[auxLossFunction](actual, prediction)
+                // console.log(ls.dataSync())
+                loss = loss.add(this.tf.clipByValue(ls, 0, 2))
+            })
+            return this.tf.mul(loss, this.tf.scalar(auxiliaryWeight))
+        })
     }
 }
