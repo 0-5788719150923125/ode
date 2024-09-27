@@ -84,7 +84,6 @@ export default class OmnilateralDynamicEvaluator extends ODE {
             const ffdOutputs = this.ode.layers
                 .GatedLinearMLP({
                     activation: 'mish',
-                    gateActivation: 'swish',
                     hiddenDim: this.config.mlpDim,
                     useBias: this.config.useBias
                 })

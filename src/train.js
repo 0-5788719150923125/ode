@@ -630,7 +630,7 @@ function extractLayerInfo(model) {
     return layerInfoObject
 }
 
-export class MetricsCollector {
+export class StateManager {
     constructor(parent) {
         this.parent = parent
         this.state = {

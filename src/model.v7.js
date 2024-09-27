@@ -53,20 +53,20 @@ export default class OptionalDecisionExecution extends ODE {
             let normalized = this.ode.layers
                 .RMSNorm({ elementwiseAffine: true, useBias: false })
                 .apply(outputs)
-            const attnOutputs = this.defineAttentionLayer().apply(normalized)
-            outputs = this.ode.layers
-                .ResidualConnection()
-                .apply([attnOutputs, outputs])
-            normalized = this.ode.layers
-                .RMSNorm({ elementwiseAffine: true, useBias: false })
-                .apply(outputs)
-            const actualOutput = this.defineFeedforwardLayer().apply(normalized)
+            const attnOutput = this.defineAttentionLayer().apply(normalized)
             const predictedOutput = modeler.apply(normalized)
             this.hiddenStates.push(actualOutput)
             this.hiddenStates.push(predictedOutput)
             outputs = this.ode.layers
                 .ResidualConnection()
-                .apply([actualOutput, outputs])
+                .apply([attnOutput, outputs])
+            normalized = this.ode.layers
+                .RMSNorm({ elementwiseAffine: true, useBias: false })
+                .apply(outputs)
+            const ffdOutput = this.defineFeedforwardLayer().apply(normalized)
+            outputs = this.ode.layers
+                .ResidualConnection()
+                .apply([ffdOutput, outputs])
         }
 
         outputs = this.ode.layers
@@ -97,7 +97,7 @@ export default class OptionalDecisionExecution extends ODE {
     modelSelf(
         hiddenStates,
         auxLossFunction = 'hingeLoss',
-        auxiliaryWeight = 0.1
+        auxiliaryWeight = 1.0
     ) {
         return this.tf.tidy(() => {
             let loss = this.tf.scalar(0)

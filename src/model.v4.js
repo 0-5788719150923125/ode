@@ -94,7 +94,6 @@ export default class OmniscientDeterministicEngine extends ODE {
     defineFeedforwardLayer() {
         return this.ode.layers.GatedLinearMLP({
             activation: 'mish',
-            gateActivation: 'swish',
             hiddenDim: this.config.mlpDim,
             useBias: this.config.useBias
         })

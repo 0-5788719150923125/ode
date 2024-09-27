@@ -1,66 +1,66 @@
 import * as tf from '@tensorflow/tfjs'
-import MultiLayerPerceptron from './MultiLayerPerceptron.js'
+import LayerBase from './_base.js'
 
-export default class GatedLinearMLP extends MultiLayerPerceptron {
+export default class GatedLinearMLP extends LayerBase {
     constructor(config) {
         super(config)
-        this.gateActivation = config.gateActivation || 'sigmoid'
+        this.hiddenDim = config?.hiddenDim || 1024
+        this.dropout = config?.dropout || 0
+        this.activation = config?.activation || 'relu'
+        this.units = config.units || null
     }
 
     build(inputShape) {
-        super.build(inputShape)
-
-        this.gateProjKernel = this.addWeight(
-            `gateProjKernel`,
-            [this.units, this.hiddenDim],
+        this.units = this.units ? this.units : inputShape[inputShape.length - 1]
+        this.inProjKernel = this.addWeight(
+            `inProjKernel`,
+            [this.units, this.hiddenDim * 2],
             'float32',
             this.initializers.glorotNormal()
         )
-
-        if (this.useBias)
-            this.gateProjBias = this.addWeight(
-                `gateProjBias`,
-                [this.hiddenDim],
+        this.outProjKernel = this.addWeight(
+            `outProjKernel`,
+            [this.hiddenDim, this.units],
+            'float32',
+            this.initializers.glorotNormal()
+        )
+        if (this.useBias) {
+            this.inProjBias = this.addWeight(
+                `inProjBias`,
+                [this.hiddenDim * 2],
                 'float32',
                 this.initializers.zeros()
             )
+            this.outProjBias = this.addWeight(
+                `outProjBias`,
+                [this.units],
+                'float32',
+                this.initializers.zeros()
+            )
+        }
     }
 
     call(inputs, kwargs) {
         return tf.tidy(() => {
             inputs = Array.isArray(inputs) ? inputs[0] : inputs
 
-            let proj = this.ops.applyDense(
+            let outputs = this.ops.applyDense(
                 inputs,
                 this.inProjKernel.read(),
                 this.inProjBias?.read()
             )
 
-            proj = tf.layers
+            const [x, y] = tf.split(outputs, 2, -1)
+
+            const gated = tf.layers
                 .activation({ activation: this.activation })
-                .apply(proj)
+                .apply(y)
 
-            let gate = this.ops.applyDense(
-                inputs,
-                this.gateProjKernel.read(),
-                this.gateProjBias?.read()
-            )
-
-            gate = tf.layers
-                .activation({ activation: this.gateActivation })
-                .apply(gate)
-
-            const gatedOutput = tf.mul(proj, gate)
-
-            let outputs = this.ops.applyDense(
-                gatedOutput,
+            outputs = this.ops.applyDense(
+                x.mul(gated),
                 this.outProjKernel.read(),
                 this.outProjBias?.read()
             )
-
-            outputs = kwargs['training']
-                ? tf.dropout(outputs, this.dropout)
-                : outputs
 
             return outputs
         })
@@ -69,7 +69,10 @@ export default class GatedLinearMLP extends MultiLayerPerceptron {
     getConfig() {
         return {
             ...super.getConfig(),
-            gateActivation: this.gateActivation
+            units: this.units,
+            hiddenDim: this.hiddenDim,
+            dropout: this.dropout,
+            activation: this.activation
         }
     }
 }
