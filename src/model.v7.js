@@ -10,8 +10,8 @@ export default class OptionalDecisionExecution extends ODE {
             learningRate: 1e-3,
             weightDecay: 0.01,
             selfModel: true,
-            auxLossFunction: 'meanAbsoluteError',
-            auxiliaryWeight: 1.0,
+            auxLossFunction: 'euclideanDistance',
+            auxiliaryWeight: 0.01,
             ...config
         })
     }
@@ -103,7 +103,13 @@ export default class OptionalDecisionExecution extends ODE {
             if (i % 2 === 0) return
             const actual = hiddenStates[i - 1]
             const prediction = hiddenState
-            const ls = this.ode.losses[auxLossFunction](actual, prediction)
+            const ls = this.ode.losses[auxLossFunction](
+                actual,
+                prediction,
+                -1,
+                null,
+                this.tf.Reduction.MEAN
+            )
             loss = loss.add(ls)
         })
         return this.tf.mul(loss, this.tf.scalar(auxiliaryWeight))

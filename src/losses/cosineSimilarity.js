@@ -8,7 +8,7 @@ export default function cosineSimilarity(
     reduction = tf.Reduction.MEAN
 ) {
     return tf.tidy(() => {
-        return tf.sub(
+        const similarity = tf.sub(
             1,
             tf.losses.cosineDistance(
                 labels,
@@ -18,5 +18,6 @@ export default function cosineSimilarity(
                 reduction
             )
         )
+        return tf.add(similarity, 1) // Add 1 to shift the range from [-1, 1] to [0, 2]
     })
 }
