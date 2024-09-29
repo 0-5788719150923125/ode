@@ -47,7 +47,6 @@ export default class OptionalDecisionExecution extends ODE {
 
         const modeler = this.ode.layers.SelfModeling({
             prefix: 'mod',
-            units: this.config.units,
             filters: this.config.selfModeling.filters,
             kernelSize: this.config.selfModeling.kernelSize,
             strides: this.config.selfModeling.strides,

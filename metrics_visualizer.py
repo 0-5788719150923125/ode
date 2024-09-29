@@ -6,6 +6,7 @@ from functools import reduce
 import re
 import numpy as np
 from matplotlib.ticker import ScalarFormatter, AutoLocator
+from textwrap import fill
 
 def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.figure(figsize=(14, 8))
@@ -31,7 +32,7 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
                     label_parts.append(f"{'.'.join(label_metric)}: {str(value)}")
 
         label = "\n".join(label_parts)
-        line, = plt.plot(steps, metric_values, marker='o', label=label)
+        line, = plt.plot(steps, metric_values, marker='o', label=fill(label, 40))  # Wrap the label text
         all_values.extend([v for v in metric_values if not np.isnan(v)])
 
         if len(steps) > 0:
@@ -79,7 +80,9 @@ def plot_metric(data, metric_key, metric_name, label_metrics):
     plt.xlabel("Steps", fontsize=12)
     plt.ylabel(formatted_name, fontsize=12)
 
-    plt.legend(title="ODE Runs", title_fontsize=12, loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fancybox=True, shadow=True)
+    # Create legend with original settings
+    plt.legend(title="ODE Runs", title_fontsize=12, loc='upper right', bbox_to_anchor=(1, 1),
+               frameon=True, fancybox=True, shadow=True)
 
     # Calculate reasonable y-axis limits with margins
     y_min, y_max = calculate_ylim(all_values)
