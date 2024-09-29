@@ -121,8 +121,8 @@ export default class Lamb extends tf.Optimizer {
                         update = expAvgCorrected.mul(stepSize)
                     }
                 } else {
-                    update = expAvgCorrected.div(
-                        expAvgSqCorrected.sqrt().add(this.eps)
+                    update = expAvgCorrected.mul(
+                        expAvgSqCorrected.rsqrt().add(this.eps)
                     )
                 }
 

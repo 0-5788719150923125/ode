@@ -193,9 +193,9 @@ export default class ProjectedFeatureAttention extends LayerBase {
                 false,
                 true
             )
-            let normalizedScores = tf.div(
+            let normalizedScores = tf.mul(
                 scores,
-                tf.sqrt(tf.scalar(this.headFeatures))
+                tf.rsqrt(tf.scalar(this.headFeatures))
             )
 
             // Apply ALiBi if needed

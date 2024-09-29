@@ -92,9 +92,9 @@ export default class GPT2Attention extends LayerBase {
             // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
             let att = tf.mul(
                 tf.matMul(q, k, false, true),
-                tf.div(
+                tf.mul(
                     1,
-                    tf.sqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
+                    tf.rsqrt(tf.cast(k.shape[k.shape.length - 1], 'float32'))
                 )
             )
 

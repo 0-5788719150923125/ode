@@ -87,7 +87,7 @@ export default class AdamG extends tf.Optimizer {
                     .div(tf.scalar(1).sub(this.accBeta2).add(this.epsilon))
 
                 const update = newFirstMoment
-                    .div(newSecondMoment.sqrt().add(this.epsilon))
+                    .mul(newSecondMoment.rsqrt().add(this.epsilon))
                     .mul(tf.scalar(learningRateScaled))
 
                 variable.assign(variable.sub(update))

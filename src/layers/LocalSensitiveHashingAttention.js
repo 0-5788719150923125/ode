@@ -208,9 +208,9 @@ export default class LocalSensitiveHashingAttention extends LayerBase {
                 .mul(tf.scalar(-1))
                 .sum(-1)
 
-            const normalizedScores = tf.div(
+            const normalizedScores = tf.mul(
                 scores,
-                tf.sqrt(tf.scalar(this.numHashes))
+                tf.rsqrt(tf.scalar(this.numHashes))
             )
 
             const mask = tf.linalg

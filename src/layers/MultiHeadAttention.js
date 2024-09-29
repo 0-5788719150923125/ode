@@ -168,7 +168,7 @@ export default class MultiHeadAttention extends LayerBase {
                 false,
                 true
             )
-            scores = tf.div(scores, tf.sqrt(tf.scalar(this.headDim)))
+            scores = tf.mul(scores, tf.rsqrt(tf.scalar(this.headDim)))
 
             // Apply ALiBi if needed
             if (this.ALiBiLength) {

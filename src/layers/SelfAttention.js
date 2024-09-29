@@ -45,7 +45,7 @@ export default class SelfAttention extends LayerBase {
 
             const scores = tf
                 .matMul(Q, K, false, true)
-                .div(tf.scalar(this.hiddenDim).sqrt())
+                .mul(tf.scalar(this.hiddenDim).rsqrt())
                 .add(mask)
 
             const weights = scores.softmax()

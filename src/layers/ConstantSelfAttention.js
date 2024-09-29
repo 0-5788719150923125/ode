@@ -60,7 +60,7 @@ export default class ConstantSelfAttention extends LayerBase {
 
             const scores = tf.matMul(Qp, Kp, false, true).add(mask)
 
-            const weights = scores.div(tf.scalar(Math.sqrt(this.numFeatures)))
+            const weights = scores.mul(tf.rsqrt(tf.scalar(this.numFeatures)))
 
             const outputs = tf.matMul(weights, V)
 

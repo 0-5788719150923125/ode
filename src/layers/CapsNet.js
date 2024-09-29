@@ -192,7 +192,7 @@ class DigitCaps extends LayerBase {
     squash(s) {
         const squaredNorm = tf.sum(tf.square(s), -1, true)
         const squashFactor = tf.div(squaredNorm, tf.add(1, squaredNorm))
-        return tf.mul(squashFactor, tf.div(s, tf.sqrt(squaredNorm)))
+        return tf.mul(squashFactor, tf.mul(s, tf.rsqrt(squaredNorm)))
     }
 
     computeOutputShape(inputShape) {

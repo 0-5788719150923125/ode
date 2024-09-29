@@ -31,9 +31,9 @@ export default class IndependentComponentAnalysis extends LayerBase {
 
             // Normalize the input data
             const { mean, variance } = tf.moments(reshapedInput, 0)
-            const normalizedInput = tf.div(
+            const normalizedInput = tf.mul(
                 tf.sub(reshapedInput, mean),
-                tf.sqrt(variance)
+                tf.rsqrt(variance)
             )
 
             const ica = this.fastICA(normalizedInput)

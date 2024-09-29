@@ -72,7 +72,7 @@ export default class ChunkedSelfAttention extends LayerBase {
 
                 const scores = tf
                     .matMul(chunkQ, chunkK, false, true)
-                    .div(tf.scalar(this.projection).sqrt())
+                    .mul(tf.scalar(this.projection).rsqrt())
                     .add(mask)
 
                 const weights = scores.softmax()
