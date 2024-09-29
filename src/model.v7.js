@@ -9,9 +9,14 @@ export default class OptionalDecisionExecution extends ODE {
         super({
             learningRate: 1e-3,
             weightDecay: 0.01,
-            selfModel: true,
-            auxLossFunction: 'euclideanDistance',
-            auxiliaryWeight: 0.01,
+            selfModeling: {
+                filters: config.units / 4,
+                auxLossFunction: 'meanSquaredError',
+                auxiliaryWeight: 1.0,
+                kernelSize: 3,
+                strides: 1,
+                activation: 'selu'
+            },
             ...config
         })
     }
@@ -40,11 +45,14 @@ export default class OptionalDecisionExecution extends ODE {
 
         outputs = this.defineReductionLayer().apply(outputs)
 
-        // Self-modeling layer
-        const modeler = this.ode.layers.dense({
+        const modeler = this.ode.layers.SelfModeling({
             prefix: 'mod',
             units: this.config.units,
-            kernelInitializer: this.ode.initializers.glorotUniform()
+            filters: this.config.selfModeling.filters,
+            kernelSize: this.config.selfModeling.kernelSize,
+            strides: this.config.selfModeling.strides,
+            activation: this.config.selfModeling.activation,
+            useBias: true
         })
 
         const hiddenStates = []
@@ -105,10 +113,10 @@ export default class OptionalDecisionExecution extends ODE {
             const prediction = hiddenState
             const ls = this.ode.losses[auxLossFunction](
                 actual,
-                prediction,
-                -1,
-                null,
-                this.tf.Reduction.MEAN
+                prediction
+                // -1,
+                // null,
+                // this.tf.Reduction.MEAN
             )
             loss = loss.add(ls)
         })
