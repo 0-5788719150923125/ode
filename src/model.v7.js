@@ -4,15 +4,15 @@ import ODE from './model.v6.js'
  * A model used for active research and development.
  * @extends ODE
  */
-export default class OptionalDecisionExecution extends ODE {
+export default class OptionalDecisionEvaluator extends ODE {
     constructor(config) {
         super({
             learningRate: 1e-3,
             weightDecay: 0.01,
             selfModeling: {
-                filters: config.units / 4,
+                filters: 360,
                 auxLossFunction: 'meanSquaredError',
-                auxiliaryWeight: 1.0,
+                auxiliaryWeight: 10.0,
                 kernelSize: 3,
                 strides: 1,
                 activation: 'selu'
@@ -92,8 +92,8 @@ export default class OptionalDecisionExecution extends ODE {
     postProcessing(outputs) {
         const selfModelingLoss = this.modelSelf(
             outputs.slice(1),
-            this.config.auxLossFunction,
-            this.config.auxiliaryWeight
+            this.config.selfModeling.auxLossFunction,
+            this.config.selfModeling.auxiliaryWeight
         )
         return selfModelingLoss
     }
@@ -119,6 +119,8 @@ export default class OptionalDecisionExecution extends ODE {
             )
             loss = loss.add(ls)
         })
-        return this.tf.mul(loss, this.tf.scalar(auxiliaryWeight))
+        const scaledLoss = this.tf.mul(loss, this.tf.scalar(auxiliaryWeight))
+        // console.log(scaledLoss.dataSync())
+        return scaledLoss
     }
 }

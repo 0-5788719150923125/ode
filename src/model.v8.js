@@ -4,7 +4,7 @@ import ODE from './model.v4.js'
  * A model used for active research and development.
  * @extends ODE
  */
-export default class OmnilateralDynamicEvaluator extends ODE {
+export default class OmnilateralDynamicExecutor extends ODE {
     constructor(config) {
         super(config)
     }

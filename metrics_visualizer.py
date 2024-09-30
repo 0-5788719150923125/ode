@@ -177,7 +177,7 @@ def main():
     parser = argparse.ArgumentParser(description='Visualize metrics from JSON data.')
     parser.add_argument('--metric', nargs='+', action='append', default=[['validationLoss'], ['validationPerplexity']],
                         help='Metrics to visualize. Can be specified multiple times.')
-    parser.add_argument('--label', nargs='+', action='store', default=[['date']],
+    parser.add_argument('--label', nargs='+', action='store', default=[],
                         help='Additional metrics to include in the label. Can be specified multiple times.')
     args = parser.parse_args()
 
