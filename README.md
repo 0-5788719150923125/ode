@@ -15,6 +15,7 @@ This library implements:
 -   custom tokenizers, including TokenMonster and support for all Huggingface Tokenizers models
 -   dataset management via generator functions and iterable sampling strategies
 -   a number of text-decoding strategies, including greedy (argmax), temperature, top-k, top-p, and Mirostat sampling
+-   metrics logging and visualization
 -   object-oriented, extensible design - with functional architecture and operations composition
 -   tons more
 
@@ -79,10 +80,3 @@ npm run test:suite --suite=models
 ```sh
 python metrics_visualizer.py --label selfModel auxiliaryWeight
 ```
-
-# todo
-
--   [] in cross attention, queries are generated from one embedding, and keys/values from another (A "peer" is all you need)
--   [] explore model parallelism, sharding, peer-to-peer capabilities
--   [] reinforcement learning, to teach the models "when" to respond, and when to remain quiet
--   [] cross-modal models (i.e. a picture of text predicts a character)

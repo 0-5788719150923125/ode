@@ -8,7 +8,7 @@ import ODE from './src/index.js'
 const options = {
     action: 'train',
     backend: 'tensorflow',
-    version: 3,
+    version: 4,
     batchSize: 1,
     gradientAccumulationSteps: 1,
     trainSteps: Infinity,
