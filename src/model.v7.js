@@ -10,7 +10,7 @@ export default class OptionalDecisionEvaluator extends ODE {
             learningRate: 1e-3,
             weightDecay: 0.01,
             selfModeling: {
-                filters: 360,
+                filters: 1080,
                 auxLossFunction: 'meanSquaredError',
                 auxiliaryWeight: 10.0,
                 kernelSize: 3,
